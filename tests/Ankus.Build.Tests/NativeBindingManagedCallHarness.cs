@@ -15,6 +15,7 @@ internal static class NativeBindingManagedCallHarness
         using System.Runtime.InteropServices;
         using System.Text;
         using Ankus;
+        using Ankus.CompilerServices;
         using Ankus.Postgres;
 
         public static unsafe class NativeCallTestBridge

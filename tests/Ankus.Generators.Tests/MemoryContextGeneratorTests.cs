@@ -15,38 +15,38 @@ public sealed partial class PgFunctionGeneratorTests
     /// <param name="nativeParameters">The matching ordered native ABI parameter types.</param>
     [TestMethod]
     [DataRow("public static class Functions { [Ankus.PgFunction] public static string Name() => Ankus.PgMemoryContext.Current.Name; }",
-        "Ankus.NativeValue*,Ankus.NativeValue*,Ankus.NativeCallError*,nint,nint,nint",
+        "Ankus.CompilerServices.NativeValue*,Ankus.CompilerServices.NativeValue*,Ankus.CompilerServices.NativeCallError*,nint,nint,nint",
         "const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute, AnkusMemoryApi *, FunctionCallInfo")]
     [DataRow("public static class Functions { [Ankus.PgFunction] public static void Run() { Ankus.PgMemoryContext.Current.Run(() => { }); } }",
-        "Ankus.NativeValue*,Ankus.NativeValue*,Ankus.NativeCallError*,nint,nint,nint",
+        "Ankus.CompilerServices.NativeValue*,Ankus.CompilerServices.NativeValue*,Ankus.CompilerServices.NativeCallError*,nint,nint,nint",
         "const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute, AnkusMemoryApi *, FunctionCallInfo")]
     [DataRow("public static class Functions { [Ankus.PgOperator(\"@+\")][Ankus.PgCast] public static string Render(int value) => Ankus.PgMemoryContext.Current.Name; }",
-        "Ankus.NativeValue*,Ankus.NativeValue*,Ankus.NativeCallError*,nint,nint,nint",
+        "Ankus.CompilerServices.NativeValue*,Ankus.CompilerServices.NativeValue*,Ankus.CompilerServices.NativeCallError*,nint,nint,nint",
         "const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute, AnkusMemoryApi *, FunctionCallInfo")]
     [DataRow("public static class Functions { [Ankus.PgFunction] public static System.Collections.Generic.IEnumerable<string> Names() { yield return Ankus.PgMemoryContext.Current.Name; } }",
-        "int,nint*,Ankus.NativeValue*,Ankus.NativeValue*,Ankus.NativeCallError*,nint,nint,nint",
+        "int,nint*,Ankus.CompilerServices.NativeValue*,Ankus.CompilerServices.NativeValue*,Ankus.CompilerServices.NativeCallError*,nint,nint,nint",
         "int, void **, const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute, AnkusMemoryApi *, FunctionCallInfo")]
     [DataRow("public static class Functions { [Ankus.PgTrigger] public static Ankus.PgHeapTuple? Audit(Ankus.PgTriggerContext context) { Ankus.PgMemoryContext.Current.Run(() => { }); return context.New; } }",
-        "Ankus.NativeValue*,Ankus.NativeValue*,Ankus.NativeCallError*,nint,nint",
+        "Ankus.CompilerServices.NativeValue*,Ankus.CompilerServices.NativeValue*,Ankus.CompilerServices.NativeCallError*,nint,nint",
         "const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute, AnkusMemoryApi *")]
     [DataRow("public static class Functions { [Ankus.PgEventTrigger] public static void Audit(Ankus.PgEventTriggerContext context) { Ankus.PgMemoryContext.Current.Run(() => { }); } }",
-        "Ankus.NativeValue*,Ankus.NativeValue*,Ankus.NativeCallError*,nint,nint",
+        "Ankus.CompilerServices.NativeValue*,Ankus.CompilerServices.NativeValue*,Ankus.CompilerServices.NativeCallError*,nint,nint",
         "const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute, AnkusMemoryApi *")]
     [DataRow("[Ankus.PgAggregate(InitialCondition = \"0\")] public sealed class Total : Ankus.IPgAggregate<int,int> { " +
         "public static int Transition(Ankus.PgAggregateContext context,int state, int value) => Ankus.PgMemoryContext.Current.Run(() => state + value); }",
-        "Ankus.NativeValue*,Ankus.NativeValue*,Ankus.NativeCallError*,nint,Ankus.NativeValue*,int,nint,nint,nint",
+        "Ankus.CompilerServices.NativeValue*,Ankus.CompilerServices.NativeValue*,Ankus.CompilerServices.NativeCallError*,nint,Ankus.CompilerServices.NativeValue*,int,nint,nint,nint",
         "const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute, const AnkusValue *, int, void *, void *, AnkusMemoryApi *")]
     [DataRow("public static class Functions { [Ankus.PgInitialize] public static void Initialize() { Ankus.PgMemoryContext.Current.Run(() => { }); } }",
-        "Ankus.NativeCallError*,nint,nint,nint,nint",
+        "Ankus.CompilerServices.NativeCallError*,nint,nint,nint,nint",
         "AnkusError *, AnkusGucReadBinding, AnkusExecute, AnkusInitializationLog, AnkusMemoryApi *")]
     [DataRow("public static partial class Settings { [Ankus.PgGucInt(\"demo.value\", 1, \"Value\", Check = nameof(Check))] public static partial int Value { get; } public static Ankus.PgGucCheckResult<int> Check(int value, Ankus.PgGucSource source) => new(Ankus.PgMemoryContext.Current.Run(() => value)); }",
-        "int,Ankus.NativeValue*,Ankus.NativeValue*,int,Ankus.NativeCallError*,nint,nint,nint,nint",
+        "int,Ankus.CompilerServices.NativeValue*,Ankus.CompilerServices.NativeValue*,int,Ankus.CompilerServices.NativeCallError*,nint,nint,nint,nint",
         "int, AnkusValue *, AnkusValue *, int, AnkusError *, AnkusGucRead, AnkusExecute, AnkusGucLog, AnkusMemoryApi *")]
     [DataRow("public static partial class Settings { [Ankus.PgGucInt(\"demo.value\", 1, \"Value\", Assign = nameof(Assign))] public static partial int Value { get; } public static void Assign(int value, Ankus.PgGucExtra? extra) { Ankus.PgMemoryContext.Current.Run(() => { }); } }",
-        "int,Ankus.NativeValue*,Ankus.NativeValue*,int,Ankus.NativeCallError*,nint,nint,nint,nint",
+        "int,Ankus.CompilerServices.NativeValue*,Ankus.CompilerServices.NativeValue*,int,Ankus.CompilerServices.NativeCallError*,nint,nint,nint,nint",
         "int, AnkusValue *, AnkusValue *, int, AnkusError *, AnkusGucRead, AnkusExecute, AnkusGucLog, AnkusMemoryApi *")]
     [DataRow("public static partial class Settings { [Ankus.PgGucInt(\"demo.value\", 1, \"Value\", Show = nameof(Show))] public static partial int Value { get; } public static string Show(int value, Ankus.PgGucExtra? extra) => Ankus.PgMemoryContext.Current.Name; }",
-        "int,Ankus.NativeValue*,Ankus.NativeValue*,int,Ankus.NativeCallError*,nint,nint,nint,nint",
+        "int,Ankus.CompilerServices.NativeValue*,Ankus.CompilerServices.NativeValue*,int,Ankus.CompilerServices.NativeCallError*,nint,nint,nint,nint",
         "int, AnkusValue *, AnkusValue *, int, AnkusError *, AnkusGucRead, AnkusExecute, AnkusGucLog, AnkusMemoryApi *")]
     public void GeneratedCallbacksBindMemoryWithinExceptionBoundary(string source, string managedParameters, string nativeParameters)
     {
@@ -65,10 +65,10 @@ public sealed partial class PgFunctionGeneratorTests
         MethodDeclarationSyntax syntax = Assert.IsInstanceOfType<MethodDeclarationSyntax>(callback.DeclaringSyntaxReferences.Single().GetSyntax(context.CancellationToken));
         string[] exits = callback.Parameters[0].Name switch
         {
-            "phase" => ["global::Ankus.NativeLog.Exit(previousLog);", "global::Ankus.NativeGuc.Exit(previousRead);", "global::Ankus.NativeBackend.Exit(previousBackend);"],
-            "operation" => ["global::Ankus.NativeBackend.Exit(previous, operation == 3);"],
-            "error" => ["global::Ankus.NativeLog.Exit(previousLog);", "global::Ankus.NativeGuc.Exit(previousRead);", "global::Ankus.NativeBackend.Exit(previousBackend);"],
-            _ => ["global::Ankus.NativeBackend.Exit(previous);"],
+            "phase" => ["global::Ankus.CompilerServices.NativeLog.Exit(previousLog);", "global::Ankus.CompilerServices.NativeGuc.Exit(previousRead);", "global::Ankus.CompilerServices.NativeBackend.Exit(previousBackend);"],
+            "operation" => ["global::Ankus.CompilerServices.NativeBackend.Exit(previous, operation == 3);"],
+            "error" => ["global::Ankus.CompilerServices.NativeLog.Exit(previousLog);", "global::Ankus.CompilerServices.NativeGuc.Exit(previousRead);", "global::Ankus.CompilerServices.NativeBackend.Exit(previousBackend);"],
+            _ => ["global::Ankus.CompilerServices.NativeBackend.Exit(previous);"],
         };
         AssertMemoryCallbackScope(syntax, exits);
         string native = ManifestValue(compilation, "Ankus.NativeSource");
@@ -107,18 +107,18 @@ public sealed partial class PgFunctionGeneratorTests
         IMethodSymbol callback = Assert.ContainsSingle(compilation.GetTypeByMetadataName("Ankus.Generated.ExtensionDispatchers")!
             .GetMembers().OfType<IMethodSymbol>());
         MethodDeclarationSyntax syntax = Assert.IsInstanceOfType<MethodDeclarationSyntax>(callback.DeclaringSyntaxReferences.Single().GetSyntax(context.CancellationToken));
-        Assert.AreEqual("nint previous = global::Ankus.NativeBackend.Enter(execute, operation == 3);", syntax.Body!.Statements[0].ToString());
-        TryStatementSyntax guarded = AssertMemoryCallbackScope(syntax, "global::Ankus.NativeBackend.Exit(previous, operation == 3);");
+        Assert.AreEqual("nint previous = global::Ankus.CompilerServices.NativeBackend.Enter(execute, operation == 3);", syntax.Body!.Statements[0].ToString());
+        TryStatementSyntax guarded = AssertMemoryCallbackScope(syntax, "global::Ankus.CompilerServices.NativeBackend.Exit(previous, operation == 3);");
         IfStatementSyntax dispose = Assert.IsInstanceOfType<IfStatementSyntax>(guarded.Block.Statements[2]);
         Assert.AreEqual("operation is 2 or 3", dispose.Condition.ToString());
-        Assert.AreSequenceEqual(["global::Ankus.NativeSet.Dispose(ref *iterator);", "return 0;"],
+        Assert.AreSequenceEqual(["global::Ankus.CompilerServices.NativeSet.Dispose(ref *iterator);", "return 0;"],
             Assert.IsInstanceOfType<BlockSyntax>(dispose.Statement).Statements.Select(static statement => statement.ToString()));
         IfStatementSyntax create = Assert.IsInstanceOfType<IfStatementSyntax>(guarded.Block.Statements[3]);
         Assert.AreEqual("operation == 0", create.Condition.ToString());
-        Assert.AreSequenceEqual(["*iterator = global::Ankus.NativeSet.Create<int>(global::Functions.@Rows());", "return 0;"],
+        Assert.AreSequenceEqual(["*iterator = global::Ankus.CompilerServices.NativeSet.Create<int>(global::Functions.@Rows());", "return 0;"],
             Assert.IsInstanceOfType<BlockSyntax>(create.Statement).Statements.Select(static statement => statement.ToString()));
         IfStatementSyntax next = Assert.IsInstanceOfType<IfStatementSyntax>(guarded.Block.Statements[4]);
-        Assert.AreEqual("!global::Ankus.NativeSet.MoveNext<int>(*iterator, out int value)", next.Condition.ToString());
+        Assert.AreEqual("!global::Ankus.CompilerServices.NativeSet.MoveNext<int>(*iterator, out int value)", next.Condition.ToString());
         Assert.AreEqual("return 2;", Assert.ContainsSingle(Assert.IsInstanceOfType<BlockSyntax>(next.Statement).Statements).ToString());
     }
 
@@ -193,21 +193,21 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.AreSame(guarded, body.Statements.Last());
         Assert.AreSequenceEqual(["nint previousMemory = 0;", "bool memoryEntered = false;"],
             body.Statements.SkipLast(1).TakeLast(2).Select(static statement => statement.ToString()));
-        Assert.AreSequenceEqual(["previousMemory = global::Ankus.NativeMemoryContext.Enter(memory);", "memoryEntered = true;"],
+        Assert.AreSequenceEqual(["previousMemory = global::Ankus.CompilerServices.NativeMemoryContext.Enter(memory);", "memoryEntered = true;"],
             guarded.Block.Statements.Take(2).Select(static statement => statement.ToString()));
         Assert.HasCount(1, body.DescendantNodes().OfType<InvocationExpressionSyntax>().Where(static invocation =>
-            invocation.Expression.ToString() == "global::Ankus.NativeMemoryContext.Enter"));
+            invocation.Expression.ToString() == "global::Ankus.CompilerServices.NativeMemoryContext.Enter"));
         Assert.HasCount(1, body.DescendantNodes().OfType<InvocationExpressionSyntax>().Where(static invocation =>
-            invocation.Expression.ToString() == "global::Ankus.NativeMemoryContext.Exit"));
+            invocation.Expression.ToString() == "global::Ankus.CompilerServices.NativeMemoryContext.Exit"));
         CatchClauseSyntax failure = Assert.ContainsSingle(guarded.Catches);
         Assert.AreEqual("global::System.Exception", failure.Declaration!.Type.ToString());
-        Assert.AreSequenceEqual(["global::Ankus.NativeError.Write(exception, error);", "return 1;"],
+        Assert.AreSequenceEqual(["global::Ankus.CompilerServices.NativeError.Write(exception, error);", "return 1;"],
             failure.Block.Statements.Select(static statement => statement.ToString()));
         FinallyClauseSyntax cleanup = Assert.IsInstanceOfType<FinallyClauseSyntax>(guarded.Finally);
         IfStatementSyntax restore = Assert.IsInstanceOfType<IfStatementSyntax>(cleanup.Block.Statements[0]);
         Assert.AreEqual("memoryEntered", restore.Condition.ToString());
         Assert.IsNull(restore.Else);
-        Assert.AreEqual("global::Ankus.NativeMemoryContext.Exit(previousMemory);",
+        Assert.AreEqual("global::Ankus.CompilerServices.NativeMemoryContext.Exit(previousMemory);",
             Assert.ContainsSingle(Assert.IsInstanceOfType<BlockSyntax>(restore.Statement).Statements).ToString());
         Assert.AreSequenceEqual(remainingExits, cleanup.Block.Statements.Skip(1).Select(static statement => statement.ToString()));
         return guarded;

@@ -38,7 +38,7 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.AreEqual(original, emission);
         Assert.AreEqual(ManifestValue(first, "Ankus.NativeSource"), ManifestValue(second, "Ankus.NativeSource"));
         Assert.AreEqual(ManifestValue(first, "Ankus.Exports"), ManifestValue(second, "Ankus.Exports"));
-        Assert.Contains("global::Ankus.NativeGuc.", emission.Property);
+        Assert.Contains("global::Ankus.CompilerServices.NativeGuc.", emission.Property);
         AssertGucCompilation(second, []);
     }
 
@@ -303,7 +303,7 @@ public sealed partial class PgFunctionGeneratorTests
             "name" => "@Renamed =>",
             "namespace" => "namespace @Cache",
             "container" => "partial record class @Outer",
-            _ => "global::Ankus.NativeGuc.ReadString(\"demo.value\")",
+            _ => "global::Ankus.CompilerServices.NativeGuc.ReadString(\"demo.value\")",
         };
         Assert.Contains(expected, changed.Property);
         if (change is "namespace" or "container")

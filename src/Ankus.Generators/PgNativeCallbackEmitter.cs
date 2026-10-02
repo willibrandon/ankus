@@ -39,8 +39,8 @@ internal static class PgNativeCallbackEmitter
             {
                 get
                 {
-                    global::Ankus.NativeRawCallback.ValidateBinding<{{managedType}}>();
-                    nint address = {{accessor}}((nint)(delegate* unmanaged[Cdecl]<global::Ankus.NativeCallArgument*, nuint, nint, nuint, global::Ankus.NativeCallbackContext*, int>)&{{dispatcher}}.Invoke);
+                    global::Ankus.CompilerServices.NativeRawCallback.ValidateBinding<{{managedType}}>();
+                    nint address = {{accessor}}((nint)(delegate* unmanaged[Cdecl]<global::Ankus.CompilerServices.NativeCallArgument*, nuint, nint, nuint, global::Ankus.CompilerServices.NativeCallbackContext*, int>)&{{dispatcher}}.Invoke);
                     if (address == 0)
                     {
                         throw new global::System.InvalidOperationException("The native callback registration conflicts with an existing handler.");
@@ -57,25 +57,25 @@ internal static class PgNativeCallbackEmitter
             private static class {{dispatcher}}
             {
             [global::System.Runtime.InteropServices.UnmanagedCallersOnly(CallConvs = [typeof(global::System.Runtime.CompilerServices.CallConvCdecl)])]
-            internal static int Invoke(global::Ankus.NativeCallArgument* arguments, nuint count,
-                nint result, nuint resultSize, global::Ankus.NativeCallbackContext* context)
+            internal static int Invoke(global::Ankus.CompilerServices.NativeCallArgument* arguments, nuint count,
+                nint result, nuint resultSize, global::Ankus.CompilerServices.NativeCallbackContext* context)
             {
                 if (context is null || context->Error == 0)
                 {
                     return 1;
                 }
 
-                nint previousBackend = global::Ankus.NativeBackend.Enter(context->Execute);
-                nint previousRead = global::Ankus.NativeGuc.Enter(context->Read);
-                nint previousLog = global::Ankus.NativeLog.Enter(context->Log);
+                nint previousBackend = global::Ankus.CompilerServices.NativeBackend.Enter(context->Execute);
+                nint previousRead = global::Ankus.CompilerServices.NativeGuc.Enter(context->Read);
+                nint previousLog = global::Ankus.CompilerServices.NativeLog.Enter(context->Log);
                 nint previousMemory = 0;
                 bool memoryEntered = false;
                 try
                 {
-                    previousMemory = global::Ankus.NativeMemoryContext.Enter(context->Memory);
+                    previousMemory = global::Ankus.CompilerServices.NativeMemoryContext.Enter(context->Memory);
                     memoryEntered = true;
-                    global::Ankus.NativeRawCallback.ValidateBinding<{{managedType}}>();
-                    global::Ankus.NativeRawCallback.ValidateFrame(arguments, count, {{declaration.Arguments.Count.ToString(CultureInfo.InvariantCulture)}},
+                    global::Ankus.CompilerServices.NativeRawCallback.ValidateBinding<{{managedType}}>();
+                    global::Ankus.CompilerServices.NativeRawCallback.ValidateFrame(arguments, count, {{declaration.Arguments.Count.ToString(CultureInfo.InvariantCulture)}},
                         result, resultSize, {{declaration.Result?.Size ?? "-1"}});
             """);
         var arguments = new List<string>();
@@ -85,7 +85,7 @@ internal static class PgNativeCallbackEmitter
             string number = index.ToString(CultureInfo.InvariantCulture);
             string argument = "argument" + number;
             string reader = type.Native ? "ReadNative" : "Read";
-            source.AppendLine($"        {type.Name} {argument} = global::Ankus.NativeRawCallback.{reader}<{type.Name}>(arguments[{number}]);");
+            source.AppendLine($"        {type.Name} {argument} = global::Ankus.CompilerServices.NativeRawCallback.{reader}<{type.Name}>(arguments[{number}]);");
             arguments.Add(argument);
         }
 
@@ -99,7 +99,7 @@ internal static class PgNativeCallbackEmitter
             NativeCallbackModel.ValueContract resultType = declaration.Result;
             string writer = resultType.Native ? "WriteNative" : "Write";
             source.AppendLine($"        {resultType.Name} value = {invocation};");
-            source.AppendLine($"        global::Ankus.NativeRawCallback.{writer}(result, resultSize, value);");
+            source.AppendLine($"        global::Ankus.CompilerServices.NativeRawCallback.{writer}(result, resultSize, value);");
         }
 
         source.AppendLine("""
@@ -107,19 +107,19 @@ internal static class PgNativeCallbackEmitter
                 }
                 catch (global::System.Exception exception)
                 {
-                    global::Ankus.NativeError.Write(exception, (global::Ankus.NativeCallError*)context->Error);
+                    global::Ankus.CompilerServices.NativeError.Write(exception, (global::Ankus.CompilerServices.NativeCallError*)context->Error);
                     return 1;
                 }
                 finally
                 {
                     if (memoryEntered)
                     {
-                        global::Ankus.NativeMemoryContext.Exit(previousMemory);
+                        global::Ankus.CompilerServices.NativeMemoryContext.Exit(previousMemory);
                     }
 
-                    global::Ankus.NativeLog.Exit(previousLog);
-                    global::Ankus.NativeGuc.Exit(previousRead);
-                    global::Ankus.NativeBackend.Exit(previousBackend);
+                    global::Ankus.CompilerServices.NativeLog.Exit(previousLog);
+                    global::Ankus.CompilerServices.NativeGuc.Exit(previousRead);
+                    global::Ankus.CompilerServices.NativeBackend.Exit(previousBackend);
                 }
             }
             }

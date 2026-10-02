@@ -50,9 +50,9 @@ internal static partial class NativeBindingRecordCSharp
                 Line("    /// <returns>The original object address, without extending its lifetime or supplying an unknown array extent.</returns>");
                 Line("    /// <remarks>Requires an active backend callback. The caller must preserve native const/volatile qualifications, bounds, synchronization and ownership. Thread-local addresses belong to the active backend thread.</remarks>");
                 Line($"    public static unsafe nint @{address}()\n    {{");
-                Line($"        global::Ankus.NativeRawCall.ValidateBinding(\"__ANKUS_RECORD_IDENTITY__\"u8, {Number(graph.Target.PostgresVersion / 10000)});");
+                Line($"        global::Ankus.CompilerServices.NativeRawCall.ValidateBinding(\"__ANKUS_RECORD_IDENTITY__\"u8, {Number(graph.Target.PostgresVersion / 10000)});");
                 Line("        nint address = 0;");
-                Line($"        global::Ankus.NativeRawCall.Invoke(@{addressAccessor}(), [], (nint)(&address), (nuint)sizeof(nint));");
+                Line($"        global::Ankus.CompilerServices.NativeRawCall.Invoke(@{addressAccessor}(), [], (nint)(&address), (nuint)sizeof(nint));");
                 Line("        return address;\n    }\n");
                 GlobalImport(global.Name, NativeBindingGlobalOperation.Address, addressAccessor);
             }

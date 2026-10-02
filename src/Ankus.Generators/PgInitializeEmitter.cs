@@ -212,35 +212,35 @@ internal static class PgInitializeEmitter
                     [global::System.Runtime.InteropServices.UnmanagedCallersOnly(
                         EntryPoint = "{{callback}}",
                         CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
-                    private static int {{callback}}(global::Ankus.NativeCallError* error, nint read, nint execute, nint log, nint memory)
+                    private static int {{callback}}(global::Ankus.CompilerServices.NativeCallError* error, nint read, nint execute, nint log, nint memory)
                     {
-                        nint previousBackend = global::Ankus.NativeBackend.Enter(execute);
-                        nint previousRead = global::Ankus.NativeGuc.Enter(read);
-                        nint previousLog = global::Ankus.NativeLog.Enter(log);
+                        nint previousBackend = global::Ankus.CompilerServices.NativeBackend.Enter(execute);
+                        nint previousRead = global::Ankus.CompilerServices.NativeGuc.Enter(read);
+                        nint previousLog = global::Ankus.CompilerServices.NativeLog.Enter(log);
                         nint previousMemory = 0;
                         bool memoryEntered = false;
                         try
                         {
-                            previousMemory = global::Ankus.NativeMemoryContext.Enter(memory);
+                            previousMemory = global::Ankus.CompilerServices.NativeMemoryContext.Enter(memory);
                             memoryEntered = true;
                             {{target}}();
                             return 0;
                         }
                         catch (global::System.Exception exception)
                         {
-                            global::Ankus.NativeError.Write(exception, error);
+                            global::Ankus.CompilerServices.NativeError.Write(exception, error);
                             return 1;
                         }
                         finally
                         {
                             if (memoryEntered)
                             {
-                                global::Ankus.NativeMemoryContext.Exit(previousMemory);
+                                global::Ankus.CompilerServices.NativeMemoryContext.Exit(previousMemory);
                             }
 
-                            global::Ankus.NativeLog.Exit(previousLog);
-                            global::Ankus.NativeGuc.Exit(previousRead);
-                            global::Ankus.NativeBackend.Exit(previousBackend);
+                            global::Ankus.CompilerServices.NativeLog.Exit(previousLog);
+                            global::Ankus.CompilerServices.NativeGuc.Exit(previousRead);
+                            global::Ankus.CompilerServices.NativeBackend.Exit(previousBackend);
                         }
                     }
 

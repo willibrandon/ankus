@@ -26,24 +26,24 @@ internal static class PgAggregateEmitter
         managed.AppendLine($"        EntryPoint = \"{callback}\",");
         managed.AppendLine("        CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]");
         managed.AppendLine($"    private static int {callback}(");
-        managed.AppendLine("        global::Ankus.NativeValue* arguments, global::Ankus.NativeValue* result,");
-        managed.AppendLine("        global::Ankus.NativeCallError* error, nint execute, global::Ankus.NativeValue* metadata,");
+        managed.AppendLine("        global::Ankus.CompilerServices.NativeValue* arguments, global::Ankus.CompilerServices.NativeValue* result,");
+        managed.AppendLine("        global::Ankus.CompilerServices.NativeCallError* error, nint execute, global::Ankus.CompilerServices.NativeValue* metadata,");
         managed.AppendLine("        int metadataCount, nint owner, nint api, nint memory)");
         managed.AppendLine("    {");
-        managed.AppendLine("        nint previous = global::Ankus.NativeBackend.Enter(execute);");
+        managed.AppendLine("        nint previous = global::Ankus.CompilerServices.NativeBackend.Enter(execute);");
         managed.AppendLine("        nint previousMemory = 0;");
         managed.AppendLine("        bool memoryEntered = false;");
         managed.AppendLine("        try");
         managed.AppendLine("        {");
-        managed.AppendLine("            previousMemory = global::Ankus.NativeMemoryContext.Enter(memory);");
+        managed.AppendLine("            previousMemory = global::Ankus.CompilerServices.NativeMemoryContext.Enter(memory);");
         managed.AppendLine("            memoryEntered = true;");
-        managed.AppendLine("            global::Ankus.PgAggregateContext context = global::Ankus.NativeAggregate.Enter(");
-        managed.AppendLine("                new global::System.ReadOnlySpan<global::Ankus.NativeValue>(metadata, metadataCount), owner, api);");
+        managed.AppendLine("            global::Ankus.PgAggregateContext context = global::Ankus.CompilerServices.NativeAggregate.Enter(");
+        managed.AppendLine("                new global::System.ReadOnlySpan<global::Ankus.CompilerServices.NativeValue>(metadata, metadataCount), owner, api);");
         managed.AppendLine("            try");
         managed.AppendLine("            {");
         if (helper.Result.Datum?.HasRelations == true || helper.Types.Any(static type => type.Datum?.HasRelations == true))
         {
-            managed.AppendLine("                using var relationScope = new global::Ankus.NativeRelationScope();");
+            managed.AppendLine("                using var relationScope = new global::Ankus.CompilerServices.NativeRelationScope();");
         }
 
         var arguments = new List<string>();
@@ -62,11 +62,11 @@ internal static class PgAggregateEmitter
         managed.AppendLine("                " + helper.Result.Managed + " value = " + invocation + ";");
         if (helper.Result.IsManagedState)
         {
-            managed.AppendLine("                *result = global::Ankus.NativeAggregate.Write(value);");
+            managed.AppendLine("                *result = global::Ankus.CompilerServices.NativeAggregate.Write(value);");
         }
         else if (helper.Result.Datum?.IsInternal == true)
         {
-            managed.AppendLine("                *result = global::Ankus.NativeAggregate.WriteInternal(value);");
+            managed.AppendLine("                *result = global::Ankus.CompilerServices.NativeAggregate.WriteInternal(value);");
         }
         else
         {
@@ -89,21 +89,21 @@ internal static class PgAggregateEmitter
         managed.AppendLine("            }");
         managed.AppendLine("            finally");
         managed.AppendLine("            {");
-        managed.AppendLine("                global::Ankus.NativeAggregate.Exit(context);");
+        managed.AppendLine("                global::Ankus.CompilerServices.NativeAggregate.Exit(context);");
         managed.AppendLine("            }");
         managed.AppendLine("        }");
         managed.AppendLine("        catch (global::System.Exception exception)");
         managed.AppendLine("        {");
-        managed.AppendLine("            global::Ankus.NativeError.Write(exception, error);");
+        managed.AppendLine("            global::Ankus.CompilerServices.NativeError.Write(exception, error);");
         managed.AppendLine("            return 1;");
         managed.AppendLine("        }");
         managed.AppendLine("        finally");
         managed.AppendLine("        {");
         managed.AppendLine("            if (memoryEntered)");
         managed.AppendLine("            {");
-        managed.AppendLine("                global::Ankus.NativeMemoryContext.Exit(previousMemory);");
+        managed.AppendLine("                global::Ankus.CompilerServices.NativeMemoryContext.Exit(previousMemory);");
         managed.AppendLine("            }");
-        managed.AppendLine("            global::Ankus.NativeBackend.Exit(previous);");
+        managed.AppendLine("            global::Ankus.CompilerServices.NativeBackend.Exit(previous);");
         managed.AppendLine("        }");
         managed.AppendLine("    }");
         managed.AppendLine();

@@ -10,7 +10,7 @@ namespace Ankus.Generators.Tests;
 public sealed partial class PgFunctionGeneratorTests
 {
     private const string CallbackTypeSource = """
-        [Ankus.NativeFunctionPointer(7)]
+        [Ankus.CompilerServices.NativeFunctionPointer(7)]
         public readonly record struct Hook(nint Address) : Ankus.IPgNativeType
         {
             static int Ankus.IPgNativeType.PostgresMajor => 18;
@@ -136,27 +136,27 @@ public sealed partial class PgFunctionGeneratorTests
             _ => "new Hook(0x73117)",
         };
         string size = result is "void" or "Empty" ? "0" : $"sizeof({result})";
-        string frame = argument.Length == 0 ? "Ankus.NativeCallArgument* arguments = null;" :
-            $"{result} input = {argument}; Ankus.NativeCallArgument value = new((nint)(&input), (nuint){size}); Ankus.NativeCallArgument* arguments = &value;";
+        string frame = argument.Length == 0 ? "Ankus.CompilerServices.NativeCallArgument* arguments = null;" :
+            $"{result} input = {argument}; Ankus.CompilerServices.NativeCallArgument value = new((nint)(&input), (nuint){size}); Ankus.CompilerServices.NativeCallArgument* arguments = &value;";
         compilation = ImplementCallbackAccessors(compilation).AddSyntaxTrees(CSharpSyntaxTree.ParseText($$"""
             public static unsafe class ValueProbe
             {
                 [System.Runtime.InteropServices.UnmanagedCallersOnly(CallConvs = [typeof(System.Runtime.CompilerServices.CallConvCdecl)])]
-                private static int Resolve(nint api, void* request, nint* result, Ankus.NativeCallError* error) => 0;
+                private static int Resolve(nint api, void* request, nint* result, Ankus.CompilerServices.NativeCallError* error) => 0;
 
                 public static object[] Run()
                 {
-                    nint* api = stackalloc nint[] { 999, 77, (nint)(delegate* unmanaged[Cdecl]<nint, void*, nint*, Ankus.NativeCallError*, int>)&Resolve, 0 };
-                    nint previous = Ankus.NativeMemoryContext.Enter((nint)api);
+                    nint* api = stackalloc nint[] { 999, 77, (nint)(delegate* unmanaged[Cdecl]<nint, void*, nint*, Ankus.CompilerServices.NativeCallError*, int>)&Resolve, 0 };
+                    nint previous = Ankus.CompilerServices.NativeMemoryContext.Enter((nint)api);
                     try
                     {
                         nint address = Functions.Callback.Address;
                         {{frame}}
                         byte* storage = stackalloc byte[64];
                         new System.Span<byte>(storage, 64).Fill(0xCC);
-                        Ankus.NativeCallError error = default;
-                        Ankus.NativeCallbackContext native = new((nint)(&error), 0, (nint)api, 0, 0);
-                        var invoke = (delegate* unmanaged[Cdecl]<Ankus.NativeCallArgument*, nuint, nint, nuint, Ankus.NativeCallbackContext*, int>)address;
+                        Ankus.CompilerServices.NativeCallError error = default;
+                        Ankus.CompilerServices.NativeCallbackContext native = new((nint)(&error), 0, (nint)api, 0, 0);
+                        var invoke = (delegate* unmanaged[Cdecl]<Ankus.CompilerServices.NativeCallArgument*, nuint, nint, nuint, Ankus.CompilerServices.NativeCallbackContext*, int>)address;
                         int status = invoke(arguments, {{(argument.Length == 0 ? "0" : "1")}},
                             {{(result == "void" ? "0" : "(nint)(storage + 1)")}}, (nuint){{size}}, &native);
                         return [status, Functions.Effects, new System.ReadOnlySpan<byte>(storage + 1, {{size}}).ToArray(),
@@ -164,7 +164,7 @@ public sealed partial class PgFunctionGeneratorTests
                     }
                     finally
                     {
-                        Ankus.NativeMemoryContext.Exit(previous);
+                        Ankus.CompilerServices.NativeMemoryContext.Exit(previous);
                     }
                 }
             }
@@ -291,9 +291,9 @@ public sealed partial class PgFunctionGeneratorTests
     /// <param name="original">The valid native pointer contract fragment.</param>
     /// <param name="replacement">A missing, malformed or ambiguous contract fragment.</param>
     [TestMethod]
-    [DataRow("[Ankus.NativeFunctionPointer(7)]", "")]
-    [DataRow("[Ankus.NativeFunctionPointer(7)]", "[Ankus.NativeFunctionPointer(-1)]")]
-    [DataRow("[Ankus.NativeFunctionPointer(7)]", "[Ankus.NativeFunctionPointer(7), Ankus.NativeFunctionPointer(8)]")]
+    [DataRow("[Ankus.CompilerServices.NativeFunctionPointer(7)]", "")]
+    [DataRow("[Ankus.CompilerServices.NativeFunctionPointer(7)]", "[Ankus.CompilerServices.NativeFunctionPointer(-1)]")]
+    [DataRow("[Ankus.CompilerServices.NativeFunctionPointer(7)]", "[Ankus.CompilerServices.NativeFunctionPointer(7), Ankus.CompilerServices.NativeFunctionPointer(8)]")]
     [DataRow("Hook(nint Address)", "Hook(long Address)")]
     [DataRow("Hook(nint Address)", "Hook(string Address)")]
     [DataRow("public long Invoke(int first, long second)", "private long Invoke(int first, long second)")]
@@ -411,13 +411,13 @@ public sealed partial class PgFunctionGeneratorTests
             public static unsafe class CallbackProbe
             {
                 private static nint s_provider;
-                public static object CaptureLease() => typeof(Ankus.NativeMemoryContext)
+                public static object CaptureLease() => typeof(Ankus.CompilerServices.NativeMemoryContext)
                     .GetProperty("BorrowScope", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)!.GetValue(null)!;
                 private static void ValidateLease(object lease) => lease.GetType()
                     .GetMethod("Validate", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.Invoke(lease, null);
 
                 [System.Runtime.InteropServices.UnmanagedCallersOnly(CallConvs = [typeof(System.Runtime.CompilerServices.CallConvCdecl)])]
-                private static int Resolve(nint api, void* request, nint* result, Ankus.NativeCallError* error)
+                private static int Resolve(nint api, void* request, nint* result, Ankus.CompilerServices.NativeCallError* error)
                 {
                     s_provider = ((nint*)api)[0];
                     result[0] = 77;
@@ -426,23 +426,23 @@ public sealed partial class PgFunctionGeneratorTests
 
                 public static object[] Run(int scenario)
                 {
-                    nint* outer = stackalloc nint[] { 888, 77, (nint)(delegate* unmanaged[Cdecl]<nint, void*, nint*, Ankus.NativeCallError*, int>)&Resolve, 0 };
-                    nint* inner = stackalloc nint[] { 999, 77, (nint)(delegate* unmanaged[Cdecl]<nint, void*, nint*, Ankus.NativeCallError*, int>)&Resolve, 0 };
-                    nint previous = Ankus.NativeMemoryContext.Enter((nint)outer);
+                    nint* outer = stackalloc nint[] { 888, 77, (nint)(delegate* unmanaged[Cdecl]<nint, void*, nint*, Ankus.CompilerServices.NativeCallError*, int>)&Resolve, 0 };
+                    nint* inner = stackalloc nint[] { 999, 77, (nint)(delegate* unmanaged[Cdecl]<nint, void*, nint*, Ankus.CompilerServices.NativeCallError*, int>)&Resolve, 0 };
+                    nint previous = Ankus.CompilerServices.NativeMemoryContext.Enter((nint)outer);
                     try
                     {
                         object outerLease = CaptureLease();
                         nint address = Functions.Callback.Address;
                         int first = scenario == 4 ? -13 : 13;
                         long second = long.MinValue + 0x123456789;
-                        Ankus.NativeCallArgument* arguments = stackalloc Ankus.NativeCallArgument[]
+                        Ankus.CompilerServices.NativeCallArgument* arguments = stackalloc Ankus.CompilerServices.NativeCallArgument[]
                         {
                             new((nint)(&first), sizeof(int)), new((nint)(&second), scenario == 2 ? 7U : sizeof(long)),
                         };
                         long result = 17;
-                        Ankus.NativeCallError error = default;
-                        Ankus.NativeCallbackContext native = new((nint)(&error), 0, (nint)inner, 0, 0);
-                        var invoke = (delegate* unmanaged[Cdecl]<Ankus.NativeCallArgument*, nuint, nint, nuint, Ankus.NativeCallbackContext*, int>)address;
+                        Ankus.CompilerServices.NativeCallError error = default;
+                        Ankus.CompilerServices.NativeCallbackContext native = new((nint)(&error), 0, (nint)inner, 0, 0);
+                        var invoke = (delegate* unmanaged[Cdecl]<Ankus.CompilerServices.NativeCallArgument*, nuint, nint, nuint, Ankus.CompilerServices.NativeCallbackContext*, int>)address;
                         int status = invoke(arguments, scenario == 1 ? 1U : 2U, (nint)(&result), scenario == 3 ? 9U : sizeof(long), &native);
                         nint provider = s_provider;
                         _ = Ankus.PgMemoryContext.Current;
@@ -462,7 +462,7 @@ public sealed partial class PgFunctionGeneratorTests
                     }
                     finally
                     {
-                        Ankus.NativeMemoryContext.Exit(previous);
+                        Ankus.CompilerServices.NativeMemoryContext.Exit(previous);
                     }
                 }
             }
@@ -554,20 +554,20 @@ public sealed partial class PgFunctionGeneratorTests
             public static unsafe class InitializationProbe
             {
                 [System.Runtime.InteropServices.UnmanagedCallersOnly(CallConvs = [typeof(System.Runtime.CompilerServices.CallConvCdecl)])]
-                private static int Resolve(nint api, void* request, nint* result, Ankus.NativeCallError* error) => 0;
+                private static int Resolve(nint api, void* request, nint* result, Ankus.CompilerServices.NativeCallError* error) => 0;
                 public static object[] Run(nint address)
                 {
-                    nint* api = stackalloc nint[] { 999, 77, (nint)(delegate* unmanaged[Cdecl]<nint, void*, nint*, Ankus.NativeCallError*, int>)&Resolve, 0 };
-                    Ankus.NativeCallError error = default;
-                    Ankus.NativeCallbackContext native = new((nint)(&error), 0, (nint)api, 0, 0);
+                    nint* api = stackalloc nint[] { 999, 77, (nint)(delegate* unmanaged[Cdecl]<nint, void*, nint*, Ankus.CompilerServices.NativeCallError*, int>)&Resolve, 0 };
+                    Ankus.CompilerServices.NativeCallError error = default;
+                    Ankus.CompilerServices.NativeCallbackContext native = new((nint)(&error), 0, (nint)api, 0, 0);
                     int first = 13;
                     long second = 29;
                     long result = 71;
-                    Ankus.NativeCallArgument* arguments = stackalloc Ankus.NativeCallArgument[]
+                    Ankus.CompilerServices.NativeCallArgument* arguments = stackalloc Ankus.CompilerServices.NativeCallArgument[]
                     {
                         new((nint)(&first), sizeof(int)), new((nint)(&second), sizeof(long)),
                     };
-                    var invoke = (delegate* unmanaged[Cdecl]<Ankus.NativeCallArgument*, nuint, nint, nuint, Ankus.NativeCallbackContext*, int>)address;
+                    var invoke = (delegate* unmanaged[Cdecl]<Ankus.CompilerServices.NativeCallArgument*, nuint, nint, nuint, Ankus.CompilerServices.NativeCallbackContext*, int>)address;
                     int status = invoke(arguments, 2, (nint)(&result), sizeof(long), &native);
                     return [status, result, error];
                 }

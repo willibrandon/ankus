@@ -474,8 +474,8 @@ public sealed partial class PgFunctionGeneratorTests
             .GetMembers().OfType<IMethodSymbol>());
         string invocation = callback.Parameters[0].Type.SpecialType == SpecialType.System_Int32
             ? """
-                delegate* unmanaged[Cdecl]<int, nint*, Ankus.NativeValue*, Ankus.NativeValue*, Ankus.NativeCallError*, nint, nint, nint, int> invoke =
-                    (delegate* unmanaged[Cdecl]<int, nint*, Ankus.NativeValue*, Ankus.NativeValue*, Ankus.NativeCallError*, nint, nint, nint, int>)address;
+                delegate* unmanaged[Cdecl]<int, nint*, Ankus.CompilerServices.NativeValue*, Ankus.CompilerServices.NativeValue*, Ankus.CompilerServices.NativeCallError*, nint, nint, nint, int> invoke =
+                    (delegate* unmanaged[Cdecl]<int, nint*, Ankus.CompilerServices.NativeValue*, Ankus.CompilerServices.NativeValue*, Ankus.CompilerServices.NativeCallError*, nint, nint, nint, int>)address;
                 nint iterator = 0;
                 int status = invoke(0, &iterator, arguments, &result, &error, 0, (nint)inner, 0);
                 try
@@ -483,7 +483,7 @@ public sealed partial class PgFunctionGeneratorTests
                     if (status == 0)
                     {
                         status = invoke(1, &iterator, arguments, &result, &error, 0, (nint)inner, 0);
-                        Ankus.NativeValue first = result;
+                        Ankus.CompilerServices.NativeValue first = result;
                         int completion = invoke(1, &iterator, arguments, &result, &error, 0, (nint)inner, 0);
                         if (completion != 2)
                         {
@@ -506,8 +506,8 @@ public sealed partial class PgFunctionGeneratorTests
                 }
                 """
             : """
-                delegate* unmanaged[Cdecl]<Ankus.NativeValue*, Ankus.NativeValue*, Ankus.NativeCallError*, nint, nint, nint, int> invoke =
-                    (delegate* unmanaged[Cdecl]<Ankus.NativeValue*, Ankus.NativeValue*, Ankus.NativeCallError*, nint, nint, nint, int>)address;
+                delegate* unmanaged[Cdecl]<Ankus.CompilerServices.NativeValue*, Ankus.CompilerServices.NativeValue*, Ankus.CompilerServices.NativeCallError*, nint, nint, nint, int> invoke =
+                    (delegate* unmanaged[Cdecl]<Ankus.CompilerServices.NativeValue*, Ankus.CompilerServices.NativeValue*, Ankus.CompilerServices.NativeCallError*, nint, nint, nint, int>)address;
                 int status = invoke(arguments, &result, &error, 0, (nint)inner, 0);
                 """;
         compilation = compilation.AddSyntaxTrees(CSharpSyntaxTree.ParseText($$"""
@@ -517,7 +517,7 @@ public sealed partial class PgFunctionGeneratorTests
 
                 [System.Runtime.InteropServices.UnmanagedCallersOnly(
                     CallConvs = new[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
-                private static int Resolve(nint api, void* request, nint* result, Ankus.NativeCallError* error)
+                private static int Resolve(nint api, void* request, nint* result, Ankus.CompilerServices.NativeCallError* error)
                 {
                     s_lastProvider = ((nint*)api)[0];
                     result[0] = 77;
@@ -526,17 +526,17 @@ public sealed partial class PgFunctionGeneratorTests
 
                 public static long[] Run(nint address)
                 {
-                    delegate* unmanaged[Cdecl]<nint, void*, nint*, Ankus.NativeCallError*, int> resolve = &Resolve;
+                    delegate* unmanaged[Cdecl]<nint, void*, nint*, Ankus.CompilerServices.NativeCallError*, int> resolve = &Resolve;
                     nint* outer = stackalloc nint[] { 888, 77, (nint)resolve };
                     nint* inner = stackalloc nint[] { 999, 77, (nint)resolve };
-                    Ankus.NativeValue* arguments = stackalloc Ankus.NativeValue[]
+                    Ankus.CompilerServices.NativeValue* arguments = stackalloc Ankus.CompilerServices.NativeValue[]
                     {
                         new() { Integral = 17 },
                         new() { Integral = 29, IsNull = {{(nullSecond ? "1" : "0")}} },
                     };
-                    Ankus.NativeValue result = default;
-                    Ankus.NativeCallError error = default;
-                    nint previous = Ankus.NativeMemoryContext.Enter((nint)outer);
+                    Ankus.CompilerServices.NativeValue result = default;
+                    Ankus.CompilerServices.NativeCallError error = default;
+                    nint previous = Ankus.CompilerServices.NativeMemoryContext.Enter((nint)outer);
                     try
                     {
                         {{invocation}}
@@ -546,7 +546,7 @@ public sealed partial class PgFunctionGeneratorTests
                     }
                     finally
                     {
-                        Ankus.NativeMemoryContext.Exit(previous);
+                        Ankus.CompilerServices.NativeMemoryContext.Exit(previous);
                     }
                 }
             }

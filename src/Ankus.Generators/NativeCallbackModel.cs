@@ -74,6 +74,6 @@ internal sealed record NativeCallbackModel(string Namespace, EquatableArray<stri
         /// <summary>
         /// Gets the checked native size expression or exact managed primitive storage size.
         /// </summary>
-        internal string Size => Native ? $"global::Ankus.NativeRawCallback.NativeSize<{Name}>()" : $"sizeof({Name})";
+        internal string Size => Native ? $"global::Ankus.CompilerServices.NativeRawCallback.NativeSize<{Name}>()" : $"sizeof({Name})";
     }
 }

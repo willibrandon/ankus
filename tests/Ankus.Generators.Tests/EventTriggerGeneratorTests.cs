@@ -57,23 +57,23 @@ public sealed partial class PgFunctionGeneratorTests
             .DeclaringSyntaxReferences.Single().GetSyntax(context.CancellationToken));
         BlockSyntax body = Assert.IsInstanceOfType<BlockSyntax>(callback.Body);
         Assert.HasCount(4, body.Statements);
-        Assert.AreEqual("nint previous = global::Ankus.NativeBackend.Enter(execute);", body.Statements[0].ToString());
-        TryStatementSyntax guarded = AssertMemoryCallbackScope(callback, "global::Ankus.NativeBackend.Exit(previous);");
+        Assert.AreEqual("nint previous = global::Ankus.CompilerServices.NativeBackend.Enter(execute);", body.Statements[0].ToString());
+        TryStatementSyntax guarded = AssertMemoryCallbackScope(callback, "global::Ankus.CompilerServices.NativeBackend.Exit(previous);");
         Assert.HasCount(4, guarded.Block.Statements);
         LocalDeclarationStatementSyntax entry = Assert.IsInstanceOfType<LocalDeclarationStatementSyntax>(guarded.Block.Statements[2]);
         Assert.AreEqual("global::Ankus.PgEventTriggerContext", entry.Declaration.Type.ToString());
         VariableDeclaratorSyntax variable = Assert.ContainsSingle(entry.Declaration.Variables);
         Assert.AreEqual("context", variable.Identifier.ValueText);
         InvocationExpressionSyntax enter = Assert.IsInstanceOfType<InvocationExpressionSyntax>(variable.Initializer!.Value);
-        Assert.AreEqual("global::Ankus.NativeEventTrigger.Enter", enter.Expression.ToString());
-        Assert.AreEqual("new global::System.ReadOnlySpan<global::Ankus.NativeValue>(arguments, 2)", Assert.ContainsSingle(enter.ArgumentList.Arguments).ToString());
+        Assert.AreEqual("global::Ankus.CompilerServices.NativeEventTrigger.Enter", enter.Expression.ToString());
+        Assert.AreEqual("new global::System.ReadOnlySpan<global::Ankus.CompilerServices.NativeValue>(arguments, 2)", Assert.ContainsSingle(enter.ArgumentList.Arguments).ToString());
         TryStatementSyntax active = Assert.IsInstanceOfType<TryStatementSyntax>(guarded.Block.Statements[3]);
         Assert.IsEmpty(active.Catches);
         Assert.AreSequenceEqual(["global::Functions.@event(context);", "return 0;"], active.Block.Statements.Select(static statement => statement.ToString()));
-        Assert.AreEqual("global::Ankus.NativeEventTrigger.Exit(context);", Assert.ContainsSingle(active.Finally!.Block.Statements).ToString());
+        Assert.AreEqual("global::Ankus.CompilerServices.NativeEventTrigger.Exit(context);", Assert.ContainsSingle(active.Finally!.Block.Statements).ToString());
         CatchClauseSyntax error = Assert.ContainsSingle(guarded.Catches);
         Assert.AreEqual("global::System.Exception", error.Declaration!.Type.ToString());
-        Assert.AreSequenceEqual(["global::Ankus.NativeError.Write(exception, error);", "return 1;"], error.Block.Statements.Select(static statement => statement.ToString()));
+        Assert.AreSequenceEqual(["global::Ankus.CompilerServices.NativeError.Write(exception, error);", "return 1;"], error.Block.Statements.Select(static statement => statement.ToString()));
     }
 
     /// <summary>

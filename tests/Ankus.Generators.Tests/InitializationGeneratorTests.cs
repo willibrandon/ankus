@@ -28,7 +28,7 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.AreEqual("true", ManifestValue(compilation, "Ankus.Relocatable"));
         IMethodSymbol callback = InitializationCallback(compilation);
         Assert.AreEqual(SpecialType.System_Int32, callback.ReturnType.SpecialType);
-        Assert.AreSequenceEqual(["Ankus.NativeCallError*", "nint", "nint", "nint", "nint"],
+        Assert.AreSequenceEqual(["Ankus.CompilerServices.NativeCallError*", "nint", "nint", "nint", "nint"],
             callback.Parameters.Select(static parameter => parameter.Type.ToDisplayString()));
         AttributeData entry = Assert.ContainsSingle(callback.GetAttributes());
         Assert.AreEqual("System.Runtime.InteropServices.UnmanagedCallersOnlyAttribute", entry.AttributeClass!.ToDisplayString());
@@ -57,16 +57,16 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.HasCount(6, body.Statements);
         Assert.AreSequenceEqual(
         [
-            "nint previousBackend = global::Ankus.NativeBackend.Enter(execute);",
-            "nint previousRead = global::Ankus.NativeGuc.Enter(read);",
-            "nint previousLog = global::Ankus.NativeLog.Enter(log);",
+            "nint previousBackend = global::Ankus.CompilerServices.NativeBackend.Enter(execute);",
+            "nint previousRead = global::Ankus.CompilerServices.NativeGuc.Enter(read);",
+            "nint previousLog = global::Ankus.CompilerServices.NativeLog.Enter(log);",
         ], body.Statements.Take(3).Select(static statement => statement.ToString()));
-        TryStatementSyntax guarded = AssertMemoryCallbackScope(callback, "global::Ankus.NativeLog.Exit(previousLog);",
-            "global::Ankus.NativeGuc.Exit(previousRead);", "global::Ankus.NativeBackend.Exit(previousBackend);");
+        TryStatementSyntax guarded = AssertMemoryCallbackScope(callback, "global::Ankus.CompilerServices.NativeLog.Exit(previousLog);",
+            "global::Ankus.CompilerServices.NativeGuc.Exit(previousRead);", "global::Ankus.CompilerServices.NativeBackend.Exit(previousBackend);");
         Assert.AreSequenceEqual(["global::Functions.@event();", "return 0;"], guarded.Block.Statements.Skip(2).Select(static statement => statement.ToString()));
         CatchClauseSyntax failure = Assert.ContainsSingle(guarded.Catches);
         Assert.AreEqual("global::System.Exception", failure.Declaration!.Type.ToString());
-        Assert.AreSequenceEqual(["global::Ankus.NativeError.Write(exception, error);", "return 1;"],
+        Assert.AreSequenceEqual(["global::Ankus.CompilerServices.NativeError.Write(exception, error);", "return 1;"],
             failure.Block.Statements.Select(static statement => statement.ToString()));
     }
 

@@ -1,6 +1,120 @@
 # Historical port evidence
 
+## Compiler transport contracts in their own namespace
+
+The runtime's **53** compiler-helper types span **81** declarations in **69**
+files. Sixteen are public because generated consumer code must access them;
+each already has `EditorBrowsable(Never)`. The correction places the complete
+helper family in `Ankus.CompilerServices` and updates generated references,
+native callback attribute matching and fixture imports. Author APIs remain in
+`Ankus`, and PostgreSQL bindings remain in `Ankus.Postgres`. Native module and
+import names, layouts, fields and method bodies do not change.
+
+The new metadata regression fails against the unchanged runtime: expected
+`Ankus.CompilerServices`, actual `Ankus`. It executes one case in **1.004s**;
+this is an observed assertion failure, not a build failure. After the migration,
+the complete Linux x64 runtime module passes **2,070/2,070**, zero skips,
+**4.108s**. The generator module passes **3,096/3,096**, zero skips,
+**2m33.570s**. The build-tool module passes **1,203 total; 1,194 passed;
+zero failures; nine platform skips; 1m19.885s**. Its native compilation and
+generated-consumer assertions remain intact. All **110** changed-source
+identities verify after those completed runs.
+
+The original syntax audit counted 211 generated/fixture reference sites but
+omitted seven raw-string sites; the actual rewrite covers 218. Unrelated
+user-declared types sharing a helper's short name remain unchanged. One private
+source-verification invocation used the wrong manifest location and did not
+perform validation; the corrected invocation verifies all 110 files. Tests
+share resources with independent validation, so timings are acceptance
+observations. Complete published PostgreSQL consumers, Release/API/site checks
+and platform validation remain required before accepting this milestone.
+
+The first complete PostgreSQL **18.6/Linux x64** run encounters an intermittent
+Native AOT compiler failure while publishing
+`DisabledOnlySqlPackageRetainsCallableNativeExports`: `GraphBuilder.WalkMethod`
+throws `IndexOutOfRangeException` during generic-cycle scanning. The failed
+consumer, response file, compiler and package inputs are retained separately.
+The packaged CoreLib matches the staged runtime exactly. One direct replay and
+twenty repeated compiler invocations all succeed with the retained inputs;
+this does not explain or resolve the original failure. The complete run is not
+accepted, and investigation continues without changing compiler flags or tests.
+Its final six-module result is **11,347 total; 11,332 passed; one failed;
+14 platform skips; 38m27.268s**. All **421** composed source and **26** runtime
+identities verify. The failing publication is being checked independently.
+
+Windows runtime and generator modules report **2,070** and **3,096** passes,
+respectively. The build module reports **1,203 total; 1,147 passed; 50 failed;
+six platform skips; 27.561s**. Validation staging retained source timestamps
+older than the existing build-tool DLL, so incremental MSBuild reused the old
+generator of native binding C#. Its output still names helpers in `Ankus`
+while the runtime has moved them. A forced solution rebuild and replacement
+checks are required; the mixed-artifact Windows results are not accepted as
+validation of the new source. The runtime payload itself verifies all **52**
+files after correcting a private verification command's root-directory argument.
+
+The exact Linux publication case passes independently on the unchanged source:
+**one passed; zero failures/skips; 3m51.774s**, including real PostgreSQL
+publication, calls and same-session recovery. All 421 source and 26 runtime
+identities verify afterward. This narrows the failure to an intermittent
+compiler invocation, without establishing its cause. Windows forced solution
+rebuild passes with **zero warnings/errors, 1m31.47s**. Its replacement complete
+suite is running; runtime, generator and build-tool modules have passed, so the
+old-namespace compilation failures are resolved by rebuilding the staged inputs.
+Complete platform and Release/API/site acceptance remain outstanding.
+
+Final namespace Release/API/site checks pass: **zero build warnings/errors,
+1m37.96s**; **238 API pages / 2,757 members**; **286 site pages in 9.71s**;
+zero site check errors, warnings or hints. All **421** frozen source and **26**
+runtime identities verify afterward. A second unchanged-production complete
+Linux suite and the rebuilt complete Windows suite are running; neither is
+reported as passed before its terminal outcome.
+
+The Linux compiler failure has the same scanner stack and offsets as
+[dotnet/runtime issue 122845](https://github.com/dotnet/runtime/issues/122845).
+The retained compiler identifies itself as **10.0.12-servicing.26422.108**,
+commit `95017c711e6afc1085133d440e42b4bd78155701`. The upstream discussion is a
+diagnostic lead, not proof of our cause or a validated correction. No speculative
+compiler patch, serial compilation setting or automatic retry is introduced.
+
+The replacement complete suites now pass on the unchanged production source.
+Linux x64/PostgreSQL **18.6** completes all six modules with **11,347 total;
+11,333 passed; zero failures; 14 platform skips; 36m51.794s**. Windows
+x64/PostgreSQL **17.11** completes all six modules with **11,347 total;
+11,322 passed; zero failures; 25 platform skips; 42m56.468s**. Both commands
+are plain `dotnet test`, without a test filter or retry policy.
+
+All **421** source identities verify separately after both terminal successes.
+All **26** Linux and **52** Windows runtime files match their accepted payloads.
+The **419** non-evidence source files agree across platforms; 256 have only Git
+CRLF/LF differences. One private Windows verification invocation mistakenly
+selected a command-result JSON rather than the runtime manifest and verified
+nothing; the corrected command validates all 52 files. The stale Windows
+build-tool failure is resolved. The earlier intermittent compiler exception
+still has no proven root cause; these passing replacements do not establish a
+compiler fix. Its original inputs and negative outcome remain retained.
+
+Before committing, CI is checked again: primary **37071000257** and Docs
+**37071000284** pass on e7fe4d0, and no GitHub runs are in progress. The earlier
+Windows CI failure **37046774035** has successful replacements on d78e49c and
+later commits. Version run **37016275325** passes, superseding the PostgreSQL 19
+failure in **36988634319**. Additional-platform run **37003910952** still records
+the retained Intel macOS 60-minute timeout; that platform remains unaccepted.
+Fresh primary CI is required after publishing this namespace change.
+
+
+
 ## Binding source-cache generator identity
+
+The published source-cache correction is **e7fe4d0**.
+[CI 37071000257](https://github.com/willibrandon/ankus/actions/runs/37071000257)
+passes quality, runtime and all three complete platform suites.
+All six downloaded TRX modules per platform confirm **11,346 total**:
+Linux x64/PostgreSQL 18 has **11,332 passed, 14 skips, 35m48s**;
+macOS ARM64/PostgreSQL 18 has **11,320 passed, 26 skips, 26m31s**;
+Windows x64/PostgreSQL 17 has **11,321 passed, 25 skips, 31m30s**.
+All have zero failures; durations are complete job times.
+[Docs 37071000284](https://github.com/willibrandon/ankus/actions/runs/37071000284)
+also passes. These results do not establish Intel macOS acceptance.
 
 The source-cache key included the generator's absolute installation path, and
 the persisted dependency list retained that producer path. A controlled baseline

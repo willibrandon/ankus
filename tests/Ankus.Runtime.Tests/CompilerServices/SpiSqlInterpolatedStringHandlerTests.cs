@@ -1,5 +1,3 @@
-using Ankus.CompilerServices;
-
 namespace Ankus.Runtime.Tests.CompilerServices;
 
 /// <summary>

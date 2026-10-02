@@ -32,7 +32,7 @@ public sealed partial class PgFunctionGeneratorTests
         MethodDeclarationSyntax dispatcher = compilation.SyntaxTrees.SelectMany(tree => tree.GetRoot(context.CancellationToken).DescendantNodes())
             .OfType<MethodDeclarationSyntax>().Single(static method => method.Identifier.ValueText.StartsWith("ankus_managed_", StringComparison.Ordinal));
         Assert.HasCount(1, dispatcher.DescendantNodes().OfType<InvocationExpressionSyntax>().Where(static expression =>
-            expression.Expression.ToString() == "global::Ankus.NativeBackend.CaptureFunction"));
+            expression.Expression.ToString() == "global::Ankus.CompilerServices.NativeBackend.CaptureFunction"));
         InvocationExpressionSyntax invocation = dispatcher.DescendantNodes().OfType<InvocationExpressionSyntax>()
             .Single(static expression => expression.Expression.ToString() == "global::Functions.@Apply");
         SemanticModel model = compilation.GetSemanticModel(dispatcher.SyntaxTree);
@@ -101,7 +101,7 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.StartsWith("CREATE FUNCTION \"rows\"(\"value\" integer) RETURNS SETOF integer AS ",
             Assert.ContainsSingle(OperatorCastStatements(compilation)));
         InvocationExpressionSyntax capture = Assert.ContainsSingle(compilation.SyntaxTrees.SelectMany(tree => tree.GetRoot(context.CancellationToken).DescendantNodes())
-            .OfType<InvocationExpressionSyntax>().Where(static invocation => invocation.Expression.ToString() == "global::Ankus.NativeBackend.CaptureFunction"));
+            .OfType<InvocationExpressionSyntax>().Where(static invocation => invocation.Expression.ToString() == "global::Ankus.CompilerServices.NativeBackend.CaptureFunction"));
         Assert.AreEqual("operation == 0", Assert.ContainsSingle(capture.Ancestors().OfType<IfStatementSyntax>()).Condition.ToString());
         Assert.AreEqual("functionCall", Assert.ContainsSingle(capture.ArgumentList.Arguments).Expression.ToString());
     }

@@ -74,6 +74,6 @@ internal sealed record AggregateType(FunctionType? Datum, string? Payload, bool 
     /// Emits a nullable-aware managed read for a validated native argument slot.
     /// </summary>
     internal string Read(string slot, NumericPrecision? precision)
-        => IsManagedState ? "global::Ankus.NativeAggregate.Read<" + Payload + ">(" + slot + ")" + (Nullable ? string.Empty : "!") :
+        => IsManagedState ? "global::Ankus.CompilerServices.NativeAggregate.Read<" + Payload + ">(" + slot + ")" + (Nullable ? string.Empty : "!") :
             ManagedConversion.Read(Datum!, slot, precision?.Suffix ?? string.Empty);
 }

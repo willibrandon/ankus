@@ -94,7 +94,7 @@ internal sealed class NativeCallbackDeclaration(IPropertySymbol property, IMetho
         }
 
         AttributeData[] metadata = [.. value.GetAttributes().Where(static attribute =>
-            attribute.AttributeClass?.ToDisplayString() == "Ankus.NativeFunctionPointerAttribute")];
+            attribute.AttributeClass?.ToDisplayString() == "Ankus.CompilerServices.NativeFunctionPointerAttribute")];
         IMethodSymbol[] signatures = [.. value.GetMembers("Invoke").OfType<IMethodSymbol>().Where(static method =>
             !method.IsStatic && method.DeclaredAccessibility == Accessibility.Public && IsSignature(method))];
         if (metadata.Length != 1 || metadata[0].ConstructorArguments.Length != 1 ||

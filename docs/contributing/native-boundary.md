@@ -4,6 +4,14 @@ Ankus generates both sides of the PostgreSQL/Native AOT boundary. The C wrapper
 is compiled against the selected server's headers and linked into the extension's
 native library. Extension authors write attributed C# methods.
 
+The runtime's generated-code transport and bridge contracts live in
+`Ankus.CompilerServices`. This includes `NativeValue`, `NativeCallError`,
+`NativeBackend` and callback metadata. They remain hidden from ordinary
+IntelliSense and are consumed by the matching generator and build packages.
+The namespace does not change their native layouts, calling conventions or
+ownership rules. Extension-author APIs remain in `Ankus`; generated PostgreSQL
+types, `NativeMethods` and `NativeGlobals` remain in `Ankus.Postgres`.
+
 ## Declaration metadata
 
 `FunctionDeclaration` resolves parameter names/defaults, the nearest containing

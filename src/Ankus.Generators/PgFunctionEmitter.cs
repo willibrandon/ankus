@@ -72,24 +72,24 @@ internal static class PgFunctionEmitter
         source.AppendLine($"        EntryPoint = \"{callback}\",");
         source.AppendLine("        CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]");
         source.AppendLine($"    private static int {callback}(");
-        source.AppendLine("        global::Ankus.NativeValue* arguments, global::Ankus.NativeValue* result,");
-        source.AppendLine("        global::Ankus.NativeCallError* error, nint execute, nint memory, nint functionCall)");
+        source.AppendLine("        global::Ankus.CompilerServices.NativeValue* arguments, global::Ankus.CompilerServices.NativeValue* result,");
+        source.AppendLine("        global::Ankus.CompilerServices.NativeCallError* error, nint execute, nint memory, nint functionCall)");
         source.AppendLine("    {");
-        source.AppendLine("        nint previous = global::Ankus.NativeBackend.Enter(execute);");
+        source.AppendLine("        nint previous = global::Ankus.CompilerServices.NativeBackend.Enter(execute);");
         source.AppendLine("        nint previousMemory = 0;");
         source.AppendLine("        bool memoryEntered = false;");
         source.AppendLine("        try");
         source.AppendLine("        {");
-        source.AppendLine("            previousMemory = global::Ankus.NativeMemoryContext.Enter(memory);");
+        source.AppendLine("            previousMemory = global::Ankus.CompilerServices.NativeMemoryContext.Enter(memory);");
         source.AppendLine("            memoryEntered = true;");
         if (hasRelationArguments || result.HasRelations)
         {
-            source.AppendLine("            using var relationScope = new global::Ankus.NativeRelationScope();");
+            source.AppendLine("            using var relationScope = new global::Ankus.CompilerServices.NativeRelationScope();");
         }
 
         if (hasFunctionContext)
         {
-            source.AppendLine("            global::Ankus.PgFunctionContext functionContext = global::Ankus.NativeBackend.CaptureFunction(functionCall);");
+            source.AppendLine("            global::Ankus.PgFunctionContext functionContext = global::Ankus.CompilerServices.NativeBackend.CaptureFunction(functionCall);");
         }
 
         if (result.Managed == "void")
@@ -119,16 +119,16 @@ internal static class PgFunctionEmitter
         source.AppendLine("        }");
         source.AppendLine("        catch (global::System.Exception exception)");
         source.AppendLine("        {");
-        source.AppendLine("            global::Ankus.NativeError.Write(exception, error);");
+        source.AppendLine("            global::Ankus.CompilerServices.NativeError.Write(exception, error);");
         source.AppendLine("            return 1;");
         source.AppendLine("        }");
         source.AppendLine("        finally");
         source.AppendLine("        {");
         source.AppendLine("            if (memoryEntered)");
         source.AppendLine("            {");
-        source.AppendLine("                global::Ankus.NativeMemoryContext.Exit(previousMemory);");
+        source.AppendLine("                global::Ankus.CompilerServices.NativeMemoryContext.Exit(previousMemory);");
         source.AppendLine("            }");
-        source.AppendLine("            global::Ankus.NativeBackend.Exit(previous);");
+        source.AppendLine("            global::Ankus.CompilerServices.NativeBackend.Exit(previous);");
         source.AppendLine("        }");
         source.AppendLine("    }");
         source.AppendLine();

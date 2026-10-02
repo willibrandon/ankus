@@ -58,20 +58,20 @@ public sealed partial class PgFunctionGeneratorTests
             callback.ParameterList.Parameters.Select(static parameter => parameter.Identifier.ValueText));
         BlockSyntax body = Assert.IsInstanceOfType<BlockSyntax>(callback.Body);
         Assert.HasCount(4, body.Statements);
-        Assert.AreEqual("nint previous = global::Ankus.NativeBackend.Enter(execute);", body.Statements[0].ToString());
-        TryStatementSyntax outer = AssertMemoryCallbackScope(callback, "global::Ankus.NativeBackend.Exit(previous);");
+        Assert.AreEqual("nint previous = global::Ankus.CompilerServices.NativeBackend.Enter(execute);", body.Statements[0].ToString());
+        TryStatementSyntax outer = AssertMemoryCallbackScope(callback, "global::Ankus.CompilerServices.NativeBackend.Exit(previous);");
         Assert.HasCount(4, outer.Block.Statements);
-        Assert.Contains("new global::System.ReadOnlySpan<global::Ankus.NativeValue>(metadata, metadataCount), owner, api)", outer.Block.Statements[2].ToString());
+        Assert.Contains("new global::System.ReadOnlySpan<global::Ankus.CompilerServices.NativeValue>(metadata, metadataCount), owner, api)", outer.Block.Statements[2].ToString());
         TryStatementSyntax inner = Assert.IsInstanceOfType<TryStatementSyntax>(outer.Block.Statements[3]);
         Assert.AreSequenceEqual([
-            $"global::Ankus.PgAggregateState<global::Counter>? value = {callback.Identifier.ValueText}_invoke<global::Owned>(context, global::Ankus.NativeAggregate.Read<global::Counter>(arguments[0]), (arguments[1].IsNull != 0 ? (int?)null : (int)arguments[1].Integral));",
-            "*result = global::Ankus.NativeAggregate.Write(value);",
+            $"global::Ankus.PgAggregateState<global::Counter>? value = {callback.Identifier.ValueText}_invoke<global::Owned>(context, global::Ankus.CompilerServices.NativeAggregate.Read<global::Counter>(arguments[0]), (arguments[1].IsNull != 0 ? (int?)null : (int)arguments[1].Integral));",
+            "*result = global::Ankus.CompilerServices.NativeAggregate.Write(value);",
             "return 0;",
         ], inner.Block.Statements.Select(static statement => statement.ToString()));
-        Assert.AreEqual("global::Ankus.NativeAggregate.Exit(context);", Assert.ContainsSingle(inner.Finally!.Block.Statements).ToString());
+        Assert.AreEqual("global::Ankus.CompilerServices.NativeAggregate.Exit(context);", Assert.ContainsSingle(inner.Finally!.Block.Statements).ToString());
         CatchClauseSyntax failure = Assert.ContainsSingle(outer.Catches);
         Assert.AreEqual("global::System.Exception", failure.Declaration!.Type.ToString());
-        Assert.AreSequenceEqual(["global::Ankus.NativeError.Write(exception, error);", "return 1;"], failure.Block.Statements.Select(static statement => statement.ToString()));
+        Assert.AreSequenceEqual(["global::Ankus.CompilerServices.NativeError.Write(exception, error);", "return 1;"], failure.Block.Statements.Select(static statement => statement.ToString()));
         string native = ManifestValue(compilation, "Ankus.NativeSource");
         Assert.Contains("const bool required[2] = {false, false};", native);
         Assert.Contains("const bool internal_arguments[2] = {true, false};", native);

@@ -140,7 +140,7 @@ internal static class PgGucEmitter
             4 => "ReadEnum",
             _ => property.Nullable ? "ReadString" : "ReadRequiredString",
         };
-        string read = $"global::Ankus.NativeGuc.{reader}({SymbolDisplay.FormatLiteral(declaration.Name, quote: true)})";
+        string read = $"global::Ankus.CompilerServices.NativeGuc.{reader}({SymbolDisplay.FormatLiteral(declaration.Name, quote: true)})";
         if (declaration.Kind == 4)
         {
             read = EnumFromOrdinal(declaration, read);
@@ -169,17 +169,17 @@ internal static class PgGucEmitter
         managed.AppendLine($$"""
                 [global::System.Runtime.InteropServices.UnmanagedCallersOnly(
                     EntryPoint = "{{callback}}", CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
-                private static int {{callback}}(int phase, global::Ankus.NativeValue* arguments, global::Ankus.NativeValue* results,
-                    int source, global::Ankus.NativeCallError* error, nint read, nint execute, nint log, nint memory)
+                private static int {{callback}}(int phase, global::Ankus.CompilerServices.NativeValue* arguments, global::Ankus.CompilerServices.NativeValue* results,
+                    int source, global::Ankus.CompilerServices.NativeCallError* error, nint read, nint execute, nint log, nint memory)
                 {
-                    nint previousBackend = global::Ankus.NativeBackend.Enter(execute);
-                    nint previousRead = global::Ankus.NativeGuc.Enter(read);
-                    nint previousLog = global::Ankus.NativeLog.Enter(log);
+                    nint previousBackend = global::Ankus.CompilerServices.NativeBackend.Enter(execute);
+                    nint previousRead = global::Ankus.CompilerServices.NativeGuc.Enter(read);
+                    nint previousLog = global::Ankus.CompilerServices.NativeLog.Enter(log);
                     nint previousMemory = 0;
                     bool memoryEntered = false;
                     try
                     {
-                        previousMemory = global::Ankus.NativeMemoryContext.Enter(memory);
+                        previousMemory = global::Ankus.CompilerServices.NativeMemoryContext.Enter(memory);
                         memoryEntered = true;
                         {{declaration.ManagedType}} value = {{ReadValue(declaration, "arguments[0]")}};
                         switch (phase)
@@ -194,12 +194,12 @@ internal static class PgGucEmitter
                                     ?? throw new global::System.InvalidOperationException("A GUC check hook returned null.");
                                 if (!result.IsAccepted)
                                 {
-                                    global::Ankus.NativeGuc.WriteCheckError(result.Error, error);
+                                    global::Ankus.CompilerServices.NativeGuc.WriteCheckError(result.Error, error);
                                     return 2;
                                 }
 
                                 results[0] = {{WriteValue(declaration, "result.Value")}};
-                                results[1] = global::Ankus.NativeGuc.FromExtra(result.Extra);
+                                results[1] = global::Ankus.CompilerServices.NativeGuc.FromExtra(result.Extra);
                                 return 0;
                             }
 
@@ -210,7 +210,7 @@ internal static class PgGucEmitter
         {
             managed.AppendLine($$"""
                             case 1:
-                                {{assign}}(value, global::Ankus.NativeGuc.ReadExtra(arguments[1]));
+                                {{assign}}(value, global::Ankus.CompilerServices.NativeGuc.ReadExtra(arguments[1]));
                                 return 0;
 
                 """);
@@ -220,7 +220,7 @@ internal static class PgGucEmitter
         {
             managed.AppendLine($$"""
                             case 2:
-                                results[0] = global::Ankus.NativeValue.FromString({{show}}(value, global::Ankus.NativeGuc.ReadExtra(arguments[1]))
+                                results[0] = global::Ankus.CompilerServices.NativeValue.FromString({{show}}(value, global::Ankus.CompilerServices.NativeGuc.ReadExtra(arguments[1]))
                                     ?? throw new global::System.InvalidOperationException("A GUC show hook returned null."));
                                 return 0;
 
@@ -234,19 +234,19 @@ internal static class PgGucEmitter
                     }
                     catch (global::System.Exception exception)
                     {
-                        global::Ankus.NativeError.Write(exception, error);
+                        global::Ankus.CompilerServices.NativeError.Write(exception, error);
                         return 1;
                     }
                     finally
                     {
                         if (memoryEntered)
                         {
-                            global::Ankus.NativeMemoryContext.Exit(previousMemory);
+                            global::Ankus.CompilerServices.NativeMemoryContext.Exit(previousMemory);
                         }
 
-                        global::Ankus.NativeLog.Exit(previousLog);
-                        global::Ankus.NativeGuc.Exit(previousRead);
-                        global::Ankus.NativeBackend.Exit(previousBackend);
+                        global::Ankus.CompilerServices.NativeLog.Exit(previousLog);
+                        global::Ankus.CompilerServices.NativeGuc.Exit(previousRead);
+                        global::Ankus.CompilerServices.NativeBackend.Exit(previousBackend);
                     }
                 }
 
@@ -271,13 +271,13 @@ internal static class PgGucEmitter
     /// </summary>
     private static string WriteValue(GucModel declaration, string value) => declaration.Kind switch
     {
-        0 => "new global::Ankus.NativeValue { Integral = " + value + " ? 1 : 0 }",
-        1 => "new global::Ankus.NativeValue { Integral = " + value + " }",
-        2 => "new global::Ankus.NativeValue { Integral = global::System.BitConverter.DoubleToInt64Bits(" + value + ") }",
+        0 => "new global::Ankus.CompilerServices.NativeValue { Integral = " + value + " ? 1 : 0 }",
+        1 => "new global::Ankus.CompilerServices.NativeValue { Integral = " + value + " }",
+        2 => "new global::Ankus.CompilerServices.NativeValue { Integral = global::System.BitConverter.DoubleToInt64Bits(" + value + ") }",
         3 when declaration.Property.Nullable => value +
-            " is null ? new global::Ankus.NativeValue { IsNull = 1 } : global::Ankus.NativeValue.FromString(" + value + ")",
-        3 => "global::Ankus.NativeValue.FromString(" + value + " ?? throw new global::System.InvalidOperationException(\"A nonnullable GUC check returned null.\"))",
-        _ => "new global::Ankus.NativeValue { Integral = " + value + " switch { " + string.Join(", ", UniqueLabels(declaration).Select(
+            " is null ? new global::Ankus.CompilerServices.NativeValue { IsNull = 1 } : global::Ankus.CompilerServices.NativeValue.FromString(" + value + ")",
+        3 => "global::Ankus.CompilerServices.NativeValue.FromString(" + value + " ?? throw new global::System.InvalidOperationException(\"A nonnullable GUC check returned null.\"))",
+        _ => "new global::Ankus.CompilerServices.NativeValue { Integral = " + value + " switch { " + string.Join(", ", UniqueLabels(declaration).Select(
             label => declaration.ManagedType + ".@" + label.Member + " => " + label.Ordinal.ToString(CultureInfo.InvariantCulture))) +
             ", _ => throw new global::System.InvalidOperationException(\"A GUC check returned an undefined enum value.\") } }",
     };

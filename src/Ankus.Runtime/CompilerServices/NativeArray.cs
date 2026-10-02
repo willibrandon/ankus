@@ -1,0 +1,289 @@
+using System.Buffers;
+using System.Buffers.Binary;
+using System.Runtime.CompilerServices;
+
+namespace Ankus.CompilerServices;
+
+public unsafe partial struct NativeValue
+{
+    /// <summary>
+    /// Gets whether the auxiliary field marks a pointer-free array transport for a non-scalar datum.
+    /// </summary>
+    internal readonly bool IsArray => _auxiliary1 == -1;
+
+    /// <summary>
+    /// Reads an owned array with its PostgreSQL dimensions and lower bounds.
+    /// </summary>
+    /// <typeparam name="T">The scalar element type.</typeparam>
+    /// <returns>The converted array. SQL NULL elements require reference or nullable value types.</returns>
+    public readonly PgArray<T> ReadArray<T>()
+    {
+        PgDatumRegistry.RejectOrdinaryArray(typeof(PgArray<T>));
+        uint oid = ReadArrayElementOid();
+        if (typeof(T) == typeof(PgHeapTuple) ? _auxiliary2 != 2 : SpiType.GetOid<T>() != oid)
+        {
+            throw new InvalidCastException($"Array element OID {oid} cannot be read as '{typeof(T)}'.");
+        }
+
+        return ReadArrayData<T>(oid, PgEnumRegistry.Find(typeof(T)));
+    }
+
+    /// <summary>
+    /// Copies an array into one allocator-matched native transport buffer.
+    /// </summary>
+    /// <typeparam name="T">The scalar element type.</typeparam>
+    /// <param name="value">The array.</param>
+    /// <returns>The owned transport.</returns>
+    public static NativeValue FromArray<T>(PgArray<T> value) => FromArray((IPgArray)value);
+
+    /// <summary>
+    /// Serializes array shape and scalar elements into one allocator-matched native buffer.
+    /// </summary>
+    /// <param name="value">The source array.</param>
+    /// <returns>The owned transport, which the caller must release.</returns>
+    internal static NativeValue FromArray(IPgArray value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        PgDatumRegistry.RejectOrdinaryArray(value.GetType());
+        RuntimeHelpers.EnsureSufficientExecutionStack();
+        return FromArrayCore(value);
+    }
+
+    private static NativeValue FromArrayCore(IPgArray value)
+    {
+        CustomTypeMapping? customMapping = PgTypeRegistry.FindArray(value.GetType());
+        var buffer = new ArrayBufferWriter<byte>();
+        WriteInt(buffer, value.Lengths.Length);
+        WriteInt(buffer, value.Count);
+        WriteInt(buffer, unchecked((int)value.ElementOid));
+        for (int index = 0; index < value.Lengths.Length; index++)
+        {
+            WriteInt(buffer, value.Lengths[index]);
+            WriteInt(buffer, value.LowerBounds[index]);
+        }
+
+        for (int index = 0; index < value.Count; index++)
+        {
+            NativeValue item = SpiType.ToNative(value.GetElement(index), customMapping);
+            try
+            {
+                if ((long)buffer.WrittenCount + 28 + item._length > 0x3FFFFFFF - 4)
+                {
+                    throw new ArgumentOutOfRangeException(nameof(value), "The converted array exceeds PostgreSQL's buffer capacity.");
+                }
+
+                Span<byte> header = buffer.GetSpan(28);
+                BinaryPrimitives.WriteInt64BigEndian(header, item._integer);
+                BinaryPrimitives.WriteInt32BigEndian(header[8..], item._auxiliary1);
+                BinaryPrimitives.WriteInt32BigEndian(header[12..], item._auxiliary2);
+                BinaryPrimitives.WriteInt32BigEndian(header[16..], item._temporalInfinity);
+                BinaryPrimitives.WriteInt32BigEndian(header[20..], item._isNull);
+                BinaryPrimitives.WriteInt32BigEndian(header[24..], item._length);
+                buffer.Advance(28);
+                buffer.Write(new ReadOnlySpan<byte>(item._data, item._length));
+            }
+            finally
+            {
+                item.Release();
+            }
+        }
+
+        NativeValue result = FromBytes(buffer.WrittenSpan);
+        result._auxiliary1 = -1;
+        result._auxiliary2 = value is PgArray<PgHeapTuple> ? 2 : customMapping is not null ? 3 :
+            PgEnumRegistry.FindArray(value.GetType()) is null ? 0 : 1;
+        if (value is PgArray<PgHeapTuple> tuples)
+        {
+            result._integer = tuples.ElementBaseTypeOid;
+        }
+
+        return result;
+    }
+
+    private readonly uint ReadArrayElementOid()
+    {
+        if (!IsArray || _isNull != 0 || _data == null || _length < 12)
+        {
+            throw new InvalidOperationException("Invalid native array header.");
+        }
+
+        uint oid = BinaryPrimitives.ReadUInt32BigEndian(new ReadOnlySpan<byte>(_data + 8, 4));
+        oid = oid is 1042 or 1043 ? 25 : oid;
+        if (_auxiliary2 == 0)
+        {
+            _ = SpiArray.ArrayOid(oid);
+        }
+        else if (_auxiliary2 is not 1 and not 2 and not 3 || oid == 0 || (_auxiliary2 == 2 && _integer is < 0 or > uint.MaxValue))
+        {
+            throw new InvalidOperationException("Invalid array element conversion discriminator.");
+        }
+
+        return oid;
+    }
+
+    /// <summary>
+    /// Decodes validated array elements using one resolved enum mapping when applicable.
+    /// </summary>
+    internal readonly PgArray<T> ReadArrayData<T>(uint oid, EnumMapping? enumeration = null)
+    {
+        PgDatumRegistry.RejectOrdinaryArray(typeof(PgArray<T>));
+        RuntimeHelpers.EnsureSufficientExecutionStack();
+        return ReadArrayDataCore<T>(oid, enumeration);
+    }
+
+    private readonly PgArray<T> ReadArrayDataCore<T>(uint oid, EnumMapping? enumeration)
+    {
+        ReadOnlySpan<byte> data = new(_data, _length);
+        int rank = BinaryPrimitives.ReadInt32BigEndian(data);
+        int count = BinaryPrimitives.ReadInt32BigEndian(data[4..]);
+        if (rank is < 0 or > 6 || count < 0 || 12L + rank * 8L + count * 28L > data.Length)
+        {
+            throw new InvalidOperationException("Invalid native array shape or element count.");
+        }
+
+        int[] lengths = new int[rank];
+        int[] bounds = new int[rank];
+        int offset = 12;
+        for (int index = 0; index < rank; index++, offset += 8)
+        {
+            lengths[index] = BinaryPrimitives.ReadInt32BigEndian(data[offset..]);
+            bounds[index] = BinaryPrimitives.ReadInt32BigEndian(data[(offset + 4)..]);
+        }
+
+        SpiArray.ValidateShape(count, lengths, bounds);
+        if (count == 0 && rank != 0)
+        {
+            throw new InvalidOperationException("Empty native arrays must have rank zero.");
+        }
+
+        var values = new T[count];
+        try
+        {
+            ReadArrayElements(values, data, offset, oid, enumeration);
+            uint baseOid = _auxiliary2 == 2 && _integer != 0 ? (uint)_integer : oid;
+            return new PgArray<T>(values, (lengths, bounds), _auxiliary2 == 2 ? oid : 0, _auxiliary2 == 2 ? baseOid : 0);
+        }
+        catch (Exception primary)
+        {
+            NativeRelationScope.Release(values, primary);
+            VarlenaCleanup.Release<T>(values, primary);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Converts each independently owned element after validating the collection's dimensions.
+    /// </summary>
+    private readonly void ReadArrayElements<T>(T[] values, ReadOnlySpan<byte> data, int offset, uint oid, EnumMapping? enumeration)
+    {
+        uint baseOid = _auxiliary2 == 2 && _integer != 0 ? (uint)_integer : oid;
+        for (int index = 0; index < values.Length; index++)
+        {
+            if (data.Length - offset < 28)
+            {
+                throw new InvalidOperationException("Truncated native array element.");
+            }
+
+            ReadOnlySpan<byte> header = data[offset..];
+            int length = BinaryPrimitives.ReadInt32BigEndian(header[24..]);
+            int isNull = BinaryPrimitives.ReadInt32BigEndian(header[20..]);
+            if (length < 0 || length > data.Length - offset - 28 || isNull is < 0 or > 1 || (isNull == 1 && length != 0))
+            {
+                throw new InvalidOperationException("Invalid native array element.");
+            }
+
+            var item = new NativeValue
+            {
+                _integer = BinaryPrimitives.ReadInt64BigEndian(header),
+                _auxiliary1 = BinaryPrimitives.ReadInt32BigEndian(header[8..]),
+                _auxiliary2 = BinaryPrimitives.ReadInt32BigEndian(header[12..]),
+                _temporalInfinity = BinaryPrimitives.ReadInt32BigEndian(header[16..]),
+                _isNull = (byte)isNull,
+                _length = length,
+                _data = _data + offset + 28,
+            };
+            object? element = item.IsNull != 0 ? null : _auxiliary2 == 2 ? item.ReadTuple() :
+                enumeration is null ? SpiType.FromNative(item, oid) : enumeration.FromLabel(item.ReadString());
+            if (element is PgHeapTuple tuple && baseOid != 2249 && tuple.Descriptor.BaseTypeOid != baseOid)
+            {
+                throw new InvalidOperationException("Composite array element identity does not match its array type.");
+            }
+
+            values[index] = SpiRow.Convert<T>(element);
+            offset += 28 + length;
+        }
+
+        if (offset != data.Length)
+        {
+            throw new InvalidOperationException("Unexpected trailing native array data.");
+        }
+    }
+
+    /// <summary>
+    /// Materializes the transport's scalar element type with nullable value elements and owned managed storage.
+    /// </summary>
+    /// <returns>The converted array, retaining its dimensions and lower bounds.</returns>
+    internal readonly IPgArray ReadArray()
+    {
+        uint oid = ReadArrayElementOid();
+        if (_auxiliary2 == 2)
+        {
+            return ReadArrayData<PgHeapTuple?>(oid);
+        }
+
+        if (_auxiliary2 == 3)
+        {
+            return PgTypeRegistry.FindOid(oid).ReadArray(this, oid);
+        }
+
+        return oid switch
+        {
+            16 => ReadArrayData<bool?>(oid),
+            17 => ReadArrayData<byte[]?>(oid),
+            18 => ReadArrayData<sbyte?>(oid),
+            20 => ReadArrayData<long?>(oid),
+            21 => ReadArrayData<short?>(oid),
+            23 => ReadArrayData<int?>(oid),
+            25 => ReadArrayData<string?>(oid),
+            2275 => ReadArrayData<PgCString?>(oid),
+            26 => ReadArrayData<uint?>(oid),
+            27 => ReadArrayData<PgItemPointer?>(oid),
+            28 => ReadArrayData<PgTransactionId?>(oid),
+            2205 => ReadArrayData<PgRelationIdentity?>(oid),
+            700 => ReadArrayData<float?>(oid),
+            701 => ReadArrayData<double?>(oid),
+            2950 => ReadArrayData<Guid?>(oid),
+            114 => ReadArrayData<PgJson?>(oid),
+            3802 => ReadArrayData<PgJsonb?>(oid),
+            1700 => ReadArrayData<PgNumeric?>(oid),
+            1082 => ReadArrayData<PgDate?>(oid),
+            1083 => ReadArrayData<PgTime?>(oid),
+            1266 => ReadArrayData<PgTimeTz?>(oid),
+            1114 => ReadArrayData<PgTimestamp?>(oid),
+            1184 => ReadArrayData<PgTimestampTz?>(oid),
+            1186 => ReadArrayData<PgInterval?>(oid),
+            869 => ReadArrayData<PgInet?>(oid),
+            650 => ReadArrayData<PgCidr?>(oid),
+            600 => ReadArrayData<PgPoint?>(oid),
+            601 => ReadArrayData<PgLineSegment?>(oid),
+            602 => ReadArrayData<PgPath>(oid),
+            603 => ReadArrayData<PgBox?>(oid),
+            604 => ReadArrayData<PgPolygon>(oid),
+            628 => ReadArrayData<PgLine?>(oid),
+            718 => ReadArrayData<PgCircle?>(oid),
+            3904 => ReadArrayData<PgRange<int>>(oid),
+            3926 => ReadArrayData<PgRange<long>>(oid),
+            3906 => ReadArrayData<PgRange<PgNumeric>>(oid),
+            3912 => ReadArrayData<PgRange<PgDate>>(oid),
+            3908 => ReadArrayData<PgRange<PgTimestamp>>(oid),
+            3910 => ReadArrayData<PgRange<PgTimestampTz>>(oid),
+            _ => PgEnumRegistry.FindOid(oid).ReadArray(this, oid),
+        };
+    }
+
+    private static void WriteInt(ArrayBufferWriter<byte> buffer, int value)
+    {
+        BinaryPrimitives.WriteInt32BigEndian(buffer.GetSpan(4), value);
+        buffer.Advance(4);
+    }
+}

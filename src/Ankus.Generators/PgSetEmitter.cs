@@ -49,19 +49,19 @@ internal static class PgSetEmitter
         managed.AppendLine("    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(");
         managed.AppendLine($"        EntryPoint = \"{callback}\",");
         managed.AppendLine("        CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]");
-        managed.AppendLine($"    private static int {callback}(int operation, nint* iterator, global::Ankus.NativeValue* arguments,");
-        managed.AppendLine("        global::Ankus.NativeValue* columns, global::Ankus.NativeCallError* error, nint execute, nint memory, nint functionCall)");
+        managed.AppendLine($"    private static int {callback}(int operation, nint* iterator, global::Ankus.CompilerServices.NativeValue* arguments,");
+        managed.AppendLine("        global::Ankus.CompilerServices.NativeValue* columns, global::Ankus.CompilerServices.NativeCallError* error, nint execute, nint memory, nint functionCall)");
         managed.AppendLine("    {");
-        managed.AppendLine("        nint previous = global::Ankus.NativeBackend.Enter(execute, operation == 3);");
+        managed.AppendLine("        nint previous = global::Ankus.CompilerServices.NativeBackend.Enter(execute, operation == 3);");
         managed.AppendLine("        nint previousMemory = 0;");
         managed.AppendLine("        bool memoryEntered = false;");
         managed.AppendLine("        try");
         managed.AppendLine("        {");
-        managed.AppendLine("            previousMemory = global::Ankus.NativeMemoryContext.Enter(memory);");
+        managed.AppendLine("            previousMemory = global::Ankus.CompilerServices.NativeMemoryContext.Enter(memory);");
         managed.AppendLine("            memoryEntered = true;");
         managed.AppendLine("            if (operation is 2 or 3)");
         managed.AppendLine("            {");
-        managed.AppendLine("                global::Ankus.NativeSet.Dispose(ref *iterator);");
+        managed.AppendLine("                global::Ankus.CompilerServices.NativeSet.Dispose(ref *iterator);");
         managed.AppendLine("                return 0;");
         managed.AppendLine("            }");
         managed.AppendLine();
@@ -70,17 +70,17 @@ internal static class PgSetEmitter
         bool hasRelations = parameters.Any(static parameter => parameter.Type?.HasRelations == true);
         if (hasRelations)
         {
-            managed.AppendLine("                using var relationScope = new global::Ankus.NativeRelationScope();");
+            managed.AppendLine("                using var relationScope = new global::Ankus.CompilerServices.NativeRelationScope();");
         }
 
         if (parameters.Any(static parameter => parameter.IsFunctionContext))
         {
-            managed.AppendLine("                global::Ankus.PgFunctionContext functionContext = global::Ankus.NativeBackend.CaptureFunction(functionCall);");
+            managed.AppendLine("                global::Ankus.PgFunctionContext functionContext = global::Ankus.CompilerServices.NativeBackend.CaptureFunction(functionCall);");
         }
 
         IEnumerable<string> arguments = parameters.Select(static parameter => parameter.Type?.HasRelations == true
             ? "relationScope.Add(" + parameter.ReadExpression() + ")" : parameter.ReadExpression());
-        managed.AppendLine($"                *iterator = global::Ankus.NativeSet.Create<{set.Managed}>(" +
+        managed.AppendLine($"                *iterator = global::Ankus.CompilerServices.NativeSet.Create<{set.Managed}>(" +
             method.Invoke(arguments, callback) +
             (hasRelations ? ", relationScope.Detach()" : string.Empty) + ");");
         managed.AppendLine("                return 0;");
@@ -89,10 +89,10 @@ internal static class PgSetEmitter
         bool relationResults = set.Columns.Any(static column => column.HasRelations);
         if (relationResults)
         {
-            managed.AppendLine("            using var resultRelations = global::Ankus.NativeRelationScope.ForIterator(*iterator);");
+            managed.AppendLine("            using var resultRelations = global::Ankus.CompilerServices.NativeRelationScope.ForIterator(*iterator);");
         }
 
-        managed.AppendLine($"            if (!global::Ankus.NativeSet.MoveNext<{set.Managed}>(*iterator, out {set.Managed} value))");
+        managed.AppendLine($"            if (!global::Ankus.CompilerServices.NativeSet.MoveNext<{set.Managed}>(*iterator, out {set.Managed} value))");
         managed.AppendLine("            {");
         managed.AppendLine("                return 2;");
         managed.AppendLine("            }");
@@ -156,16 +156,16 @@ internal static class PgSetEmitter
         managed.AppendLine("        }");
         managed.AppendLine("        catch (global::System.Exception exception)");
         managed.AppendLine("        {");
-        managed.AppendLine("            global::Ankus.NativeError.Write(exception, error);");
+        managed.AppendLine("            global::Ankus.CompilerServices.NativeError.Write(exception, error);");
         managed.AppendLine("            return 1;");
         managed.AppendLine("        }");
         managed.AppendLine("        finally");
         managed.AppendLine("        {");
         managed.AppendLine("            if (memoryEntered)");
         managed.AppendLine("            {");
-        managed.AppendLine("                global::Ankus.NativeMemoryContext.Exit(previousMemory);");
+        managed.AppendLine("                global::Ankus.CompilerServices.NativeMemoryContext.Exit(previousMemory);");
         managed.AppendLine("            }");
-        managed.AppendLine("            global::Ankus.NativeBackend.Exit(previous, operation == 3);");
+        managed.AppendLine("            global::Ankus.CompilerServices.NativeBackend.Exit(previous, operation == 3);");
         managed.AppendLine("        }");
         managed.AppendLine("    }");
         managed.AppendLine();

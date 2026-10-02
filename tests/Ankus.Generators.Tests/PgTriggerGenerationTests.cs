@@ -73,13 +73,13 @@ public sealed partial class PgFunctionGeneratorTests
         MethodDeclarationSyntax callback = Assert.IsInstanceOfType<MethodDeclarationSyntax>(TriggerCallback(compilation)
             .DeclaringSyntaxReferences.Single().GetSyntax(context.CancellationToken));
         BlockSyntax body = Assert.IsInstanceOfType<BlockSyntax>(callback.Body);
-        Assert.AreEqual("nint previous = global::Ankus.NativeBackend.Enter(execute);", body.Statements[0].ToString());
-        TryStatementSyntax guarded = AssertMemoryCallbackScope(callback, "global::Ankus.NativeBackend.Exit(previous);");
+        Assert.AreEqual("nint previous = global::Ankus.CompilerServices.NativeBackend.Enter(execute);", body.Statements[0].ToString());
+        TryStatementSyntax guarded = AssertMemoryCallbackScope(callback, "global::Ankus.CompilerServices.NativeBackend.Exit(previous);");
         CatchClauseSyntax error = Assert.ContainsSingle(guarded.Catches);
         Assert.AreEqual("global::System.Exception", error.Declaration!.Type.ToString());
-        Assert.AreSequenceEqual(["global::Ankus.NativeError.Write(exception, error);", "return 1;"],
+        Assert.AreSequenceEqual(["global::Ankus.CompilerServices.NativeError.Write(exception, error);", "return 1;"],
             error.Block.Statements.Select(static statement => statement.ToString()));
-        Assert.Contains("new global::System.ReadOnlySpan<global::Ankus.NativeValue>(arguments, 12)", guarded.Block.Statements[2].ToString());
+        Assert.Contains("new global::System.ReadOnlySpan<global::Ankus.CompilerServices.NativeValue>(arguments, 12)", guarded.Block.Statements[2].ToString());
         Assert.AreEqual("global::Ankus.PgHeapTuple? value = global::Functions.@return(context);", guarded.Block.Statements[3].ToString());
         IfStatementSyntax after = Assert.IsInstanceOfType<IfStatementSyntax>(guarded.Block.Statements[4]);
         IfStatementSyntax statement = Assert.IsInstanceOfType<IfStatementSyntax>(guarded.Block.Statements[5]);
@@ -103,7 +103,7 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.AreSequenceEqual(["result->IsNull = 1;", "return 0;"], statementBody.Statements.Skip(1).Select(static item => item.ToString()));
         Assert.AreSequenceEqual(["result->IsNull = 0;", "return 0;"],
             Assert.IsInstanceOfType<BlockSyntax>(deleted.Statement).Statements.Select(static item => item.ToString()));
-        Assert.AreSequenceEqual(["*result = global::Ankus.NativeValue.FromTuple(value);", "return 0;"],
+        Assert.AreSequenceEqual(["*result = global::Ankus.CompilerServices.NativeValue.FromTuple(value);", "return 0;"],
             guarded.Block.Statements.Skip(8).Select(static item => item.ToString()));
     }
 

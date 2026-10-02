@@ -62,7 +62,7 @@ internal static partial class NativeBindingRecordCSharp
                 Summary("Borrows a native callback address using its field or global declaration name.");
                 Line("/// <param name=\"address\">A native callback with the exact selected-header signature and a lifetime covering every use.</param>");
                 Line("/// <remarks>This value shares its canonical pointer's representation and does not own or extend the callback lifetime.</remarks>");
-                Line($"[global::Ankus.NativeFunctionPointer({Number(call.FunctionType)})]");
+                Line($"[global::Ankus.CompilerServices.NativeFunctionPointer({Number(call.FunctionType)})]");
                 Line("[global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]");
                 Line($"public readonly struct @{name}(nint address) : global::Ankus.IPgNativeType\n{{");
                 NativeRecordType storage = graph.Types[call.PointerType];

@@ -32,7 +32,7 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.Contains("\"value\" " + sqlType, sql);
         Assert.Contains("RETURNS " + sqlType + " AS", sql);
         string managedSource = string.Join("\n", compilation.SyntaxTrees.Select(static tree => tree.ToString()));
-        Assert.Contains("using var relationScope = new global::Ankus.NativeRelationScope();", managedSource);
+        Assert.Contains("using var relationScope = new global::Ankus.CompilerServices.NativeRelationScope();", managedSource);
         Assert.Contains("value = relationScope.Add(", managedSource);
     }
 
@@ -88,7 +88,7 @@ public sealed partial class PgFunctionGeneratorTests
         string sql = ManifestValue(compilation, "Ankus.Sql");
         Assert.Contains("STYPE = regclass", sql);
         string source = string.Join("\n", compilation.SyntaxTrees.Select(static tree => tree.ToString()));
-        Assert.Contains("using var relationScope = new global::Ankus.NativeRelationScope();", source);
+        Assert.Contains("using var relationScope = new global::Ankus.CompilerServices.NativeRelationScope();", source);
         Assert.Contains("value = relationScope.Add(", source);
     }
 }

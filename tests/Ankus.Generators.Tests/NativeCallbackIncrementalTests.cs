@@ -40,7 +40,7 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.AreEqual(ManifestValue(first, "Ankus.NativeSource"), ManifestValue(second, "Ankus.NativeSource"));
         Assert.Contains(emission.ReplaceLineEndings("\n"), CallbackProperties(driver)!);
         Assert.Contains("global::Functions.@Handle(argument0, argument1)", emission);
-        Assert.Contains("global::Ankus.NativeRawCallback.ValidateBinding<global::Hook>()", emission);
+        Assert.Contains("global::Ankus.CompilerServices.NativeRawCallback.ValidateBinding<global::Hook>()", emission);
         AssertCallbackCompiles(second);
     }
 

@@ -74,7 +74,7 @@ internal static partial class NativeBindingRecordCSharp
             string hide = parameters.Count == 0 && method != "Equals" ? Hide(method) : "";
             string staticModifier = indirect ? "" : "static ";
             Line($"    {visibility} {hide}{staticModifier}{unsafeModifier}{result?.Code ?? "void"} @{method}({signature})\n    {{");
-            Line($"        global::Ankus.NativeRawCall.ValidateBinding(\"__ANKUS_RECORD_IDENTITY__\"u8, {Number(graph.Target.PostgresVersion / 10000)});");
+            Line($"        global::Ankus.CompilerServices.NativeRawCall.ValidateBinding(\"__ANKUS_RECORD_IDENTITY__\"u8, {Number(graph.Target.PostgresVersion / 10000)});");
             if (indirect)
             {
                 Line("        if (IsNull)\n        {\n            throw new global::System.InvalidOperationException(\"A null native function pointer cannot be invoked.\");\n        }\n");
@@ -82,7 +82,7 @@ internal static partial class NativeBindingRecordCSharp
 
             if (frame.AllocationSize == 0)
             {
-                Line($"        global::Ankus.NativeRawCall.Invoke(@{accessor}(), [], 0, 0);\n    }}\n");
+                Line($"        global::Ankus.CompilerServices.NativeRawCall.Invoke(@{accessor}(), [], 0, 0);\n    }}\n");
                 return;
             }
 
@@ -99,7 +99,7 @@ internal static partial class NativeBindingRecordCSharp
             Line($"{indent}nuint storage = checked((nuint)allocation + alignment) & ~alignment;");
             if (parameters.Count != 0)
             {
-                Line($"{indent}global::System.Span<global::Ankus.NativeCallArgument> arguments = new((void*)storage, {Number(parameters.Count)});");
+                Line($"{indent}global::System.Span<global::Ankus.CompilerServices.NativeCallArgument> arguments = new((void*)storage, {Number(parameters.Count)});");
                 for (int index = 0; index < parameters.Count; index++)
                 {
                     (string name, Value value) = parameters[index];
@@ -114,7 +114,7 @@ internal static partial class NativeBindingRecordCSharp
             }
 
             string resultAddress = result is null ? "0" : "(nint)(storage + " + NativeSize(frame.Result) + ")";
-            Line($"{indent}global::Ankus.NativeRawCall.Invoke(@{accessor}(), {(parameters.Count == 0 ? "[]" : "arguments")}, {resultAddress}, {NativeSize(result?.Size ?? 0)});");
+            Line($"{indent}global::Ankus.CompilerServices.NativeRawCall.Invoke(@{accessor}(), {(parameters.Count == 0 ? "[]" : "arguments")}, {resultAddress}, {NativeSize(result?.Size ?? 0)});");
             if (result is not null)
             {
                 Line(result.Size == 0 ? indent + "return default;"
