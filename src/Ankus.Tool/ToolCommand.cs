@@ -178,27 +178,6 @@ internal static partial class ToolCommand
         return command;
     }
 
-    private static Command CreateInfo(Option<string?> home)
-    {
-        var command = new Command("info", "Show the selected PostgreSQL installation.");
-        AddSelectionOptions(command);
-        command.SetAction(async (result, token) =>
-        {
-            PostgresInstallation installation = await SelectAsync(result, home, token);
-            Console.WriteLine($"PostgreSQL: {installation.Version}");
-            Console.WriteLine($"pg_config: {installation.PgConfigPath}");
-            Console.WriteLine($"Binaries: {installation.BinDirectory}");
-            Console.WriteLine($"Libraries: {installation.LibraryDirectory}");
-            Console.WriteLine($"Shared files: {installation.SharedDirectory}");
-            Console.WriteLine($"Server headers: {installation.ServerIncludeDirectory}");
-            var registry = new PostgresRegistry(result.GetValue(home));
-            Console.WriteLine($"Development port: {registry.GetPort(installation.Version.Major)}");
-            Console.WriteLine($"Test port: {registry.GetTestPort(installation.Version.Major)}");
-            return 0;
-        });
-        return command;
-    }
-
     private static Command CreateBuild(string name, string description, Option<string?> home)
     {
         var command = new Command(name, description);

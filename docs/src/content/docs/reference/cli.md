@@ -274,6 +274,34 @@ Development servers use the saved development base on their next start.
 Test fixtures keep automatic ports unless you explicitly select the saved test
 port; see [choosing a test port](/getting-started/testing/#choose-a-test-port).
 
+## Read installation values in scripts
+
+`ankus info` prints a labelled installation report. Its subcommands print one
+value followed by a newline, with no labels:
+
+```console
+ankus info path 18
+ankus info pg-config pg18
+ankus info version 18
+```
+
+`path` returns the directory above the selected `pg_config` directory, matching
+pgrx's installation-root convention. `pg-config` returns the executable's
+absolute path. `version` returns its release version, such as `18.6` or `19beta4`.
+Paths are printed verbatim, including spaces. Preserve the returned value
+rather than splitting it on whitespace.
+
+The optional positional major accepts `13` through `19`, with or without a
+`pg` prefix. You can instead use `--pg` and `--pg-config`, before or after the
+subcommand. If both major selectors are given, they must agree, and an explicit
+executable must match that major. Without selectors, the current project's
+unambiguous PostgreSQL selection applies, otherwise PostgreSQL 18. Registry
+lookup honors `--home` and `ANKUS_HOME`.
+
+These commands do not start a server or update registrations. Failed selection
+returns a nonzero exit code and writes its diagnostic to standard error without
+printing an information value.
+
 ## Run a development server
 
 ```console

@@ -84,7 +84,7 @@ remains incomplete; the following work is additional to the open parity gates.
 | PostgreSQL selection | Confirmed and corrected. Project evaluation, test-host runtime configuration and CLI defaults honor the selected major and installation. Explicit choices retain precedence. The complete PostgreSQL 17.11/Linux x64 suite passes, including packed consumers and actual backend execution. CI also passes on Linux x64/macOS ARM64 PostgreSQL 18 and Windows x64 PostgreSQL 17. |
 | Declarative parity | Extended module magic, custom datum alignment and managed `PgRequires`/`PgBefore` references pass complete dedicated-platform CI. `PgSupportFunction` provides checked planner references and prerequisites. Typed aggregate capabilities cover owned state, parallel transport, moving windows, ordered/hypothetical calls and polymorphic final-extra values. Generated SQL now retains source lines, managed declarations, prerequisites and connected-object markers through publication and full/selected extraction, preserving deterministic ordering. Planner, aggregate and provenance milestones now pass full CI on Linux x64/macOS ARM64 PostgreSQL 18 and Windows x64 PostgreSQL 17. The remaining version/platform matrix is still required. |
 | Runtime APIs and performance | Guarded `PgInterrupts.Check()` supports managed loops, retained cancellation and Windows queued signals. Nonterminal reporting now defers interrupts through native emission and cleanup, preserving inherited holdoffs on success and failure. Direct/native checks and the complete PostgreSQL 18.6/Linux x64 suite pass; full reporting CI also passes on Linux x64/macOS ARM64 PostgreSQL 18 and Windows x64 PostgreSQL 17. SPI read/write semantics, numeric representation and guard/array costs remain open. Preserve the recovery contract and measure performance claims. |
-| Tooling and upstream drift | The pgrx 0.19.3 inventory and OID refresh plus PostgreSQL 19 beta 4 SQLSTATE alignment pass complete PostgreSQL 18.6 and 19 beta 4/Linux x64 suites. Independent binding generation passes for all seven majors on Linux x64, plus macOS ARM64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.11. Refresh/repair CI now passes the complete dedicated-platform suites; the remaining full version/platform matrix is still required. General build-property forwarding and environment selection pass focused installed/native checks and Release/API/site gates; their combined plain full suite is running. Package prefix, account/privilege selection, benchmarks, scriptable info and regression scaffolding remain open. Test-command custom data directories and schema reuse have real installed-consumer evidence below. |
+| Tooling and upstream drift | The pgrx 0.19.3 inventory and OID refresh plus PostgreSQL 19 beta 4 SQLSTATE alignment pass complete PostgreSQL 18.6 and 19 beta 4/Linux x64 suites. Independent binding generation passes for all seven majors on Linux x64, plus macOS ARM64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.11. Refresh/repair CI passes the complete dedicated-platform suites; the remaining full version/platform matrix is still required. General build-property forwarding and environment selection pass plain full PostgreSQL 18.6/Linux x64 and primary Release/API/site gates; committed 673c44c awaits fresh platform CI. Scriptable information now passes plain full PostgreSQL 18.6/Linux x64, Release/API/site gates; fresh platform CI remains required. The package-prefix final complete suite is active. Additional-major workflow and prerequisites are being prepared, with actual complete version results still required. Account/privilege selection, benchmarks and regression scaffolding remain open. Test-command custom data directories and schema reuse have real installed-consumer evidence below. |
 | .NET author experience | Cached declaration, conversion, catalog and method-inventory stages pass complete PostgreSQL 18.6/Linux acceptance and dedicated-platform CI, including reference/provider/native-compilation models. Final graph/artifact rendering and the Windows assertion repair pass the complete Linux/macOS PostgreSQL 18 and Windows PostgreSQL 17 CI suites. Precise ANKUS030–043 asynchronous and ordinary-signature diagnostics, installation-schema search paths and C# operator/conversion declarations pass complete native, Release/docs and all three platform CI gates. Broader diagnostics/code fixes, templates, namespace/API discoverability, formatting/parsing/comparison helpers, safe parameter binding, raw-call visibility and testing discovery/framework documentation remain open. |
 | Packaging | Added the MIT license, copyright Brandon Williams, and shared author/license/project/repository metadata following the author's other repository. Verified the metadata in all seven locally packed packages, including the Linux runtime package; no packages are published. |
 | Platform coverage | Complete full-suite evidence for the supported major/platform combinations, including macOS x64 and library-suffix boundaries. Use GitHub-hosted runners where dedicated machines cannot cover the target, retaining complete suites and appropriate caches. The first weekly/manual GitHub-hosted Intel macOS run built and cached the runtime, then exposed a stale PostgreSQL build-time SDK path before tests. Native builds now select the installed macOS SDK; a successful complete Intel run remains required. Existing focused version probes are not full-suite coverage. |
@@ -945,6 +945,35 @@ Intel macOS **36954573679** remains active. Latest dedicated-platform CI
 **36951253669** and Docs **36951253659** succeed. No active run is canceled;
 fresh CI for the new property/environment commit remains required.
 
+The property/environment milestone is committed and pushed as **673c44c**.
+The same twenty preceding outcomes are checked and retained immediately before
+push, unchanged from the pre-commit review. Fresh CI **36956361987** and Docs
+**36956361960** are active; Intel macOS **36954573679** continues independently
+against **c328b30**. No running or earlier result is attributed to the new commit.
+
+## Scriptable information acceptance
+
+Scriptable information's immutable **196**-path source completes plain full
+`dotnet test` against PostgreSQL **18.6/Linux x64**: **10,813 total,
+10,801 passed, zero failed and 12 platform skips, 52m42.313s**. All six modules
+pass and the durable child exits **0**. Every accepted source hash matches both
+validator and source afterward. Six changed owned files are promoted to the
+primary checkout, and all **196** hashes match there as well. The accepted
+Release build has **zero warnings/errors, 2m19.08s**; API freshness and actual
+regeneration verify **235 pages / 2,683 members**. Site build verifies **283
+pages, 3.50s**, and check reports zero errors, warnings or hints. These earlier
+gates retain exactly the same source bytes through full acceptance and promotion.
+Fresh dedicated-platform execution remains required.
+
+Immediately before this information milestone's commit, preceding CI outcomes
+are checked and retained. Property/environment CI **36956361987** has successful
+quality/runtime jobs and three active complete platform suites; Docs
+**36956361960** succeeds. Intel macOS **36954573679** remains active, with its
+runtime job successful. Operator CI/Docs **36951253669/36951253659** succeeds.
+Historical **36930730662** retains its recorded Windows newline failure, already
+repaired by **d08bdc6** and verified by subsequent full platform runs. No new
+failure is outstanding and no active run is canceled.
+
 ## Package-prefix draft
 
 The package-prefix gap is confirmed against the pinned pgrx **0.19.3** source.
@@ -999,6 +1028,40 @@ and separately check a trailing missing value with the precise `--prefix-dir`
 error. No production parser change is justified. All **199** original hashes
 match after the failed run; the test-only revision reruns the three affected
 installed-command cases before final full acceptance.
+
+The corrected three parser cases pass **3/3**, zero failures/skips,
+**6m37.181s**, PostgreSQL **18.6/Linux x64**. The durable process exits **0**
+and all **199** source hashes match afterward. Plain unfiltered `dotnet test`
+starts on that unchanged final source. Its terminal result, primary verification
+and fresh dedicated-platform execution remain required; the earlier focused
+results do not establish this full gate.
+
+## Additional PostgreSQL version workflow draft
+
+A separate weekly/manual workflow is drafted for complete Linux x64 suites
+against PostgreSQL **13–17 and 19**, with manual selection also allowing 18.
+An exclusive compatibility runner role keeps these jobs off primary CI's queue.
+Both jobs require the owner as original and rerun actor and the `main` ref.
+Every version retains the full six-module suite, a 60-minute limit, separate
+redacted artifacts and independent failure reporting. No run is automatically
+canceled. macOS and Windows additional-major gates remain required separately.
+
+The engineering helper's outdated **15–18** input restriction is expanded to
+**13–19** in the draft. A read-only installation check verifies the actual
+`pg_config` major and development headers, including beta/RC version identifiers.
+The workflow passes `actionlint` with its real custom labels configured; no lint
+diagnostic is suppressed. The check accepts PostgreSQL **18.6/Linux x64** and
+rejects an installation-major mismatch and unsupported major 20. An actual
+PostgreSQL **17.11** installation is rejected because its server headers are
+missing; that prerequisite must be installed before running its suite.
+
+The additional servers, headers and compatibility label are not yet provisioned
+or enabled. Existing immutable complete validations continue before dependency
+changes. Workflow syntax and prerequisite checks are not full version evidence.
+The scriptable-information complete run remains live, as do the final prefix
+suite and hosted Intel macOS CI. Current property/environment Docs CI succeeds;
+its quality/runtime jobs succeed while the three platform suites remain active.
+No new platform success is inferred from those unfinished jobs.
 
 ## C# operator and conversion declaration draft
 

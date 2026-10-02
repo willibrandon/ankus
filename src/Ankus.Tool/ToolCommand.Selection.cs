@@ -14,9 +14,11 @@ internal static partial class ToolCommand
     /// <param name="testProject">An optional project selected in forwarded test arguments.</param>
     /// <param name="testConfiguration">The effective forwarded test configuration.</param>
     /// <param name="testProperties">Explicit MSBuild properties forwarded to the test build.</param>
+    /// <param name="positionalMajor">An optional major selected by an information subcommand's argument.</param>
     /// <returns>The selected and version-checked installation.</returns>
     private static async Task<PostgresInstallation> SelectAsync(ParseResult result, Option<string?> home, CancellationToken token,
-        string? testProject = null, string? testConfiguration = null, IReadOnlyDictionary<string, string>? testProperties = null)
+        string? testProject = null, string? testConfiguration = null, IReadOnlyDictionary<string, string>? testProperties = null,
+        int? positionalMajor = null)
     {
         testProperties ??= BuildProperties(result);
         if (testConfiguration is null && result.CommandResult.Command.Options.Any(static option => option.Name == "--configuration"))
@@ -25,6 +27,12 @@ internal static partial class ToolCommand
         }
 
         int? major = ExplicitMajor(result);
+        if (major is not null && positionalMajor is not null && major != positionalMajor)
+        {
+            throw new ArgumentException("Select the same PostgreSQL major for the version argument and --pg.");
+        }
+
+        major ??= positionalMajor;
         string? path = result.GetValue<string?>("--pg-config");
         string? forwardedPath = testProperties?.GetValueOrDefault("AnkusPgConfigPath");
         if (testProperties?.GetValueOrDefault("AnkusPostgresMajor") is string value)
@@ -152,7 +160,8 @@ internal static partial class ToolCommand
     {
         properties ??= BuildProperties(result);
         bool test = result.CommandResult.Command.Name == "test";
-        bool cluster = result.CommandResult.Command.Name is "start" or "stop" or "status" or "info";
+        bool cluster = result.CommandResult.Command.Name is "start" or "stop" or "status" or "info" ||
+            result.CommandResult.Parent is System.CommandLine.Parsing.CommandResult { Command.Name: "info" };
         if (!test && !cluster && !result.CommandResult.Command.Options.Any(static option => option.Name == "--project"))
         {
             return null;

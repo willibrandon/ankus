@@ -51,6 +51,10 @@ Use `ankus test --pg 17` for another registered PostgreSQL major, or
 `ankus test --all` for every registered version. Pass ordinary test filters and
 report options after `--`. See [test command options](docs/src/content/docs/reference/cli.md#run-extension-tests).
 
+For scripts, `ankus info path 18`, `ankus info pg-config 18` and
+`ankus info version 18` print individual installation values. See
+[installation information](docs/src/content/docs/reference/cli.md#read-installation-values-in-scripts).
+
 Add `--pgdata ./test-data` to choose the parent for isolated test-cluster data.
 Each invocation cleans up its own child directory and preserves the parent.
 
