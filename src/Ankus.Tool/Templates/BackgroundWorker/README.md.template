@@ -44,3 +44,7 @@ An unsuccessful worker exit restarts after five seconds.
 
 Ordinary SQL functions remain in `Functions.cs`. Package versions live in
 `global.json` and `Directory.Packages.props`.
+
+SQL regression files live beside the extension project under `pg_regress/`.
+The generated `sql/setup.sql` and `expected/setup.out` create the extension.
+Worker regression tests also require the library's shared preload setting.

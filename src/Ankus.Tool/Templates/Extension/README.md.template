@@ -38,6 +38,16 @@ CREATE EXTENSION __EXTENSION__;
 SELECT add(40, 2), greet('PostgreSQL');
 ```
 
+The extension's `pg_regress/sql/setup.sql` and matching
+`pg_regress/expected/setup.out` create the extension for SQL regression tests.
+Add SQL cases under `src/__PROJECT__/pg_regress/sql/`, then record and review
+their expected output:
+
+```console
+ankus regress --add addition
+ankus regress
+```
+
 Add attributed functions in `src/__PROJECT__/Functions.cs`. Ankus generates the
 native wrappers and SQL. Set `AnkusExtensionVersion` in the extension project
 before publishing a new extension version. Package versions live in `global.json`

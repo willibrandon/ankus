@@ -16,6 +16,10 @@ under `tests/`. It pins matching Ankus packages, enables Central Package Managem
 and configures the .NET 10 test runner. The generated tests exercise both managed
 methods and a Native AOT library loaded into PostgreSQL.
 
+Each extension also contains `pg_regress/sql/setup.sql` and a matching
+`pg_regress/expected/setup.out`. They create the extension before your
+[SQL regression tests](#run-sql-regression-suites) run.
+
 Project names use C# identifier segments such as `Acme.Search`. SQL extension names
 default to snake case (`acme_search`); use `--extension-name` to choose one explicitly.
 `--output` selects a new destination directory. Existing destinations are preserved.
@@ -383,7 +387,8 @@ startup fail explicitly, preserving initialized cluster data.
 
 Place SQL files under `pg_regress/sql/` beside your extension project. Expected
 output lives in `pg_regress/expected/`, using the same basename and an `.out`
-extension. An optional `setup.sql` creates your extension and shared test objects:
+extension. `ankus new` creates an initial `setup.sql` and its expected output.
+The setup script creates your extension; extend it with shared test objects as needed:
 
 ```sql
 CREATE EXTENSION hello;

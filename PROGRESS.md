@@ -84,7 +84,7 @@ remains incomplete; the following work is additional to the open parity gates.
 | PostgreSQL selection | Confirmed and corrected. Project evaluation, test-host runtime configuration and CLI defaults honor the selected major and installation. Explicit choices retain precedence. The complete PostgreSQL 17.11/Linux x64 suite passes, including packed consumers and actual backend execution. CI also passes on Linux x64/macOS ARM64 PostgreSQL 18 and Windows x64 PostgreSQL 17. |
 | Declarative parity | Extended module magic, custom datum alignment and managed `PgRequires`/`PgBefore` references pass complete dedicated-platform CI. `PgSupportFunction` provides checked planner references and prerequisites. Typed aggregate capabilities cover owned state, parallel transport, moving windows, ordered/hypothetical calls and polymorphic final-extra values. Generated SQL now retains source lines, managed declarations, prerequisites and connected-object markers through publication and full/selected extraction, preserving deterministic ordering. Planner, aggregate and provenance milestones now pass full CI on Linux x64/macOS ARM64 PostgreSQL 18 and Windows x64 PostgreSQL 17. The remaining version/platform matrix is still required. |
 | Runtime APIs and performance | Guarded `PgInterrupts.Check()` supports managed loops, retained cancellation and Windows queued signals. Nonterminal reporting now defers interrupts through native emission and cleanup, preserving inherited holdoffs on success and failure. Direct/native checks and the complete PostgreSQL 18.6/Linux x64 suite pass; full reporting CI also passes on Linux x64/macOS ARM64 PostgreSQL 18 and Windows x64 PostgreSQL 17. SPI read/write semantics, numeric representation and guard/array costs remain open. Preserve the recovery contract and measure performance claims. |
-| Tooling and upstream drift | The pgrx 0.19.3 inventory and OID refresh plus PostgreSQL 19 beta 4 SQLSTATE alignment pass complete PostgreSQL 18.6 and 19 beta 4/Linux x64 suites. Independent binding generation passes for all seven majors on Linux x64, plus macOS ARM64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.11. Refresh/repair CI passes the complete dedicated-platform suites; the remaining full version/platform matrix is still required. General build-property forwarding, environment selection, scriptable information and package prefixes pass plain full PostgreSQL 18.6/Linux x64 and Release/API/site gates. The final composition also passes complete native acceptance with both CI fixture corrections and bounded compiler-input hashing; fresh corrected platform CI remains required. Additional-major workflow and prerequisites are being prepared, with actual complete version results still required. Account/privilege selection and benchmarks remain open; regression scaffolding has focused native evidence with its complete suite active. Test-command custom data directories and schema reuse have real installed-consumer evidence below. |
+| Tooling and upstream drift | The pgrx 0.19.3 inventory and OID refresh plus PostgreSQL 19 beta 4 SQLSTATE alignment pass complete PostgreSQL 18.6 and 19 beta 4/Linux x64 suites. Independent binding generation passes for all seven majors on Linux x64, plus macOS ARM64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.11. Refresh/repair CI passes the complete dedicated-platform suites; the remaining full version/platform matrix is still required. General build-property forwarding, environment selection, scriptable information and package prefixes pass plain full PostgreSQL 18.6/Linux x64 and Release/API/site gates. The final composition also passes complete native acceptance with both CI fixture corrections and bounded compiler-input hashing; fresh corrected platform CI is active. Additional-major workflow and prerequisites are being prepared, with actual complete version results still required. Account/privilege selection and benchmarks remain open. Regression scaffolding passes its complete PostgreSQL 18.6/Linux x64 suite and Release/API/site gates, with fresh platform CI pending. Test-command custom data directories and schema reuse have real installed-consumer evidence below. |
 | .NET author experience | Cached declaration, conversion, catalog and method-inventory stages pass complete PostgreSQL 18.6/Linux acceptance and dedicated-platform CI, including reference/provider/native-compilation models. Final graph/artifact rendering and the Windows assertion repair pass the complete Linux/macOS PostgreSQL 18 and Windows PostgreSQL 17 CI suites. Precise ANKUS030–043 asynchronous and ordinary-signature diagnostics, installation-schema search paths and C# operator/conversion declarations pass complete native, Release/docs and all three platform CI gates. Broader diagnostics/code fixes, templates, namespace/API discoverability, formatting/parsing/comparison helpers, safe parameter binding, raw-call visibility and testing discovery/framework documentation remain open. |
 | Packaging | Added the MIT license, copyright Brandon Williams, and shared author/license/project/repository metadata following the author's other repository. Verified the metadata in all seven locally packed packages, including the Linux runtime package; no packages are published. |
 | Platform coverage | Complete full-suite evidence for the supported major/platform combinations, including macOS x64 and library-suffix boundaries, remains required. Use GitHub-hosted runners where dedicated machines cannot cover the target, retaining complete suites and appropriate caches. Native builds now select the installed macOS SDK. The latest Intel run reaches real backend testing but exposes three relative-path fixture errors and hits the 60-minute limit. Its fixture correction and measured binding-build investigation are active; a successful complete Intel run remains required. Existing focused version probes are not full-suite coverage. |
@@ -1295,6 +1295,17 @@ change retains content-based identities before lookup and after compilation,
 all native ABI checks and the complete final acceptance recorded above.
 Fresh platform timing and full-suite outcomes remain required.
 
+The three verified milestones are pushed together through **b9942a0**:
+fixture isolation **5254c71**, package prefixes **780ecae**, and compiler-input
+hashing **b9942a0**. Before push, the same eight preceding CI outcomes are
+checked and retained once more, all unchanged and terminal; all **202** source
+hashes still match the committed primary checkout. Fresh primary CI
+[36964760599](https://github.com/willibrandon/ankus/actions/runs/36964760599),
+Docs **36964760249**, and explicitly dispatched hosted Intel validation
+[36964760110](https://github.com/willibrandon/ankus/actions/runs/36964760110)
+have started on that exact revision. Their outcomes remain pending. No run
+is canceled, and the independent scaffold validator retains its unchanged source.
+
 ## SQL regression scaffolding draft
 
 The review's missing `ankus new` SQL regression files are confirmed against the
@@ -1344,6 +1355,97 @@ original hashes verify, that idle checkout receives the final scaffold snapshot
 and starts plain complete `dotnet test` against PostgreSQL **18.6/Linux x64**.
 The separate CI repair validator keeps its unchanged **202**-hash source.
 No shared host dependencies are installed during either live complete run.
+
+The unchanged **209**-hash scaffold composition now passes plain complete
+`dotnet test`, PostgreSQL **18.6/Linux x64**: **10,838 total, 10,824 passed,
+zero failed and 14 platform skips, 31m53.011s**. All six modules complete,
+terminal exit is **0**, and all **209** source hashes match in the validator,
+draft and primary checkout after promotion. Invocation time including the
+initial build is **33m45.117s**. Only the nine accepted scaffold paths are
+promoted; the independently tested consumer warning-default change remains
+outside this milestone while its final combined suite runs.
+
+Together with the recorded final Release/API/site gates, this establishes local
+acceptance for setup SQL, expected outputs and their initial write ordering.
+Fresh complete platform CI remains required. No passing filtered result or
+unfinished combined run substitutes for these complete results.
+
+Immediately before the scaffold commit, preceding CI outcomes are checked and
+retained again. Repair CI **36964760599** has successful quality/runtime jobs
+and all three complete platform test jobs remain active; its Docs run succeeds.
+Hosted Intel **36964760110** retains its successful build and active full suite.
+The two historical primary failures and earlier hosted Intel timeout retain
+their recorded outcomes on unchanged older commits. No new failure is reported;
+the independent **211**-hash template full validator remains active.
+
+## Consumer template warning defaults draft
+
+The review's template-policy finding is confirmed: generated consumer build
+properties explicitly impose `TreatWarningsAsErrors=true`. A separate draft
+removes that repository preference from the ordinary and background-worker
+templates. Repository warnings-as-errors, `MSTestAnalysisMode=All` and every
+enforced diagnostic retain their existing settings.
+
+The installed-tool regression checks both templates: an ordinary C# warning
+must remain visible while the default build succeeds, an explicit consumer
+strict setting must turn that same warning into an error, and an invalid
+Task-returning PostgreSQL declaration must remain an Ankus error in the default
+build. Public creation guidance explains the consumer choice. The draft freezes
+**204** source hashes on the accepted CI repair baseline; its two-case focused
+check is active. The independent scaffold validator remains unchanged. Neither
+earlier full-suite evidence nor an active check proves acceptance of this draft.
+
+The consumer warning-default scope now passes **2/2**, zero failures/skips,
+**5m56.305s**, PostgreSQL **18.6/Linux x64**, terminal exit **0**. Both ordinary
+and worker templates execute all three actual compiler outcomes described above.
+All **204** source hashes match in the validator and draft checkout afterward.
+Final combined native, Release/API/site and cross-platform acceptance remain
+required before promoting these template changes.
+
+After that focused child exits and its source hashes verify, final template
+acceptance combines both fixes on the accepted CI repair baseline, freezing
+**211** source hashes. The Release rebuild is active on this composition;
+final API/site and plain complete native acceptance remain required. The
+independent **209**-hash scaffold validator retains its original source and
+continues running. Shared host dependencies remain unchanged during validation.
+
+The final **211**-hash template composition's Release rebuild passes with
+**zero warnings/errors, 2m00.51s**. All source hashes match afterward. API
+regeneration/freshness, site checks and plain complete native acceptance remain
+required; the independent scaffold full suite is still running.
+
+The final **211**-hash source also passes API regeneration and freshness
+(**235 pages / 2,683 members**). The site builds **283 pages in 3.97s** and
+checks with **zero errors, warnings or hints**. All **211** source hashes match
+afterward. Plain complete `dotnet test` now runs against PostgreSQL
+**18.6/Linux x64** on that exact composition; its terminal result and fresh
+platform CI remain required. The separate **209**-hash scaffold run continues
+on unchanged source at this checkpoint. Neither run is canceled or receives
+dependency changes.
+
+Fresh CI **36964760599** passes quality and all three runtime jobs; its complete
+Linux/PostgreSQL 18, macOS ARM64/PostgreSQL 18 and Windows/PostgreSQL 17 tests
+remain active. Docs **36964760249** succeeds. Hosted Intel **36964760110**
+passes its runtime job and test build in **7m14s**, compared with the earlier
+**14m02s** build step; its complete test step is active. Cache/workload conditions
+differ, so these observed durations do not establish an isolated speed comparison
+or a completed platform result. The configured one-hour timeout is unchanged.
+
+## SPI read-mode review clarification
+
+The pinned pgrx reference distinguishes explicit client `select` from `update`,
+but its convenience `get_one`, `get_two`, `get_three` and `run` calls all use
+writable `update`. Ankus's writable `Execute` and scalar helpers therefore
+match those convenience operations; changing them all to read-only would break
+both pgrx parity and supported `INSERT ... RETURNING` behavior.
+
+The remaining gap is an explicit read-selection API with pgrx's transaction
+semantics. pgrx checks PostgreSQL's current transaction identity, including writes
+outside its SPI client, and retains writable snapshot behavior after mutation.
+A constant `readOnly=true` default or a managed per-session flag does not preserve
+that contract. The existing explicit boolean overload remains available, but
+transaction-aware selection and its native snapshot/locking/recovery evidence
+remain required. No current execution defaults are changed by this investigation.
 
 ## C# operator and conversion declaration draft
 

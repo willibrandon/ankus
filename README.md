@@ -116,6 +116,8 @@ development database. `ankus connect --pg 18` reopens that database without a bu
 `ankus regress --pg 18` runs SQL regression files through PostgreSQL's own test
 driver. See [SQL regression suites](docs/src/content/docs/reference/cli.md#run-sql-regression-suites)
 for setup SQL, expected output, filters, and repeated runs.
+New extensions include the setup SQL and expected output under `pg_regress/`
+beside the extension project.
 
 Use `ankus upgrade --dry-run` to preview framework package and SDK updates.
 See [upgrading references](docs/src/content/docs/reference/cli.md#upgrade-ankus-references)

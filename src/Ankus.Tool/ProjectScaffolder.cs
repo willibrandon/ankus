@@ -68,7 +68,10 @@ internal static partial class ProjectScaffolder
                 : [templateRoot];
             foreach (string root in roots)
             {
-                foreach (string source in Directory.EnumerateFiles(root, "*.template", SearchOption.AllDirectories))
+                // Regression expectations must be written after their SQL, matching the initial setup baseline.
+                foreach (string source in Directory.EnumerateFiles(root, "*.template", SearchOption.AllDirectories)
+                    .OrderBy(static path => path.EndsWith(".out.template", StringComparison.Ordinal))
+                    .ThenBy(static path => path, StringComparer.Ordinal))
                 {
                     string relative = Replace(Path.GetRelativePath(root, source)[..^".template".Length], replacements);
                     string target = Path.Combine(staging, relative);

@@ -1,0 +1,3 @@
+-- This setup file runs when the regression database is created or recreated.
+-- Create the extension before running the ordinary SQL tests.
+CREATE EXTENSION __EXTENSION__;

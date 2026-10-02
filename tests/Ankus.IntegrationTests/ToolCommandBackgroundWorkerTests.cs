@@ -21,6 +21,11 @@ public sealed partial class ToolCommandTests
         created.EnsureSuccess(s_tool, ["new", "--background-worker"]);
         Assert.IsTrue(File.Exists(Path.Combine(output, "src", "Acme.WorkerProbe", "Workers.cs")));
         Assert.IsFalse(File.Exists(Path.Combine(output, ".editorconfig")));
+        string suite = Path.Combine(output, "src", "Acme.WorkerProbe", "pg_regress");
+        string setup = "-- This setup file runs when the regression database is created or recreated.\n" +
+            "-- Create the extension before running the ordinary SQL tests.\nCREATE EXTENSION acme_worker_probe;\n";
+        Assert.AreEqual(setup, (await File.ReadAllTextAsync(Path.Combine(suite, "sql", "setup.sql"), token)).ReplaceLineEndings("\n"));
+        Assert.AreEqual(setup, (await File.ReadAllTextAsync(Path.Combine(suite, "expected", "setup.out"), token)).ReplaceLineEndings("\n"));
         ProcessResult tests = await ProcessRunner.RunAsync("dotnet",
             ["test", "--report-trx", "-p:AnkusPostgresMajor=" + MajorText()], s_environment, token, workingDirectory: output);
         tests.EnsureSuccess("dotnet", ["test"]);
