@@ -16,6 +16,10 @@ under `tests/`. It pins matching Ankus packages, enables Central Package Managem
 and configures the .NET 10 test runner. The generated tests exercise both managed
 methods and a Native AOT library loaded into PostgreSQL.
 
+Generated projects use ordinary .NET warning defaults. To require warning-free
+builds, set `TreatWarningsAsErrors` in your project's build properties.
+Invalid Ankus declarations remain errors regardless of that setting.
+
 Each extension also contains `pg_regress/sql/setup.sql` and a matching
 `pg_regress/expected/setup.out`. They create the extension before your
 [SQL regression tests](#run-sql-regression-suites) run.

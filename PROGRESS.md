@@ -1370,6 +1370,14 @@ acceptance for setup SQL, expected outputs and their initial write ordering.
 Fresh complete platform CI remains required. No passing filtered result or
 unfinished combined run substitutes for these complete results.
 
+The accepted scaffold evidence directly covers
+`NewSolutionScaffoldsRunnableRegressionSetup` (derived/explicit names, real
+regression execution and database reuse) and the existing worker scaffold's
+rendered files and native execution. This milestone is committed and pushed as
+**7890c5d**. Previous CI outcomes are retained again before push; they remain
+as recorded above. Fresh CI **36966035199** is queued and Docs **36966035246**
+is active. The previous repair and Intel suites continue without cancellation.
+
 Immediately before the scaffold commit, preceding CI outcomes are checked and
 retained again. Repair CI **36964760599** has successful quality/runtime jobs
 and all three complete platform test jobs remain active; its Docs run succeeds.
@@ -1402,6 +1410,10 @@ All **204** source hashes match in the validator and draft checkout afterward.
 Final combined native, Release/API/site and cross-platform acceptance remain
 required before promoting these template changes.
 
+The exact regression is `NewSolutionUsesConsumerWarningDefaults`, with two
+ordinary/worker template rows. Its default warning, explicit strict warning and
+Ankus declaration error assertions each execute a real consumer build.
+
 After that focused child exits and its source hashes verify, final template
 acceptance combines both fixes on the accepted CI repair baseline, freezing
 **211** source hashes. The Release rebuild is active on this composition;
@@ -1431,6 +1443,49 @@ passes its runtime job and test build in **7m14s**, compared with the earlier
 differ, so these observed durations do not establish an isolated speed comparison
 or a completed platform result. The configured one-hour timeout is unchanged.
 
+Repair CI **36964760599** now completes successfully on **b9942a0**, including
+quality, all runtime jobs and all six test modules per platform. Retained module
+logs establish **10,836 total tests** on each platform: Linux x64/PostgreSQL 18
+has **10,822 passed, zero failed, 14 platform skips**; macOS ARM64/PostgreSQL 18
+has **10,810 passed, zero failed, 26 platform skips**; Windows x64/PostgreSQL 17
+has **10,811 passed, zero failed, 25 platform skips**. Whole test-job durations
+are **25m31s**, **19m25s** and **27m22s**, respectively. Docs **36964760249**
+succeeds. These are observed outcomes, not controlled timing comparisons.
+
+Scaffold CI **36966035199** has successful quality/runtime jobs and all three
+platform suites active; Docs **36966035246** succeeds. Hosted Intel
+**36964760110** retains its successful runtime and build, with its complete test
+step active. The template validator's actual full-test process remains live
+on its unchanged **211**-hash source. No timeout, analyzer or cancellation
+policy changes accompany this checkpoint.
+
+The unchanged **211**-hash consumer-template composition now passes plain
+complete `dotnet test`, PostgreSQL **18.6/Linux x64**: **10,840 total,
+10,826 passed, zero failed, 14 platform skips, 26m54.296s**. All six modules
+complete with terminal exit **0**; invocation time including the initial build
+is **27m19.815s**. All **211** source hashes verify in the validator and draft
+afterward. The existing final Release/API/site gates cover these identical
+files. The primary checkout's original **209** hashes verify before promotion;
+only the three consumer-template, integration-test and CLI-guide paths change,
+and all **211** identities match the primary checkout afterward.
+
+The direct installed-consumer regression is
+`NewSolutionUsesConsumerWarningDefaults`, with ordinary and worker template
+rows. This milestone preserves repository warnings-as-errors and
+`MSTestAnalysisMode=All`, ordinary warning visibility in generated consumers,
+explicit consumer strictness and enforced Ankus declaration errors. Fresh
+complete platform CI remains required; the independently developing SPI
+selection changes remain outside the primary checkout.
+
+Immediately before this consumer-template commit, preceding CI outcomes are
+checked and retained: repair **36964760599** and both associated Docs runs
+succeed; scaffold **36966035199** has successful quality/runtime jobs with
+three platform suites still active; hosted Intel **36964760110** has successful
+runtime/build steps and its complete test step remains active. Historical failed
+revisions retain their earlier recorded outcomes, resolved by the accepted repair
+and its three passing complete platform jobs. No run is canceled and no new
+failure is reported at this checkpoint.
+
 ## SPI read-mode review clarification
 
 The pinned pgrx reference distinguishes explicit client `select` from `update`,
@@ -1446,6 +1501,63 @@ A constant `readOnly=true` default or a managed per-session flag does not preser
 that contract. The existing explicit boolean overload remains available, but
 transaction-aware selection and its native snapshot/locking/recovery evidence
 remain required. No current execution defaults are changed by this investigation.
+
+A separate implementation draft adds `Select` and `SelectRaw` to standalone,
+session and prepared APIs, and applies that policy to default cursor opening.
+Explicit boolean choices retain their meaning. Native dispatch resolves the
+policy before adding an operation recovery child, using the top transaction's
+identity so a fresh session child does not mask the caller's earlier writes.
+Writable helpers establish intent by asking PostgreSQL for a transaction ID,
+matching pgrx; no SQL-text classification or managed session flag is used.
+
+The combined draft freezes **220** source hashes after preserving the previous
+scaffold validator's terminal result and verifying all **209** original hashes.
+Its four direct managed checks pass with zero failures/skips in **1.556s**.
+The **54**-case real PostgreSQL selection scope is active. It covers immutable
+reads, exact write/locking errors, writable intent, caller writes, fresh
+visibility, nested rollback, transaction reset, typed NULL/limits, result expiry
+and swallowed cancellation. Public SPI and pgrx-mapping guides are updated in
+the draft; final native, complete-suite, Release/API/site and platform evidence
+remain required before promotion. The separate template validator is unchanged.
+
+The original selection scope exits **2**: **42 passed, 12 failed, no skips,
+4m51.060s**. Every failure is the initial immutable-transaction row. The test
+extension's existing `[PgInitialize]` intentionally calls writable
+`ExecuteScalar("SELECT 42")` on its first load, assigning the transaction ID
+before the selection callback. The reset-after-rollback rows all pass, as do
+caller/internal writes, exact explicit-mode rejection, native ownership and
+cancellation. All original **220** source hashes verify after this terminal run.
+
+The test setup now commits that deliberate initializer alongside its earlier
+session-local data setup, then independently asserts an unassigned transaction
+on the host before calling selection. The cancellation test loads the module
+before enabling its timeout so the intended managed catch is reached. These
+fixture changes preserve initializer behavior and selection assertions.
+The expanded **221**-hash draft adds empty-result metadata, kept-plan selection,
+negative-limit and prepared parameter/disposal checks. Raw negative-limit
+diagnostics now name the public `limit` parameter rather than the internal
+request field. The **22**-case managed scope is active; corrected native and
+complete final gates remain required. None of this draft is promoted or committed.
+
+The expanded managed scope initially finds ten fixture failures: the existing
+scalar-result responder implements only first-column modes and returns zero
+columns for the complete-table mode used by selection. It now transports all
+supplied cells for that mode and retains the original scalar-width behavior.
+The native scope already executes real complete results; no production result
+logic or assertion is changed for this test-double correction. The original
+**221** hashes verify before the correction; a new **221**-hash snapshot retains
+the corrected responder, with its affected managed rerun active.
+
+The next responder check passes **20/22** and exposes its remaining missing
+native contract: freeing a plan must clear the request's handle. The real C
+transport already does so; the responder now matches that ownership operation.
+The final managed scope passes **22/22**, zero failures/skips, **1.115s**, with
+all **221** source hashes verified afterward. The expanded real PostgreSQL
+scope now runs all **63** new selection cases plus existing SPI, parallel,
+cancellation, initializer and transaction-boundary checks on that unchanged
+source. Its terminal result, complete combined suite, Release/API/site and
+platform gates remain required. No test assertion or production ownership
+guard is weakened to make these responder cases pass.
 
 ## C# operator and conversion declaration draft
 
