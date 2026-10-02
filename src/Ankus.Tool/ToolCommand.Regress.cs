@@ -45,7 +45,8 @@ internal static partial class ToolCommand
                 throw new ArgumentException("psql verbosity must be terse, default, verbose, or sqlstate.");
             }
 
-            string project = ExtensionBuilder.ResolveProject(result.GetValue<string?>("--project"));
+            string project = await ExtensionBuilder.ResolveProjectAsync(result.GetValue<string?>("--project"),
+                GetConfiguration(result), token, BuildProperties(result));
             var suite = new RegressionSuite(project);
             string? pattern = result.GetValue(filter);
             string? newTest = result.GetValue(add);
@@ -132,7 +133,7 @@ internal static partial class ToolCommand
                 FileAccess.ReadWrite, FileShare.None, 1, FileOptions.DeleteOnClose);
             var cluster = new PostgresDevelopmentCluster(installation, result.GetValue(home));
             await cluster.StopAsync(token);
-            string output = GetOutputDirectory(result, installation);
+            string output = await GetOutputDirectoryAsync(result, installation, token);
             if (!result.GetValue(noBuild))
             {
                 int buildCode = await PublishAsync(result, installation, output, token);

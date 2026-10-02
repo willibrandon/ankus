@@ -32,7 +32,11 @@ internal static class AggregateContract
     /// <summary>
     /// Builds optional capability helpers without using conventional method-name lookup.
     /// </summary>
-    internal static bool Create(AggregateDeclaration aggregate, GeneratorDiagnostics context)
+    /// <param name="aggregate">The attributed aggregate declaration.</param>
+    /// <param name="compilation">The current compiler context for visible inherited members.</param>
+    /// <param name="context">The diagnostic receiver and cancellation context.</param>
+    /// <returns>Whether every declared or inherited role has its required capability.</returns>
+    internal static bool Create(AggregateDeclaration aggregate, Compilation compilation, GeneratorDiagnostics context)
     {
         INamedTypeSymbol type = aggregate.Type;
         INamedTypeSymbol[] interfaces = Interfaces(type);
@@ -52,7 +56,7 @@ internal static class AggregateContract
         {
             if (!roles.TryGetValue(role, out IMethodSymbol? contract))
             {
-                if (type.GetMembers(role).OfType<IMethodSymbol>().Any())
+                if (HasVisibleRole(type, role, compilation))
                 {
                     return Invalid(type, $"The {role} method requires its aggregate capability interface on a typed aggregate.");
                 }
@@ -214,5 +218,26 @@ internal static class AggregateContract
             AggregateDeclaration.ReportInvalid(source, type.Name, message, context);
             return false;
         }
+    }
+
+    /// <summary>
+    /// Detects authored roles without guessing a capability from their name or including inaccessible base helpers.
+    /// </summary>
+    /// <param name="type">The concrete aggregate container.</param>
+    /// <param name="role">The optional support role.</param>
+    /// <param name="compilation">The compiler context used for inherited accessibility.</param>
+    /// <returns>Whether a declared or visible inherited method has the reserved role name.</returns>
+    private static bool HasVisibleRole(INamedTypeSymbol type, string role, Compilation compilation)
+    {
+        for (INamedTypeSymbol? owner = type; owner is not null; owner = owner.BaseType)
+        {
+            if (owner.GetMembers(role).OfType<IMethodSymbol>().Any(method =>
+                SymbolEqualityComparer.Default.Equals(owner, type) || compilation.IsSymbolAccessibleWithin(method, type)))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

@@ -151,7 +151,7 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.IsNotNull(type);
         var errors = new List<string>();
         var diagnostics = new GeneratorDiagnostics((descriptor, _, _) => errors.Add(descriptor.Id), context.CancellationToken);
-        AggregateDeclaration? declaration = AggregateDeclaration.Create(type, diagnostics);
+        AggregateDeclaration? declaration = AggregateDeclaration.Create(type, compilation, diagnostics);
         Assert.IsNotNull(declaration);
         Assert.IsEmpty(errors);
         return declaration.Freeze();

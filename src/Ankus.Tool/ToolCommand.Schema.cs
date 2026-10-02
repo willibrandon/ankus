@@ -87,8 +87,9 @@ internal static partial class ToolCommand
                 }
 
                 int major = await SelectMajorAsync(result, token);
-                string project = ExtensionBuilder.ResolveProject(result.GetValue<string?>("--project"));
                 string configuration = GetConfiguration(result);
+                string project = await ExtensionBuilder.ResolveProjectAsync(result.GetValue<string?>("--project"),
+                    configuration, token, BuildProperties(result));
                 string directory = Path.Combine(Path.GetDirectoryName(project)!, "bin", "ankus",
                     "pg" + major.ToString(System.Globalization.CultureInfo.InvariantCulture),
                     RuntimeInformation.RuntimeIdentifier, configuration);

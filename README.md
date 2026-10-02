@@ -47,6 +47,10 @@ The version follows `AnkusPostgresMajor`, defaulting to 18. Plain
 `dotnet test -p:AnkusPostgresMajor=17` selects matching headers and a PostgreSQL 17
 server.
 
+Choose xUnit or NUnit with `ankus new Hello --test-framework xunit` or
+`--test-framework nunit`. Both include managed and backend tests and use ordinary
+`dotnet test`; MSTest remains the default.
+
 You can also install the matching `Ankus.Templates` package from your configured
 feed and use ordinary .NET templates:
 
@@ -61,6 +65,9 @@ dotnet test
 Use `dotnet new ankus-worker -n MyWorker` for a preloaded background worker.
 Both creation paths pin the matching local tool in `.config/dotnet-tools.json`;
 after restoring it, use `dotnet ankus` for extension commands.
+
+The .NET templates accept the same `--test-framework xunit` or
+`--test-framework nunit` option, including worker templates.
 
 Use `ankus test --pg 17` for another registered PostgreSQL major, or
 `ankus test --all` for every registered version. Pass ordinary test filters and

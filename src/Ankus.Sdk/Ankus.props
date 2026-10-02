@@ -1,5 +1,6 @@
 <Project>
   <PropertyGroup>
+    <UsingAnkusSdk>true</UsingAnkusSdk>
     <PublishAot>true</PublishAot>
     <IsAotCompatible>true</IsAotCompatible>
     <NativeLib>Shared</NativeLib>

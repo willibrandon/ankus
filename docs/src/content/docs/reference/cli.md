@@ -16,6 +16,11 @@ under `tests/`. It pins matching Ankus packages, enables Central Package Managem
 and configures the .NET 10 test runner. The generated tests exercise both managed
 methods and a Native AOT library loaded into PostgreSQL.
 
+Use `ankus new Acme.Search --test-framework xunit` or `--test-framework nunit`
+to select xUnit.net v3 or NUnit. Both ordinary and background-worker solutions
+support these options. MSTest is the default; each framework runs through
+ordinary `dotnet test` with Microsoft.Testing.Platform.
+
 Generated projects use ordinary .NET warning defaults. To require warning-free
 builds, set `TreatWarningsAsErrors` in your project's build properties.
 Invalid Ankus declarations remain errors regardless of that setting.
@@ -124,6 +129,12 @@ failure or cancellation before removing that storage. Direct `dotnet test`
 continues to work with the fixture's ordinary discovery and defaults.
 
 ## Pass MSBuild properties
+
+Extension commands accept a `.csproj`, `.sln`, `.slnx`, or an unambiguous directory
+through `--project`. A solution must contain exactly one extension project.
+Ankus evaluates each candidate with MSBuild, so SDK elements and imported SDK
+declarations work with the selected configuration and properties. A solution
+with multiple extensions requires the particular extension's `.csproj`.
 
 Project commands accept repeatable `--property` (`-p`) assignments:
 
@@ -588,8 +599,8 @@ Build messages go to stderr; stdout contains only the requested value.
 `extname` evaluates the selected project's extension name without compiling it.
 `git_hash` reports that project's current Git commit and preserves Git failures,
 including repositories without a commit. Neither query requires PostgreSQL
-registration. `--project` accepts a project file or an unambiguous project or
-solution directory.
+registration. `--project` accepts a project or solution file, or an unambiguous
+directory.
 
 Query an existing publication without building or discovering PostgreSQL:
 
@@ -672,7 +683,7 @@ Packages target the host operating system and architecture and the selected
 PostgreSQL major. Use a matching PostgreSQL directory layout when deploying the
 tree. You can move or archive the package root after creation.
 
-`--project` selects an extension project or directory. The default build
+`--project` selects an extension project, solution or directory. The default build
 configuration is `Release`; `--configuration` also accepts `Debug` and custom
 MSBuild configurations such as `Shipping`.
 The package retains the extension name, version, and native library name from

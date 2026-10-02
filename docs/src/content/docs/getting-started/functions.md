@@ -31,6 +31,14 @@ matching local tool manifest. After `dotnet tool restore`, run extension command
 with `dotnet ankus`. Use `dotnet new ankus-worker -n MyWorker` for a background
 worker with shared preload and a test that checks its separate PostgreSQL process.
 
+MSTest is the default framework. Add `--test-framework xunit` or
+`--test-framework nunit` to either creation command to use that framework's
+managed tests, backend case discovery and asynchronous fixture cleanup.
+
+The templates derive a valid SQL identifier from the project name. For example,
+`dotnet new ankus -n 1Ext` uses `_1_ext` as the extension name. Generated regression
+results are ignored by Git; authored SQL and expected results remain tracked.
+
 The generated `src/Hello/Hello.csproj` uses `Ankus.Sdk`:
 
 ```xml

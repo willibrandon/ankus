@@ -23,7 +23,7 @@ under `src/__PROJECT__/bin/ankus-test-logs/`; the cluster and temporary publishe
 files are removed when the fixture is disposed.
 
 Declare backend-only tests with `[PgTest]` in `BackendChecks.cs`. The host test
-project discovers the generated catalog with ordinary MSTest data-driven tests.
+project discovers the generated catalog with ordinary __TEST_FRAMEWORK__ data-driven tests.
 Its fixture explicitly enables test exports. Ordinary publishing excludes those
 native functions and their SQL. Each backend test runs in a transaction that is
 rolled back, including when an expected error occurs.

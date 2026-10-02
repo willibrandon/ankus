@@ -517,7 +517,7 @@ public sealed class PostgresProjectSettingsTests(TestContext context)
                 PostgresProjectSettings? selection = await Read();
                 Assert.IsNotNull(selection);
                 Assert.AreEqual(17, selection.PostgresMajor);
-                Assert.AreEqual(Path.GetFullPath("SERVER/PG_CONFIG", directory), selection.PgConfigPath);
+                Assert.AreEqual(Path.GetFullPath("SERVER/PG_CONFIG", directory), selection.PgConfigPath, ignoreCase: true);
             }
             else
             {

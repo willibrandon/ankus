@@ -44,7 +44,8 @@ internal static partial class ToolCommand
             }
             else
             {
-                string project = ExtensionBuilder.ResolveProject(result.GetValue<string?>("--project"));
+                string project = await ExtensionBuilder.ResolveProjectAsync(result.GetValue<string?>("--project"),
+                    GetConfiguration(result), token, BuildProperties(result));
                 if (name == "git_hash")
                 {
                     using var output = new MemoryStream();

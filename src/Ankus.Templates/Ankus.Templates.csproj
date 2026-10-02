@@ -11,7 +11,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <_AnkusTemplateInput Include="../Ankus.Tool/Templates/**/*.template;Configuration/template.json;../../eng/Ankus.Templates.cs" />
+    <_AnkusTemplateInput Include="../Ankus.Tool/Templates/**/*.template;Configuration/template.json;Configuration/dotnetcli.host.json;../../eng/Ankus.Templates.cs" />
   </ItemGroup>
 
   <Target Name="_ValidateAnkusTemplateVersion" BeforeTargets="_StageAnkusTemplates">

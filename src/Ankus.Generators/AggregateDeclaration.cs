@@ -183,7 +183,11 @@ internal sealed class AggregateDeclaration(INamedTypeSymbol type, AttributeData 
     /// <summary>
     /// Creates a complete aggregate contract or reports declaration diagnostics.
     /// </summary>
-    internal static AggregateDeclaration? Create(INamedTypeSymbol type, GeneratorDiagnostics context)
+    /// <param name="type">The attributed aggregate container.</param>
+    /// <param name="compilation">The current compiler context for inherited-member accessibility.</param>
+    /// <param name="context">The diagnostic receiver and cancellation context.</param>
+    /// <returns>The validated declaration, or null after a reported error.</returns>
+    internal static AggregateDeclaration? Create(INamedTypeSymbol type, Compilation compilation, GeneratorDiagnostics context)
     {
         AttributeData attribute = type.GetAttributes().First(static item => item.AttributeClass?.ToDisplayString() == "Ankus.PgAggregateAttribute");
         var aggregate = new AggregateDeclaration(type, attribute)
@@ -239,7 +243,7 @@ internal sealed class AggregateDeclaration(INamedTypeSymbol type, AttributeData 
             return null;
         }
 
-        if (!AggregateContract.Create(aggregate, context))
+        if (!AggregateContract.Create(aggregate, compilation, context))
         {
             return null;
         }

@@ -6,13 +6,55 @@
   "name": "__DISPLAY_NAME__",
   "shortName": "__SHORT_NAME__",
   "tags": { "language": "C#", "type": "project" },
-  "sourceName": "__PROJECT__",
   "preferNameDirectory": true,
   "sources": [
-    { "modifiers": [{ "exclude": ["**/pg_regress/expected/**"] }] },
-    { "include": ["**/pg_regress/expected/**"] }
+    {
+      "modifiers": [
+        { "exclude": ["**/pg_regress/expected/**", "Frameworks/**"] },
+        {
+          "condition": "(testFramework != \"mstest\")",
+          "exclude": ["global.json", "Directory.Packages.props", "tests/**/BackendTests.cs", "tests/**/ManagedTests.cs", "tests/**/*.csproj", "tests/**/WorkerBackendTests.cs"]
+        }
+      ]
+    },
+    { "include": ["**/pg_regress/expected/**"] },
+    { "source": "Frameworks/Xunit/", "target": "./", "condition": "(testFramework == \"xunit\")" },
+    { "source": "Frameworks/Nunit/", "target": "./", "condition": "(testFramework == \"nunit\")" },
+    { "source": "Frameworks/XunitWorker/", "target": "./", "condition": "(testFramework == \"xunit\" && __WORKER__)" },
+    { "source": "Frameworks/NunitWorker/", "target": "./", "condition": "(testFramework == \"nunit\" && __WORKER__)" }
   ],
   "symbols": {
+    "testFramework": {
+      "type": "parameter",
+      "datatype": "choice",
+      "defaultValue": "mstest",
+      "description": "Consumer test framework",
+      "choices": [
+        { "choice": "mstest", "description": "MSTest" },
+        { "choice": "xunit", "description": "xUnit.net v3" },
+        { "choice": "nunit", "description": "NUnit" }
+      ]
+    },
+    "frameworkDisplayName": {
+      "type": "generated",
+      "generator": "regex",
+      "parameters": {
+        "source": "testFramework",
+        "steps": [
+          { "regex": "^mstest$", "replacement": "MSTest" },
+          { "regex": "^xunit$", "replacement": "xUnit" },
+          { "regex": "^nunit$", "replacement": "NUnit" }
+        ]
+      },
+      "replaces": "__TEST_FRAMEWORK__"
+    },
+    "projectName": {
+      "type": "derived",
+      "valueSource": "name",
+      "valueTransform": "identity",
+      "replaces": "__PROJECT__",
+      "fileRename": "__PROJECT__"
+    },
     "workerIdentity": {
       "type": "generated",
       "generator": "guid",
@@ -44,7 +86,8 @@
         "steps": [
           { "regex": "([a-z0-9])([A-Z])", "replacement": "$1_$2" },
           { "regex": "([A-Z])([A-Z][a-z])", "replacement": "$1_$2" },
-          { "regex": "[^A-Za-z0-9_]", "replacement": "_" }
+          { "regex": "[^A-Za-z0-9_]", "replacement": "_" },
+          { "regex": "^([0-9])", "replacement": "_$1" }
         ]
       }
     },

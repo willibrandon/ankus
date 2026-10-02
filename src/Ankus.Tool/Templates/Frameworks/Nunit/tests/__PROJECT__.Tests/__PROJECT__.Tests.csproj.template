@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>__NAMESPACE__.Tests</RootNamespace>
+    <OutputType>Exe</OutputType>
+    <EnableNUnitRunner>true</EnableNUnitRunner>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Ankus.Testing" />
+    <PackageReference Include="Npgsql" />
+    <PackageReference Include="NUnit" />
+    <PackageReference Include="NUnit3TestAdapter" />
+    <PackageReference Include="Microsoft.Testing.Extensions.TrxReport" />
+    <ProjectReference Include="../../src/__PROJECT__/__PROJECT__.csproj" />
+  </ItemGroup>
+</Project>

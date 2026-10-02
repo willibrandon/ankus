@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text.Json;
-using System.Xml.Linq;
 using Ankus.PgConfig;
 
 namespace Ankus.Tool;
@@ -14,41 +13,65 @@ internal static class ExtensionBuilder
     /// <summary>
     /// Resolves a single extension project without choosing arbitrarily among multiple projects.
     /// </summary>
-    /// <param name="path">An optional project or directory.</param>
+    /// <param name="path">An optional project, solution or directory.</param>
+    /// <param name="configuration">The effective build configuration.</param>
+    /// <param name="token">Cancels candidate evaluation and joins its child process.</param>
+    /// <param name="properties">Literal global properties shared with the eventual build.</param>
     /// <returns>The absolute project path.</returns>
-    internal static string ResolveProject(string? path)
+    internal static async Task<string> ResolveProjectAsync(string? path, string configuration, CancellationToken token,
+        IReadOnlyDictionary<string, string>? properties = null)
     {
+        token.ThrowIfCancellationRequested();
         path = Path.GetFullPath(path ?? Environment.CurrentDirectory);
+        if (File.Exists(path) && path.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
+        {
+            return path;
+        }
+
+        string[] projects;
         if (Directory.Exists(path))
         {
-            string[] projects = Directory.GetFiles(path, "*.csproj");
-            if (projects.Length == 0)
+            string[] solutions = [.. Directory.GetFiles(path, "*.sln"), .. Directory.GetFiles(path, "*.slnx")];
+            if (solutions.Length == 0)
             {
-                string[] solutions = Directory.GetFiles(path, "*.slnx");
-                if (solutions.Length == 1)
+                projects = Directory.GetFiles(path, "*.csproj");
+                if (projects.Length == 1)
                 {
-                    projects = [.. XDocument.Load(solutions[0]).Descendants("Project")
-                        .Select(element => Path.GetFullPath((string)element.Attribute("Path")!, path))
-                        .Where(static project => File.Exists(project) &&
-                            (string?)XDocument.Load(project).Root?.Attribute("Sdk") is string sdk &&
-                             (sdk == "Ankus.Sdk" || sdk.StartsWith("Ankus.Sdk/", StringComparison.Ordinal)))];
+                    return projects[0];
                 }
             }
-
-            if (projects.Length != 1)
+            else
             {
-                throw new ArgumentException("Specify --project with one extension .csproj file.");
+                projects = FrameworkUpgrade.SelectProjects(path, package: null);
+            }
+        }
+        else
+        {
+            projects = FrameworkUpgrade.SelectProjects(path, package: null);
+        }
+
+        var extensions = new List<string>();
+        foreach (string project in projects)
+        {
+            using var output = new MemoryStream();
+            int code = await ToolProcess.RunAsync("dotnet",
+                ["msbuild", project, "-nologo", "-noAutoResponse", "-verbosity:quiet", "-getProperty:UsingAnkusSdk",
+                    .. PropertyArguments(properties), "-p:Configuration=" + EscapeProperty(configuration)], token, outputStream: output);
+            string evaluated = System.Text.Encoding.UTF8.GetString(output.ToArray());
+            if (code != 0)
+            {
+                Console.Error.Write(evaluated);
+                throw new InvalidOperationException($"Project evaluation failed ({code}).");
             }
 
-            return projects[0];
+            if (string.Equals(evaluated.Trim(), "true", StringComparison.OrdinalIgnoreCase))
+            {
+                extensions.Add(project);
+            }
         }
 
-        if (!File.Exists(path) || !path.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
-        {
-            throw new FileNotFoundException("The extension project was not found.", path);
-        }
-
-        return path;
+        return extensions.Count == 1 ? extensions[0]
+            : throw new ArgumentException("Specify --project with one extension .csproj file; the selection must identify exactly one Ankus.Sdk project.");
     }
 
     /// <summary>
@@ -65,7 +88,7 @@ internal static class ExtensionBuilder
     internal static async Task<int> PublishAsync(string? project, string configuration, PostgresInstallation installation,
         string output, CancellationToken token, bool diagnosticsToStandardError = false, IReadOnlyDictionary<string, string>? properties = null)
     {
-        string path = ResolveProject(project);
+        string path = await ResolveProjectAsync(project, configuration, token, properties);
         Directory.CreateDirectory(output);
         // A failed build must not leave an earlier manifest that looks installable.
         PublishedExtension.Invalidate(output);
@@ -126,7 +149,7 @@ internal static class ExtensionBuilder
     internal static async Task<string> GetExtensionNameAsync(string? project, string configuration,
         int postgresMajor, string? pgConfigPath, CancellationToken token, IReadOnlyDictionary<string, string>? properties = null)
     {
-        string path = ResolveProject(project);
+        string path = await ResolveProjectAsync(project, configuration, token, properties);
         using var output = new MemoryStream();
         List<string> arguments = ["msbuild", path, "-nologo", "-verbosity:quiet", "-getProperty:AnkusExtensionName,TargetName", .. PropertyArguments(properties),
             "-p:Configuration=" + EscapeProperty(configuration),
@@ -165,14 +188,17 @@ internal static class ExtensionBuilder
     /// <param name="token">Cancels compilation and its child process tree.</param>
     /// <param name="properties">Literal global properties for compiling control metadata.</param>
     /// <returns>The original build exit code.</returns>
-    internal static Task<int> GenerateControlAsync(string project, string configuration,
+    internal static async Task<int> GenerateControlAsync(string project, string configuration,
         PostgresInstallation installation, string output, CancellationToken token, IReadOnlyDictionary<string, string>? properties = null)
-        => ToolProcess.RunAsync("dotnet",
-            ["build", ResolveProject(project), "-t:AnkusGenerateControlFile", .. PropertyArguments(properties),
+    {
+        string path = await ResolveProjectAsync(project, configuration, token, properties);
+        return await ToolProcess.RunAsync("dotnet",
+            ["build", path, "-t:AnkusGenerateControlFile", .. PropertyArguments(properties),
                 "-p:Configuration=" + EscapeProperty(configuration), "--runtime", RuntimeInformation.RuntimeIdentifier,
                 "-p:AnkusPostgresMajor=" + installation.Version.Major.ToString(CultureInfo.InvariantCulture),
                 "-p:AnkusPgConfigPath=" + EscapeProperty(installation.PgConfigPath),
                 "-p:AnkusControlOutput=" + EscapeProperty(Path.GetFullPath(output))], token, diagnosticsToStandardError: true);
+    }
 
     /// <summary>
     /// Escapes each literal property separately so separators and expansion syntax stay in the value.

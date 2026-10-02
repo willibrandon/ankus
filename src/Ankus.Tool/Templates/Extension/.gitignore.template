@@ -2,4 +2,7 @@
 **/obj/
 artifacts/
 **/TestResults/
+**/pg_regress/results/
+**/pg_regress/regression.diffs
+**/pg_regress/regression.out
 *.binlog

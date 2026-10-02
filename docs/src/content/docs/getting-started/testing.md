@@ -9,6 +9,14 @@ From a solution created by `ankus new`:
 dotnet test
 ```
 
+`ankus new Hello --test-framework xunit` and `--test-framework nunit` generate
+xUnit.net v3 and NUnit test projects. The installed `dotnet new ankus` and
+`ankus-worker` templates accept the same options. MSTest remains the default.
+All three frameworks discover individual backend cases, honor `IgnoreReason`
+and use an asynchronous fixture to dispose the cluster and published extension.
+Reports retain each backend test's managed identity; xUnit also shows its theory
+arguments after that name.
+
 The MSTest project contains two kinds of tests. Managed tests call ordinary C#
 methods directly. Backend tests publish the extension with Native AOT, start an
 isolated PostgreSQL cluster, and exercise its generated SQL functions.
@@ -155,7 +163,7 @@ including a schema supplied by its control file.
 Normal `dotnet publish` excludes test functions. The fixture explicitly sets
 `AnkusIncludeTests=true` only when `IncludeTests` is enabled. Other test hosts
 can consume the same framework-neutral catalog and fixture. Backend benchmarks
-and additional framework templates remain unimplemented.
+remain unimplemented.
 
 ## Use the fixture
 

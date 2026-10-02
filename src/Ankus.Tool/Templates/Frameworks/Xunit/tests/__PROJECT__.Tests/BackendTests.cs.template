@@ -1,0 +1,68 @@
+using System.Runtime.CompilerServices;
+using Ankus.Testing;
+using Npgsql;
+using Xunit;
+
+namespace __NAMESPACE__.Tests;
+
+public sealed class BackendFixture : IAsyncLifetime
+{
+    public PostgresExtensionTest Extension
+    {
+        get;
+        private set;
+    } = null!;
+
+    public async ValueTask InitializeAsync()
+        => Extension = await PostgresExtensionTest.StartAsync(new PostgresExtensionTestOptions
+        {
+            ProjectPath = ProjectPath(),
+            SharedPreload = __PRELOAD__,
+            IncludeTests = true,
+        }, TestContext.Current.CancellationToken);
+
+    public ValueTask DisposeAsync() => Extension.DisposeAsync();
+
+    private static string ProjectPath([CallerFilePath] string source = "")
+        => Path.GetFullPath(Path.Combine(Path.GetDirectoryName(source)!, "../../src/__PROJECT__/__PROJECT__.csproj"));
+}
+
+public sealed partial class BackendTests(BackendFixture fixture) : IClassFixture<BackendFixture>
+{
+    public static IEnumerable<TheoryDataRow<string>> NativeCases
+        => BackendChecks.PostgresTests.Cases.Select(test => new TheoryDataRow<string>(test.Name)
+        {
+            TestDisplayName = test.Name,
+            Skip = test.IgnoreReason,
+        });
+
+    [Theory]
+    [MemberData(nameof(NativeCases))]
+    public Task DeclaredTestsExecuteInPostgres(string name)
+        => fixture.Extension.RunTestAsync(BackendChecks.PostgresTests.Cases.Single(test => test.Name == name),
+            TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task FunctionsExecuteInPostgres()
+        => fixture.Extension.Cluster.RunInTransactionAsync(nameof(FunctionsExecuteInPostgres), async (connection, transaction, token) =>
+        {
+            await using var command = new NpgsqlCommand("SELECT public.add(40, 2), public.greet('PostgreSQL')", connection, transaction);
+            await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(token);
+            Assert.True(await reader.ReadAsync(token));
+            Assert.Equal(42, reader.GetInt32(0));
+            Assert.Equal("Hello, PostgreSQL!", reader.GetString(1));
+        }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task ManagedErrorsLeaveBackendUsable()
+        => fixture.Extension.Cluster.RunInTransactionAsync(nameof(ManagedErrorsLeaveBackendUsable), async (connection, transaction, token) =>
+        {
+            await transaction.SaveAsync("before_error", token);
+            await using var command = new NpgsqlCommand("SELECT public.add(2147483647, 1)", connection, transaction);
+            PostgresException error = await Assert.ThrowsAsync<PostgresException>(() => command.ExecuteScalarAsync(token));
+            Assert.Equal("38000", error.SqlState);
+            await transaction.RollbackAsync("before_error", token);
+            command.CommandText = "SELECT public.add(19, 23)";
+            Assert.Equal(42, await command.ExecuteScalarAsync(token));
+        }, TestContext.Current.CancellationToken);
+}

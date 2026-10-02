@@ -32,7 +32,7 @@ internal static partial class ToolCommand
         command.SetAction(async (result, token) =>
         {
             PostgresInstallation installation = await SelectAsync(result, home, token);
-            string output = GetOutputDirectory(result, installation);
+            string output = await GetOutputDirectoryAsync(result, installation, token);
             PostgresDevelopmentOptions options = ReadServerOptions(result);
             var cluster = new PostgresDevelopmentCluster(installation, result.GetValue(home));
             await cluster.StopAsync(token);

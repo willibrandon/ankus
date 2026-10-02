@@ -54,7 +54,7 @@ internal static class AggregatePipeline
         var problems = new List<GeneratorProblem>();
         var diagnostics = new GeneratorDiagnostics((descriptor, location, arguments) => problems.Add(new(descriptor,
             GeneratorLocation.Create(location, compilation), new(arguments))), cancellationToken);
-        AggregateDeclaration? declaration = AggregateDeclaration.Create(type, diagnostics);
+        AggregateDeclaration? declaration = AggregateDeclaration.Create(type, compilation, diagnostics);
         var helpers = new EquatableArray<HelperAnalysis>(declaration is null ? [] : declaration.Helpers.Values.Select(helper =>
             new HelperAnalysis(helper.Freeze(), DeclarationIdentity.Create(helper.Method), helper.Method.ToDisplayString(),
                 helper.Method.Name, helper.Method.ContainingType.ToDisplayString(),

@@ -9,6 +9,22 @@ namespace Ankus.IntegrationTests;
 public sealed partial class ToolCommandTests
 {
     /// <summary>
+    /// Allocates short, distinct package-cache names within the class's owned temporary root.
+    /// </summary>
+    private static int s_consumerPackageCache;
+
+    /// <summary>
+    /// Isolates concurrent consumer restores without nesting native library paths beneath generated solutions.
+    /// </summary>
+    /// <returns>The consumer's process-local environment.</returns>
+    private static Dictionary<string, string?> CreateConsumerEnvironment()
+        => new(s_environment, StringComparer.Ordinal)
+        {
+            ["NUGET_PACKAGES"] = Path.Combine(s_root,
+                "consumer-packages-" + Interlocked.Increment(ref s_consumerPackageCache).ToString(System.Globalization.CultureInfo.InvariantCulture)),
+        };
+
+    /// <summary>
     /// Installed templates pin every Ankus component and execute managed and real backend tests without repository policy.
     /// </summary>
     /// <param name="template">The installed template short name.</param>
@@ -19,6 +35,7 @@ public sealed partial class ToolCommandTests
     [TestMethod]
     [DataRow("ankus", "Acme.HTTPProbe", "acme_http_probe", "Acme.HTTPProbe", false)]
     [DataRow("ankus-worker", "class.select", "class_select", "@class.select", true)]
+    [DataRow("ankus", "1Ext", "_1_ext", "_1Ext", false)]
     public async Task InstalledTemplateRunsManagedAndBackendTests(string template, string name, string extensionName, string managedNamespace, bool worker)
     {
         CancellationToken token = context.CancellationToken;
@@ -42,14 +59,16 @@ public sealed partial class ToolCommandTests
         Assert.IsEmpty(properties.Descendants("EnforceCodeStyleInBuild"));
         Assert.IsFalse(File.Exists(Path.Combine(output, ".editorconfig")));
         Assert.IsTrue(File.Exists(Path.Combine(output, ".gitignore")));
+        await AssertTemplateRegressionIgnoreAsync(output, name, token);
 
-        (await ProcessRunner.RunAsync("dotnet", ["tool", "restore"], s_environment, token, workingDirectory: output))
+        Dictionary<string, string?> environment = CreateConsumerEnvironment();
+        (await ProcessRunner.RunAsync("dotnet", ["tool", "restore"], environment, token, workingDirectory: output))
             .EnsureSuccess("dotnet", ["tool", "restore"]);
-        ProcessResult help = await ProcessRunner.RunAsync("dotnet", ["ankus", "--help"], s_environment, token, workingDirectory: output);
+        ProcessResult help = await ProcessRunner.RunAsync("dotnet", ["ankus", "--help"], environment, token, workingDirectory: output);
         help.EnsureSuccess("dotnet", ["ankus", "--help"]);
         Assert.Contains("PostgreSQL", help.StandardOutput);
         ProcessResult tests = await ProcessRunner.RunAsync("dotnet", ["test", "--report-trx", "-p:AnkusPostgresMajor=" + MajorText()],
-            s_environment, token, workingDirectory: output);
+            environment, token, workingDirectory: output);
         tests.EnsureSuccess("dotnet", ["test"]);
         XDocument report = XDocument.Load(Directory.GetFiles(output, "*.trx", SearchOption.AllDirectories).Single());
         XNamespace ns = "http://microsoft.com/schemas/VisualStudio/TeamTest/2010";
@@ -71,6 +90,43 @@ public sealed partial class ToolCommandTests
         Assert.IsFalse(Directory.Exists(Path.Combine(projectDirectory, "bin", "ankus-test-pgdata")));
         Assert.IsEmpty(Directory.GetDirectories(Path.Combine(projectDirectory, "bin", "ankus-test-publish")));
         Assert.IsNotEmpty(Directory.GetFiles(Path.Combine(projectDirectory, "bin", "ankus-test-logs"), "*.log"));
+    }
+
+    /// <summary>
+    /// Checks Git's actual ignore behavior without hiding authored regression SQL or expected results.
+    /// </summary>
+    /// <param name="directory">The generated consumer solution.</param>
+    /// <param name="name">The generated project name.</param>
+    /// <param name="token">Cancels Git and fixture file creation.</param>
+    private static async Task AssertTemplateRegressionIgnoreAsync(string directory, string name, CancellationToken token)
+    {
+        (await ProcessRunner.RunAsync("git", ["init", "--quiet", "--initial-branch=main"], s_environment, token,
+            workingDirectory: directory)).EnsureSuccess("git", ["init"]);
+        string root = "src/" + name + "/pg_regress/";
+        string[] generated = [root + "results/setup.out", root + "regression.diffs", root + "regression.out"];
+        foreach (string path in generated)
+        {
+            string file = Path.Combine(directory, path.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+            await File.WriteAllTextAsync(file, "generated regression output", token);
+        }
+
+        ProcessResult ignored = await ProcessRunner.RunAsync("git", ["check-ignore", "--", .. generated],
+            s_environment, token, workingDirectory: directory);
+        Assert.AreEqual(0, ignored.ExitCode, ignored.StandardError);
+        Assert.AreSequenceEqual(generated, ignored.StandardOutput.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries));
+        Assert.IsEmpty(ignored.StandardError);
+        string[] authored = [root + "sql/setup.sql", root + "expected/setup.out"];
+        foreach (string path in authored)
+        {
+            Assert.IsTrue(File.Exists(Path.Combine(directory, path.Replace('/', Path.DirectorySeparatorChar))));
+        }
+
+        ProcessResult visible = await ProcessRunner.RunAsync("git", ["check-ignore", "--", .. authored],
+            s_environment, token, workingDirectory: directory);
+        Assert.AreEqual(1, visible.ExitCode);
+        Assert.IsEmpty(visible.StandardOutput);
+        Assert.IsEmpty(visible.StandardError);
     }
 
     /// <summary>

@@ -1,5 +1,110 @@
 # Historical port evidence
 
+## Evaluated extension selection, aggregate capabilities and framework templates
+
+All extension commands use the same MSBuild-evaluated `UsingAnkusSdk` marker.
+Ordinary `.sln` and `.slnx` solutions, child SDK declarations and imported SDKs
+identify the actual extension; zero or multiple candidates require an explicit
+project rather than an arbitrary choice. Configuration and forwarded properties
+participate in evaluation and publication. Focused installed resolver checks
+pass **15/15** after the unchanged-product regression fails fourteen cases.
+
+Aggregate capability validation includes accessible inherited reserved methods.
+An inherited Combine without its capability is an error, while private base
+helpers and legitimate interface implementations remain valid. Focused checks
+pass **13/13**; the prior product fails eleven cases. Cached aggregate models
+continue to carry detached values rather than compiler symbols.
+
+`ankus new` and the installed `dotnet new` templates share optional xUnit/NUnit
+framework assets for ordinary and worker extensions. MSTest remains the default.
+The xUnit fixture uses serializable case names, asynchronous lifetime and native
+theory rows; NUnit uses asynchronous fixture setup/cleanup and named test cases.
+Each framework uses native Microsoft.Testing.Platform mode. Regress output is
+ignored without ignoring authored SQL or expected results. Template identifier
+generation also preserves valid C# and SQL names for digit-leading inputs.
+
+The focused installed scope passes **13/13**, zero skips, **19m24.459s** against
+PostgreSQL **18.6/Linux x64**. Eight framework/creation/worker combinations prove
+managed values, real native functions, exact expected errors and same-session
+recovery, explicit ignored cases and reasons, worker process identity and owned
+cleanup. Three default-template identifier cases and two rejected framework
+choices also pass. An earlier run reports four outer xUnit display-name assertion
+failures despite successful inner consumers. The corrected assertion separates
+only xUnit's serialized argument suffix and retains exact native identities,
+unique cases, counters, ignored outcomes and cleanup checks.
+
+The complete unchanged Linux composition finishes all six modules with **11,341
+total; 11,327 passed; zero failures; 14 platform skips; 44m09.185s**. All **327**
+source identities and **26** accepted runtime identities verify afterward. This
+run uses the earlier nested consumer cache layout; the following Windows repair
+uses shorter distinct cache directories and requires its own complete evidence.
+
+### Windows CI repair
+
+[CI 37046774035](https://github.com/willibrandon/ankus/actions/runs/37046774035),
+**c4a092d**, passes quality, all runtime jobs and complete Linux/macOS ARM64
+suites. Linux/PostgreSQL 18 reports **11,303 total / 11,289 passed / 14 skips**,
+zero failures, **26m55s** job time; macOS ARM64/18 reports **11,303 / 11,277 / 26**,
+zero failures, **20m15s**. Windows/PostgreSQL 17 fails after **25m15s**: four
+completed modules report **8,792 total / 8,764 passed / three failures / 25 skips**.
+The remaining unit modules do not execute after the generator module fails, so
+this is explicitly partial evidence. [Docs 37046774045](https://github.com/willibrandon/ankus/actions/runs/37046774045)
+passes.
+
+Two new assertions incorrectly require exact installation-path casing on
+Windows. Product selection correctly treats equivalent casing as the same path;
+the assertions now follow that platform rule. Both cases pass on Windows.
+Concurrent installed-consumer tool restores also share mutable package files.
+Each consumer now owns a distinct package cache, preserving parallel tests and
+existing class cleanup. Nested cache paths reproduce MSVC's library-path limit;
+short atomic suffixes under the owned fixture root resolve that actual failure
+without serializing tests. Both original installed consumers pass on Windows,
+zero skips, **5m55.323s**.
+
+Two earlier private Windows validation launches fail before useful acceptance:
+one selects Git's `link.exe` ahead of MSVC, and another inherits vcvars' Platform
+property into an Any CPU solution build. The private launcher now selects the
+actual C++ toolchain and clears that inherited property. These outcomes are not
+treated as product failures or passing validation. No runtime patch changes are
+required.
+
+The first complete Windows composition reaches five passing unit modules but
+the new framework cases exceed MSVC's output-path limit. Three cases reproduce
+the same native link failure before that local run is stopped; it is partial
+negative evidence. The fixture now uses a shorter dotted project name and a
+shorter directory that still contains spaces. Every framework, creation path,
+worker, discovery, error/recovery and cleanup assertion remains. The corrected
+Windows/PostgreSQL **17.11** framework scope passes **8/8**, zero skips,
+**9m52.689s**. All **327** source identities verify before complete acceptance
+is restarted. The matching accepted CI runtime contains **52** identical files.
+
+The short-cache default-template scope also passes on PostgreSQL **18.6/Linux
+x64**, **3/3**, zero skips, **6m45.302s**, with all **327** source identities
+verified afterward. Corrected-composition Release passes with zero warnings or
+errors (**1m14.12s**), API freshness verifies **238 pages / 2,756 members**, and
+site build/check passes with zero errors, warnings or hints. One earlier filter
+misspelling selects zero tests and returns exit code 8; it supplies no evidence.
+Final-source Release verification, including the shorter framework fixture,
+passes with zero warnings/errors (**1m38.80s**). API freshness verifies **238
+pages / 2,756 members**; the site builds **286 pages in 4.90s** and its check has
+zero errors, warnings or hints. All **327** source identities verify afterward.
+The final plain Windows x64/PostgreSQL **17.11** suite completes all six modules:
+**11,341 total; 11,316 passed; zero failures; 25 platform skips; 39m26.748s**.
+All **327** frozen Windows source identities verify after success, and all **52**
+runtime files match the accepted CI payload byte-for-byte. The **325** product,
+test and documentation identities match the final Linux-validated composition,
+allowing only Git's CRLF/LF conversion; independently updated progress/evidence
+documents are excluded from that cross-platform comparison. This closes local
+acceptance of the reported Windows failures. Fresh primary CI remains required.
+
+Before committing, previous run outcomes are checked again. Primary CI
+**37046774035** retains the reported Windows failure; its Linux/macOS, quality
+and runtime jobs pass, as does Docs **37046774045**. Previous primary/Docs runs
+for **68fd2de**, **e38dce4**, **ac01b4b** and **c3db5ed** pass, and PostgreSQL 19
+replacement **37016275325** passes. Intel macOS **37003910952** retains its
+documented timeout. No preceding runs are active. The verified local corrections
+resolve the latest Windows failures; replacement CI is still required.
+
 ## Declaration caches, SPI interpolation and explicit project conflicts
 
 This correction composes with the accepted **68fd2de** worker/interval behavior.

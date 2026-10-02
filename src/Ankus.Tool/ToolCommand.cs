@@ -79,14 +79,21 @@ internal static partial class ToolCommand
         var output = new Option<string?>("--output", "-o") { Description = "New directory (default: the project name)." };
         var extension = new Option<string?>("--extension-name") { Description = "SQL extension name (default: snake_case project name)." };
         var worker = new Option<bool>("--background-worker") { Description = "Include a preloaded PostgreSQL worker and its backend test." };
+        var framework = new Option<string>("--test-framework")
+        {
+            Description = "Consumer test framework: mstest (default), xunit or nunit.",
+            DefaultValueFactory = static _ => "mstest",
+        };
+        framework.AcceptOnlyFromAmong("mstest", "xunit", "nunit");
         command.Arguments.Add(name);
         command.Options.Add(output);
         command.Options.Add(extension);
         command.Options.Add(worker);
+        command.Options.Add(framework);
         command.SetAction(async (result, token) =>
         {
             string path = await ProjectScaffolder.CreateAsync(result.GetValue(name)!, result.GetValue(output),
-                result.GetValue(extension), result.GetValue(worker), token);
+                result.GetValue(extension), result.GetValue(worker), result.GetValue(framework)!, token);
             Console.WriteLine($"Created extension solution at {path}");
             Console.WriteLine("Run dotnet test from that directory to build and test the extension in PostgreSQL 18.");
             Console.WriteLine("Run ankus publish to publish using your registered PostgreSQL installation.");
@@ -187,7 +194,7 @@ internal static partial class ToolCommand
         command.SetAction(async (result, token) =>
         {
             PostgresInstallation installation = await SelectAsync(result, home, token);
-            string output = GetOutputDirectory(result, installation);
+            string output = await GetOutputDirectoryAsync(result, installation, token);
             return await PublishAsync(result, installation, output, token);
         });
         return command;
@@ -237,7 +244,7 @@ internal static partial class ToolCommand
             string? source = result.GetValue(from);
             if (source is null)
             {
-                source = GetOutputDirectory(result, installation);
+                source = await GetOutputDirectoryAsync(result, installation, token);
                 int exitCode = await PublishAsync(result, installation, source, token);
                 if (exitCode != 0)
                 {
@@ -310,11 +317,19 @@ internal static partial class ToolCommand
             ? "Configuration must be a nonempty directory name without path separators, invalid filename characters, or a trailing dot or space."
             : null;
 
-    private static string GetOutputDirectory(ParseResult result, PostgresInstallation installation)
+    /// <summary>
+    /// Places publication output beside the evaluated extension project unless the command selects an explicit destination.
+    /// </summary>
+    /// <param name="result">The parsed build command.</param>
+    /// <param name="installation">The selected PostgreSQL installation.</param>
+    /// <param name="token">Cancels solution candidate evaluation.</param>
+    /// <returns>The absolute publication directory.</returns>
+    private static async Task<string> GetOutputDirectoryAsync(ParseResult result, PostgresInstallation installation, CancellationToken token)
     {
         string? output = result.CommandResult.Command.Name is "install" or "package" or "run" or "regress" ? null : result.GetValue<string?>("--output");
-        string project = ExtensionBuilder.ResolveProject(result.GetValue<string?>("--project"));
         string configuration = GetConfiguration(result);
+        string project = await ExtensionBuilder.ResolveProjectAsync(result.GetValue<string?>("--project"),
+            configuration, token, BuildProperties(result));
         return Path.GetFullPath(output ?? Path.Combine(Path.GetDirectoryName(project)!, "bin", "ankus",
             installation.Label, RuntimeInformation.RuntimeIdentifier, configuration));
     }

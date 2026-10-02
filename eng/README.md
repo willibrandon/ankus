@@ -9,7 +9,7 @@ repository root with `dotnet run --file`.
 | `Ankus.SqlStates.cs` | Regenerate or check the named SQLSTATE catalog from pinned PostgreSQL source tags. |
 | `Ankus.Oids.cs` | Regenerate or check the version-aware built-in OID catalog from pinned pgrx sources. |
 | `Ankus.Bindings.cs` | Regenerate or check native declarations, node cast graphs, header manifests and attribution from pinned pgrx bindings. |
-| `Ankus.Templates.cs` | Stage the shared extension and background-worker scaffolds for the version-matched template package. |
+| `Ankus.Templates.cs` | Stage the shared extension, worker and optional test-framework assets for the version-matched template package. |
 | `Ankus.BuildTimings.cs` | Read individual binding-task durations and cache outcomes from retained MSBuild binary logs without exposing command arguments. |
 
 `Ankus.Ci.cs` provides these commands:

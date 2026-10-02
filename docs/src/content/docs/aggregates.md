@@ -91,6 +91,9 @@ optional capability. Implement the corresponding interface when adding a
 callback. Ankus reports `ANKUS029` when an attributed container does not implement
 `IPgAggregate<TState, TArgs>`. Callback selection uses the declared interfaces;
 ordinary helper methods do not declare additional aggregate capabilities.
+Visible inherited methods with an aggregate role name require the corresponding
+capability interface as well. Private base helpers that the aggregate cannot
+access remain ordinary helpers.
 
 Apply parameter metadata to a tuple group with `Element` selecting its exact
 C# element name. Each SQL input retains its own name, numeric constraint or

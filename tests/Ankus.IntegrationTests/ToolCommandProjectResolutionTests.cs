@@ -1,0 +1,130 @@
+using System.Xml.Linq;
+using Ankus.Testing;
+
+namespace Ankus.IntegrationTests;
+
+public sealed partial class ToolCommandTests
+{
+    /// <summary>
+    /// Installed commands select the evaluated extension SDK across both solution formats and valid SDK import forms.
+    /// </summary>
+    /// <param name="format">The solution format.</param>
+    /// <param name="sdk">The SDK declaration form.</param>
+    [TestMethod]
+    [DataRow("sln", "attribute")]
+    [DataRow("sln", "element")]
+    [DataRow("sln", "import")]
+    [DataRow("slnx", "attribute")]
+    [DataRow("slnx", "element")]
+    [DataRow("slnx", "import")]
+    public async Task ExtensionIdentitySelectsEvaluatedSolutionProject(string format, string sdk)
+    {
+        CancellationToken token = context.CancellationToken;
+        string directory = CreateDirectory();
+        string extensionDirectory = Directory.CreateDirectory(Path.Combine(directory, "extension")).FullName;
+        string project = await CreateControlProjectAsync(extensionDirectory, token, "ankus_resolution_probe");
+        XDocument definition = XDocument.Load(project);
+        if (sdk != "attribute")
+        {
+            definition.Root!.Attribute("Sdk")!.Remove();
+            if (sdk == "element")
+            {
+                definition.Root.AddFirst(new XElement("Sdk", new XAttribute("Name", "Ankus.Sdk"), new XAttribute("Version", s_version)));
+            }
+            else
+            {
+                new XDocument(new XElement("Project", new XElement("Import", new XAttribute("Project", "Sdk.props"),
+                    new XAttribute("Sdk", "Ankus.Sdk"), new XAttribute("Version", s_version)))).Save(Path.Combine(extensionDirectory, "Extension.props"));
+                definition.Root.AddFirst(new XElement("Import", new XAttribute("Project", "Extension.props")));
+                definition.Root.Add(new XElement("Import", new XAttribute("Project", "Sdk.targets"),
+                    new XAttribute("Sdk", "Ankus.Sdk"), new XAttribute("Version", s_version)));
+            }
+        }
+
+        definition.Root!.Add(new XElement("PropertyGroup", new XAttribute("Condition", "'$(ExtensionFlavor)' == 'active' and '$(Configuration)' == 'Shipping'"),
+            new XElement("AnkusExtensionName", "ankus_resolution_selected")));
+        definition.Save(project);
+        await File.WriteAllTextAsync(Path.Combine(extensionDirectory, "Functions.cs"), "invalid C# source", token);
+        string helper = Path.Combine(directory, "Helper.csproj");
+        new XDocument(new XElement("Project", new XAttribute("Sdk", "Microsoft.NET.Sdk"),
+            new XElement("PropertyGroup", new XElement("TargetFramework", "net10.0"),
+                new XElement("AnkusExtensionName", "not_an_extension")),
+            new XElement("Import", new XAttribute("Project", "Sdk.props"), new XAttribute("Sdk", "Ankus.Sdk"),
+                new XAttribute("Version", s_version), new XAttribute("Condition", "'$(ExtensionFlavor)' == 'inactive'")))).Save(helper);
+        string solution = await WriteResolutionSolutionAsync(directory, format, [project, helper], token);
+        string home = Path.Combine(directory, "unregistered");
+        foreach (string selection in new[] { solution, directory })
+        {
+            ProcessResult result = await InvokeAsync(["get", "extname", "--project", selection, "--home", home,
+                "-c", "Shipping", "--property", "ExtensionFlavor=active"], token);
+            Assert.AreEqual(0, result.ExitCode, result.StandardError);
+            Assert.AreEqual("ankus_resolution_selected" + Environment.NewLine, result.StandardOutput);
+            Assert.IsEmpty(result.StandardError);
+        }
+
+        Assert.IsEmpty(Directory.GetDirectories(directory, "obj", SearchOption.AllDirectories));
+        Assert.IsEmpty(Directory.GetDirectories(directory, "bin", SearchOption.AllDirectories));
+        Assert.IsFalse(Directory.Exists(home));
+    }
+
+    /// <summary>
+    /// Every extension command rejects multiple extension projects before compilation, installation or server mutation.
+    /// </summary>
+    /// <param name="command">The command using the shared resolver.</param>
+    [TestMethod]
+    [DataRow("build")]
+    [DataRow("publish")]
+    [DataRow("install")]
+    [DataRow("package")]
+    [DataRow("run")]
+    [DataRow("regress")]
+    [DataRow("schema")]
+    [DataRow("get")]
+    public async Task ExtensionCommandsRejectAmbiguousSolutions(string command)
+    {
+        CancellationToken token = context.CancellationToken;
+        string directory = CreateDirectory();
+        string first = await CreateControlProjectAsync(Directory.CreateDirectory(Path.Combine(directory, "first")).FullName, token);
+        string second = await CreateControlProjectAsync(Directory.CreateDirectory(Path.Combine(directory, "second")).FullName, token);
+        string solution = await WriteResolutionSolutionAsync(directory, "slnx", [first, second], token);
+        string home = Path.Combine(directory, "unused home");
+        string[] identity = command == "get" ? ["extname"] : [];
+        ProcessResult result = await InvokeAsync([command, .. identity,
+            "--project", solution, "--home", home, "--pg", MajorText(), "--pg-config", s_installation.PgConfigPath], token);
+
+        Assert.AreEqual(1, result.ExitCode);
+        Assert.IsEmpty(result.StandardOutput);
+        Assert.Contains("Specify --project", result.StandardError);
+        Assert.IsEmpty(Directory.GetDirectories(directory, "obj", SearchOption.AllDirectories));
+        Assert.IsEmpty(Directory.GetDirectories(directory, "bin", SearchOption.AllDirectories));
+        Assert.IsFalse(Directory.Exists(home));
+    }
+
+    /// <summary>
+    /// Writes a portable solution containing the exact project paths selected by the test.
+    /// </summary>
+    /// <param name="directory">The solution directory.</param>
+    /// <param name="format">The solution format.</param>
+    /// <param name="projects">The selected project files.</param>
+    /// <param name="token">Cancels file creation.</param>
+    /// <returns>The solution path.</returns>
+    private static async Task<string> WriteResolutionSolutionAsync(string directory, string format, string[] projects, CancellationToken token)
+    {
+        string path = Path.Combine(directory, "Resolution." + format);
+        string[] relative = [.. projects.Select(project => Path.GetRelativePath(directory, project).Replace(Path.DirectorySeparatorChar, '\\'))];
+        if (format == "slnx")
+        {
+            new XDocument(new XElement("Solution", relative.Select(project => new XElement("Project", new XAttribute("Path", project))))).Save(path);
+        }
+        else
+        {
+            string[] entries = [.. relative.Select(project =>
+                "Project(\"{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}\") = \"" + Path.GetFileNameWithoutExtension(project)
+                + "\", \"" + project + "\", \"{" + Guid.NewGuid().ToString().ToUpperInvariant() + "}\"\nEndProject")];
+            await File.WriteAllTextAsync(path, "Microsoft Visual Studio Solution File, Format Version 12.00\n"
+                + string.Join('\n', entries) + "\nGlobal\nEndGlobal\n", token);
+        }
+
+        return path;
+    }
+}

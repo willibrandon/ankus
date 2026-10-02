@@ -169,7 +169,8 @@ internal static partial class ToolCommand
 
         if (!test && !cluster)
         {
-            string project = ExtensionBuilder.ResolveProject(result.GetValue<string?>("--project"));
+            string project = await ExtensionBuilder.ResolveProjectAsync(result.GetValue<string?>("--project"),
+                GetConfiguration(result), token, properties);
             return await PostgresProjectSettings.ReadAsync(project, GetConfiguration(result), properties, cancellationToken: token);
         }
 

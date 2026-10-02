@@ -28,11 +28,19 @@ internal static partial class ProjectScaffolder
     /// <param name="output">The destination directory, or null to use the project name.</param>
     /// <param name="extension">The SQL extension name, or null to derive it from the project name.</param>
     /// <param name="backgroundWorker">Whether to include a preloaded worker and its backend test.</param>
+    /// <param name="framework">The selected MSTest, xUnit or NUnit consumer framework.</param>
     /// <param name="token">Cancellation for template I/O and the final move.</param>
     /// <returns>The absolute destination path.</returns>
-    internal static async Task<string> CreateAsync(string name, string? output, string? extension, bool backgroundWorker, CancellationToken token)
+    internal static async Task<string> CreateAsync(string name, string? output, string? extension, bool backgroundWorker, string framework, CancellationToken token)
     {
         ValidateName(name);
+        string? frameworkDirectory = framework switch
+        {
+            "mstest" => null,
+            "xunit" => "Xunit",
+            "nunit" => "Nunit",
+            _ => throw new ArgumentException("The test framework must be mstest, xunit or nunit.", nameof(framework)),
+        };
         extension ??= ToExtensionName(name);
         if (extension.Length is < 1 or > 63 || !(char.IsAsciiLetterLower(extension[0]) || extension[0] == '_') ||
             !extension.All(static c => char.IsAsciiLetterLower(c) || char.IsAsciiDigit(c) || c == '_'))
@@ -55,6 +63,7 @@ internal static partial class ProjectScaffolder
             ["__EXTENSION__"] = extension,
             ["__VERSION__"] = version,
             ["__PRELOAD__"] = backgroundWorker ? "true" : "false",
+            ["__TEST_FRAMEWORK__"] = framework switch { "xunit" => "xUnit", "nunit" => "NUnit", _ => "MSTest" },
             ["__WORKER_STATE__"] = "ankus.worker." + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(extension)))[..24],
         };
         string parent = Path.GetDirectoryName(destination)!;
@@ -63,9 +72,21 @@ internal static partial class ProjectScaffolder
         Directory.CreateDirectory(staging);
         try
         {
-            string[] roots = backgroundWorker
-                ? [templateRoot, Path.Combine(AppContext.BaseDirectory, "Templates", "BackgroundWorker")]
-                : [templateRoot];
+            var roots = new List<string> { templateRoot };
+            if (backgroundWorker)
+            {
+                roots.Add(Path.Combine(AppContext.BaseDirectory, "Templates", "BackgroundWorker"));
+            }
+
+            if (frameworkDirectory is not null)
+            {
+                roots.Add(Path.Combine(AppContext.BaseDirectory, "Templates", "Frameworks", frameworkDirectory));
+                if (backgroundWorker)
+                {
+                    roots.Add(Path.Combine(AppContext.BaseDirectory, "Templates", "Frameworks", frameworkDirectory + "Worker"));
+                }
+            }
+
             foreach (string root in roots)
             {
                 // Regression expectations must be written after their SQL, matching the initial setup baseline.
@@ -97,7 +118,7 @@ internal static partial class ProjectScaffolder
     private static string Replace(string value, Dictionary<string, string> replacements)
         => TokenPattern().Replace(value, match => replacements[match.Value]);
 
-    [GeneratedRegex("__(PROJECT|NAMESPACE|EXTENSION|VERSION|PRELOAD|WORKER_STATE)__", RegexOptions.CultureInvariant)]
+    [GeneratedRegex("__(PROJECT|NAMESPACE|EXTENSION|VERSION|PRELOAD|WORKER_STATE|TEST_FRAMEWORK)__", RegexOptions.CultureInvariant)]
     private static partial Regex TokenPattern();
 
     private static void ValidateName(string name)

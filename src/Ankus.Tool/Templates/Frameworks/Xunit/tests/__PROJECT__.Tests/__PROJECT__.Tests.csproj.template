@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>__NAMESPACE__.Tests</RootNamespace>
+    <OutputType>Exe</OutputType>
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Ankus.Testing" />
+    <PackageReference Include="Npgsql" />
+    <PackageReference Include="xunit.v3.mtp-v2" />
+    <PackageReference Include="Microsoft.Testing.Extensions.TrxReport" />
+    <ProjectReference Include="../../src/__PROJECT__/__PROJECT__.csproj" />
+  </ItemGroup>
+</Project>
