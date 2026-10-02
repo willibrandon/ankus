@@ -236,7 +236,7 @@ public static int Maximum(int left, int right) => Math.Max(left, right);
 | `Leakproof` | `false` | Claims the function reveals no argument information except through its result. Installation requires a superuser. |
 | `Cost` | `1` | Positive, finite planner cost in `cpu_operator_cost` units. |
 | `CreateOrReplace` | `false` | Emits `CREATE OR REPLACE FUNCTION`, retaining compatible function identities and dependencies. |
-| `SearchPath` | `null` | An ordered list of schema names scoped to the call. An empty array clears the path; null preserves the caller's setting. |
+| `SearchPath` | `null` | An ordered list of schema names scoped to the call. `PgSearchPath.ExtensionSchema` selects the extension's installation schema. An empty array clears the path; null preserves the caller's setting. |
 | `SupportFunction` | `null` | An existing planner support routine, optionally schema-qualified. PostgreSQL validates its signature during installation. |
 | `Rows` | `1000` | Positive finite row estimate for an `IEnumerable<T>` return. |
 | `SetMode` | `Auto` | Prefer one row per call, or require `ValuePerCall`/`Materialize` for a set return. |
@@ -258,6 +258,25 @@ public static long ReportCount()
 The owner's privileges and function-local search path end when the call
 returns or throws. Native error guards and managed exception unwinding apply
 to every execution mode.
+
+Use `PgSearchPath.ExtensionSchema` when the path should follow the schema chosen
+by `CREATE EXTENSION ... WITH SCHEMA`, rather than a schema name known at build
+time:
+
+```csharp
+[PgFunction(SearchPath = ["pg_catalog", PgSearchPath.ExtensionSchema, "pg_temp"])]
+public static int ReadAnswer()
+    => Spi.ExecuteScalar<int>("SELECT answer FROM extension_values");
+```
+
+The constant is PostgreSQL's reserved `@extschema@` token. PostgreSQL replaces it
+with the quoted installation schema during extension installation. Ordinary
+entries remain literal schema names. This generated path makes the extension
+non-relocatable: changing the schema afterward would leave stored function paths
+pointing at the original schema. Ankus rejects a conflicting `relocatable = true`
+control setting. A null path or ordinary schema names do not impose this rule.
+Selected SQL needs the actual installation schema; see
+[selecting declarations](/getting-started/publishing/#select-declarations).
 
 `PgOperator` and `PgCast` also expose static methods as functions. Add `PgFunction`
 alongside them to select the options described here. See [operators and casts](/operators-and-casts/).

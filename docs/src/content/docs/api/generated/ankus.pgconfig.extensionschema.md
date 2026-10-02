@@ -163,8 +163,42 @@ The selected SQL, ordered dependency closure and attachment diagnostics.
 
 Exceptions:
 
-- [InvalidOperationException](https://learn.microsoft.com/dotnet/api/system.invalidoperationexception): The library predates embedded dependency graphs.
+- [InvalidOperationException](https://learn.microsoft.com/dotnet/api/system.invalidoperationexception): The library predates embedded dependency graphs, or selected SQL needs an installation schema absent from metadata.
 - [ArgumentException](https://learn.microsoft.com/dotnet/api/system.argumentexception): A selection is empty, unknown or ambiguous.
 
 The extension must already exist when attaching objects. The concrete library must be installed in PostgreSQL's library directory.
 Custom SQL without declared created objects remains in the script and produces a warning when attachment is requested.
+
+<a id="member-ec7bdd30463f6c4a"></a>
+
+### Select(IEnumerable&lt;string&gt;, string, bool)
+
+Selects declarations for a known installation schema, resolving PostgreSQL's reserved @extschema@ token.
+
+```csharp
+public ExtensionSchemaSelection Select(IEnumerable<string> names, string extensionSchema, bool alterExtension = true)
+```
+
+Parameters:
+
+`names` — [IEnumerable&lt;string&gt;](https://learn.microsoft.com/dotnet/api/system.collections.generic.ienumerable-1)
+
+One or more exact declaration names.
+
+`extensionSchema` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The actual installation schema; it must agree with any fixed control schema.
+
+`alterExtension` — [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+Whether to wrap creation and extension attachment in one transaction.
+
+Returns: [ExtensionSchemaSelection](/api/ankus.pgconfig.extensionschemaselection/)
+
+Selected SQL with exact schema qualification and dependency closure.
+
+Exceptions:
+
+- [ArgumentNullException](https://learn.microsoft.com/dotnet/api/system.argumentnullexception): Names or the installation schema is null.
+- [ArgumentException](https://learn.microsoft.com/dotnet/api/system.argumentexception): The selection or schema is invalid, or the schema conflicts with fixed metadata.
+- [InvalidOperationException](https://learn.microsoft.com/dotnet/api/system.invalidoperationexception): The library predates embedded dependency graphs.

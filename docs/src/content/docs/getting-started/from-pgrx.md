@@ -13,6 +13,7 @@ separate .NET installation.
 | pgrx | Ankus | Guide |
 |---|---|---|
 | `#[pg_extern]` | `[PgFunction]` on a synchronous static method | [Functions](/function-declarations/) |
+| `#[search_path(@extschema@)]` | `SearchPath = [PgSearchPath.ExtensionSchema]` on `[PgFunction]` or `[PgTest]` | [Execution options](/function-declarations/#execution-options) |
 | `#[pg_schema]` | `[PgSchema]` on a declaration container | [Custom SQL](/custom-sql/) |
 | `default!`, `variadic!` | C# optional parameters and `params T[]` | [Function signatures](/function-declarations/) |
 | `TableIterator` and `name!` columns | `IEnumerable<(int Id, string Name)>`, with C# tuple element names | [Sets and tables](/sets-and-tables/) |

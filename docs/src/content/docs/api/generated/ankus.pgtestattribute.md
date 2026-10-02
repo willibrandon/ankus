@@ -55,3 +55,16 @@ public string? IgnoreReason { get; set; }
 ```
 
 Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+<a id="member-9121acda785fae06"></a>
+
+### SearchPath
+
+Gets or sets an ordered schema search path scoped to this test; null preserves the caller's path.
+Use [ExtensionSchema](/api/ankus.pgsearchpath/#member-67281e3b324e6d4f) for the schema selected during CREATE EXTENSION.
+
+```csharp
+public string[]? SearchPath { get; set; }
+```
+
+Value: [string[]](https://learn.microsoft.com/dotnet/api/system.string)

@@ -814,6 +814,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                     .Where(value => value.Analysis.Location == methodLocation), entity, graph, relatedNames, context, operatorEntities, typeProviders, compilation);
             fixedSchema |= !SqlGeneration.ApplyOptions(functionOptions, entity, related,
                 [("@FUNCTION_NAME@", callback.Replace("ankus_managed_", "ankus_fn_"))], graph);
+            fixedSchema |= declaration.UsesExtensionSchema && functionOptions?.GenerateSql != false && functionOptions?.Sql is null;
 
             IEnumerable<FunctionType> contracts = contextParameter ? [] : parameters.Where(static parameter => !parameter.IsInjected).Select(static parameter => parameter.Type!)
                 .Concat(set is null ? [scalarResult!] : set.Columns);
@@ -938,6 +939,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
 
                 fixedSchema |= !SqlGeneration.ApplyOptions(helperAnalysis.Options, support, [],
                     [("@FUNCTION_NAME@", callback.Replace("ankus_managed_", "ankus_fn_"))], graph);
+                fixedSchema |= helper.Declaration.UsesExtensionSchema && helperAnalysis.Options?.GenerateSql != false && helperAnalysis.Options?.Sql is null;
                 graph.Add(support);
                 graph.Register(helperAnalysis.Identity, helperAnalysis.Display, support);
                 graph.InheritRequirements(entity, support);

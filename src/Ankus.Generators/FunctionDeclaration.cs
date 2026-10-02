@@ -70,6 +70,15 @@ internal sealed record FunctionDeclaration
     } = string.Empty;
 
     /// <summary>
+    /// Gets whether generated execution options require PostgreSQL's installation-schema substitution.
+    /// </summary>
+    internal bool UsesExtensionSchema
+    {
+        get;
+        private init;
+    }
+
+    /// <summary>
     /// Gets whether the declaration replaces an existing compatible function.
     /// </summary>
     internal bool Replace
@@ -102,7 +111,8 @@ internal sealed record FunctionDeclaration
     internal static FunctionDeclaration? Create(IMethodSymbol method, string name, GeneratorDiagnostics context, SetResult? set = null,
         bool contextParameter = false, IReadOnlyList<bool>? sqlNullability = null, string? schemaFallback = null, FunctionParameter[]? parameterModels = null)
     {
-        AttributeData? attribute = method.GetAttributes().FirstOrDefault(static value => value.AttributeClass?.ToDisplayString() == "Ankus.PgFunctionAttribute");
+        AttributeData? attribute = method.GetAttributes().FirstOrDefault(static value => value.AttributeClass?.ToDisplayString() is
+            "Ankus.PgFunctionAttribute" or "Ankus.PgTestAttribute");
         var declaration = new FunctionDeclaration();
         int volatility = Value(attribute, "Volatility", 0);
         int parallel = Value(attribute, "ParallelSafety", 0);
@@ -226,7 +236,9 @@ internal sealed record FunctionDeclaration
                 return Invalid("SearchPath entries must be nonempty schema identifiers of at most 63 UTF-8 bytes.");
             }
 
-            options.Add("SET search_path TO " + (path.Length == 0 ? "''" : string.Join(", ", path.Select(static entry => SqlText.Identifier(entry!)))));
+            declaration = declaration with { UsesExtensionSchema = path.Contains("@extschema@", StringComparer.Ordinal) };
+            options.Add("SET search_path TO " + (path.Length == 0 ? "''" : string.Join(", ", path.Select(static entry =>
+                entry == "@extschema@" ? entry : SqlText.Identifier(entry!)))));
         }
 
         declaration = declaration with { Options = string.Join(" ", options) };

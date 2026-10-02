@@ -138,6 +138,15 @@ include the original managed name, database exception and backend session log.
 `[PgTest(IgnoreReason = "reason")]` supplies an explicit framework skip reason.
 Directly invoking an ignored case fails; the host must report the skip.
 
+Set `PgTest.SearchPath` to control name resolution inside a backend test. For
+example, `[PgTest(SearchPath = ["pg_catalog", PgSearchPath.ExtensionSchema, "pg_temp"])]`
+uses the extension's installation schema. PostgreSQL restores the caller's path
+when the function returns or raises an error. An empty array clears the path;
+null preserves the caller's setting. The reserved extension-schema token makes
+test publications non-relocatable, just as it does for
+[ordinary functions](/function-declarations/#execution-options). Normal publications
+exclude backend test functions and their search paths.
+
 Names in reports retain their C# identity. Generated SQL names fit PostgreSQL's
 identifier limit, even for long C# method names. An explicit `[PgSchema]` selects
 the function schema; otherwise the fixture uses the installed extension schema,

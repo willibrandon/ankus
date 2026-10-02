@@ -8,6 +8,16 @@ namespace Ankus;
 public sealed class PgTestAttribute : Attribute
 {
     /// <summary>
+    /// Gets or sets an ordered schema search path scoped to this test; null preserves the caller's path.
+    /// Use <see cref="PgSearchPath.ExtensionSchema"/> for the schema selected during CREATE EXTENSION.
+    /// </summary>
+    public string[]? SearchPath
+    {
+        get;
+        set;
+    }
+
+    /// <summary>
     /// Gets or sets the exact PostgreSQL primary error message expected from the test, or null for success.
     /// </summary>
     public string? ExpectedError

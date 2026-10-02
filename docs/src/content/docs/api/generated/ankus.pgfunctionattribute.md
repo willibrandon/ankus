@@ -176,6 +176,8 @@ Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
 
 Gets or sets an ordered schema search path scoped to this function. Null preserves the caller's search path.
 Each entry is a schema identifier, including the special $user and pg_temp entries.
+Use [ExtensionSchema](/api/ankus.pgsearchpath/#member-67281e3b324e6d4f) for the schema selected during CREATE EXTENSION.
+Such a generated search path makes the extension non-relocatable.
 
 ```csharp
 public string[]? SearchPath { get; set; }

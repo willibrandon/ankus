@@ -168,6 +168,24 @@ attachments. A fixed control schema qualifies generated object names and owned
 type references even when the session uses another search path. Authored SQL
 retains its own identifiers and qualification.
 
+For an extension installed into a schema chosen at installation time, pass that
+schema when selecting declarations:
+
+```console
+ankus schema --from publish/Hello.so read_answer --schema reporting --output selected.sql
+```
+
+`--schema` qualifies generated object names and resolves reserved `@extschema@`
+tokens, including paths declared with `PgSearchPath.ExtensionSchema`. It must
+match the installed extension's schema and any fixed control schema. Without this
+option, a fixed control schema supplies the target. Selection fails if its SQL
+needs `@extschema@` and no target is known. Full installation scripts retain the
+token for PostgreSQL to resolve; `--schema` requires named selection.
+
+Code using `ExtensionSchema` can call `schema.Select(["read_answer"], "reporting")`
+for the same behavior. The existing overload still uses fixed schema metadata.
+Both overloads accept `alterExtension: false` to omit extension attachments.
+
 Custom SQL types declared with `PgSqlTypeProvider` and functions declared with
 `PgSqlFunctionProvider` receive attachments. A custom block without a declared
 object inventory produces a warning; attach its objects yourself. Replacement

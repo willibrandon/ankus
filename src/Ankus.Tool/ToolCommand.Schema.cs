@@ -37,9 +37,14 @@ internal static partial class ToolCommand
         {
             Description = "Emit selected SQL without a transaction or ALTER EXTENSION ADD statements.",
         };
+        var targetSchema = new Option<string?>("--schema")
+        {
+            Description = "Installation schema for selected SQL; resolves @extschema@ and must agree with any fixed control schema.",
+        };
         command.Arguments.Add(items);
         command.Options.Add(dot);
         command.Options.Add(noAlter);
+        command.Options.Add(targetSchema);
         command.Options.Add(from);
         command.Options.Add(skipBuild);
         command.Options.Add(runtime);
@@ -50,6 +55,11 @@ internal static partial class ToolCommand
             if (result.GetValue(noAlter) && selected.Length == 0)
             {
                 throw new ArgumentException("--no-alter-extension requires at least one schema item.");
+            }
+
+            if (result.GetValue(targetSchema) is not null && selected.Length == 0)
+            {
+                throw new ArgumentException("--schema requires at least one schema item; full installation SQL retains PostgreSQL's schema substitution.");
             }
 
             string? library = result.GetValue(from);
@@ -107,21 +117,22 @@ internal static partial class ToolCommand
                     throw new FormatException("The published manifest disagrees with the embedded schema identity.");
                 }
 
-                await WriteSchemaAsync(existing, library, result.GetValue(output), result.GetValue(dot), selected, !result.GetValue(noAlter), token);
+                await WriteSchemaAsync(existing, library, result.GetValue(output), result.GetValue(dot), selected, !result.GetValue(noAlter), result.GetValue(targetSchema), token);
                 return 0;
             }
 
             ExtensionSchema schema = ExtensionSchema.Read(library, rid);
-            await WriteSchemaAsync(schema, library, result.GetValue(output), result.GetValue(dot), selected, !result.GetValue(noAlter), token);
+            await WriteSchemaAsync(schema, library, result.GetValue(output), result.GetValue(dot), selected, !result.GetValue(noAlter), result.GetValue(targetSchema), token);
             return 0;
         });
         return command;
     }
 
     private static async Task WriteSchemaAsync(ExtensionSchema schema, string library, string? output, string? dot,
-        string[] names, bool alterExtension, CancellationToken token)
+        string[] names, bool alterExtension, string? extensionSchema, CancellationToken token)
     {
-        ExtensionSchemaSelection? selection = names.Length == 0 ? null : schema.Select(names, alterExtension);
+        ExtensionSchemaSelection? selection = names.Length == 0 ? null : extensionSchema is null ? schema.Select(names, alterExtension) :
+            schema.Select(names, extensionSchema, alterExtension);
         string sql = selection?.Sql ?? schema.Sql;
         string? graph = dot is null ? null : (schema.Graph ?? throw new InvalidOperationException(
             "This library does not contain a dependency graph. Rebuild it with a current Ankus SDK to export Graphviz DOT.")).ToGraphviz();

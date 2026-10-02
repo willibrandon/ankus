@@ -62,6 +62,11 @@ catalog exposes individual cases to ordinary test discovery, including exact
 expected errors and explicit ignore reasons. Test publications opt in; normal
 publications exclude these SQL functions. See [backend tests](docs/src/content/docs/getting-started/testing.md#declare-tests-inside-the-extension).
 
+Use `SearchPath = ["pg_catalog", PgSearchPath.ExtensionSchema, "pg_temp"]` on
+`PgFunction` or `PgTest` to resolve names inside the extension's installation
+schema. PostgreSQL fixes this path during installation, so the extension cannot
+be relocated afterward. See [function execution options](docs/src/content/docs/function-declarations.md#execution-options).
+
 Extension projects use the `Ankus.Sdk` NuGet project SDK:
 
 ```xml

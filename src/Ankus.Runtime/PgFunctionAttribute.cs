@@ -170,6 +170,8 @@ public sealed class PgFunctionAttribute : Attribute
     /// <summary>
     /// Gets or sets an ordered schema search path scoped to this function. Null preserves the caller's search path.
     /// Each entry is a schema identifier, including the special $user and pg_temp entries.
+    /// Use <see cref="PgSearchPath.ExtensionSchema"/> for the schema selected during CREATE EXTENSION.
+    /// Such a generated search path makes the extension non-relocatable.
     /// </summary>
     public string[]? SearchPath
     {
