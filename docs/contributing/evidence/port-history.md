@@ -1,5 +1,50 @@
 # Historical port evidence
 
+## Complete PostgreSQL 19 regression-fixture repair
+
+Both fixture corrections pass plain, unfiltered `dotnet test
+-p:AnkusPostgresMajor=19` against PostgreSQL **19 beta 4/Linux x64**:
+**11,027 total; 11,013 passed; zero failures; 14 platform skips; 26m39.146s**.
+All six completed TRX modules independently confirm these counters, and all
+**267** frozen source identities verify after the terminal exit-zero result.
+The run has no ambient major override. Original database-name/data/identity
+checks and installed-tool publication/install/query assertions remain intact.
+
+Final composed Release passes with **zero warnings/errors, 1m28.83s**; API
+freshness verifies **235 pages / 2,726 members**; site build/check passes with
+zero errors, warnings or hints. All 267 source hashes verify again after those
+gates. The final Release check overlaps the separate SPI acceptance launch;
+its elapsed time is not a controlled performance comparison.
+
+Before committing, primary CI **37003911215** and Docs **37003911206** are
+terminal successes on **906b752**. Compatibility CI **36988634319** retains
+its now-locally-repaired PostgreSQL 19 failure; PostgreSQL 13–17 passed.
+Intel macOS **37003910952** retains its 60-minute timeout and incomplete
+integration report; its performance correction and complete acceptance remain
+open. This milestone changes only the two defective test fixtures, without
+altering the runtime, CLI mismatch validation, job limits or analyzer policy.
+
+## Final SPI and CLI fixture composition
+
+Final composed Release/documentation checks pass: **zero warnings/errors,
+31.37s**; API freshness verifies **238 pages / 2,756 members**; site build and
+check pass with zero diagnostics. All **279** source identities verify afterward.
+The first composed complete-suite launch runs **zero tests**: its requested
+report directory was beneath a linked worktree's `.git` file, so all six test
+hosts reject that directory before discovery (exit **134**). This is an agent
+validation-command error, not a failed product assertion. The corrected launch
+uses an absolute private report directory and the identical frozen source.
+Its complete outcome remains pending.
+
+The corrected `ProjectGlobalPropertiesReachNativePublicationAndQueries` fixture
+passes in the SPI draft on PostgreSQL **18.6/Linux x64**, with **one selected
+case, zero failures/skips and 4m42.686s**. This exercises the installed tool,
+native publication, extension installation and original query/metadata assertions.
+All **279** frozen source identities verify after terminal success. The SPI
+production code is identical to the complete **11,120-case** successful run
+recorded below; the final fixture and evidence composition still requires its
+own complete-suite and Release/documentation checks before acceptance.
+
 These records preserve observations from their original checkpoints. Later work
 may supersede a result, limitation or pending task. Use the [current status](../../../PROGRESS.md)
 for the latest conclusions and the [complete requirement inventory](parity-requirements.md)
@@ -142,6 +187,141 @@ compatibility **36988634319** has completed 13–17 and still-live 19. The miles
 adds diagnostic automation without changing compiler, cache, guard, runtime,
 timeout or cancellation policy. Only six owned automation/evidence paths are
 promoted; the independent SPI draft and user changes remain outside this commit.
+
+The timing milestone is committed and pushed as **906b752**. Fresh primary
+**37003911215** and Docs **37003911206** are live, and Intel macOS full-suite
+**37003910952** is dispatched at the same revision with two package-consumer
+slots. The measurement run retains the 60-minute limit and the complete suite;
+no sharding, cancellation or optimizer/cache/runtime policy change is introduced.
+Actual hosted phase timings and a verified root-cause correction remain open.
+
+Compatibility **36988634319** subsequently ends with one PostgreSQL 19 failure:
+all six TRX modules report **10,984 total; 10,969 passed; one failed; 14 platform
+skips**, full test duration **25m37.074s**. The failed database-removal fixture
+unconditionally enables `standard_conforming_strings=off`. PostgreSQL 19 beta 4's
+`check_standard_conforming_strings` explicitly rejects false with **0A000** and
+`non-standard string literals are not supported`; this is the observed failure.
+Other earlier quoting/lifecycle fixtures already handle the same version change.
+The isolated repair retains legacy-mode setup on 13–18, asserts the precise
+19 rejection, and independently verifies the setting on a fresh connection
+before executing all original name/byte-limit/data/backend/recreation checks.
+Focused and complete repaired-source validation remain required. No production
+quoting, database-reset behavior, test assertion or analyzer standard is weakened.
+
+The first isolated focused repair attempt fails before any test body executes:
+the chosen temporary root makes PostgreSQL's Unix-domain socket path exceed its
+107-byte limit. All four selected cases report the same assembly-startup failure,
+so this is not fixture acceptance or a repaired-behavior result. Selecting a
+short disk-backed temporary root corrects validation setup; the unchanged-source
+rerun is live. The isolated source's 267 identities and 26 staged runtime files
+are verified; no runtime patch, server bypass or assertion change is used.
+
+The unchanged-source PostgreSQL 19 beta 4/Linux x64 rerun completes with
+**four passed, zero failures, zero skips, 2m26.599s**. The durable process result
+is exit zero, and all 267 frozen source identities verify after the run. This
+includes the original database-removal scenario and its new exact capability
+and independent setting checks. The same class is now running against
+PostgreSQL 18; complete-suite and final Release/documentation gates remain
+required before committing the repair.
+
+The same frozen-source class also passes on PostgreSQL **18.6/Linux x64**:
+**four passed, zero failures, zero skips, 3m02.058s**. This independently proves
+the retained legacy `off` setting and the original database-removal contracts.
+All 267 source identities verify again. The complete ordinary six-module
+PostgreSQL 19 beta 4 suite is now running with matching headers/server and the
+short disk-backed temporary root. Final Release/API/site gates remain pending.
+
+Primary CI **37003911215** on accepted timing source **906b752** completes
+successfully: each platform retains all six TRX modules and **11,027 total**
+with zero failures. Linux x64/PostgreSQL 18 reports **11,013 passed / 14 skips,
+26m43s job**; macOS ARM64/PostgreSQL 18 reports **11,001 passed / 26 skips,
+20m05s**; Windows x64/PostgreSQL 17 reports **11,002 passed / 25 skips, 25m23s**.
+Quality, runtime and Docs **37003911206** also pass. Intel **37003910952** is
+still running the complete suite; no platform acceptance or performance fix is
+inferred from its unfinished state.
+
+The PostgreSQL 19 fixture repair's composed-evidence Release/API/site checks
+complete with terminal exit zero: Release **zero warnings/errors, 1m20.35s**;
+API freshness **235 pages / 2,726 members**; site **283 pages, 8.70s**; check
+**zero errors, warnings or hints**. All 267 composed source identities verify.
+The product/test source is unchanged from both focused passes and the currently
+running complete PostgreSQL 19 suite; only current progress/evidence is composed.
+
+The independent SPI composition now includes accepted timing automation and the
+same PostgreSQL 19 fixture repair. Its **279** frozen identities verify; final
+Release passes with **zero warnings/errors, 1m09.37s**; API freshness verifies
+**238 pages / 2,756 members**; the site builds **286 pages in 9.15s** and its
+check has **zero errors, warnings or hints**. This is pre-acceptance evidence;
+the complete suite still must pass before accepting the API milestone.
+
+The first complete SPI attempt ends with **11,120 total; 6,635 passed; 4,471
+failed; 14 skips, 48.154s**. Every one of the 4,471 failed blocks has the same
+assembly-initialization `FileNotFoundException` for an uninstalled `pg_config`
+path; no integration test body runs and there are zero unmatched failures.
+The launcher now selects the actual installed PostgreSQL **18.6**, verified
+through `pg_config --version`. A separate prerequisite check also identifies
+an older root runtime payload; it was not exercised by this failed setup.
+The original successful CI runtime payload is staged again and all **26**
+copied file digests match its retained artifact and the focused native checks.
+The unchanged-source complete rerun is active with short disk-backed temporary
+storage. No runtime patch, test selection or analyzer standard is changed.
+
+The complete PostgreSQL 19 beta 4/Linux x64 repair run subsequently finishes
+**11,027 total; 11,012 passed; one failure; 14 platform skips; 26m20.224s**.
+The original database-removal failure now passes. The sole failed case is
+`ProjectGlobalPropertiesReachNativePublicationAndQueries`: its custom
+`ServerConfig` selects PostgreSQL 19, but its project has no major declaration
+and therefore defaults to 18. The CLI correctly rejects that mismatch.
+CI exports an ambient `AnkusPostgresMajor`, which had hidden this fixture's
+dependency; ordinary test-build properties do not become child-process
+environment settings. The proper fixture correction adds a `ServerMajor`
+custom property and derives `AnkusPostgresMajor` alongside `AnkusPgConfigPath`
+inside its imported project properties. All publication/metadata/install/query
+assertions remain. No CLI validation is weakened and no ambient workaround is
+introduced. Final focused and complete validation remain required.
+
+An independent read-only namespace audit inventories **53 native helper types,
+81 declarations and 211 generated/fixture literal reference sites**. Only
+**16 distinct types are public**, and each already has `EditorBrowsable(Never)`.
+The review's file count therefore overstates the author-visible surface.
+Compiler-only namespace organization still needs deliberate API work and full
+generated/consumer validation. The audit is syntactic, not complete binding
+resolution, and does not prove a namespace change safe. Author values, codecs,
+guards and native layout contracts must retain their behavior.
+
+The final PostgreSQL 19 fixture composition passes **five affected cases,
+zero failures/skips, 4m58.563s**, with all 267 source identities verified after
+the terminal result. This combines the four database prerequisites with the
+corrected global-property native publication/query scenario. The complete
+unchanged-source PostgreSQL 19 beta 4 suite is running without exporting an
+ambient major property to hide project selection.
+
+The frozen SPI production composition completes all six PostgreSQL **18.6 /
+Linux x64** modules successfully: **11,120 total; 11,106 passed; zero failures;
+14 platform skips; 24m38.017s**. All 279 source identities verify afterward.
+This covers the 93 added managed/compiler/native cases and the entire baseline
+suite. The later CLI fixture correction is then composed for explicit major
+selection and final validation; no SPI production behavior changes after this
+complete pass.
+
+Intel macOS **37003910952**, source **906b752**, two package slots, times out
+again. The annotation explicitly identifies the **1h0m0s** maximum; total job
+duration including cleanup is **61m23s**. Preparation takes **13m57s**, and
+full testing takes **43m27s** before timeout. Five retained TRX modules report
+**6,621 total; 6,612 passed; zero failures; nine skips**; no integration report
+is complete. All 35 available build reports are retained, with raw binary logs
+excluded from upload.
+
+The new phase reader supplies actual initial-build command observations:
+source production **111.159s** and managed companion production **219.510s**.
+Overlapping source readers report **154.298–170.251s**, and companion readers
+**162.960–181.183s**, including waiting for those producers. Later reused
+source/companion pairs report **29.489s / 17.669s** and **15.579s / 9.618s**.
+These measurements include validation, process startup and lock waiting;
+they do not isolate hashing, compilation or CPU cost. Inclusive target totals
+overlap and must not be summed as job wall time. Complete Intel acceptance and
+a properly measured performance correction remain required; no tests, guards,
+content checks or job limits are weakened.
 
 ---
 

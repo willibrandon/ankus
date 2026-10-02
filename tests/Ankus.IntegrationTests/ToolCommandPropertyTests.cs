@@ -112,6 +112,7 @@ public sealed partial class ToolCommandTests
         await File.WriteAllTextAsync(Path.Combine(directory, "selection.props"), """
             <Project>
               <PropertyGroup>
+                <AnkusPostgresMajor>$(ServerMajor)</AnkusPostgresMajor>
                 <AnkusPgConfigPath>$(ServerConfig)</AnkusPgConfigPath>
               </PropertyGroup>
               <PropertyGroup Condition="'$(Configuration)' == 'Shipping+Checked' and '$(Probe)' == 'enabled'">
@@ -138,7 +139,8 @@ public sealed partial class ToolCommandTests
             """, token);
         string home = Path.Combine(directory, "unregistered home");
         string[] options = ["--home", home, "--project", project, "--property", "Configuration=Shipping+Checked",
-            "-p", "Probe=disabled", "--property", "pRoBe=enabled", "--property", "ServerConfig=" + s_installation.PgConfigPath];
+            "-p", "Probe=disabled", "--property", "pRoBe=enabled", "--property", "ServerMajor=" + MajorText(),
+            "--property", "ServerConfig=" + s_installation.PgConfigPath];
         ProcessResult name = await InvokeAsync(["get", "extname", .. options], token);
         Assert.AreEqual(0, name.ExitCode, name.StandardError);
         Assert.AreEqual("ankus_global_properties" + Environment.NewLine, name.StandardOutput);

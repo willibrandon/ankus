@@ -79,7 +79,25 @@ public sealed class PostgresRegressionPrerequisiteTests(TestContext context)
         {
             Assert.IsTrue(await cluster.StartAsync(new PostgresDevelopmentOptions { Port = port }, token));
             await using NpgsqlConnection administration = await OpenAsync(port, "postgres", token);
-            await using var retained = new NpgsqlCommand("ALTER DATABASE postgres SET standard_conforming_strings = off; " +
+            await using var stringMode = new NpgsqlCommand("ALTER DATABASE postgres SET standard_conforming_strings = off", administration);
+            if (installation.Version.Major < 19)
+            {
+                await stringMode.ExecuteNonQueryAsync(token);
+            }
+            else
+            {
+                PostgresException removed = await Assert.ThrowsExactlyAsync<PostgresException>(() => stringMode.ExecuteNonQueryAsync(token));
+                Assert.AreEqual("0A000", removed.SqlState);
+                Assert.AreEqual("non-standard string literals are not supported", removed.MessageText);
+            }
+
+            await using (NpgsqlConnection freshSettings = await OpenAsync(port, "postgres", token))
+            {
+                await using var configured = new NpgsqlCommand("SHOW standard_conforming_strings", freshSettings);
+                Assert.AreEqual(installation.Version.Major < 19 ? "off" : "on", await configured.ExecuteScalarAsync(token));
+            }
+
+            await using var retained = new NpgsqlCommand(
                 "CREATE TABLE retained(value integer); INSERT INTO retained VALUES (42); SELECT pg_backend_pid()", administration);
             object? backend = await retained.ExecuteScalarAsync(token);
             List<string> names = ["ordinary", " café'\\\"; # ", "--help", "host=elsewhere dbname=other", "postgresql://elsewhere/db", " ",
