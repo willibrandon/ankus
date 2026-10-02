@@ -18,7 +18,7 @@ public sealed partial class PostgresDevelopmentCluster
     /// Describes a development cluster without creating directories or starting processes.
     /// </summary>
     /// <param name="installation">The PostgreSQL installation that runs the cluster.</param>
-    /// <param name="homeDirectory">The Ankus home, defaulting to ~/.ankus.</param>
+    /// <param name="homeDirectory">The Ankus home, defaulting to ANKUS_HOME or ~/.ankus.</param>
     public PostgresDevelopmentCluster(PostgresInstallation installation, string? homeDirectory = null)
     {
         ArgumentNullException.ThrowIfNull(installation);

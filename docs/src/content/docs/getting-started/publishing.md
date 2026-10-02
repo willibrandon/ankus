@@ -39,6 +39,16 @@ ankus publish --output publish
 Ankus uses .NET Native AOT to build for the current platform. It passes the
 registered PostgreSQL installation to the build so the wrapper uses its headers.
 
+Add repeatable `--property Name=Value` options to select project features or other
+MSBuild settings. They apply to project evaluation and compilation together:
+
+```console
+ankus publish --property Configuration=Shipping --property ExtensionFlavor=preview --output publish
+```
+
+See [MSBuild property forwarding](/reference/cli/#pass-msbuild-properties) for
+literal values, selection conflicts and commands that reuse existing publications.
+
 You can also use `dotnet publish` directly. For a generated `Hello` solution on Linux x64:
 
 ```console

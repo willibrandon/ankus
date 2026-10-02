@@ -10,7 +10,7 @@ namespace Ankus.PgConfig;
 /// Installs selected PostgreSQL releases in an Ankus home without changing system installations or databases.
 /// </summary>
 /// <param name="client">The caller-owned client used for upstream HTTPS downloads.</param>
-/// <param name="homeDirectory">The Ankus home, defaulting to the current user's ~/.ankus directory.</param>
+/// <param name="homeDirectory">The Ankus home, defaulting to ANKUS_HOME or the current user's ~/.ankus directory.</param>
 public sealed class PostgresProvisioner(HttpClient client, string? homeDirectory = null)
 {
     private static readonly string[] s_buildEnvironment =

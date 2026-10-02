@@ -98,6 +98,33 @@ cluster data and sockets. It shuts down surviving fixture servers after a host
 failure or cancellation before removing that storage. Direct `dotnet test`
 continues to work with the fixture's ordinary discovery and defaults.
 
+## Pass MSBuild properties
+
+Project commands accept repeatable `--property` (`-p`) assignments:
+
+```console
+ankus publish --project MyExtension.csproj --property Configuration=Shipping --property DefineConstants=FEATURE_ONE
+ankus get extname --property ExtensionFlavor=preview
+```
+
+Properties participate in project evaluation as well as compilation. Conditions
+and imports therefore select the same extension identity and PostgreSQL installation
+for `build`, `publish`, `install`, `package`, `schema`, `regress`, `run`, `connect`
+and `get`. A repeated property name uses its last value; names are case-insensitive.
+Each assignment supplies one literal value. Quote spaces or shell metacharacters
+as required by your shell. Semicolons, percent escapes and MSBuild expansion syntax
+in that value are preserved, and `Name=` supplies an empty value.
+
+`Configuration` selects the default output directory as well as the build.
+Conflicting `--configuration`, `--pg` or `--pg-config` options fail explicitly.
+These commands publish for the host runtime and require `SelfContained=true`.
+The command controls its publication directory and selected PostgreSQL target.
+Existing publications selected with `--from` reject new build properties.
+
+`ankus test` continues to accept ordinary MSBuild property arguments after `--`.
+SQL client arguments after `--` on `run` and `connect`, and positional schema
+item selectors, retain their usual meanings.
+
 ## Upgrade Ankus references
 
 Preview framework package and project SDK updates from an extension solution:
@@ -199,13 +226,14 @@ Use `--jobs 8` to limit parallel compilation. Repeat
 `--valgrind` enables PostgreSQL's memory-context instrumentation and requires
 Valgrind headers. These source options do not apply to Windows binary archives.
 
-Installations live under `~/.ankus/postgres/`. Repeating the same request reuses
+Installations live under the Ankus home's `postgres/` directory, by default
+`~/.ankus/postgres/`. Repeating the same request reuses
 a validated installation with matching build options; a new release gets its
 own directory. Temporary downloads and build files are removed after success
 or failure. System installations and databases are preserved. `init` does not
 start a server or create a database cluster.
 
-With no version options, `init` requests every supported major. All requested
+With no version options or environment defaults, `init` requests every supported major. All requested
 installations must validate before the registrations are updated. If a later
 installation fails, completed installations remain available for the next attempt.
 
@@ -217,8 +245,18 @@ ankus info --pg 18
 ```
 
 `init` validates the server version, executables, and headers, then records the
-installation in `~/.ankus/config.json`. It preserves other registrations. Use
-`--home` to keep a separate Ankus configuration directory.
+installation in the Ankus home's `config.json`. It preserves other registrations.
+Use `--home` to keep a separate Ankus configuration directory.
+
+`ANKUS_HOME` selects the home directory for all commands when `--home` is absent.
+Relative home paths resolve from the directory where you invoke Ankus. The
+default is `~/.ankus`.
+
+`PG13_PG_CONFIG` through `PG19_PG_CONFIG` provide defaults for the corresponding
+`init --pgNN` options. Values are `pg_config` paths or `download`; explicit options
+override them. These defaults select which majors `init` registers. Later commands
+use the saved registrations and their ordinary PostgreSQL selectors. Invalid
+paths or mismatched versions fail before changing the registry.
 
 Save port bases when initializing or updating a registration:
 

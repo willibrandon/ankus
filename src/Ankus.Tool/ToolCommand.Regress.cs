@@ -70,7 +70,7 @@ internal static partial class ToolCommand
 
             int major = await SelectMajorAsync(result, token);
             string name = await ExtensionBuilder.GetExtensionNameAsync(project, GetConfiguration(result), major,
-                result.GetValue<string?>("--pg-config"), token);
+                result.GetValue<string?>("--pg-config"), token, BuildProperties(result));
             string targetDatabase = result.GetValue(database) ?? name + "_regress";
             ArgumentException.ThrowIfNullOrEmpty(targetDatabase);
             if (targetDatabase.Contains('\0', StringComparison.Ordinal))

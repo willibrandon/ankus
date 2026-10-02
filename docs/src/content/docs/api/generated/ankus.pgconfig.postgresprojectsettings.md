@@ -47,6 +47,42 @@ Value: [int](https://learn.microsoft.com/dotnet/api/system.int32)
 
 ## Methods
 
+<a id="member-63915af659c16a53"></a>
+
+### ReadAsync(string, string, IReadOnlyDictionary&lt;string, string&gt;, int?, CancellationToken)
+
+Evaluates project selection with the same global properties as the eventual build.
+
+```csharp
+public static Task<PostgresProjectSettings> ReadAsync(string projectPath, string configuration, IReadOnlyDictionary<string, string> globalProperties, int? postgresMajor = null, CancellationToken cancellationToken = default)
+```
+
+Parameters:
+
+`projectPath` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The project files to evaluate.
+
+`configuration` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The effective build configuration.
+
+`globalProperties` — [IReadOnlyDictionary&lt;string, string&gt;](https://learn.microsoft.com/dotnet/api/system.collections.generic.ireadonlydictionary-2)
+
+Literal global properties inherited by evaluated project references.
+
+`postgresMajor` — [int?](https://learn.microsoft.com/dotnet/api/system.int32)
+
+An explicit PostgreSQL major, or null for evaluated defaults.
+
+`cancellationToken` — [CancellationToken](https://learn.microsoft.com/dotnet/api/system.threading.cancellationtoken)
+
+Cancels evaluation and joins the query processes.
+
+Returns: [Task&lt;PostgresProjectSettings&gt;](https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1)
+
+The evaluated PostgreSQL selection.
+
 <a id="member-3a1fd74dd979852b"></a>
 
 ### ReadAsync(string, string, int?, CancellationToken)
@@ -76,6 +112,42 @@ An explicit major supplied by the calling build, or null to use project defaults
 `cancellationToken` — [CancellationToken](https://learn.microsoft.com/dotnet/api/system.threading.cancellationtoken)
 
 Cancels evaluation and joins the query process before returning.
+
+Returns: [Task&lt;PostgresProjectSettings&gt;](https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1)
+
+The evaluated PostgreSQL selection.
+
+<a id="member-23d8e035829d79fe"></a>
+
+### TryReadAsync(IEnumerable&lt;string&gt;, string, IReadOnlyDictionary&lt;string, string&gt;, int?, CancellationToken)
+
+Evaluates project selection with the same global properties as the eventual build.
+
+```csharp
+public static Task<PostgresProjectSettings?> TryReadAsync(IEnumerable<string> projectPaths, string configuration, IReadOnlyDictionary<string, string> globalProperties, int? postgresMajor = null, CancellationToken cancellationToken = default)
+```
+
+Parameters:
+
+`projectPaths` — [IEnumerable&lt;string&gt;](https://learn.microsoft.com/dotnet/api/system.collections.generic.ienumerable-1)
+
+The project files to evaluate.
+
+`configuration` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The effective build configuration.
+
+`globalProperties` — [IReadOnlyDictionary&lt;string, string&gt;](https://learn.microsoft.com/dotnet/api/system.collections.generic.ireadonlydictionary-2)
+
+Literal global properties inherited by evaluated project references.
+
+`postgresMajor` — [int?](https://learn.microsoft.com/dotnet/api/system.int32)
+
+An explicit PostgreSQL major, or null for evaluated defaults.
+
+`cancellationToken` — [CancellationToken](https://learn.microsoft.com/dotnet/api/system.threading.cancellationtoken)
+
+Cancels evaluation and joins the query processes.
 
 Returns: [Task&lt;PostgresProjectSettings&gt;](https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1)
 
@@ -112,6 +184,42 @@ Cancels evaluation and joins the query processes.
 Returns: [Task&lt;PostgresProjectSettings&gt;](https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1)
 
 The shared declared selection, or null for an empty, unrelated or ambiguous group.
+
+<a id="member-25890442e52091e0"></a>
+
+### TryReadAsync(string, string, IReadOnlyDictionary&lt;string, string&gt;, int?, CancellationToken)
+
+Evaluates project selection with the same global properties as the eventual build.
+
+```csharp
+public static Task<PostgresProjectSettings?> TryReadAsync(string projectPath, string configuration, IReadOnlyDictionary<string, string> globalProperties, int? postgresMajor = null, CancellationToken cancellationToken = default)
+```
+
+Parameters:
+
+`projectPath` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The project files to evaluate.
+
+`configuration` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The effective build configuration.
+
+`globalProperties` — [IReadOnlyDictionary&lt;string, string&gt;](https://learn.microsoft.com/dotnet/api/system.collections.generic.ireadonlydictionary-2)
+
+Literal global properties inherited by evaluated project references.
+
+`postgresMajor` — [int?](https://learn.microsoft.com/dotnet/api/system.int32)
+
+An explicit PostgreSQL major, or null for evaluated defaults.
+
+`cancellationToken` — [CancellationToken](https://learn.microsoft.com/dotnet/api/system.threading.cancellationtoken)
+
+Cancels evaluation and joins the query processes.
+
+Returns: [Task&lt;PostgresProjectSettings&gt;](https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1)
+
+The evaluated PostgreSQL selection.
 
 <a id="member-17b85366d9eb9437"></a>
 

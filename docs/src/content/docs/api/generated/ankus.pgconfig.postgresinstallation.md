@@ -233,7 +233,8 @@ The queried PostgreSQL installation.
 ### DiscoverAsync(int, CancellationToken)
 
 Discovers a specific PostgreSQL major without requiring environment variables.
-Nonstandard installations can be registered as pgXX paths in <code>~/.ankus/config.json</code>.
+Nonstandard installations can be registered as pgXX paths in the Ankus home's <code>config.json</code>.
+ANKUS_HOME selects that home, defaulting to <code>~/.ankus</code>.
 
 ```csharp
 public static Task<PostgresInstallation> DiscoverAsync(int major, CancellationToken cancellationToken = default)

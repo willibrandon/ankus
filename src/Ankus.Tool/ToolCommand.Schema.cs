@@ -7,7 +7,7 @@ namespace Ankus.Tool;
 
 internal static partial class ToolCommand
 {
-    private static readonly string[] s_schemaBuildOptions = ["--project", "--pg", "--pg-config", "--configuration", "--skip-build"];
+    private static readonly string[] s_schemaBuildOptions = ["--project", "--property", "--pg", "--pg-config", "--configuration", "--skip-build"];
 
     private static Command CreateSchema(Option<string?> home)
     {
@@ -96,7 +96,7 @@ internal static partial class ToolCommand
                 {
                     PostgresInstallation installation = await SelectAsync(result, home, token);
                     int code = await ExtensionBuilder.PublishAsync(project, configuration, installation, directory, token,
-                        diagnosticsToStandardError: true);
+                        diagnosticsToStandardError: true, properties: BuildProperties(result));
                     if (code != 0)
                     {
                         return code;

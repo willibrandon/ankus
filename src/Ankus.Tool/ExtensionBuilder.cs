@@ -60,9 +60,10 @@ internal static class ExtensionBuilder
     /// <param name="output">The output directory.</param>
     /// <param name="token">Cancels publishing and terminates its process tree.</param>
     /// <param name="diagnosticsToStandardError">Whether build output belongs on stderr, leaving stdout available for SQL.</param>
+    /// <param name="properties">Literal global properties used by evaluation and publication.</param>
     /// <returns>The dotnet publish exit code.</returns>
     internal static async Task<int> PublishAsync(string? project, string configuration, PostgresInstallation installation,
-        string output, CancellationToken token, bool diagnosticsToStandardError = false)
+        string output, CancellationToken token, bool diagnosticsToStandardError = false, IReadOnlyDictionary<string, string>? properties = null)
     {
         string path = ResolveProject(project);
         Directory.CreateDirectory(output);
@@ -70,7 +71,7 @@ internal static class ExtensionBuilder
         PublishedExtension.Invalidate(output);
         int exitCode = await ToolProcess.RunAsync("dotnet",
         [
-            "publish", path, "-p:Configuration=" + EscapeProperty(configuration), "--runtime", RuntimeInformation.RuntimeIdentifier,
+            "publish", path, .. PropertyArguments(properties), "-p:Configuration=" + EscapeProperty(configuration), "--runtime", RuntimeInformation.RuntimeIdentifier,
             "--self-contained", "true", "--output", Path.GetFullPath(output),
             "-p:AnkusPostgresMajor=" + installation.Version.Major.ToString(CultureInfo.InvariantCulture),
             "-p:AnkusPgConfigPath=" + EscapeProperty(installation.PgConfigPath),
@@ -106,10 +107,11 @@ internal static class ExtensionBuilder
     /// <param name="configuration">The selected build configuration.</param>
     /// <param name="installation">The selected PostgreSQL installation.</param>
     /// <param name="token">Cancels project evaluation.</param>
+    /// <param name="properties">Literal global properties for evaluating extension identity.</param>
     /// <returns>The explicit extension name or the SDK's normalized target name.</returns>
     internal static Task<string> GetExtensionNameAsync(string? project, string configuration,
-        PostgresInstallation installation, CancellationToken token)
-        => GetExtensionNameAsync(project, configuration, installation.Version.Major, installation.PgConfigPath, token);
+        PostgresInstallation installation, CancellationToken token, IReadOnlyDictionary<string, string>? properties = null)
+        => GetExtensionNameAsync(project, configuration, installation.Version.Major, installation.PgConfigPath, token, properties);
 
     /// <summary>
     /// Evaluates extension identity without requiring PostgreSQL discovery or managed compilation.
@@ -119,13 +121,14 @@ internal static class ExtensionBuilder
     /// <param name="postgresMajor">The selected PostgreSQL major.</param>
     /// <param name="pgConfigPath">An optional explicit PostgreSQL configuration path.</param>
     /// <param name="token">Cancels project evaluation.</param>
+    /// <param name="properties">Literal global properties for evaluating extension identity.</param>
     /// <returns>The explicit extension name or the SDK's normalized target name.</returns>
     internal static async Task<string> GetExtensionNameAsync(string? project, string configuration,
-        int postgresMajor, string? pgConfigPath, CancellationToken token)
+        int postgresMajor, string? pgConfigPath, CancellationToken token, IReadOnlyDictionary<string, string>? properties = null)
     {
         string path = ResolveProject(project);
         using var output = new MemoryStream();
-        List<string> arguments = ["msbuild", path, "-nologo", "-verbosity:quiet", "-getProperty:AnkusExtensionName,TargetName",
+        List<string> arguments = ["msbuild", path, "-nologo", "-verbosity:quiet", "-getProperty:AnkusExtensionName,TargetName", .. PropertyArguments(properties),
             "-p:Configuration=" + EscapeProperty(configuration),
             "-p:AnkusPostgresMajor=" + postgresMajor.ToString(CultureInfo.InvariantCulture)];
         if (pgConfigPath is not null)
@@ -141,11 +144,11 @@ internal static class ExtensionBuilder
         }
 
         using JsonDocument document = JsonDocument.Parse(output.ToArray());
-        JsonElement properties = document.RootElement.GetProperty("Properties");
-        string name = properties.GetProperty("AnkusExtensionName").GetString()!;
+        JsonElement evaluated = document.RootElement.GetProperty("Properties");
+        string name = evaluated.GetProperty("AnkusExtensionName").GetString()!;
         if (name.Length == 0)
         {
-            name = properties.GetProperty("TargetName").GetString()!.ToLowerInvariant().Replace('.', '_');
+            name = evaluated.GetProperty("TargetName").GetString()!.ToLowerInvariant().Replace('.', '_');
         }
 
         ArgumentException.ThrowIfNullOrEmpty(name);
@@ -160,13 +163,22 @@ internal static class ExtensionBuilder
     /// <param name="installation">The PostgreSQL development installation.</param>
     /// <param name="output">The control output file owned by the caller.</param>
     /// <param name="token">Cancels compilation and its child process tree.</param>
+    /// <param name="properties">Literal global properties for compiling control metadata.</param>
     /// <returns>The original build exit code.</returns>
     internal static Task<int> GenerateControlAsync(string project, string configuration,
-        PostgresInstallation installation, string output, CancellationToken token)
+        PostgresInstallation installation, string output, CancellationToken token, IReadOnlyDictionary<string, string>? properties = null)
         => ToolProcess.RunAsync("dotnet",
-            ["build", ResolveProject(project), "-t:AnkusGenerateControlFile",
+            ["build", ResolveProject(project), "-t:AnkusGenerateControlFile", .. PropertyArguments(properties),
                 "-p:Configuration=" + EscapeProperty(configuration), "--runtime", RuntimeInformation.RuntimeIdentifier,
                 "-p:AnkusPostgresMajor=" + installation.Version.Major.ToString(CultureInfo.InvariantCulture),
                 "-p:AnkusPgConfigPath=" + EscapeProperty(installation.PgConfigPath),
                 "-p:AnkusControlOutput=" + EscapeProperty(Path.GetFullPath(output))], token, diagnosticsToStandardError: true);
+
+    /// <summary>
+    /// Escapes each literal property separately so separators and expansion syntax stay in the value.
+    /// </summary>
+    /// <param name="properties">The literal property assignments.</param>
+    /// <returns>Individual MSBuild command arguments.</returns>
+    private static IEnumerable<string> PropertyArguments(IReadOnlyDictionary<string, string>? properties)
+        => properties is null ? [] : properties.Select(static pair => "-p:" + pair.Key + "=" + EscapeProperty(pair.Value));
 }

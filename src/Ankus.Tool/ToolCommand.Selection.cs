@@ -18,6 +18,12 @@ internal static partial class ToolCommand
     private static async Task<PostgresInstallation> SelectAsync(ParseResult result, Option<string?> home, CancellationToken token,
         string? testProject = null, string? testConfiguration = null, IReadOnlyDictionary<string, string>? testProperties = null)
     {
+        testProperties ??= BuildProperties(result);
+        if (testConfiguration is null && result.CommandResult.Command.Options.Any(static option => option.Name == "--configuration"))
+        {
+            testConfiguration = GetConfiguration(result);
+        }
+
         int? major = ExplicitMajor(result);
         string? path = result.GetValue<string?>("--pg-config");
         string? forwardedPath = testProperties?.GetValueOrDefault("AnkusPgConfigPath");
@@ -57,7 +63,7 @@ internal static partial class ToolCommand
             {
                 major = PublishedExtension.Read(publication).PostgresMajor;
             }
-            else if (await ProjectSelectionAsync(result, token, testProject, testConfiguration) is { } project)
+            else if (await ProjectSelectionAsync(result, token, testProject, testConfiguration, testProperties) is { } project)
             {
                 major = project.PostgresMajor;
                 path = forwardedPath is null ? project.PgConfigPath : null;
@@ -91,7 +97,7 @@ internal static partial class ToolCommand
             return major;
         }
 
-        if (result.GetValue<string?>("--pg-config") is string path)
+        if ((result.GetValue<string?>("--pg-config") ?? BuildProperties(result).GetValueOrDefault("AnkusPgConfigPath")) is string path)
         {
             return (await PostgresInstallation.CreateAsync(path, token)).Version.Major;
         }
@@ -107,6 +113,22 @@ internal static partial class ToolCommand
     private static int? ExplicitMajor(ParseResult result)
     {
         int? major = result.GetValue<int?>("--pg");
+        if (BuildProperties(result).GetValueOrDefault("AnkusPostgresMajor") is string value)
+        {
+            if (!int.TryParse(value, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int forwarded) ||
+                forwarded is < 13 or > 19)
+            {
+                throw new ArgumentException("AnkusPostgresMajor must select PostgreSQL 13–19.");
+            }
+
+            if (major is not null && major != forwarded)
+            {
+                throw new ArgumentException("Select the same PostgreSQL major for --pg and AnkusPostgresMajor.");
+            }
+
+            major = forwarded;
+        }
+
         if (major is int selected)
         {
             ArgumentOutOfRangeException.ThrowIfLessThan(selected, 13, nameof(major));
@@ -123,10 +145,12 @@ internal static partial class ToolCommand
     /// <param name="token">Cancels evaluation.</param>
     /// <param name="testProject">The project selected by forwarded test arguments.</param>
     /// <param name="testConfiguration">The effective test configuration.</param>
+    /// <param name="properties">Literal global properties shared with the eventual build.</param>
     /// <returns>The evaluated project settings, or null for commands without a project.</returns>
     private static async Task<PostgresProjectSettings?> ProjectSelectionAsync(ParseResult result, CancellationToken token,
-        string? testProject = null, string? testConfiguration = null)
+        string? testProject = null, string? testConfiguration = null, IReadOnlyDictionary<string, string>? properties = null)
     {
+        properties ??= BuildProperties(result);
         bool test = result.CommandResult.Command.Name == "test";
         bool cluster = result.CommandResult.Command.Name is "start" or "stop" or "status" or "info";
         if (!test && !cluster && !result.CommandResult.Command.Options.Any(static option => option.Name == "--project"))
@@ -137,7 +161,7 @@ internal static partial class ToolCommand
         if (!test && !cluster)
         {
             string project = ExtensionBuilder.ResolveProject(result.GetValue<string?>("--project"));
-            return await PostgresProjectSettings.ReadAsync(project, GetConfiguration(result), cancellationToken: token);
+            return await PostgresProjectSettings.ReadAsync(project, GetConfiguration(result), properties, cancellationToken: token);
         }
 
         string input = Path.GetFullPath(testProject ?? Environment.CurrentDirectory);
@@ -152,6 +176,6 @@ internal static partial class ToolCommand
         }
 
         return await PostgresProjectSettings.TryReadAsync(projects,
-            testConfiguration ?? (cluster ? "Debug" : GetConfiguration(result)), cancellationToken: token);
+            testConfiguration ?? (cluster ? "Debug" : GetConfiguration(result)), properties, cancellationToken: token);
     }
 }

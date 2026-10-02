@@ -7,7 +7,8 @@ namespace Ankus.PgConfig;
 /// Persists explicitly registered PostgreSQL installations in the Ankus home directory.
 /// </summary>
 /// <remarks>
-/// Creates a registry at the specified home, or at the current user's ~/.ankus directory.
+/// Uses the specified home, then ANKUS_HOME, then the current user's ~/.ankus directory.
+/// Relative home paths are resolved against the caller's current directory.
 /// </remarks>
 /// <param name="homeDirectory">An optional Ankus home directory.</param>
 public sealed class PostgresRegistry(string? homeDirectory = null)
@@ -15,7 +16,7 @@ public sealed class PostgresRegistry(string? homeDirectory = null)
     /// <summary>
     /// Gets the directory that contains configuration and managed installations.
     /// </summary>
-    public string HomeDirectory { get; } = Path.GetFullPath(homeDirectory ??
+    public string HomeDirectory { get; } = Path.GetFullPath(homeDirectory ?? Environment.GetEnvironmentVariable("ANKUS_HOME") ??
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".ankus"));
 
     /// <summary>

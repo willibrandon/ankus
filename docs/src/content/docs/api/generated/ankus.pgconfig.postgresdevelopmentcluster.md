@@ -38,7 +38,7 @@ The PostgreSQL installation that runs the cluster.
 
 `homeDirectory` — [string](https://learn.microsoft.com/dotnet/api/system.string)
 
-The Ankus home, defaulting to ~/.ankus.
+The Ankus home, defaulting to ANKUS_HOME or ~/.ankus.
 
 
 ## Methods

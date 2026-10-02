@@ -155,7 +155,8 @@ public sealed class PostgresInstallation
 
     /// <summary>
     /// Discovers a specific PostgreSQL major without requiring environment variables.
-    /// Nonstandard installations can be registered as pgXX paths in <c>~/.ankus/config.json</c>.
+    /// Nonstandard installations can be registered as pgXX paths in the Ankus home's <c>config.json</c>.
+    /// ANKUS_HOME selects that home, defaulting to <c>~/.ankus</c>.
     /// </summary>
     /// <param name="major">The required PostgreSQL major version.</param>
     /// <param name="cancellationToken">Cancels installation queries.</param>

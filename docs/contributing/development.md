@@ -56,8 +56,9 @@ layout probes and native extension code.
 
 ## PostgreSQL discovery
 
-Ankus checks `~/.ankus/config.json`, installations under `~/.ankus/postgres/`,
-then `PATH` and conventional installation directories. For a nonstandard path:
+Ankus checks the Ankus home's `config.json` and `postgres/` directory, then `PATH`
+and conventional installation directories. `ANKUS_HOME` selects the home,
+defaulting to `~/.ankus`. For a nonstandard path:
 
 ```json
 {

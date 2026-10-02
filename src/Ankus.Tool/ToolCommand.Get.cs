@@ -7,7 +7,7 @@ namespace Ankus.Tool;
 
 internal static partial class ToolCommand
 {
-    private static readonly string[] s_getProjectOptions = ["--project", "--configuration", "--pg", "--pg-config"];
+    private static readonly string[] s_getProjectOptions = ["--project", "--property", "--configuration", "--pg", "--pg-config"];
 
     private static Command CreateGet(Option<string?> home)
     {
@@ -63,7 +63,7 @@ internal static partial class ToolCommand
                 if (name == "extname")
                 {
                     value = await ExtensionBuilder.GetExtensionNameAsync(project, configuration, major,
-                        result.GetValue<string?>("--pg-config"), token);
+                        result.GetValue<string?>("--pg-config"), token, BuildProperties(result));
                 }
                 else
                 {
@@ -72,7 +72,7 @@ internal static partial class ToolCommand
                     try
                     {
                         string control = Path.Combine(temporary, "extension.control");
-                        int code = await ExtensionBuilder.GenerateControlAsync(project, configuration, installation, control, token);
+                        int code = await ExtensionBuilder.GenerateControlAsync(project, configuration, installation, control, token, BuildProperties(result));
                         if (code != 0)
                         {
                             return code;

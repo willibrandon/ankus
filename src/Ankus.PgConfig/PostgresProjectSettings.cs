@@ -35,10 +35,24 @@ public sealed class PostgresProjectSettings
     /// <param name="postgresMajor">An explicit major supplied by the calling build, or null to use project defaults.</param>
     /// <param name="cancellationToken">Cancels evaluation and joins the query process before returning.</param>
     /// <returns>The evaluated PostgreSQL selection.</returns>
-    public static async Task<PostgresProjectSettings> ReadAsync(string projectPath, string configuration,
+    public static Task<PostgresProjectSettings> ReadAsync(string projectPath, string configuration,
         int? postgresMajor = null, CancellationToken cancellationToken = default)
+        => ReadAsync(projectPath, configuration, new Dictionary<string, string>(), postgresMajor, cancellationToken);
+
+    /// <summary>
+    /// Evaluates project selection with the same global properties as the eventual build.
+    /// </summary>
+    /// <param name="projectPath">The project files to evaluate.</param>
+    /// <param name="configuration">The effective build configuration.</param>
+    /// <param name="globalProperties">Literal global properties inherited by evaluated project references.</param>
+    /// <param name="postgresMajor">An explicit PostgreSQL major, or null for evaluated defaults.</param>
+    /// <param name="cancellationToken">Cancels evaluation and joins the query processes.</param>
+    /// <returns>The evaluated PostgreSQL selection.</returns>
+    public static async Task<PostgresProjectSettings> ReadAsync(string projectPath, string configuration,
+        IReadOnlyDictionary<string, string> globalProperties, int? postgresMajor = null,
+        CancellationToken cancellationToken = default)
     {
-        SelectionResult result = await EvaluateAsync(projectPath, configuration, postgresMajor, cancellationToken).ConfigureAwait(false);
+        SelectionResult result = await EvaluateAsync(projectPath, configuration, postgresMajor, globalProperties, cancellationToken).ConfigureAwait(false);
         if (result.Conflict)
         {
             throw new InvalidOperationException("Referenced projects select different PostgreSQL installations. Set AnkusPostgresMajor and AnkusPgConfigPath explicitly, or use ankus test --pg.");
@@ -59,10 +73,24 @@ public sealed class PostgresProjectSettings
     /// Invalid property values, broken imports and circular references remain errors.
     /// A caller can use the absence of an unambiguous selection to apply its documented default.
     /// </remarks>
-    public static async Task<PostgresProjectSettings?> TryReadAsync(string projectPath, string configuration,
+    public static Task<PostgresProjectSettings?> TryReadAsync(string projectPath, string configuration,
         int? postgresMajor = null, CancellationToken cancellationToken = default)
+        => TryReadAsync(projectPath, configuration, new Dictionary<string, string>(), postgresMajor, cancellationToken);
+
+    /// <summary>
+    /// Evaluates project selection with the same global properties as the eventual build.
+    /// </summary>
+    /// <param name="projectPath">The project files to evaluate.</param>
+    /// <param name="configuration">The effective build configuration.</param>
+    /// <param name="globalProperties">Literal global properties inherited by evaluated project references.</param>
+    /// <param name="postgresMajor">An explicit PostgreSQL major, or null for evaluated defaults.</param>
+    /// <param name="cancellationToken">Cancels evaluation and joins the query processes.</param>
+    /// <returns>The evaluated PostgreSQL selection.</returns>
+    public static async Task<PostgresProjectSettings?> TryReadAsync(string projectPath, string configuration,
+        IReadOnlyDictionary<string, string> globalProperties, int? postgresMajor = null,
+        CancellationToken cancellationToken = default)
     {
-        SelectionResult result = await EvaluateAsync(projectPath, configuration, postgresMajor, cancellationToken).ConfigureAwait(false);
+        SelectionResult result = await EvaluateAsync(projectPath, configuration, postgresMajor, globalProperties, cancellationToken).ConfigureAwait(false);
         return result.Conflict ? null : result.Settings;
     }
 
@@ -74,8 +102,22 @@ public sealed class PostgresProjectSettings
     /// <param name="postgresMajor">An explicit global major, or null for declared defaults.</param>
     /// <param name="cancellationToken">Cancels evaluation and joins the query processes.</param>
     /// <returns>The shared declared selection, or null for an empty, unrelated or ambiguous group.</returns>
-    public static async Task<PostgresProjectSettings?> TryReadAsync(IEnumerable<string> projectPaths, string configuration,
+    public static Task<PostgresProjectSettings?> TryReadAsync(IEnumerable<string> projectPaths, string configuration,
         int? postgresMajor = null, CancellationToken cancellationToken = default)
+        => TryReadAsync(projectPaths, configuration, new Dictionary<string, string>(), postgresMajor, cancellationToken);
+
+    /// <summary>
+    /// Evaluates project selection with the same global properties as the eventual build.
+    /// </summary>
+    /// <param name="projectPaths">The project files to evaluate.</param>
+    /// <param name="configuration">The effective build configuration.</param>
+    /// <param name="globalProperties">Literal global properties inherited by evaluated project references.</param>
+    /// <param name="postgresMajor">An explicit PostgreSQL major, or null for evaluated defaults.</param>
+    /// <param name="cancellationToken">Cancels evaluation and joins the query processes.</param>
+    /// <returns>The evaluated PostgreSQL selection.</returns>
+    public static async Task<PostgresProjectSettings?> TryReadAsync(IEnumerable<string> projectPaths, string configuration,
+        IReadOnlyDictionary<string, string> globalProperties, int? postgresMajor = null,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(projectPaths);
         ArgumentException.ThrowIfNullOrWhiteSpace(configuration);
@@ -83,7 +125,7 @@ public sealed class PostgresProjectSettings
         PostgresProjectSettings? selected = null;
         foreach (string project in projectPaths)
         {
-            SelectionResult result = await EvaluateAsync(project, configuration, postgresMajor, cancellationToken).ConfigureAwait(false);
+            SelectionResult result = await EvaluateAsync(project, configuration, postgresMajor, globalProperties, cancellationToken).ConfigureAwait(false);
             if (result.Conflict)
             {
                 return null;
@@ -111,7 +153,7 @@ public sealed class PostgresProjectSettings
     /// Validates inputs and evaluates a selection without executing project targets.
     /// </summary>
     private static async Task<SelectionResult> EvaluateAsync(string projectPath, string configuration,
-        int? postgresMajor, CancellationToken cancellationToken)
+        int? postgresMajor, IReadOnlyDictionary<string, string> globalProperties, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(projectPath);
         ArgumentException.ThrowIfNullOrWhiteSpace(configuration);
@@ -121,12 +163,30 @@ public sealed class PostgresProjectSettings
             throw new FileNotFoundException("The extension project was not found.", project);
         }
 
-        var properties = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["Configuration"] = configuration };
+        ArgumentNullException.ThrowIfNull(globalProperties);
+        var properties = new Dictionary<string, string>(globalProperties, StringComparer.OrdinalIgnoreCase);
+        foreach (string name in properties.Keys)
+        {
+            System.Xml.XmlConvert.VerifyNCName(name);
+        }
+
+        if (properties.TryGetValue("Configuration", out string? supplied) && supplied != configuration)
+        {
+            throw new ArgumentException("Select the same configuration for evaluation and global properties.");
+        }
+
+        properties["Configuration"] = configuration;
         if (postgresMajor is int selected)
         {
             ArgumentOutOfRangeException.ThrowIfLessThan(selected, 13, nameof(postgresMajor));
             ArgumentOutOfRangeException.ThrowIfGreaterThan(selected, 19, nameof(postgresMajor));
-            properties.Add("AnkusPostgresMajor", selected.ToString(CultureInfo.InvariantCulture));
+            string major = selected.ToString(CultureInfo.InvariantCulture);
+            if (properties.TryGetValue("AnkusPostgresMajor", out string? forwarded) && forwarded != major)
+            {
+                throw new ArgumentException("Select the same PostgreSQL major for evaluation and global properties.");
+            }
+
+            properties["AnkusPostgresMajor"] = major;
         }
 
         return await ReadCoreAsync(project, properties, new HashSet<string>(OperatingSystem.IsWindows()

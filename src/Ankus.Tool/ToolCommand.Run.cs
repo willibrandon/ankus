@@ -13,7 +13,7 @@ internal static partial class ToolCommand
         {
             PostgresInstallation installation = await SelectAsync(result, home, token);
             string database = result.GetValue<string?>("--database") ??
-                await ExtensionBuilder.GetExtensionNameAsync(result.GetValue<string?>("--project"), GetConfiguration(result), installation, token);
+                await ExtensionBuilder.GetExtensionNameAsync(result.GetValue<string?>("--project"), GetConfiguration(result), installation, token, BuildProperties(result));
             var cluster = new PostgresDevelopmentCluster(installation, result.GetValue(home));
             await cluster.StartAsync(ReadServerOptions(result), token);
             return await OpenDatabaseAsync(result, installation, cluster, database, cancellation, token);

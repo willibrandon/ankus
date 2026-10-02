@@ -15,7 +15,8 @@ Persists explicitly registered PostgreSQL installations in the Ankus home direct
 public sealed class PostgresRegistry
 ```
 
-Creates a registry at the specified home, or at the current user's ~/.ankus directory.
+Uses the specified home, then ANKUS_HOME, then the current user's ~/.ankus directory.
+Relative home paths are resolved against the caller's current directory.
 
 Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object)
 
@@ -37,7 +38,8 @@ Parameters:
 
 An optional Ankus home directory.
 
-Creates a registry at the specified home, or at the current user's ~/.ankus directory.
+Uses the specified home, then ANKUS_HOME, then the current user's ~/.ankus directory.
+Relative home paths are resolved against the caller's current directory.
 
 
 ## Properties

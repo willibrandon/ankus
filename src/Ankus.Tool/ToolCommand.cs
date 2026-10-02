@@ -19,7 +19,7 @@ internal static partial class ToolCommand
         using var interactiveCancellation = new InteractiveCommandCancellation();
         var home = new Option<string?>("--home")
         {
-            Description = "Ankus home directory (default: ~/.ankus).",
+            Description = "Ankus home directory (default: ANKUS_HOME, otherwise ~/.ankus).",
             Recursive = true,
         };
         var root = new RootCommand("Build and manage .NET PostgreSQL extensions.") { home };
@@ -100,9 +100,11 @@ internal static partial class ToolCommand
         var versions = new Dictionary<int, Option<string?>>();
         for (int major = 13; major <= 19; major++)
         {
+            string environmentName = $"PG{major}_PG_CONFIG";
             var option = new Option<string?>($"--pg{major}")
             {
-                Description = $"Path to PostgreSQL {major}'s pg_config executable, or 'download' to install it locally.",
+                Description = $"Path to PostgreSQL {major}'s pg_config executable, or 'download' to install it locally (default: {environmentName}).",
+                DefaultValueFactory = _ => Environment.GetEnvironmentVariable(environmentName),
             };
             versions.Add(major, option);
             command.Options.Add(option);
@@ -232,6 +234,11 @@ internal static partial class ToolCommand
                 throw new ArgumentException("Use either --from or --project.");
             }
 
+            if (result.GetValue(from) is not null && BuildProperties(result).Count != 0)
+            {
+                throw new ArgumentException("Use either --from or --property.");
+            }
+
             PostgresInstallation installation = await SelectAsync(result, home, token);
             string? source = result.GetValue(from);
             if (source is null)
@@ -280,6 +287,7 @@ internal static partial class ToolCommand
             Description = "Extension project or directory (default: current directory).",
         });
         AddConfigurationOption(command, "Release");
+        AddPropertyOption(command);
     }
 
     private static void AddConfigurationOption(Command command, string defaultConfiguration)
@@ -320,7 +328,7 @@ internal static partial class ToolCommand
         string output, CancellationToken token)
     {
         int code = await ExtensionBuilder.PublishAsync(result.GetValue<string?>("--project"),
-            GetConfiguration(result), installation, output, token);
+            GetConfiguration(result), installation, output, token, properties: BuildProperties(result));
         if (code == 0)
         {
             Console.WriteLine($"Published {installation.Label} extension to {output}");
@@ -329,5 +337,24 @@ internal static partial class ToolCommand
         return code;
     }
 
-    private static string GetConfiguration(ParseResult result) => result.GetValue<string>("--configuration")!;
+    private static string GetConfiguration(ParseResult result)
+    {
+        string selected = result.GetValue<string>("--configuration")!;
+        if (BuildProperties(result).GetValueOrDefault("Configuration") is not string forwarded)
+        {
+            return selected;
+        }
+
+        if (ConfigurationError(forwarded) is string error)
+        {
+            throw new ArgumentException(error);
+        }
+
+        if (result.GetResult("--configuration") is System.CommandLine.Parsing.OptionResult { Implicit: false } && selected != forwarded)
+        {
+            throw new ArgumentException("Select the same configuration for --configuration and Configuration.");
+        }
+
+        return forwarded;
+    }
 }

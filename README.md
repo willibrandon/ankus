@@ -97,6 +97,10 @@ Use `ankus init --pg18 download` to install PostgreSQL locally, or pass an exist
 see the [command-line guide](docs/src/content/docs/reference/cli.md) for source-build
 prerequisites and platform distribution availability.
 
+`ANKUS_HOME` selects the configuration directory when `--home` is absent.
+`PG13_PG_CONFIG` through `PG19_PG_CONFIG` provide defaults for `init`; explicit
+version options override them.
+
 Use `ankus start --pg 18`, `ankus status --pg 18`, and `ankus stop --pg 18`
 to manage a persistent local development server. Stopping it preserves its databases.
 On supported Unix systems, add `--valgrind` to inspect native memory under Memcheck;

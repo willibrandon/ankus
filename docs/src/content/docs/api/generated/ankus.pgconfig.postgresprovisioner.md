@@ -37,7 +37,7 @@ The caller-owned client used for upstream HTTPS downloads.
 
 `homeDirectory` — [string](https://learn.microsoft.com/dotnet/api/system.string)
 
-The Ankus home, defaulting to the current user's ~/.ankus directory.
+The Ankus home, defaulting to ANKUS_HOME or the current user's ~/.ankus directory.
 
 
 ## Methods
