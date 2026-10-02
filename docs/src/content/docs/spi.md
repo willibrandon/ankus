@@ -44,6 +44,45 @@ accepts catalog parameter OIDs for named composite plans; `Prepare` with
 `typeof(PgHeapTuple)` declares an anonymous `record` parameter. Both static and
 session APIs support these plans and their usual cursor/ownership operations.
 
+### Parameterized interpolation
+
+Use `Spi.Sql` to bind interpolated values without formatting them into SQL:
+
+```csharp
+string body = "Hello, PostgreSQL!";
+long inserted = Spi.Execute(Spi.Sql($"INSERT INTO messages (body) VALUES ({body})"));
+
+int? optionalCount = null;
+int? count = Spi.ExecuteScalar<int?>(Spi.Sql($"SELECT {optionalCount}"));
+```
+
+Each interpolation becomes a positional parameter with its declared C# type.
+SQL text, values and typed NULLs follow the same rules as `SpiParameter.Create`.
+An untyped null interpolation binds SQL NULL as `text`; use a typed nullable
+value when another SQL type is required. Pass an existing `SpiParameter` in an
+interpolation to retain an explicit composite, domain or raw datum identity.
+
+Do not quote interpolations or use them for object names or SQL fragments.
+Values are sent separately from SQL. Formatting and alignment specifiers are
+not supported; they would change a value's representation. Existing string
+overloads continue to take literal SQL, including ordinary string interpolation.
+Use the quoting APIs below when constructing dynamic identifiers.
+
+`Spi.Sql` returns a `SpiCommand`, whose owned SQL text and binding vector can be
+reused. It supports `Select`, `Query`, `Execute`, scalar and raw results, `Explain`
+and cursors, including scoped sessions:
+
+```csharp
+int minimumId = 42;
+SpiCommand query = Spi.Sql($"SELECT id, body FROM messages WHERE id >= {minimumId}");
+SpiResult rows = Spi.Connect(session => session.Select(query, limit: 100));
+```
+
+Command construction retains each parameter's value and type; it does not copy
+mutable values or native storage. Raw datum owners must remain live through
+execution and still obey their callback/context lifetimes. Commands do not
+change SPI snapshot selection, recovery, cancellation or ownership rules.
+
 ## Scalar values
 
 ```csharp

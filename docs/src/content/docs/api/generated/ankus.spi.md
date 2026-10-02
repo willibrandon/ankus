@@ -61,6 +61,26 @@ Returns: <code>TResult</code>
 
 The callback result, whose owned rows and retained plans can outlive the session.
 
+<a id="member-f8434b26f5c3ec40"></a>
+
+### Execute(SpiCommand)
+
+Executes a parameterized command, retaining successful writes and rolling back a failed call.
+
+```csharp
+public static long Execute(SpiCommand command)
+```
+
+Parameters:
+
+`command` — [SpiCommand](/api/ankus.spicommand/)
+
+SQL and its declared bindings.
+
+Returns: [long](https://learn.microsoft.com/dotnet/api/system.int64)
+
+The final statement's processed row count.
+
 <a id="member-6d758069d706ff12"></a>
 
 ### Execute(string, params ReadOnlySpan&lt;SpiParameter&gt;)
@@ -92,6 +112,32 @@ Exceptions:
 - [PgException](/api/ankus.pgexception/): PostgreSQL rejected the command.
 - [InvalidOperationException](https://learn.microsoft.com/dotnet/api/system.invalidoperationexception): The caller is not on the active PostgreSQL backend thread.
 
+<a id="member-97e54f443a1e9058"></a>
+
+### ExecuteScalar&lt;T&gt;(SpiCommand)
+
+Reads the first parameterized result cell without implicit conversion or limiting command effects.
+
+```csharp
+public static T ExecuteScalar<T>(SpiCommand command)
+```
+
+Type parameters:
+
+`T`
+
+The expected managed result type.
+
+Parameters:
+
+`command` — [SpiCommand](/api/ankus.spicommand/)
+
+SQL and its declared bindings.
+
+Returns: <code>T</code>
+
+The scalar value with the existing SQL NULL and empty-result rules.
+
 <a id="member-082acc51b3e26077"></a>
 
 ### ExecuteScalar&lt;T&gt;(string, params ReadOnlySpan&lt;SpiParameter&gt;)
@@ -122,6 +168,36 @@ Typed positional parameters.
 Returns: <code>T</code>
 
 The scalar result.
+
+<a id="member-b6168f58d8b8c9ef"></a>
+
+### ExecuteScalars&lt;TFirst, TSecond&gt;(SpiCommand)
+
+Reads two parameterized result cells without implicit conversion or limiting command effects.
+
+```csharp
+public static (TFirst First, TSecond Second) ExecuteScalars<TFirst, TSecond>(SpiCommand command)
+```
+
+Type parameters:
+
+`TFirst`
+
+The first column's managed type.
+
+`TSecond`
+
+The second column's managed type.
+
+Parameters:
+
+`command` — [SpiCommand](/api/ankus.spicommand/)
+
+SQL and its declared bindings.
+
+Returns: <code>(TFirst First, TSecond Second)</code>
+
+The first row's two values with the existing SQL NULL and empty-result rules.
 
 <a id="member-07d8cac35378d595"></a>
 
@@ -162,6 +238,40 @@ Exceptions:
 
 - [InvalidOperationException](https://learn.microsoft.com/dotnet/api/system.invalidoperationexception): A returned row has fewer than two columns, or SQL NULL is read as a non-nullable value type.
 - [InvalidCastException](https://learn.microsoft.com/dotnet/api/system.invalidcastexception): A column cannot be read as its requested managed type.
+
+<a id="member-5dd16a69a9c1fe7f"></a>
+
+### ExecuteScalars&lt;TFirst, TSecond, TThird&gt;(SpiCommand)
+
+Reads three parameterized result cells without implicit conversion or limiting command effects.
+
+```csharp
+public static (TFirst First, TSecond Second, TThird Third) ExecuteScalars<TFirst, TSecond, TThird>(SpiCommand command)
+```
+
+Type parameters:
+
+`TFirst`
+
+The first column's managed type.
+
+`TSecond`
+
+The second column's managed type.
+
+`TThird`
+
+The third column's managed type.
+
+Parameters:
+
+`command` — [SpiCommand](/api/ankus.spicommand/)
+
+SQL and its declared bindings.
+
+Returns: <code>(TFirst First, TSecond Second, TThird Third)</code>
+
+The first row's three values with the existing SQL NULL and empty-result rules.
 
 <a id="member-68cf41fb44187d3d"></a>
 
@@ -207,6 +317,26 @@ Exceptions:
 - [InvalidOperationException](https://learn.microsoft.com/dotnet/api/system.invalidoperationexception): A returned row has fewer than three columns, or SQL NULL is read as a non-nullable value type.
 - [InvalidCastException](https://learn.microsoft.com/dotnet/api/system.invalidcastexception): A column cannot be read as its requested managed type.
 
+<a id="member-ae5b8571738d3284"></a>
+
+### Explain(SpiCommand)
+
+Plans a parameterized statement without executing EXPLAIN ANALYZE.
+
+```csharp
+public static PgJson Explain(SpiCommand command)
+```
+
+Parameters:
+
+`command` — [SpiCommand](/api/ankus.spicommand/)
+
+One SQL statement and its declared bindings.
+
+Returns: [PgJson](/api/ankus.pgjson/)
+
+The owned JSON query plan.
+
 <a id="member-7ad0a664880a0df2"></a>
 
 ### Explain(string, params ReadOnlySpan&lt;SpiParameter&gt;)
@@ -250,6 +380,50 @@ The portal name, including names returned by SpiCursor.Detach.
 Returns: [SpiCursor](/api/ankus.spicursor/)
 
 An owned cursor.
+
+<a id="member-b019f685edbfb317"></a>
+
+### OpenCursor(SpiCommand)
+
+Opens a parameterized cursor using PostgreSQL's transaction-aware snapshot policy.
+
+```csharp
+public static SpiCursor OpenCursor(SpiCommand command)
+```
+
+Parameters:
+
+`command` — [SpiCommand](/api/ankus.spicommand/)
+
+One row-producing statement and its declared bindings.
+
+Returns: [SpiCursor](/api/ankus.spicursor/)
+
+An owned transaction-bound cursor.
+
+<a id="member-e178259cea5fdb08"></a>
+
+### OpenCursor(SpiCommand, bool)
+
+Opens a parameterized cursor with explicit read-only SPI execution mode.
+
+```csharp
+public static SpiCursor OpenCursor(SpiCommand command, bool readOnly)
+```
+
+Parameters:
+
+`command` — [SpiCommand](/api/ankus.spicommand/)
+
+One row-producing statement and its declared bindings.
+
+`readOnly` — [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+Whether to enforce read-only SPI execution.
+
+Returns: [SpiCursor](/api/ankus.spicursor/)
+
+An owned transaction-bound cursor.
 
 <a id="member-bc701e549317a59c"></a>
 
@@ -353,6 +527,34 @@ Returns: [SpiPreparedStatement](/api/ankus.spipreparedstatement/)
 
 A statement that must be disposed on its owning backend.
 
+<a id="member-a97876bb2042b548"></a>
+
+### Query(SpiCommand, bool, int)
+
+Executes a parameterized command with explicit snapshot mode and a row limit.
+
+```csharp
+public static SpiResult Query(SpiCommand command, bool readOnly = false, int limit = 0)
+```
+
+Parameters:
+
+`command` — [SpiCommand](/api/ankus.spicommand/)
+
+SQL and its declared bindings.
+
+`readOnly` — [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+Whether to enforce read-only SPI execution.
+
+`limit` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The maximum returned rows, or zero for unlimited.
+
+Returns: [SpiResult](/api/ankus.spiresult/)
+
+Owned managed rows and column metadata.
+
 <a id="member-c079e7d607415a5a"></a>
 
 ### Query(string, bool, int, params ReadOnlySpan&lt;SpiParameter&gt;)
@@ -408,6 +610,34 @@ Typed positional parameters.
 Returns: [SpiResult](/api/ankus.spiresult/)
 
 The materialized result.
+
+<a id="member-f8c1d38d3d0f4a29"></a>
+
+### QueryRaw(SpiCommand, bool, int)
+
+Executes a parameterized command with owned native results and explicit snapshot mode.
+
+```csharp
+public static SpiRawResult QueryRaw(SpiCommand command, bool readOnly = false, int limit = 0)
+```
+
+Parameters:
+
+`command` — [SpiCommand](/api/ankus.spicommand/)
+
+SQL and its declared bindings.
+
+`readOnly` — [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+Whether to enforce read-only SPI execution.
+
+`limit` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The maximum returned rows, or zero for unlimited.
+
+Returns: [SpiRawResult](/api/ankus.spirawresult/)
+
+An owned native result to dispose before leaving the backend callback.
 
 <a id="member-2f8b6d36de075651"></a>
 
@@ -529,6 +759,30 @@ Returns: [string](https://learn.microsoft.com/dotnet/api/system.string)
 
 The qualified SQL name.
 
+<a id="member-1fcb37c46d35e09f"></a>
+
+### Select(SpiCommand, int)
+
+Selects a parameterized command using PostgreSQL's transaction-aware snapshot policy.
+
+```csharp
+public static SpiResult Select(SpiCommand command, int limit = 0)
+```
+
+Parameters:
+
+`command` — [SpiCommand](/api/ankus.spicommand/)
+
+SQL and its declared bindings.
+
+`limit` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The maximum returned rows, or zero for unlimited.
+
+Returns: [SpiResult](/api/ankus.spiresult/)
+
+Owned managed rows and column metadata.
+
 <a id="member-c7bce35e987088d8"></a>
 
 ### Select(string, int, params ReadOnlySpan&lt;SpiParameter&gt;)
@@ -582,6 +836,30 @@ Returns: [SpiResult](/api/ankus.spiresult/)
 
 The materialized rows and metadata.
 
+<a id="member-8028ec1ce922303a"></a>
+
+### SelectRaw(SpiCommand, int)
+
+Selects parameterized native values using PostgreSQL's transaction-aware snapshot policy.
+
+```csharp
+public static SpiRawResult SelectRaw(SpiCommand command, int limit = 0)
+```
+
+Parameters:
+
+`command` — [SpiCommand](/api/ankus.spicommand/)
+
+SQL and its declared bindings.
+
+`limit` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The maximum returned rows, or zero for unlimited.
+
+Returns: [SpiRawResult](/api/ankus.spirawresult/)
+
+An owned native result to dispose before leaving the backend callback.
+
 <a id="member-79ea086114108880"></a>
 
 ### SelectRaw(string, int, params ReadOnlySpan&lt;SpiParameter&gt;)
@@ -633,3 +911,24 @@ Typed positional parameters.
 Returns: [SpiRawResult](/api/ankus.spirawresult/)
 
 An owned result to dispose before leaving the backend callback.
+
+<a id="member-620954568438bd59"></a>
+
+### Sql(SpiSqlInterpolatedStringHandler)
+
+Creates SQL with typed positional bindings instead of formatting interpolated values into its text.
+Values must not be quoted or used as identifiers or SQL fragments in the interpolation.
+
+```csharp
+public static SpiCommand Sql(SpiSqlInterpolatedStringHandler sql)
+```
+
+Parameters:
+
+`sql` — [SpiSqlInterpolatedStringHandler](/api/ankus.compilerservices.spisqlinterpolatedstringhandler/)
+
+The compiler-built SQL interpolation.
+
+Returns: [SpiCommand](/api/ankus.spicommand/)
+
+Owned SQL and bindings that preserve each value's declared type and lifetime.

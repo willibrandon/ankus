@@ -20,6 +20,26 @@ Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object)
 
 ## Methods
 
+<a id="member-7bda9be64bfb35b5"></a>
+
+### Execute(SpiCommand)
+
+Executes a parameterized command on this active scoped session.
+
+```csharp
+public long Execute(SpiCommand command)
+```
+
+Parameters:
+
+`command` — [SpiCommand](/api/ankus.spicommand/)
+
+SQL and its declared bindings.
+
+Returns: [long](https://learn.microsoft.com/dotnet/api/system.int64)
+
+The final statement's processed row count.
+
 <a id="member-3f3db5f8071d1fcf"></a>
 
 ### Execute(string, params ReadOnlySpan&lt;SpiParameter&gt;)
@@ -43,6 +63,32 @@ The typed positional parameters.
 Returns: [long](https://learn.microsoft.com/dotnet/api/system.int64)
 
 The processed-row count.
+
+<a id="member-f29e96434d51dd49"></a>
+
+### ExecuteScalar&lt;T&gt;(SpiCommand)
+
+Reads the first parameterized result cell without implicit conversion or limiting command effects.
+
+```csharp
+public T ExecuteScalar<T>(SpiCommand command)
+```
+
+Type parameters:
+
+`T`
+
+The expected managed result type.
+
+Parameters:
+
+`command` — [SpiCommand](/api/ankus.spicommand/)
+
+SQL and its declared bindings.
+
+Returns: <code>T</code>
+
+The scalar value with the existing SQL NULL and empty-result rules.
 
 <a id="member-ebeeb6ccc6dc3fd6"></a>
 
@@ -73,6 +119,36 @@ The typed positional parameters.
 Returns: <code>T</code>
 
 The scalar value.
+
+<a id="member-c9413fd04f3dea8f"></a>
+
+### ExecuteScalars&lt;TFirst, TSecond&gt;(SpiCommand)
+
+Reads two parameterized result cells without implicit conversion or limiting command effects.
+
+```csharp
+public (TFirst First, TSecond Second) ExecuteScalars<TFirst, TSecond>(SpiCommand command)
+```
+
+Type parameters:
+
+`TFirst`
+
+The first column's managed type.
+
+`TSecond`
+
+The second column's managed type.
+
+Parameters:
+
+`command` — [SpiCommand](/api/ankus.spicommand/)
+
+SQL and its declared bindings.
+
+Returns: <code>(TFirst First, TSecond Second)</code>
+
+The first row's two values with the existing SQL NULL and empty-result rules.
 
 <a id="member-ac0fa9cc12fb1070"></a>
 
@@ -113,6 +189,40 @@ Exceptions:
 
 - [InvalidOperationException](https://learn.microsoft.com/dotnet/api/system.invalidoperationexception): A returned row has fewer than two columns, or SQL NULL is read as a non-nullable value type.
 - [InvalidCastException](https://learn.microsoft.com/dotnet/api/system.invalidcastexception): A column cannot be read as its requested managed type.
+
+<a id="member-19d79a6e24292589"></a>
+
+### ExecuteScalars&lt;TFirst, TSecond, TThird&gt;(SpiCommand)
+
+Reads three parameterized result cells without implicit conversion or limiting command effects.
+
+```csharp
+public (TFirst First, TSecond Second, TThird Third) ExecuteScalars<TFirst, TSecond, TThird>(SpiCommand command)
+```
+
+Type parameters:
+
+`TFirst`
+
+The first column's managed type.
+
+`TSecond`
+
+The second column's managed type.
+
+`TThird`
+
+The third column's managed type.
+
+Parameters:
+
+`command` — [SpiCommand](/api/ankus.spicommand/)
+
+SQL and its declared bindings.
+
+Returns: <code>(TFirst First, TSecond Second, TThird Third)</code>
+
+The first row's three values with the existing SQL NULL and empty-result rules.
 
 <a id="member-a465ff04c659021b"></a>
 
@@ -158,6 +268,26 @@ Exceptions:
 - [InvalidOperationException](https://learn.microsoft.com/dotnet/api/system.invalidoperationexception): A returned row has fewer than three columns, or SQL NULL is read as a non-nullable value type.
 - [InvalidCastException](https://learn.microsoft.com/dotnet/api/system.invalidcastexception): A column cannot be read as its requested managed type.
 
+<a id="member-8df29d71a221d3ac"></a>
+
+### Explain(SpiCommand)
+
+Plans a parameterized statement without executing EXPLAIN ANALYZE.
+
+```csharp
+public PgJson Explain(SpiCommand command)
+```
+
+Parameters:
+
+`command` — [SpiCommand](/api/ankus.spicommand/)
+
+One SQL statement and its declared bindings.
+
+Returns: [PgJson](/api/ankus.pgjson/)
+
+The owned JSON query plan.
+
 <a id="member-89b9ac6e4c39cdff"></a>
 
 ### Explain(string, params ReadOnlySpan&lt;SpiParameter&gt;)
@@ -181,6 +311,50 @@ The typed positional parameters.
 Returns: [PgJson](/api/ankus.pgjson/)
 
 The JSON query plan.
+
+<a id="member-d9a74a224e0611ac"></a>
+
+### OpenCursor(SpiCommand)
+
+Opens a parameterized cursor using PostgreSQL's transaction-aware snapshot policy.
+
+```csharp
+public SpiCursor OpenCursor(SpiCommand command)
+```
+
+Parameters:
+
+`command` — [SpiCommand](/api/ankus.spicommand/)
+
+One row-producing statement and its declared bindings.
+
+Returns: [SpiCursor](/api/ankus.spicursor/)
+
+An owned transaction-bound cursor.
+
+<a id="member-6bf91ed63f6418f1"></a>
+
+### OpenCursor(SpiCommand, bool)
+
+Opens a parameterized cursor with explicit read-only SPI execution mode.
+
+```csharp
+public SpiCursor OpenCursor(SpiCommand command, bool readOnly)
+```
+
+Parameters:
+
+`command` — [SpiCommand](/api/ankus.spicommand/)
+
+One row-producing statement and its declared bindings.
+
+`readOnly` — [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+Whether to enforce read-only SPI execution.
+
+Returns: [SpiCursor](/api/ankus.spicursor/)
+
+An owned transaction-bound cursor.
 
 <a id="member-012e1bede9753b13"></a>
 
@@ -283,6 +457,34 @@ Returns: [SpiPreparedStatement](/api/ankus.spipreparedstatement/)
 
 A session-bound statement; Keep transfers it to independent ownership.
 
+<a id="member-c109fbf279c4f245"></a>
+
+### Query(SpiCommand, bool, int)
+
+Executes a parameterized command with explicit snapshot mode and a row limit.
+
+```csharp
+public SpiResult Query(SpiCommand command, bool readOnly = false, int limit = 0)
+```
+
+Parameters:
+
+`command` — [SpiCommand](/api/ankus.spicommand/)
+
+SQL and its declared bindings.
+
+`readOnly` — [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+Whether to enforce read-only SPI execution.
+
+`limit` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The maximum returned rows, or zero for unlimited.
+
+Returns: [SpiResult](/api/ankus.spiresult/)
+
+Owned managed rows and column metadata.
+
 <a id="member-8c82aac863ee50a2"></a>
 
 ### Query(string, bool, int, params ReadOnlySpan&lt;SpiParameter&gt;)
@@ -338,6 +540,34 @@ The typed positional parameters.
 Returns: [SpiResult](/api/ankus.spiresult/)
 
 The independently owned managed result.
+
+<a id="member-af068a232ad59792"></a>
+
+### QueryRaw(SpiCommand, bool, int)
+
+Executes a parameterized command with owned native results and explicit snapshot mode.
+
+```csharp
+public SpiRawResult QueryRaw(SpiCommand command, bool readOnly = false, int limit = 0)
+```
+
+Parameters:
+
+`command` — [SpiCommand](/api/ankus.spicommand/)
+
+SQL and its declared bindings.
+
+`readOnly` — [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+Whether to enforce read-only SPI execution.
+
+`limit` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The maximum returned rows, or zero for unlimited.
+
+Returns: [SpiRawResult](/api/ankus.spirawresult/)
+
+An owned native result to dispose before leaving the backend callback.
 
 <a id="member-1751b5c8cbf2364d"></a>
 
@@ -395,6 +625,30 @@ Returns: [SpiRawResult](/api/ankus.spirawresult/)
 
 An owned result that survives this session and expires on disposal or callback-context cleanup.
 
+<a id="member-b6cbfeefc6c14356"></a>
+
+### Select(SpiCommand, int)
+
+Selects a parameterized command using PostgreSQL's transaction-aware snapshot policy.
+
+```csharp
+public SpiResult Select(SpiCommand command, int limit = 0)
+```
+
+Parameters:
+
+`command` — [SpiCommand](/api/ankus.spicommand/)
+
+SQL and its declared bindings.
+
+`limit` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The maximum returned rows, or zero for unlimited.
+
+Returns: [SpiResult](/api/ankus.spiresult/)
+
+Owned managed rows and column metadata.
+
 <a id="member-969e2c1312661db1"></a>
 
 ### Select(string, int, params ReadOnlySpan&lt;SpiParameter&gt;)
@@ -446,6 +700,30 @@ Typed positional parameters.
 Returns: [SpiResult](/api/ankus.spiresult/)
 
 Owned rows and metadata that remain valid after the session ends.
+
+<a id="member-5d830c6440cdfb1b"></a>
+
+### SelectRaw(SpiCommand, int)
+
+Selects parameterized native values using PostgreSQL's transaction-aware snapshot policy.
+
+```csharp
+public SpiRawResult SelectRaw(SpiCommand command, int limit = 0)
+```
+
+Parameters:
+
+`command` — [SpiCommand](/api/ankus.spicommand/)
+
+SQL and its declared bindings.
+
+`limit` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The maximum returned rows, or zero for unlimited.
+
+Returns: [SpiRawResult](/api/ankus.spirawresult/)
+
+An owned native result to dispose before leaving the backend callback.
 
 <a id="member-0fe13d6fcd42bbea"></a>
 

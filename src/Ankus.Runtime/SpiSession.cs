@@ -4,7 +4,7 @@ namespace Ankus;
 /// Provides a scoped SPI connection during a synchronous Spi.Connect callback.
 /// Operations require the owning backend callback and the innermost active session.
 /// </summary>
-public sealed class SpiSession
+public sealed partial class SpiSession
 {
     private readonly nint _backend;
     private readonly int _callbackDepth;

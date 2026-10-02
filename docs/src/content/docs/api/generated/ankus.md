@@ -225,6 +225,7 @@ Assembly: `Ankus.Runtime.dll`
 - [PgTimestamp](/api/ankus.pgtimestamp/)
 - [PgTimestampTz](/api/ankus.pgtimestamptz/)
 - [PgTransactionId](/api/ankus.pgtransactionid/)
+- [SpiCommand](/api/ankus.spicommand/)
 - [SpiParameter](/api/ankus.spiparameter/)
 
 ## Delegates

@@ -3,7 +3,7 @@ namespace Ankus;
 /// <summary>
 /// Executes SQL inside the current PostgreSQL backend through the Server Programming Interface.
 /// </summary>
-public static class Spi
+public static partial class Spi
 {
     /// <summary>
     /// Quotes a single SQL identifier using PostgreSQL's keyword rules and quote_all_identifiers setting.

@@ -1,5 +1,59 @@
 # Historical port evidence
 
+## Complete parameterized SPI command acceptance
+
+The final composition includes both accepted PostgreSQL 19 fixture corrections
+and the explicit `Spi.Sql` factory with typed `SpiCommand` overloads. Plain,
+unfiltered `dotnet test` against PostgreSQL **18.6/Linux x64** passes:
+**11,120 total; 11,106 passed; zero failures; 14 platform skips; 24m31.735s**.
+All six completed TRX modules independently confirm these counters, and all
+**279** frozen source identities verify after the terminal exit-zero result.
+This supersedes pending full-acceptance statements in the earlier draft records.
+
+Focused evidence remains **15 managed**, **eight real C# compiler** and
+**70 real backend cases**, with no failures/skips. Those cases verify literal
+SQL, hostile values, declared types and typed NULLs, custom/mapped/array/domain
+identity, parameter numbering, unsupported formatting/alignment diagnostics,
+compiler overload selection, independent command storage, expired native/session
+owners, all query/cursor/scalar roles, transaction snapshots, rollback recovery
+and swallowed query cancellation. All existing string APIs retain their overload
+selection, and every command delegates to the established native guards.
+
+Final composed Release passes with **zero warnings/errors, 31.37s**; API
+freshness verifies **238 pages / 2,756 members**, and site build/check passes with
+zero errors, warnings or hints. The isolated diagnostic helper is not part of
+this milestone. Previous primary CI **37003911215** and Docs **37003911206**
+remain terminal successes. The previous PostgreSQL 19 compatibility failure is
+fixed and accepted locally in **7b6ce06**; Intel's incomplete 60-minute run remains
+an open performance/platform requirement. Fresh full CI remains required after
+publishing these coherent milestones.
+
+## Current-helper isolated binding phase diagnostics
+
+The original diagnostic timestamps are refreshed against **7b6ce06** in a
+separate checkout. Its helper-only Release rebuild passes with **zero warnings
+or errors, 2.84s**, and all **268** frozen source identities verify afterward.
+The deployed helper and PostgreSQL configuration assembly match the local
+compiled artifacts by independent SHA-256 checks. No active SPI acceptance
+source, prerequisites or outputs are changed.
+
+On PostgreSQL **18.6/Linux x64**, one cold and two warm source calls complete
+with exit zero in **12.151s**, **3.355s** and **3.340s**, preserving all **ten**
+native artifact hashes. One cold and two warm companion calls complete with
+exit zero in **37.862s**, **1.568s** and **1.579s**, preserving all **three**
+DLL/XML/PDB hashes. Representative warm source phases are native declaration
+verification **1.236s**, layout measurement **0.727s**, and graph loading
+**0.579s**. Representative companion phases are SDK/runtime content hashing
+**0.140s**, restore **0.582s**, compiler input evaluation **0.437s**, and cache
+verification/acquisition **0.188s**. Every production validation remains in place.
+
+These measurements confirm that the previously repaired synchronous MSBuild
+input-hashing path is absent from the current helper. They do not measure
+Intel's internal phases or establish its timeout's root cause. Cold timings
+are not directly comparable with earlier overlapping workloads. The diagnostic
+source remains isolated; no compiler flags, ABI checks, warning policy or job
+limits are changed, and no production performance fix is claimed.
+
 ## Complete PostgreSQL 19 regression-fixture repair
 
 Both fixture corrections pass plain, unfiltered `dotnet test
