@@ -255,7 +255,8 @@ See [enumerated types](docs/src/content/docs/enums.md) and the
 [enum sample](samples/Ankus.Examples.Enums/DeliveryFunctions.cs).
 
 Use `[PgOperator]` for binary or prefix operators and `[PgCast]` for explicit,
-assignment, or implicit conversions. Both generate backing functions and
+assignment, or implicit conversions. Apply them to ordinary static methods or
+C# operator and conversion declarations. Both generate backing functions and
 dependency-ordered SQL. See [operators and casts](docs/src/content/docs/operators-and-casts.md)
 and the [operator sample](samples/Ankus.Examples.Operators/PriorityFunctions.cs).
 

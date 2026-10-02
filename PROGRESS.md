@@ -590,6 +590,24 @@ after the search-path suite's terminal success frees validator capacity.
 
 ## Authoring composition acceptance in progress
 
+The installation-schema milestone is committed and pushed as **74709b7**.
+The same twenty preceding CI/Docs outcomes are checked and retained immediately
+before push; none has changed or remains active. Fresh milestone CI/Docs outcomes
+remain required. The separate authoring composition keeps its unchanged source
+while its full native suite runs. The user-owned ignore-file changes are preserved.
+
+Fresh search-path CI **36945901018** is queued and Docs **36945900803** is
+running. Their terminal outcomes remain required; no earlier result is attributed
+to this new commit. Combined authoring native acceptance is confirmed live on
+its own unchanged source.
+
+Search-path CI [36945901018](https://github.com/willibrandon/ankus/actions/runs/36945901018)
+now succeeds completely: Linux x64/PostgreSQL 18 **25m01s**, macOS ARM64/PostgreSQL
+18 **20m23s**, Windows x64/PostgreSQL 17 **26m31s**. Quality and all three
+runtime jobs succeed; Docs **36945900803** succeeds. No job times out or is
+canceled. These dedicated-platform results validate committed **74709b7**;
+they do not validate the separate operator or CLI/environment drafts.
+
 The search-path and C# operator/conversion changes are combined against the
 current **baa4e5f** baseline using owned patches. This preserves the precise
 synchronous diagnostics and Windows line-ending assertion repair. The earlier
@@ -611,6 +629,28 @@ to an idle validator; the replaced graph-serialization source is absent there.
 The two isolated full native suites remain active on their original inputs.
 Combined full acceptance waits for spare-validator capacity; no native or
 platform success is inferred from these managed/documentation checks.
+
+The unchanged combined authoring source now passes plain full `dotnet test`
+on PostgreSQL **18.6/Linux x64**: **10,749 total, 10,737 passed, zero failed
+and 12 platform skips**, **54m15.016s**, across all six modules. Integration
+takes **54m14.351s**. Its durable process exits **0** and all **171** source
+hashes match afterward. Exactly **17** changed owned files are promoted to the
+primary checkout; its **171** hashes match the accepted composition. This
+preserves the committed installation-schema feature, precise diagnostics and
+Windows LF assertions. Primary Release and fresh platform CI remain required;
+the separate CLI/environment work is not part of this operator milestone.
+
+Primary verification of the accepted operator composition succeeds: Release
+has **zero warnings/errors, 1m24.64s**; API freshness verifies **235 pages /
+2,680 members**; the site builds **283 pages in 3.76s** and checks with zero
+errors, warnings or hints. All **171** accepted source hashes still match.
+Before commit, the latest twenty CI/Docs outcomes are checked and retained:
+nineteen succeed and none remains active. Historical **36930730662** is the
+Windows CRLF-fragment assertion failure fixed by **d08bdc6**; its successor
+**36937809216**, diagnostics **36939565910** and search-path **36945901018**
+all pass on Linux, macOS and Windows, with their Docs runs successful.
+Fresh operator platform CI remains required. The CLI/environment draft and
+the remaining full-port requirements are still open.
 
 ## MSBuild property forwarding draft
 
@@ -665,6 +705,126 @@ creating build outputs. The existing incompatible-source diagnostic also passes.
 All fourteen source hashes match after terminal success. The complete generator
 project is running next; remaining full native/Release/API/site/composition/platform
 gates still prevent treating this as completed CLI parity.
+
+The property draft's complete generator project passes **2,990 tests, zero
+failed/skipped, 30.918s**. Its owned patch is then combined with committed
+installation-schema support, preserving that feature and its docs. The merged
+**172**-path source passes its complete generator project: **3,007 passed,
+zero failed/skipped, 2m00.230s**. Its new public settings overloads still require
+API generation, and full native/Release/site/platform acceptance remains open.
+
+A suspected SDK-symbol interaction is disproved by actual MSBuild target
+execution: global user constants retain both `NET10_0` and the selected
+`ANKUS_PG17`, just as project-defined constants do. No SDK production change is
+justified. The native flow now explicitly rejects missing framework/user/major
+symbols during compilation and asserts the compiled major through SQL in `run`,
+`connect` and regression execution. Additional major upper-bound, malformed-value
+and explicit-selector contradiction cases run in the same installed-command
+scope. This later test-only snapshot retains all merged production bytes and
+its result is still pending.
+
+The strengthened merged installed-command scope now passes **23 tests, zero
+failed/skipped, 11m48.517s**, PostgreSQL **18.6/Linux x64**. Actual native
+compilation requires .NET, both user feature constants and the selected
+PostgreSQL-major symbol; SQL execution confirms that compiled major in `run`,
+`connect` and regression. All **172** owned source hashes match after terminal
+success. Complete PostgreSQL-selection tests also pass **442/442, 2.296s**.
+The final merged Release/API/site and plain complete native gates remain open.
+Concurrent validators make these durations unsuitable as isolated performance
+measurements.
+
+The merged property source's Release build succeeds with **zero warnings/errors,
+3m09.23s**. Actual API generation and freshness verify **235 pages / 2,683
+members**, including the three new public selection overloads. The generated
+page is retained in the draft; no generated Markdown is edited manually. The
+site builds **283 pages in 6.03s** and checks with zero errors, warnings or hints.
+All **173** source/documentation hashes match after those gates. Full native
+and fresh platform acceptance still remain required before promotion.
+
+The environment review gaps are independently confirmed against pgrx's actual
+initialization options and home lookup. An installed baseline probe ignores both
+the home environment and an alternate-major `PGnn_PG_CONFIG` default; ignoring
+the invalid default also incorrectly replaces the probe's isolated registry.
+The new isolated draft adds explicit-home/environment/default precedence and
+per-major init defaults, preserving later registered-installation lookup.
+Tests cover caller-relative paths, all seven option names, explicit overrides,
+empty/invalid/mismatched defaults and unchanged registry bytes on rejection.
+Ordinary fixture children clear these settings; tests never change the parallel
+host's process environment. Acceptance of this draft remains pending.
+
+The environment and property changes are combined separately onto committed
+installation-schema support. Their owned patches merge cleanly, preserving
+precise diagnostics and existing source-generator behavior. The **180**-path
+combined snapshot is frozen and verified before deployment to an idle validator.
+Installed-tool acceptance now runs the nine new environment cases together
+with the 23 property-forwarding cases. Both independent operator/authoring
+complete native runs retain their original unchanged sources. No passing result
+is inferred from an active process, and the combined full native/Release/API/site
+gates remain required.
+
+The first combined environment check stops at compilation: **MSTEST0037**
+requires `Assert.HasCount` for the new registry-entry assertion. The test now
+uses that exact assertion; analyzer mode and warnings-as-errors remain unchanged.
+The original failed output and frozen snapshot are retained. The corrected
+test-only snapshot preserves all production bytes and **180** verified source
+hashes; its installed-command/native rerun is active.
+
+The combined source passes the complete generator project (**3,007 passed,
+zero failed/skipped, 1m17.582s**) and PostgreSQL configuration project (**442
+passed, zero failed/skipped, 2.087s**). Its Release build succeeds with **zero
+warnings/errors, 4m37.52s**. Both independently deployed **180**-path source
+inventories match after terminal checks. These gates retain their exact input
+identity; they are not full backend/platform acceptance.
+
+Installed-command acceptance finishes **32 total, 29 passed, three failed,
+zero skipped, 11m34.160s**. All property-forwarding cases pass. Three new
+environment assertions incorrectly expect a missing-file exception's filename
+in the CLI's message-only output. The corrected tests verify the owned registry's
+distinct port-validation diagnostic and each requested major's exact version
+mismatch, including its executable path. This strengthens selection evidence
+without changing production error handling. Original failed output and hashes
+are retained. The nine environment cases rerun on a test-only corrected snapshot;
+plain complete native, final API/site and fresh platform evidence remain required.
+
+A separate command probe now directly contrasts the old and corrected tool:
+the original ignores the chosen home and registers the current major despite
+an incompatible alternate-major environment default; the corrected source uses
+the chosen home and rejects that mismatch while preserving the original registry
+bytes. Both probes use owned temporary directories and explicit selections,
+without downloads or changes to the user's registry.
+
+Actual API generation and freshness now verify the combined environment/CLI
+source: **235 pages / 2,683 members**. Four environment-related API pages are
+regenerated from their XML comments, including discovery and development-cluster
+home selection; no generated pages are hand-edited. The documentation-only
+snapshot owns **184** hashes, with production/test bytes unchanged from the
+corrected test snapshot. The site builds **283 pages in 11.01s** and checks with
+zero errors, warnings or hints. All **184** hashes match after generation.
+The nine installed environment cases remain active on their separately frozen
+inputs; their terminal result precedes plain complete native acceptance.
+
+The corrected installed environment scope passes **nine tests, zero failed
+or skipped, 6m29.008s**, PostgreSQL **18.6/Linux x64**. All **180** original
+source hashes match after terminal success. Together with the 23 property cases
+on identical production, this resolves the focused CLI/environment gate without
+changing production to satisfy the mistaken diagnostic assertions. The existing
+failed attempts remain separately recorded.
+
+Before starting another complete native run, the CLI/environment changes are
+combined with the operator declaration draft on the committed search-path
+baseline. All owned patches merge cleanly. The resulting **194**-path frozen
+source preserves exact operator accessors, nullable contracts, project forwarding
+and environment precedence. Complete generator, PostgreSQL configuration,
+Release/API/site and plain unfiltered native acceptance now target this union.
+This avoids a redundant full suite against a baseline immediately replaced by
+the already validated operator feature; no earlier result is attributed to the
+new composition. The separate authoring-only full run retains unchanged inputs.
+
+The complete authoring/CLI union passes its generator project: **3,031 passed,
+zero failed/skipped, 42.270s**. PostgreSQL configuration tests pass **442/442,
+zero failed/skipped, 1.415s**. Its Release build is running; API/site and the
+plain full native gate will validate the same merged source. No smaller or
+previously tested source replaces this final acceptance scope.
 
 ## C# operator and conversion declaration draft
 
@@ -770,6 +930,15 @@ assertions. All **152** remote source hashes match after terminal success. Plain
 full `dotnet test` starts on those unchanged inputs, without filters or excluded
 modules. Its terminal result and subsequent combined/platform gates remain
 required; earlier narrower and predecessor outcomes remain separately attributed.
+
+The final isolated operator snapshot now passes plain complete `dotnet test`
+on PostgreSQL **18.6/Linux x64**: **10,714 total, 10,702 passed, zero failed
+and 12 platform skips**, **52m20.844s**, across all six modules. Integration
+takes **52m20.132s**. The durable process exits **0**, and all **152** owned
+hashes match after terminal success. The combined search-path/operator run
+remains active on its separate **171**-path source; its outcome and fresh
+platform CI remain required before promotion. Concurrent acceptance runs make
+this duration unsuitable as an isolated performance comparison.
 
 The final diagnostics snapshot's Release build succeeds with **zero warnings or
 errors, 2m32.02s**. Site publication checks are running after that build;

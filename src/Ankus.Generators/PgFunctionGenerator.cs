@@ -28,7 +28,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
     {
         IncrementalValuesProvider<IMethodSymbol> functions = context.SyntaxProvider.ForAttributeWithMetadataName(
             "Ankus.PgFunctionAttribute",
-            static (node, _) => node is MethodDeclarationSyntax,
+            static (node, _) => node is MethodDeclarationSyntax or OperatorDeclarationSyntax or ConversionOperatorDeclarationSyntax,
             static (attributeContext, _) => (IMethodSymbol)attributeContext.TargetSymbol);
         IncrementalValuesProvider<IMethodSymbol> tests = context.SyntaxProvider.ForAttributeWithMetadataName(
             "Ankus.PgTestAttribute",
@@ -36,11 +36,11 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             static (attributeContext, _) => (IMethodSymbol)attributeContext.TargetSymbol);
         IncrementalValuesProvider<IMethodSymbol> operators = context.SyntaxProvider.ForAttributeWithMetadataName(
             "Ankus.PgOperatorAttribute",
-            static (node, _) => node is MethodDeclarationSyntax,
+            static (node, _) => node is MethodDeclarationSyntax or OperatorDeclarationSyntax or ConversionOperatorDeclarationSyntax,
             static (attributeContext, _) => (IMethodSymbol)attributeContext.TargetSymbol);
         IncrementalValuesProvider<IMethodSymbol> casts = context.SyntaxProvider.ForAttributeWithMetadataName(
             "Ankus.PgCastAttribute",
-            static (node, _) => node is MethodDeclarationSyntax,
+            static (node, _) => node is MethodDeclarationSyntax or OperatorDeclarationSyntax or ConversionOperatorDeclarationSyntax,
             static (attributeContext, _) => (IMethodSymbol)attributeContext.TargetSymbol);
         IncrementalValuesProvider<IMethodSymbol> triggers = context.SyntaxProvider.ForAttributeWithMetadataName(
             "Ankus.PgTriggerAttribute",
@@ -1074,7 +1074,8 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             }
         }
 
-        return SqlText.SnakeCase(method.Name);
+        return method.MethodKind is MethodKind.UserDefinedOperator or MethodKind.Conversion
+            ? "op_" + SqlText.SnakeCase(method.MetadataName.Substring(3)) : SqlText.SnakeCase(method.Name);
     }
 
     private static bool IsValidName(string name)

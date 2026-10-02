@@ -16,7 +16,7 @@ internal static class FunctionPipeline
     internal static IncrementalValueProvider<EquatableArray<FunctionOutput>> Register(IncrementalGeneratorInitializationContext context)
     {
         IncrementalValuesProvider<FunctionAnalysis> analysis = context.SyntaxProvider.ForAttributeWithMetadataName(
-            "Ankus.PgFunctionAttribute", static (node, _) => node is MethodDeclarationSyntax,
+            "Ankus.PgFunctionAttribute", static (node, _) => node is MethodDeclarationSyntax or OperatorDeclarationSyntax or ConversionOperatorDeclarationSyntax,
             static (attribute, token) => Analyze(attribute, token))
             .Where(static value => value is not null).Select(static (value, _) => value!)
             .WithTrackingName("FunctionAnalysis");
@@ -34,7 +34,7 @@ internal static class FunctionPipeline
     /// Discovers alias-only backing functions once while preserving ordinary-function and callback priorities.
     /// </summary>
     private static IncrementalValuesProvider<FunctionAnalysis> Aliases(IncrementalGeneratorInitializationContext context, string attributeName)
-        => context.SyntaxProvider.ForAttributeWithMetadataName(attributeName, static (node, _) => node is MethodDeclarationSyntax,
+        => context.SyntaxProvider.ForAttributeWithMetadataName(attributeName, static (node, _) => node is MethodDeclarationSyntax or OperatorDeclarationSyntax or ConversionOperatorDeclarationSyntax,
             static (attribute, token) => attribute.TargetSymbol.GetAttributes().Any(static value =>
                 value.AttributeClass?.ToDisplayString() == "Ankus.PgFunctionAttribute") ? null : Analyze(attribute, token))
             .Where(static value => value is not null).Select(static (value, _) => value!);

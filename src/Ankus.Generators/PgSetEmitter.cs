@@ -45,6 +45,7 @@ internal static class PgSetEmitter
         var native = new StringBuilder();
         var header = new StringBuilder();
         string nativeName = callback.Replace("ankus_managed_", "ankus_fn_");
+        method.AppendAccessor(callback, managed);
         managed.AppendLine("    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(");
         managed.AppendLine($"        EntryPoint = \"{callback}\",");
         managed.AppendLine("        CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]");
@@ -77,10 +78,10 @@ internal static class PgSetEmitter
             managed.AppendLine("                global::Ankus.PgFunctionContext functionContext = global::Ankus.NativeBackend.CaptureFunction(functionCall);");
         }
 
-        string arguments = string.Join(", ", parameters.Select(static parameter => parameter.Type?.HasRelations == true
-            ? "relationScope.Add(" + parameter.ReadExpression() + ")" : parameter.ReadExpression()));
+        IEnumerable<string> arguments = parameters.Select(static parameter => parameter.Type?.HasRelations == true
+            ? "relationScope.Add(" + parameter.ReadExpression() + ")" : parameter.ReadExpression());
         managed.AppendLine($"                *iterator = global::Ankus.NativeSet.Create<{set.Managed}>(" +
-            method.Target + "(" + arguments + ")" +
+            method.Invoke(arguments, callback) +
             (hasRelations ? ", relationScope.Detach()" : string.Empty) + ");");
         managed.AppendLine("                return 0;");
         managed.AppendLine("            }");

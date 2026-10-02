@@ -9,7 +9,7 @@ Namespace: [Ankus](/api/ankus/)
 
 Assembly: `Ankus.Runtime.dll`
 
-Exposes a static method as a PostgreSQL function and a cast from its first parameter to its return type.
+Exposes a static method or C# conversion declaration as a PostgreSQL function and a cast from its first parameter to its return type.
 Add PgFunction to customize the backing function's name, schema, or execution options.
 
 ```csharp
@@ -18,6 +18,8 @@ public sealed class PgCastAttribute : Attribute
 ```
 
 Declares a cast with the selected conversion context.
+C# implicit or explicit syntax does not select the PostgreSQL conversion context.
+Conversions retain their exact parameter and result types, including checked implementations.
 
 Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object), [Attribute](https://learn.microsoft.com/dotnet/api/system.attribute)
 
@@ -27,7 +29,7 @@ Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object), [At
 
 ### PgCastAttribute(PgCastContext)
 
-Exposes a static method as a PostgreSQL function and a cast from its first parameter to its return type.
+Exposes a static method or C# conversion declaration as a PostgreSQL function and a cast from its first parameter to its return type.
 Add PgFunction to customize the backing function's name, schema, or execution options.
 
 ```csharp
@@ -41,6 +43,8 @@ Parameters:
 The permitted conversion context; explicit by default.
 
 Declares a cast with the selected conversion context.
+C# implicit or explicit syntax does not select the PostgreSQL conversion context.
+Conversions retain their exact parameter and result types, including checked implementations.
 
 
 ## Properties

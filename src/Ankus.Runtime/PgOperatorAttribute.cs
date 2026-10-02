@@ -1,11 +1,12 @@
 namespace Ankus;
 
 /// <summary>
-/// Exposes a static method as a PostgreSQL function and a binary or prefix operator in the function's schema.
+/// Exposes a static method or C# operator declaration as a PostgreSQL function and a binary or prefix operator in the function's schema.
 /// Add PgFunction to customize the backing function's name, schema, or execution options.
 /// </summary>
 /// <remarks>
 /// Declares an operator using PostgreSQL's operator punctuation syntax.
+/// C# operator declarations retain their exact implementation, including checked operators.
 /// </remarks>
 /// <param name="name">The unqualified SQL operator name.</param>
 [AttributeUsage(AttributeTargets.Method)]

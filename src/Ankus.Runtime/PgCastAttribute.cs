@@ -1,11 +1,13 @@
 namespace Ankus;
 
 /// <summary>
-/// Exposes a static method as a PostgreSQL function and a cast from its first parameter to its return type.
+/// Exposes a static method or C# conversion declaration as a PostgreSQL function and a cast from its first parameter to its return type.
 /// Add PgFunction to customize the backing function's name, schema, or execution options.
 /// </summary>
 /// <remarks>
 /// Declares a cast with the selected conversion context.
+/// C# implicit or explicit syntax does not select the PostgreSQL conversion context.
+/// Conversions retain their exact parameter and result types, including checked implementations.
 /// </remarks>
 /// <param name="context">The permitted conversion context; explicit by default.</param>
 [AttributeUsage(AttributeTargets.Method)]

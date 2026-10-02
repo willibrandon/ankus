@@ -1,6 +1,6 @@
 ---
 title: Operators and casts
-description: Declare PostgreSQL operators and casts with ordinary C# methods.
+description: Declare PostgreSQL operators and casts with C# methods, operators and conversions.
 ---
 
 `PgOperator` and `PgCast` generate a backing SQL function plus an operator or cast
@@ -11,7 +11,7 @@ and managed exception boundary.
 ## Operators
 
 Apply `PgOperator` to a static method with two parameters for a binary operator,
-or one parameter for a prefix operator:
+or one parameter for a prefix operator. It also accepts C# operator declarations:
 
 ```csharp
 [PgOperator("@+")]
@@ -50,6 +50,33 @@ The exact token `=>` is reserved. Operators cannot be variadic or return `void`.
 Nullable parameters follow the normal function policy. An operator with required
 parameters is strict by default; nullable parameters let the method handle NULL.
 Postfix unary operators are not generated.
+
+### C# operator declarations
+
+Put the attributes directly on the operator when your managed type already
+defines the operation:
+
+```csharp
+[PgType]
+public readonly record struct Amount(int Value)
+{
+    [PgOperator("@+")]
+    [PgFunction(Name = "amount_add", Volatility = PgVolatility.Immutable)]
+    public static Amount operator +(Amount left, Amount right)
+        => new(checked(left.Value + right.Value));
+}
+```
+
+The SQL backing function calls that exact declaration. A checked operator such
+as `operator checked +` keeps its checked implementation; `operator true` and
+`operator false` also keep their separate implementations. The operator's C#
+token and the PostgreSQL token are independent: `PgOperator` chooses the SQL
+token. SQL arguments and results still need supported Ankus type mappings.
+
+Without `PgFunction.Name`, the backing name follows the metadata operation, such
+as `op_addition`, `op_checked_addition` or `op_unary_negation`. Use an explicit
+name for a public SQL API. The attribute does not add a C# operator to an ordinary
+method or change C# overload resolution in your extension code.
 
 Use [`PgQualifiedNameBuilder`](/catalog-lookups/#qualified-operator-names) to
 resolve an existing operator's OID from exact name components and argument types.
@@ -295,6 +322,24 @@ length coercion where PostgreSQL supports it.
 Nullable first parameters and results use the usual function NULL policy.
 Variadic casts and `void` results are rejected. CLR aliases such as `decimal` and
 `PgNumeric` share a SQL type, so they do not define distinct cast signatures.
+
+`PgCast` also accepts C# conversion declarations, including `implicit`,
+`explicit` and checked explicit conversions. Choose the PostgreSQL context with
+`PgCastContext`; a C# implicit conversion does not by itself make a SQL cast
+implicit. For example, inside the `Amount` type above:
+
+```csharp
+[PgCast(PgCastContext.Explicit)]
+[PgFunction(Name = "amount_integer")]
+public static explicit operator int(Amount value) => value.Value;
+```
+
+Conversions bind both the parameter and result types exactly. If several C#
+conversions take the same input but return different types, give their backing
+functions different `PgFunction.Name` values: PostgreSQL cannot overload a
+function by its result type. An unattributed conversion creates no SQL cast.
+Checked and unchecked conversions for the same source/target pair need distinct
+backing names, and only one may declare that PostgreSQL cast.
 
 ## Installation dependencies and ownership
 

@@ -78,8 +78,8 @@ internal static class FunctionSignature
     internal static bool Validate(IMethodSymbol method, FunctionParameter[] parameters, SetResult? set, FunctionType? result,
         GeneratorDiagnostics diagnostics)
     {
-        var syntax = method.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax(diagnostics.CancellationToken) as MethodDeclarationSyntax;
-        Location? name = syntax?.Identifier.GetLocation() ?? method.Locations.FirstOrDefault();
+        var syntax = method.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax(diagnostics.CancellationToken) as BaseMethodDeclarationSyntax;
+        Location? name = MethodSyntax.Name(syntax) ?? method.Locations.FirstOrDefault();
         if (!method.IsStatic)
         {
             return Reject(s_instance, name, diagnostics, method.Name);
@@ -92,7 +92,7 @@ internal static class FunctionSignature
 
         if (method.IsGenericMethod)
         {
-            return Reject(s_generic, syntax?.TypeParameterList?.GetLocation() ?? name, diagnostics, method.Name);
+            return Reject(s_generic, (syntax as MethodDeclarationSyntax)?.TypeParameterList?.GetLocation() ?? name, diagnostics, method.Name);
         }
 
         if (method.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal))
@@ -122,12 +122,12 @@ internal static class FunctionSignature
 
         if (method.ReturnsByRef || method.ReturnsByRefReadonly)
         {
-            return Reject(s_referenceResult, syntax?.ReturnType.GetLocation() ?? name, diagnostics, method.Name);
+            return Reject(s_referenceResult, MethodSyntax.Result(syntax) ?? name, diagnostics, method.Name);
         }
 
         if (set is null && result is null)
         {
-            return Reject(s_result, syntax?.ReturnType.GetLocation() ?? name, diagnostics, method.ReturnType.ToDisplayString());
+            return Reject(s_result, MethodSyntax.Result(syntax) ?? name, diagnostics, method.ReturnType.ToDisplayString());
         }
 
         int sqlCount = 0;

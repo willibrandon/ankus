@@ -74,7 +74,7 @@ internal static class SynchronousDeclaration
                 SymbolEqualityComparer.Default.Equals(candidate.OriginalDefinition, framework);
         }
 
-        Location? ReturnLocation() => method.DeclaringSyntaxReferences.Select(reference => reference.GetSyntax(context.CancellationToken))
-            .OfType<MethodDeclarationSyntax>().FirstOrDefault()?.ReturnType.GetLocation() ?? method.Locations.FirstOrDefault();
+        Location? ReturnLocation() => MethodSyntax.Result(method.DeclaringSyntaxReferences.Select(reference =>
+            reference.GetSyntax(context.CancellationToken)).OfType<BaseMethodDeclarationSyntax>().FirstOrDefault()) ?? method.Locations.FirstOrDefault();
     }
 }

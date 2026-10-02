@@ -32,7 +32,7 @@ internal static class OperatorCastPipeline
     /// Discovers either attached role using the same complete authored attribute order.
     /// </summary>
     private static IncrementalValuesProvider<EquatableArray<Analysis>> ForAttribute(IncrementalGeneratorInitializationContext context, string name)
-        => context.SyntaxProvider.ForAttributeWithMetadataName(name, static (node, _) => node is MethodDeclarationSyntax,
+        => context.SyntaxProvider.ForAttributeWithMetadataName(name, static (node, _) => node is MethodDeclarationSyntax or OperatorDeclarationSyntax or ConversionOperatorDeclarationSyntax,
             static (attribute, token) => Analyze(attribute, token));
 
     /// <summary>

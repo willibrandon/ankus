@@ -55,7 +55,8 @@ internal static class PgFunctionEmitter
     {
         IEnumerable<string> arguments = parameters.Select(static parameter => parameter.Type?.HasRelations == true
             ? "relationScope.Add(" + parameter.ReadExpression(borrowVarlena: true) + ")" : parameter.ReadExpression(borrowVarlena: true));
-        string invocation = $"{method.Target}({string.Join(", ", arguments)})";
+        method.AppendAccessor(callback, source);
+        string invocation = method.Invoke(arguments, callback);
         EmitManaged(callback, result, invocation, method.NumericPrecision?.Suffix ?? string.Empty,
             parameters.Any(static parameter => parameter.IsFunctionContext), source,
             parameters.Any(static parameter => parameter.Type?.HasRelations == true));

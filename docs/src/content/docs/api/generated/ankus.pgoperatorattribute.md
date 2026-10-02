@@ -9,7 +9,7 @@ Namespace: [Ankus](/api/ankus/)
 
 Assembly: `Ankus.Runtime.dll`
 
-Exposes a static method as a PostgreSQL function and a binary or prefix operator in the function's schema.
+Exposes a static method or C# operator declaration as a PostgreSQL function and a binary or prefix operator in the function's schema.
 Add PgFunction to customize the backing function's name, schema, or execution options.
 
 ```csharp
@@ -18,6 +18,7 @@ public sealed class PgOperatorAttribute : Attribute
 ```
 
 Declares an operator using PostgreSQL's operator punctuation syntax.
+C# operator declarations retain their exact implementation, including checked operators.
 
 Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object), [Attribute](https://learn.microsoft.com/dotnet/api/system.attribute)
 
@@ -27,7 +28,7 @@ Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object), [At
 
 ### PgOperatorAttribute(string)
 
-Exposes a static method as a PostgreSQL function and a binary or prefix operator in the function's schema.
+Exposes a static method or C# operator declaration as a PostgreSQL function and a binary or prefix operator in the function's schema.
 Add PgFunction to customize the backing function's name, schema, or execution options.
 
 ```csharp
@@ -41,6 +42,7 @@ Parameters:
 The unqualified SQL operator name.
 
 Declares an operator using PostgreSQL's operator punctuation syntax.
+C# operator declarations retain their exact implementation, including checked operators.
 
 
 ## Properties
