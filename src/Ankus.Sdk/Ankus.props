@@ -1,6 +1,7 @@
 <Project>
   <PropertyGroup>
     <UsingAnkusSdk>true</UsingAnkusSdk>
+    <_AnkusNativeEnvironment Condition="'$(ANKUS_HOME)' != ''">ANKUS_HOME=$([MSBuild]::Escape($([MSBuild]::NormalizePath('$(MSBuildStartupDirectory)', '$(ANKUS_HOME)'))))</_AnkusNativeEnvironment>
     <PublishAot>true</PublishAot>
     <IsAotCompatible>true</IsAotCompatible>
     <NativeLib>Shared</NativeLib>

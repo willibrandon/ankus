@@ -11,13 +11,13 @@ internal static class PostgresDiscovery
     /// Enumerates candidate pg_config executables for a PostgreSQL major version, in discovery order.
     /// </summary>
     /// <param name="major">The required PostgreSQL major version.</param>
+    /// <param name="homeDirectory">The resolved home used for registered and managed installations.</param>
     /// <returns>Configured and conventional executable paths.</returns>
-    internal static IEnumerable<string> GetCandidates(int major)
+    internal static IEnumerable<string> GetCandidates(int major, string homeDirectory)
     {
-        string home = new PostgresRegistry().HomeDirectory;
         string version = major.ToString(CultureInfo.InvariantCulture);
         string fileName = OperatingSystem.IsWindows() ? "pg_config.exe" : "pg_config";
-        string managed = Path.Combine(home, "postgres");
+        string managed = Path.Combine(homeDirectory, "postgres");
         if (Directory.Exists(managed))
         {
             foreach (string directory in Directory.EnumerateDirectories(managed).OrderDescending(StringComparer.Ordinal))

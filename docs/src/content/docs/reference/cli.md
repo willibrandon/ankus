@@ -288,6 +288,12 @@ Use `--home` to keep a separate Ankus configuration directory.
 Relative home paths resolve from the directory where you invoke Ankus. The
 default is `~/.ankus`.
 
+For `dotnet build`, `dotnet publish` and `dotnet test`, relative `ANKUS_HOME`
+paths resolve from the directory where you start the build. Native build tools
+and the generated test host retain that absolute home even when their working
+directories differ. Rebuild the test project after changing the selected home.
+Explicit PostgreSQL installation and `pg_config` selections keep precedence.
+
 `PG13_PG_CONFIG` through `PG19_PG_CONFIG` provide defaults for the corresponding
 `init --pgNN` options. Values are `pg_config` paths or `download`; explicit options
 override them. These defaults select which majors `init` registers. Later commands

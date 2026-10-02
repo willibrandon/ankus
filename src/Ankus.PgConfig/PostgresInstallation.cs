@@ -161,16 +161,26 @@ public sealed class PostgresInstallation
     /// <param name="major">The required PostgreSQL major version.</param>
     /// <param name="cancellationToken">Cancels installation queries.</param>
     /// <returns>The first matching installation in discovery order.</returns>
-    public static async Task<PostgresInstallation> DiscoverAsync(int major, CancellationToken cancellationToken = default)
+    public static Task<PostgresInstallation> DiscoverAsync(int major, CancellationToken cancellationToken = default)
+        => DiscoverAsync(major, homeDirectory: null, cancellationToken);
+
+    /// <summary>
+    /// Discovers a specific PostgreSQL major using an explicit Ankus home for registrations and managed installations.
+    /// </summary>
+    /// <param name="major">The required PostgreSQL major version.</param>
+    /// <param name="homeDirectory">The selected home, or null to use ANKUS_HOME and the ordinary default.</param>
+    /// <param name="cancellationToken">Cancels installation queries.</param>
+    /// <returns>The registered installation or the first matching discovery candidate.</returns>
+    public static async Task<PostgresInstallation> DiscoverAsync(int major, string? homeDirectory, CancellationToken cancellationToken)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(major, 13);
-        var registry = new PostgresRegistry();
+        var registry = new PostgresRegistry(homeDirectory);
         if (registry.GetPath(major) is not null)
         {
             return await registry.GetAsync(major, cancellationToken).ConfigureAwait(false);
         }
 
-        foreach (string candidate in PostgresDiscovery.GetCandidates(major).Distinct(StringComparer.Ordinal))
+        foreach (string candidate in PostgresDiscovery.GetCandidates(major, registry.HomeDirectory).Distinct(StringComparer.Ordinal))
         {
             if (File.Exists(candidate))
             {
@@ -201,7 +211,7 @@ public sealed class PostgresInstallation
         string? resolvedPath = ExecutableLocator.Find(pgConfigPath);
         if (resolvedPath is null)
         {
-            throw new FileNotFoundException("The specified pg_config executable was not found.", pgConfigPath);
+            throw new FileNotFoundException($"The specified pg_config executable was not found. Path: '{pgConfigPath}'.", pgConfigPath);
         }
 
         Task<string> version = QueryAsync(resolvedPath, "--version", cancellationToken);

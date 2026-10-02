@@ -42,7 +42,8 @@ internal static class PostgresTestSelection
         PostgresProjectSettings settings = await PostgresProjectSettings.ReadAsync(options.ProjectPath, options.Configuration,
             major, cancellationToken).ConfigureAwait(false);
         PostgresInstallation selected = settings.PgConfigPath is null
-            ? await PostgresInstallation.DiscoverAsync(settings.PostgresMajor, cancellationToken).ConfigureAwait(false)
+            ? await PostgresInstallation.DiscoverAsync(settings.PostgresMajor,
+                ReadHostValue("Ankus.Testing.HomeDirectory"), cancellationToken).ConfigureAwait(false)
             : await PostgresInstallation.CreateAsync(settings.PgConfigPath, cancellationToken).ConfigureAwait(false);
         RequireMajor(selected, settings.PostgresMajor);
         return selected;

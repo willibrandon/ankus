@@ -228,6 +228,34 @@ Returns: [Task&lt;PostgresInstallation&gt;](https://learn.microsoft.com/dotnet/a
 
 The queried PostgreSQL installation.
 
+<a id="member-ba94a2dcedd4192e"></a>
+
+### DiscoverAsync(int, string?, CancellationToken)
+
+Discovers a specific PostgreSQL major using an explicit Ankus home for registrations and managed installations.
+
+```csharp
+public static Task<PostgresInstallation> DiscoverAsync(int major, string? homeDirectory, CancellationToken cancellationToken)
+```
+
+Parameters:
+
+`major` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The required PostgreSQL major version.
+
+`homeDirectory` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The selected home, or null to use ANKUS_HOME and the ordinary default.
+
+`cancellationToken` — [CancellationToken](https://learn.microsoft.com/dotnet/api/system.threading.cancellationtoken)
+
+Cancels installation queries.
+
+Returns: [Task&lt;PostgresInstallation&gt;](https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1)
+
+The registered installation or the first matching discovery candidate.
+
 <a id="member-947d24349ac1418b"></a>
 
 ### DiscoverAsync(int, CancellationToken)

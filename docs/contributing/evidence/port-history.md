@@ -1,6 +1,80 @@
 # Historical port evidence
 
+## Relative Ankus home across build and test processes
+
+The unchanged-product regression fails both cases: a native build started from
+the caller's directory ignores an unavailable registration in a relative
+`ANKUS_HOME` and discovers a conventional installation instead. Native build
+tools run from project directories, and test hosts have another working
+directory, so independently resolving the same relative text changes its meaning.
+
+The SDK now normalizes the home against MSBuild's invocation directory and passes
+it to native child processes without mutating the parent's environment. Testing
+targets retain the same absolute home in runtime configuration. Explicit-home
+discovery uses one registry for registered paths and managed installations.
+Explicit installation and pg_config selections retain their existing precedence.
+Public CLI guidance documents the origin and rebuild behavior; API documentation
+is regenerated from source.
+
+Focused discovery checks pass **2/2**, zero failures/skips, **767ms**. The final
+PostgreSQL **18.6/Linux x64** integration checks pass **2/2**, zero failures/skips,
+**6m36.800s**. Both spaced and semicolon-containing homes reject a missing
+registered executable, then run all eight real consumer cases after registration
+is corrected. Relaunching the already-built test host from another directory
+still uses the original registration and rejects its missing executable.
+Publication and cluster cleanup remain asserted. All **334** source and **26**
+accepted runtime identities verify after terminal success.
+
+The complete plain PostgreSQL **18.6/Linux x64** suite then passes all six
+modules: **11,345 total; 11,331 passed; zero failures; 14 platform skips;
+37m52.033s**. All **334** frozen source and **26** runtime identities verify
+again after success. Release passes with **zero warnings/errors, 1m37.34s**.
+Regenerated API freshness verifies **238 pages / 2,757 members**; the site builds
+**286 pages in 3.01s** and reports zero errors, warnings or hints. Platform
+acceptance remains required. Concurrent low-priority cache probes and a separate focused
+validation share this machine during part of the run, so its duration is an
+observed acceptance result, not a performance comparison.
+
+Earlier corrected-product checks expose two fixture/diagnostic issues. Reports
+are emitted relative to the test command's caller rather than its solution;
+the fixture now selects an explicit owned report directory. A test-runner error
+display omits FileNotFoundException.FileName, hiding the attempted executable.
+The exception now includes that path in its message while retaining FileName
+and the original message prefix. Both negative results remain in private logs;
+neither is counted as passing acceptance.
+
+The first final documentation check correctly rejects one stale generated API
+page for the new discovery overload. Regenerating from the Release assemblies
+and rerunning API/site checks passes. One private check invocation stops before
+validation because its launcher file was not copied; the corrected invocation
+passes. Neither failed invocation is counted as documentation acceptance.
+
+The Windows x64/PostgreSQL **17.11** affected scope passes **2/2** discovery
+checks (**1.336s**) and **2/2** native build/test-host cases (**7m11.359s**), with
+zero failures/skips. All **334** frozen Windows source identities and **52**
+runtime files verify afterward. The **331** non-evidence/non-generated-page
+files match the Linux-validated source apart from Git line endings; the generated
+API correction and evidence updates are checked separately. This focused result
+supplements complete Linux acceptance; fresh full primary-platform CI is pending.
+
+Immediately before committing, previous CI outcomes were checked again and
+retained. **37061338668 / 37061338568** pass all primary checks and docs;
+**37046774035** retains its now-corrected Windows failures. Earlier primary,
+documentation and PostgreSQL 19 replacement runs remain successful. No checked
+run is active. Intel macOS **37003910952** retains its unresolved timeout.
+
 ## Evaluated extension selection, aggregate capabilities and framework templates
+
+The milestone is committed and pushed as **d78e49c**. Replacement
+[CI 37061338668](https://github.com/willibrandon/ankus/actions/runs/37061338668)
+passes quality, all runtime jobs and all three complete suites. Six downloaded
+TRX modules per platform report **11,341 total** with zero failures:
+Linux x64/PostgreSQL 18 has **11,327 passed / 14 skips, 34m54s** job time;
+macOS ARM64/18 has **11,315 passed / 26 skips, 26m18s**; Windows x64/17 has
+**11,316 passed / 25 skips, 30m06s**.
+[Docs 37061338568](https://github.com/willibrandon/ankus/actions/runs/37061338568)
+also passes. The previous Windows failures are resolved. Intel macOS still needs
+complete acceptance; this primary-platform result does not close that gap.
 
 All extension commands use the same MSBuild-evaluated `UsingAnkusSdk` marker.
 Ordinary `.sln` and `.slnx` solutions, child SDK declarations and imported SDKs

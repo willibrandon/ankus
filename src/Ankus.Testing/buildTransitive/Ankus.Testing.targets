@@ -13,6 +13,9 @@
                                       Condition="'$(AnkusPostgresMajor)' != ''" />
       <RuntimeHostConfigurationOption Include="Ankus.Testing.PgConfigPath" Value="$(_AnkusTestPgConfigPath)"
                                       Condition="'$(AnkusPgConfigPath)' != ''" />
+      <RuntimeHostConfigurationOption Include="Ankus.Testing.HomeDirectory"
+                                      Value="$([MSBuild]::NormalizePath('$(MSBuildStartupDirectory)', '$(ANKUS_HOME)'))"
+                                      Condition="'$(ANKUS_HOME)' != ''" />
     </ItemGroup>
   </Target>
 </Project>
