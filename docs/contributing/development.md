@@ -137,6 +137,13 @@ runs its own native ABI checks independently. Failed verification preserves the
 consumer's existing outputs; concurrent builds retain the same content and
 header checks as sequential builds.
 
+Managed companion builds record the exact reference, analyzer, source and
+editor-configuration paths selected by MSBuild, including analyzer dependencies.
+The build helper hashes distinct inputs with bounded asynchronous reads before
+cache lookup and rechecks them after compilation. Reuse continues to verify
+content, compiler/runtime files and NuGet settings; timestamps do not establish
+input identity.
+
 Generated-source and managed-companion cache stores each retain at most **2 GiB**
 of idle entries by default. `ANKUS_BINDING_CACHE_MAX_BYTES` selects a positive
 byte budget for each store. Reuse refreshes an entry's recency; lease disposal

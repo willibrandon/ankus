@@ -1289,6 +1289,12 @@ again and are unchanged, with none active. Package prefixes retain the final
 combined full-suite, Release and documentation evidence above; platform CI for
 the forthcoming combined revision remains pending.
 
+Immediately before the compiler-input hashing commit, the same preceding CI
+outcomes are checked once more and remain unchanged, with none active. This
+change retains content-based identities before lookup and after compilation,
+all native ABI checks and the complete final acceptance recorded above.
+Fresh platform timing and full-suite outcomes remain required.
+
 ## SQL regression scaffolding draft
 
 The review's missing `ankus new` SQL regression files are confirmed against the

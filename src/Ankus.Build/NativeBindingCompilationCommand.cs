@@ -22,10 +22,7 @@ internal static class NativeBindingCompilationCommand
             <_AnkusCompilerInput Include="@(ReferencePath);@(Analyzer);@(Compile);@(EditorConfigFiles)" />
             <_AnkusCompilerInput Include="%(_AnkusAnalyzerDirectory.Identity)**/*" />
           </ItemGroup>
-          <GetFileHash Files="@(_AnkusCompilerInput)" Algorithm="SHA256">
-            <Output TaskParameter="Items" ItemName="_AnkusHashedCompilerInput" />
-          </GetFileHash>
-          <WriteLinesToFile File="compiler-inputs.txt" Lines="@(_AnkusHashedCompilerInput->'%(FileHash) %(FullPath)')" Overwrite="true" />
+          <WriteLinesToFile File="compiler-inputs.txt" Lines="@(_AnkusCompilerInput->'%(FullPath)')" Overwrite="true" />
         </Target>
         """;
 
@@ -142,7 +139,7 @@ internal static class NativeBindingCompilationCommand
             start.ArgumentList.Remove("-property:SkipCompilerExecution=true");
             start.ArgumentList.Remove("-target:Compile");
             start.ArgumentList.Add("-target:Build");
-            NativeBindingCacheFile[] compiler = await ReadInputsAsync(work, cancellationToken);
+            NativeBindingCacheFile[] compiler = await NativeBindingCompilerInputs.ReadAsync(Path.Combine(work, "compiler-inputs.txt"), cancellationToken);
             NativeBindingCacheFile[] dependencies = [.. toolchain, .. compiler, .. await ReadPackagesAsync(work, cancellationToken)];
             var identity = new List<NativeBindingCacheFile>();
             foreach (NativeBindingCacheFile input in dependencies)
@@ -183,7 +180,7 @@ internal static class NativeBindingCompilationCommand
                 compiled = true;
                 start.ArgumentList.Add("-bl:" + Path.Combine(source, "binding-compile-" + Guid.NewGuid().ToString("N") + ".binlog"));
                 await CompileAsync(start, token);
-                NativeBindingCacheFile[] actual = await ReadInputsAsync(work, token);
+                NativeBindingCacheFile[] actual = await NativeBindingCompilerInputs.ReadAsync(Path.Combine(work, "compiler-inputs.txt"), token);
                 if (!compiler.SequenceEqual(actual))
                 {
                     throw new IOException("The binding compiler inputs changed after preparation.");
@@ -228,23 +225,6 @@ internal static class NativeBindingCompilationCommand
     }
 
     private static XElement Property(string name, string value) => new(name, NativeBindingSourceCommand.EscapeProperty(value));
-
-    private static async Task<NativeBindingCacheFile[]> ReadInputsAsync(string work, CancellationToken cancellationToken)
-    {
-        string[] lines = await File.ReadAllLinesAsync(Path.Combine(work, "compiler-inputs.txt"), cancellationToken);
-        var compiler = new List<NativeBindingCacheFile>();
-        foreach (string line in lines)
-        {
-            if (line.Length < 66 || line[64] != ' ' || line[..64].Any(static value => !char.IsAsciiHexDigit(value)) || !Path.IsPathFullyQualified(line[65..]))
-            {
-                throw new FormatException("The binding compiler input snapshot is invalid.");
-            }
-
-            compiler.Add(new(line[65..], line[..64]));
-        }
-
-        return [.. compiler.Distinct().OrderBy(static input => input.Path, StringComparer.Ordinal)];
-    }
 
     private static async Task<NativeBindingCacheFile[]> ReadPackagesAsync(string work, CancellationToken cancellationToken)
     {
