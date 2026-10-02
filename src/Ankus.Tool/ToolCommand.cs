@@ -206,6 +206,15 @@ internal static partial class ToolCommand
             : new Option<string?>("--destdir") { Description = "Stage files under this root, preserving PostgreSQL's installation paths." };
         command.Options.Add(from);
         command.Options.Add(destination);
+        var prefix = new Option<string?>("--prefix-dir")
+        {
+            Description = "Unix package asset directory within the output root; Windows retains its portable lib/share layout.",
+        };
+        if (package)
+        {
+            command.Options.Add(prefix);
+        }
+
         command.SetAction(async (result, token) =>
         {
             if (result.GetValue(from) is not null && result.GetValue<string?>("--project") is not null)
@@ -216,6 +225,12 @@ internal static partial class ToolCommand
             if (result.GetValue(from) is not null && BuildProperties(result).Count != 0)
             {
                 throw new ArgumentException("Use either --from or --property.");
+            }
+
+            string? prefixDirectory = package ? result.GetValue(prefix) : null;
+            if (prefixDirectory is not null)
+            {
+                ExtensionInstaller.GetPackagePrefix(result.GetValue(destination) ?? Environment.CurrentDirectory, prefixDirectory);
             }
 
             PostgresInstallation installation = await SelectAsync(result, home, token);
@@ -237,7 +252,8 @@ internal static partial class ToolCommand
                 root = Path.Combine(Path.GetFullPath(source), name + "-" + installation.Label);
             }
 
-            foreach (string path in ExtensionInstaller.Install(source, installation, root, token, packageLayout: package))
+            foreach (string path in ExtensionInstaller.Install(source, installation, root, token, packageLayout: package,
+                prefixDirectory: prefixDirectory))
             {
                 Console.WriteLine($"{(package ? "Packaged" : "Installed")} {path}");
             }

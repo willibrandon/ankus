@@ -1283,6 +1283,12 @@ timeout. Earlier main CI **36951253669** and its Docs run succeed. No preceding
 run is still active. The fixes retain the original assertions, full test suites
 and analyzer standards; fresh platform execution remains required.
 
+The fixture repair is committed as **5254c71**. Immediately before the separate
+package-prefix commit, the same eight preceding CI/Docs outcomes are checked
+again and are unchanged, with none active. Package prefixes retain the final
+combined full-suite, Release and documentation evidence above; platform CI for
+the forthcoming combined revision remains pending.
+
 ## SQL regression scaffolding draft
 
 The review's missing `ankus new` SQL regression files are confirmed against the

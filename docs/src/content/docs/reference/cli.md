@@ -627,6 +627,21 @@ directories also apply to package layout; see [SQL directories](/reference/build
 for absolute destinations and Windows parent-relative paths.
 The selected PostgreSQL installation and its databases are unchanged.
 
+On Linux and macOS, `--prefix-dir` puts the native library, primary control file
+and default SQL files in one directory beneath the output root:
+
+```console
+ankus package --pg 18 --output dist --prefix-dir custom/extension
+```
+
+This produces `dist/custom/extension/`. An absolute prefix such as
+`/custom/extension` produces the same layout: its filesystem root is removed.
+Parent-directory segments must stay beneath the output root. Windows retains its portable
+`lib/` and `share/extension/` layout, matching pgrx. Explicit SQL `directory`
+settings still apply. On PostgreSQL 18 and later, a relative SQL directory
+uses the chosen control directory's parent; earlier versions use the selected
+installation's shared directory.
+
 Packages target the host operating system and architecture and the selected
 PostgreSQL major. Use a matching PostgreSQL directory layout when deploying the
 tree. You can move or archive the package root after creation.

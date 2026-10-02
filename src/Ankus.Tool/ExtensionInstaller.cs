@@ -16,9 +16,10 @@ internal static class ExtensionInstaller
     /// <param name="destinationRoot">An optional staging root, analogous to DESTDIR.</param>
     /// <param name="token">Cancels copying between artifacts.</param>
     /// <param name="packageLayout">Whether Windows output uses lib and share/extension relative to the package root.</param>
+    /// <param name="prefixDirectory">An optional flat Unix package asset directory; Windows retains its portable layout.</param>
     /// <returns>The installed file paths.</returns>
     internal static IReadOnlyList<string> Install(string source, PostgresInstallation installation, string? destinationRoot,
-        CancellationToken token, bool packageLayout = false)
+        CancellationToken token, bool packageLayout = false, string? prefixDirectory = null)
     {
         source = Path.GetFullPath(source);
         PublishedExtension manifest = PublishedExtension.Read(source);
@@ -37,6 +38,18 @@ internal static class ExtensionInstaller
         string libraryDirectory = StagePath(installation.LibraryDirectory, destinationRoot);
         string extensionDirectory = StagePath(Path.Combine(installation.SharedDirectory, "extension"), destinationRoot);
         string scriptBase = installation.SharedDirectory;
+        string? prefix = null;
+        if (prefixDirectory is not null)
+        {
+            if (!packageLayout)
+            {
+                throw new ArgumentException("An asset prefix requires a package layout.", nameof(prefixDirectory));
+            }
+
+            ArgumentException.ThrowIfNullOrWhiteSpace(destinationRoot);
+            prefix = GetPackagePrefix(destinationRoot, prefixDirectory);
+        }
+
         if (packageLayout && OperatingSystem.IsWindows())
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(destinationRoot);
@@ -45,10 +58,26 @@ internal static class ExtensionInstaller
             extensionDirectory = Path.Combine(root, "share", "extension");
             scriptBase = Path.Combine(root, "share");
         }
+        else if (prefix is not null)
+        {
+            libraryDirectory = prefix;
+            extensionDirectory = prefix;
+            if (installation.Version.Major >= 18)
+            {
+                string logical = Path.Combine(Path.GetPathRoot(installation.SharedDirectory)!,
+                    Path.GetRelativePath(Path.GetFullPath(destinationRoot!), prefix));
+                scriptBase = Path.GetDirectoryName(logical) ?? Path.GetPathRoot(logical)!;
+            }
+        }
 
         IReadOnlyList<string> scriptDirectories = GetScriptDirectoryTraversal(manifest.GetScriptDirectory(source, scriptBase));
         string scriptDirectory = scriptDirectories[^1];
-        if (packageLayout && OperatingSystem.IsWindows() && !Path.IsPathRooted(manifest.ScriptDirectory ?? "extension"))
+        if (prefix is not null && !OperatingSystem.IsWindows() && manifest.ScriptDirectory is null)
+        {
+            scriptDirectories = [extensionDirectory];
+            scriptDirectory = extensionDirectory;
+        }
+        else if (packageLayout && OperatingSystem.IsWindows() && !Path.IsPathRooted(manifest.ScriptDirectory ?? "extension"))
         {
             string relative = Path.GetRelativePath(Path.GetFullPath(destinationRoot!), scriptDirectory);
             if (relative == ".." || relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal) || Path.IsPathRooted(relative))
@@ -103,6 +132,36 @@ internal static class ExtensionInstaller
         }
 
         return [.. files.Select(static file => file.Destination)];
+    }
+
+    /// <summary>
+    /// Normalizes a package asset prefix and rejects paths that lexically escape the selected output root.
+    /// </summary>
+    /// <param name="outputRoot">The package's output directory.</param>
+    /// <param name="prefixDirectory">A relative prefix or a fully qualified target directory whose filesystem root is stripped.</param>
+    /// <returns>The normalized asset directory inside the output root.</returns>
+    /// <exception cref="ArgumentException">The prefix is blank, partially rooted or escapes the output root.</exception>
+    internal static string GetPackagePrefix(string outputRoot, string prefixDirectory)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(outputRoot);
+        ArgumentException.ThrowIfNullOrWhiteSpace(prefixDirectory);
+        if (Path.IsPathRooted(prefixDirectory) && !Path.IsPathFullyQualified(prefixDirectory))
+        {
+            throw new ArgumentException("Package prefixes must be relative or fully qualified, not partially rooted.", nameof(prefixDirectory));
+        }
+
+        string relative = Path.IsPathFullyQualified(prefixDirectory)
+            ? prefixDirectory[Path.GetPathRoot(prefixDirectory)!.Length..] : prefixDirectory;
+        string root = Path.GetFullPath(outputRoot);
+        string destination = Path.GetFullPath(Path.Combine(root, relative));
+        string resolved = Path.GetRelativePath(root, destination);
+        if (resolved == ".." || resolved.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal) ||
+            Path.IsPathRooted(resolved))
+        {
+            throw new ArgumentException("The package prefix escapes the output directory.", nameof(prefixDirectory));
+        }
+
+        return destination;
     }
 
     private static List<string> GetScriptDirectoryTraversal(string path)

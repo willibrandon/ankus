@@ -160,10 +160,10 @@ public sealed partial class ToolCommandTests
     }
 
     private async Task AssertPackagedExtensionAsync(string output, PublishedExtension manifest,
-        string name, string version, CancellationToken token)
+        string name, string version, CancellationToken token, string? libraryDirectory = null, string? sharedDirectory = null)
     {
-        string libraries = PackageLibraryDirectory(output);
-        string shared = PackageSharedDirectory(output);
+        string libraries = libraryDirectory ?? PackageLibraryDirectory(output);
+        string shared = sharedDirectory ?? PackageSharedDirectory(output);
         PostgresInstallation installation = _caseInstallation?.Installation ?? s_installation;
         List<string> configuration = ["dynamic_library_path = '" + EscapeSetting(libraries) + "'"];
         if (installation.Version.Major >= 18)

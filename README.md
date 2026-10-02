@@ -125,6 +125,10 @@ for version selection, shared package files, and imported project files.
 It places the native library and SQL files beneath `dist`, using the selected
 PostgreSQL installation's directory layout.
 
+On Linux and macOS, use `--prefix-dir custom/extension` to put the package's
+library, control file and default SQL together beneath that output root.
+Windows packages use `lib/` and `share/extension/`.
+
 Use `--configuration Shipping` to select a custom MSBuild configuration when
 building, publishing, installing, or packaging an extension.
 
