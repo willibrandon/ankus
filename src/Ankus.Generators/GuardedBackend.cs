@@ -170,7 +170,7 @@ internal static class GuardedBackend
 
                         /* Match pgrx's writable intent even for a SELECT executed through
                          * a writable helper, so subsequent selection keeps fresh snapshots. */
-                        if (!request->read_only)
+                        else if (!request->read_only)
                         {
                             (void) GetCurrentTransactionId();
                         }

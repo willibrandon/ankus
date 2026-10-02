@@ -163,6 +163,37 @@ public sealed class SpiSelectionTests(TestContext context)
     }
 
     /// <summary>
+    /// Selection observes writable caller state without allocating an identity in an enclosing recovery child.
+    /// </summary>
+    /// <param name="mode">The selection transport.</param>
+    [TestMethod]
+    [DataRow(0)]
+    [DataRow(1)]
+    [DataRow(2)]
+    [DataRow(3)]
+    [DataRow(4)]
+    [DataRow(5)]
+    [DataRow(6)]
+    [DataRow(7)]
+    [DataRow(8)]
+    [DataRow(9)]
+    [DataRow(10)]
+    [DataRow(11)]
+    public Task SelectionPreservesUnassignedRecoveryChild(int mode)
+        => PostgresFixture.Cluster.RunInTransactionAsync(nameof(SelectionPreservesUnassignedRecoveryChild),
+            async (connection, transaction, token) =>
+            {
+                await using var command = new NpgsqlCommand("CREATE TEMP TABLE selection_identity_probe(value int)", connection, transaction);
+                await command.ExecuteNonQueryAsync(token);
+                command.CommandText = "SELECT datatype.selection_preserves_child_identity($1)";
+                command.Parameters.AddWithValue(mode);
+                Assert.AreEqual("True|False|42|False", await command.ExecuteScalarAsync(token));
+                command.Parameters.Clear();
+                command.CommandText = "SELECT 42";
+                Assert.AreEqual(42, await command.ExecuteScalarAsync(token));
+            }, context.CancellationToken);
+
+    /// <summary>
     /// A nested managed rollback restores values without hiding the writable caller transaction.
     /// </summary>
     [TestMethod]

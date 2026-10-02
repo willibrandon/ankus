@@ -124,6 +124,22 @@ public static class SpiSelectionFunctions
     }
 
     /// <summary>
+    /// Reads through an unassigned recovery child without allocating a child transaction identity.
+    /// </summary>
+    /// <param name="mode">The selection transport.</param>
+    /// <returns>The outer identity, child identities and selected value.</returns>
+    [PgFunction]
+    public static string SelectionPreservesChildIdentity(int mode)
+        => PgTransaction.RunInSubtransaction(() =>
+        {
+            bool outerAssigned = Ankus.Postgres.NativeMethods.GetTopTransactionIdIfAny() != 0;
+            bool before = Ankus.Postgres.NativeMethods.GetCurrentTransactionIdIfAny() != 0;
+            int value = SelectNumber("SELECT 42", mode);
+            bool after = Ankus.Postgres.NativeMethods.GetCurrentTransactionIdIfAny() != 0;
+            return $"{outerAssigned}|{before}|{value}|{after}";
+        });
+
+    /// <summary>
     /// Confirms a scoped recovery child observes the caller's earlier mutation and rollback does not hide that intent.
     /// </summary>
     /// <returns>The two visible values and recovered error state.</returns>

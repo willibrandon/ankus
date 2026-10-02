@@ -1496,6 +1496,23 @@ while its native checks run.
 
 ## SPI read-mode review clarification
 
+The parallel callback repair completes plain `dotnet test` on PostgreSQL
+**17.11/Windows x64**: **10,937 total, 10,912 passed, zero failures, 25 platform
+skips**, all six modules, **27m56.019s**. All **228** source identities verify
+again on the tested Windows source and the isolated implementation before its
+three owned repair files are promoted. Release remains warning/error-free;
+the independently tested Linux PostgreSQL 17 scope and API/site gates are
+recorded below. The original twelve regression cases fail with the old guard
+and pass with the repair; existing parallel callback assertions are retained.
+
+Before this commit, CI **36975738742** is terminal: Linux PostgreSQL 18 and
+macOS ARM64 PostgreSQL 18 pass; Windows PostgreSQL 17 has the thirty parallel
+transaction-ID failures addressed here. Docs **36975738732** passes. The prior
+newline repair's CI **36974050149** passes all three complete platform suites.
+Intel macOS **36977693891** remains active with two package-test slots; its
+runtime preparation passed. The separate combined PostgreSQL 13 validation
+is still active and is not claimed as completed evidence.
+
 The pinned pgrx reference distinguishes explicit client `select` from `update`,
 but its convenience `get_one`, `get_two`, `get_three` and `run` calls all use
 writable `update`. Ankus's writable `Execute` and scalar helpers therefore
@@ -1659,6 +1676,99 @@ Hosted Intel **36964760110** retains its recorded one-hour timeout and incomplet
 integration report. Corrected PostgreSQL 13 complete acceptance and the new
 interval native checks continue independently on immutable sources.
 
+Hosted Intel full-suite run **36977693891** starts on accepted **94dcad3**
+with **two** package-consumer slots. The previous three-slot run retained its
+60-minute timeout; the new run keeps the same job limit and complete test scope.
+Its terminal report is required. Different commits and cache states are not a
+controlled concurrency comparison, and no runtime improvement is claimed yet.
+
+The accepted SPI milestone is committed as **94dcad3**. Previous CI is checked
+again before push: **36974050149** now has successful macOS ARM64/PostgreSQL 18
+acceptance as well as quality and all runtime jobs; Linux/PostgreSQL 18 and
+Windows/PostgreSQL 17 suites remain active. Earlier terminal outcomes retain the
+recorded repairs and hosted Intel timeout. No reported new failure is ignored.
+
+SPI **94dcad3** is pushed. Fresh CI **36975738742** is queued and Docs
+**36975738732** is active. The earlier Windows repair's Linux and Windows suites
+continue.
+
+Windows repair CI **36974050149** now succeeds completely: quality, all runtime
+jobs and all three full platform suites. PostgreSQL 18/Linux x64 takes
+**26m05s**; PostgreSQL 18/macOS ARM64 takes **19m38s**; PostgreSQL 17/Windows
+x64 takes **26m03s**. The original regression-output assertions now pass in
+dedicated CI as well as local complete Windows validation. SPI Docs
+**36975738732** succeeds. Its separate platform CI **36975738742** continues;
+complete outcomes for that new platform run remain required.
+
+Retained logs confirm six completed modules and **10,840 total** per platform
+for **36974050149**: Linux x64 has **10,826 passed, zero failed, 14 skips**;
+macOS ARM64 has **10,814 passed, zero failed, 26 skips**; Windows x64 has
+**10,815 passed, zero failed, 25 skips**. These are complete platform results,
+not counts inferred from an unfinished integration report.
+
+SPI CI **36975738742** finishes with successful quality, runtime, Linux
+PostgreSQL 18 and macOS ARM64 PostgreSQL 18 jobs. Windows PostgreSQL 17 reports
+**30** parallel-worker integration failures, all returning SQLSTATE **25000**
+instead of the intended callback error or result. The automatic selection branch
+observes the outer transaction identity, then incorrectly falls through to the
+explicit writable branch that allocates a current transaction identity. A worker
+can inherit an assigned outer identity alongside an unassigned current child;
+PostgreSQL correctly rejects assigning that child during parallel execution.
+The repair separates observation from explicit mutation intent. A new native
+regression checks every selection transport inside an unassigned recovery child
+after a caller write. Windows reproduction, corrected focused execution and
+complete acceptance remain required. The previous newline repair remains proved
+by its separate passing three-platform run.
+
+The new recovery-child regression executes against the original guard on
+PostgreSQL **17.11/Windows x64** and fails all **12** transports: the outer
+identity is assigned and the child starts unassigned, but selection assigns the
+child. Its terminal result is **12 failed, zero passed/skipped, 2m01.903s**.
+The corrected guard retains explicit writable allocation and separates automatic
+selection from it. Both Windows and Linux PostgreSQL 17 now run the **333**-case
+affected scope, including these twelve rows and the unchanged parallel callback
+error, ownership and same-backend recovery assertions. Initial test-draft
+compilation and local runtime-payload staging errors are retained separately;
+neither is counted as successful execution.
+
+The corrected PostgreSQL **17.11/Windows x64** scope passes **333/333**,
+**zero failures/skips, 2m37.146s**, exit **0**. This includes the twelve
+negative-baseline regressions and all thirty callback cases that failed in CI.
+All **228** source identities match afterward. A final Release rebuild and
+plain complete Windows suite remain required before publishing the repair.
+
+The same corrected PostgreSQL **17.11/Linux x64** scope also passes
+**333/333**, **zero failures/skips, 2m56.201s**, exit **0**; its **228** source
+identities verify afterward. Final Release/API/site gates run on that unchanged
+source. The independent PostgreSQL 13 compatibility draft now composes the
+accepted SPI changes, this repair and the separately verified interval ordering,
+preserving its native helper and Valgrind corrections. It freezes **244** source
+identities for new final gates and complete PostgreSQL 13 acceptance; the earlier
+221-file complete result is retained as evidence of the preceding composition.
+
+The corrected Windows Release rebuild succeeds with **zero warnings/errors,
+43.16s**. Plain complete PostgreSQL **17.11/Windows x64** acceptance starts
+on the unchanged **228**-identity repair snapshot. Its terminal six-module
+result remains required; the passing focused scope is not substituted for it.
+
+Final Linux PostgreSQL 17 Release/API/site gates succeed on the unchanged
+repair snapshot: Release **zero warnings/errors, 1m33.37s**; API freshness
+**235 pages / 2,695 members**; site build and check succeed with zero check
+errors, warnings or hints. All **228** identities verify afterward. Complete
+Windows acceptance remains active. The larger PostgreSQL 13 composition also
+passes Release (**zero warnings/errors, 1m29.04s**), API freshness (**235 pages /
+2,700 members**) and site checks (**283 pages in 5.91s**, zero diagnostics);
+all **244** identities verify. Its focused version-specific execution is active.
+
+The final combined PostgreSQL **13.23/Linux x64** scope succeeds: **118 total,
+117 passed, zero failed, one Windows-only skip, 2m57.486s**, exit **0**. It
+executes all selection/recovery-child rows, interval comparisons including the
+pre-17 infinity rejection and same-session recovery, native inventory helpers
+and real Valgrind diagnostics. All **244** source identities match afterward.
+Plain complete PostgreSQL 13 acceptance starts on this unchanged composition.
+The complete Windows repair suite continues independently; neither unfinished
+suite is reported as passing platform evidence.
+
 ## Regression scaffold Windows output contract
 
 Scaffold CI **36966035199** finishes with successful quality/runtime jobs,
@@ -1744,8 +1854,7 @@ The final Windows correction is published as **5ea18b9**. It preserves the
 accepted **211** source identities and complete PostgreSQL 17.11/Windows x64
 evidence above. Subsequent CI outcomes will be recorded as they become available.
 
-Fresh CI **36974050149** is active on **5ea18b9**. Local Windows heavy validation
-has finished before that new CI starts. The separate Linux validators retain
+Fresh CI **36974050149** is active on **5ea18b9**. The separate Linux validators retain
 their independent immutable snapshots; no waiting for CI is substituted for
 continued full-port work.
 
@@ -1862,6 +1971,14 @@ in 3.93s** and reports zero errors, warnings or hints. All hashes match again.
 Plain complete acceptance now runs all six modules on unchanged source.
 Its terminal result remains required before claiming full PostgreSQL 13 coverage.
 
+That corrected plain complete PostgreSQL **13.23/Linux x64** run now passes all
+six modules: **10,840 total, 10,826 passed, zero failed and 14 platform skips,
+31m58.933s**, exit **0**. All **221** source identities match afterward. This
+verifies the selected-header overflow helper and observable native Valgrind
+witness in complete backend execution. The accepted SPI milestone is composed
+next while preserving the version workflow's owned changes; final composed
+acceptance and scheduled-version activation remain required.
+
 ## Interval ordering review draft
 
 The review's missing `PgInterval` comparison interface is confirmed. An isolated
@@ -1888,6 +2005,45 @@ Focused interval ordering now passes **19/19**, zero failures/skips,
 managed tests intentionally require no backend access. All **216** hashes match
 after execution. The actual Native AOT comparison class now runs against the
 real PostgreSQL server; its terminal result remains required.
+
+The actual Native AOT interval class now passes on PostgreSQL **18.6/Linux
+x64**: **22 passed, zero failures/skips, 4m50.156s**, exit **0**. Native
+`interval_cmp` and all four SQL operators independently agree with the compiled
+managed callback for ordinary/mixed components, equal durations, full finite
+endpoints and infinities. All **216** hashes verify after terminal execution.
+Only then does the idle validator receive the accepted SPI composition,
+freezing **233** identities. Generated API pages are rebuilt from source XML
+before final Release/API/site and plain complete acceptance on this composition.
+
+The first composed API-generation attempt loads an older incremental Release
+assembly and reports **2,688** members, omitting the accepted SPI selection
+methods. Its output is not accepted. Source hashes identify the intended
+composition; retained archive timestamps explain why those overwritten source
+files looked older than existing build outputs. Staging now records the actual
+source-update time, and a forced Release rebuild precedes API generation and
+freshness verification. No generated pages from that stale assembly are promoted.
+The final plain suite must also build against the actual composed source.
+
+The corrected composed Release rebuild now succeeds with **zero warnings or
+errors, 2m48.06s**, PostgreSQL **18.6/Linux x64** selection. API generation is
+rerun from those rebuilt assemblies; stale incremental output is retained only
+as diagnostic evidence. Final API/site and complete acceptance remain required.
+
+The corrected generated API now includes both accepted SPI and interval ordering:
+**235 pages / 2,700 members**. The final composition freezes **234** identities,
+all verified remotely after API freshness and site checks. The site builds
+**283 pages in 4.28s** and reports **zero errors, warnings or hints**. The forced
+Release result above covers the unchanged code. Plain complete PostgreSQL
+**18.6/Linux x64** acceptance starts on this exact composition; its terminal
+six-module result and dedicated-platform evidence remain required.
+
+That unchanged interval composition completes all six modules on PostgreSQL
+**18.6/Linux x64**: **10,966 total, 10,952 passed, zero failed, 14 platform
+skips, 28m00.213s**, exit **0**. All **234** source identities match the local
+and remote snapshots afterward. The final Release/API/site checks above cover
+those identical files. This draft predates the newly discovered PostgreSQL 17
+parallel selection repair; current-source composition and other platform/version
+evidence remain required before treating the full review gap as closed.
 
 ## C# operator and conversion declaration draft
 
