@@ -1981,6 +1981,32 @@ acceptance and scheduled-version activation remain required.
 
 ## Interval ordering review draft
 
+Final combined PostgreSQL **13.23/Linux x64** acceptance completes with
+**10,978 total, 10,964 passed, zero failures, 14 platform skips**, all six
+modules, **23m02.233s**. All **244** local and tested remote source identities
+verify after the terminal result. This composition includes the accepted SPI
+selection and parallel repair, the eleven additional-major workflow/binding/
+diagnostic-witness files, and the six interval-ordering files. Its final Release
+rebuild and API/site checks pass as recorded above. The preceding independent
+interval composition also passed the complete PostgreSQL **18.6/Linux x64**
+suite; its older parallel guard is not promoted over the accepted repair.
+
+The weekly/manual additional-major workflow runs complete, sequential Linux
+suites for PostgreSQL **13–17 and 19** without splitting tests. Both jobs
+require the repository owner as original and rerun actor on `main`; an
+exclusive compatibility label prevents interference with the primary Linux
+job. All jobs retain the requested **60-minute** limit. The seven real
+installation/header descriptors verify, and actionlint passes. Activation and
+actual workflow outcomes remain separate evidence; this local PostgreSQL 13
+run does not claim completed 14–17 or 19 workflow results.
+
+Prior CI is checked before these milestones: parallel-repair CI
+**36982637075** has passing runtime jobs with quality and all three complete
+platform test jobs active. Its earlier Windows failure is reproduced and
+repaired by **0c96349**, whose complete Windows acceptance is recorded above.
+Intel macOS **36977693891** remains active after passing runtime preparation.
+No unfinished job is counted as passing platform evidence.
+
 The review's missing `PgInterval` comparison interface is confirmed. An isolated
 draft now implements `IComparable<PgInterval>` and the four ordering operators
 with PostgreSQL's thirty-day-month and twenty-four-hour-day approximation.

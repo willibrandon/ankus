@@ -33,6 +33,7 @@ public sealed class NativeBindingResourcesTests
         Assert.AreEqual("::core::ffi::c_int", cell.Fields.Single(static field => field.Name == "int_value").Representation);
         Assert.AreEqual("Oid", cell.Fields.Single(static field => field.Name == "oid_value").Representation);
         Assert.Contains("#include \"postgres.h\"", NativeBindingResources.ReadHeaders(major));
+        Assert.Contains("#include \"common/int.h\"", NativeBindingResources.ReadHeaders(major));
     }
 
     /// <summary>

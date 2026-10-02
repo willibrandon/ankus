@@ -3,7 +3,7 @@ using System.Text;
 namespace Ankus.Build;
 
 /// <summary>
-/// Supplies addressable selected-header contracts for native helpers implemented by hand in pgrx.
+/// Supplies addressable selected-header contracts for native helpers absent from a major's pgrx foreign inventory.
 /// </summary>
 internal static class NativeBindingHeaderHelpers
 {
@@ -23,6 +23,7 @@ internal static class NativeBindingHeaderHelpers
         ArgumentOutOfRangeException.ThrowIfGreaterThan(major, 19);
         var helpers = new List<NativeBindingHeaderHelper>
         {
+            Direct("pg_add_s32_overflow"),
             Macro("GETSTRUCT", "char *", "HeapTuple value", "return GETSTRUCT(value);"),
             Macro("TYPEALIGN", "uintptr_t", "uintptr_t alignment, uintptr_t value", "return TYPEALIGN(alignment, value);"),
             Macro("MAXALIGN", "uintptr_t", "uintptr_t value", "return MAXALIGN(value);"),

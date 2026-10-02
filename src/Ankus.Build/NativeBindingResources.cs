@@ -52,7 +52,7 @@ internal static class NativeBindingResources
     {
         using Stream source = Open(major, "h");
         using var reader = new StreamReader(source);
-        return reader.ReadToEnd() + NativeBindingHeaderHelpers.Source(major);
+        return reader.ReadToEnd() + "\n#include \"common/int.h\"\n" + NativeBindingHeaderHelpers.Source(major);
     }
 
     private static Stream Open(int major, string extension)

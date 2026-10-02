@@ -24,6 +24,7 @@ repository root with `dotnet run --file`.
 | `windows-toolchain` | Select the latest supported Visual Studio installation with C++ x64 tools and export its developer environment to later CI steps. |
 | `runtime-test-run` | Run every already-built test module using the PostgreSQL and compiler environment prepared by `runtime-test-build`. |
 | `header-frontend-check` | Check an explicit Clang executable for the declaration-only frontend required by header collection. |
+| `postgresql-check` | Check an explicit PostgreSQL 13–19 `pg_config` for its selected major and server headers without installing packages. |
 | `unit-test` | Build and run the five unit test modules. |
 | `prepare-reports` | Copy test results and server logs with private runner identifiers removed before artifact upload. |
 | `release-managed` | Pack the managed NuGet packages. |
@@ -79,6 +80,30 @@ release architecture unavailable on the dedicated machines. Runtime, NuGet and
 binding caches are saved before tests so later runs reuse successful preparation.
 Each run retains test results and timings; the job limit remains 60 minutes.
 Successful execution is required before counting Intel macOS as validated.
+
+The `PostgreSQL versions` workflow runs complete Linux x64 suites for PostgreSQL
+13–17 and 19 weekly. Manual dispatch selects one major, including 18, or all six
+additional majors. A separate runner labelled `ankus-linux-versions-x64` keeps
+these checks off the primary CI queue. Both actors must be the repository owner
+and the selected ref must be `main`; there is no pull-request trigger.
+Each major runs the complete suite in its own 60-minute job, sequentially on
+that runner. Failures do not cancel the other majors or supersede existing runs.
+Install each selected server and matching development headers before dispatch;
+PostgreSQL 19 uses its current prerelease until a stable release is available.
+Check an installation before enabling the workflow:
+
+```text
+dotnet run --file ./eng/Ankus.Ci.cs -- postgresql-check 19 /path/to/pg19/bin/pg_config
+```
+
+The preparation command verifies that `pg_config` matches the selected major,
+including beta and release-candidate identifiers. Completed native test reports,
+not the matrix definition or this prerequisite check, establish version coverage.
+`ANKUS_LINUX_VERSIONS_PACKAGE_TEST_CONCURRENCY` sets the compatibility runner's
+default package-consumer slots independently of primary CI. Configure the runner
+privacy secret before uploading reports. macOS and Windows version coverage
+remain separate acceptance requirements.
+
 Timed-out runs also upload available redacted failure logs. Test builds print
 an MSBuild performance summary and retain a unique binary log in
 `artifacts/test-logs` for local investigation. Binary logs can contain machine

@@ -1,0 +1,131 @@
+name: PostgreSQL versions
+
+on:
+  schedule:
+    - cron: '23 6 * * 3'
+  workflow_dispatch:
+    inputs:
+      postgresql:
+        description: PostgreSQL major (all runs the majors outside primary Linux CI)
+        type: choice
+        default: all
+        options: [all, '13', '14', '15', '16', '17', '18', '19']
+      package-test-concurrency:
+        description: Package-consumer slots (empty uses the compatibility runner setting)
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+env:
+  ANKUS_RUNNER_PRIVATE_IDENTIFIERS: ${{ secrets.ANKUS_RUNNER_PRIVATE_IDENTIFIERS }}
+
+jobs:
+  runtime:
+    if: github.repository == 'willibrandon/ankus' && github.actor == 'willibrandon' && github.triggering_actor == 'willibrandon' && github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, Linux, X64, ankus-linux-versions-x64]
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Read runtime identity
+        id: runtime
+        run: dotnet run --file ./eng/Ankus.Ci.cs -- metadata
+
+      - name: Restore native runtime
+        uses: actions/cache/restore@v5
+        id: runtime-cache
+        with:
+          path: artifacts/nativeaot/linux-x64
+          key: nativeaot-v2-linux-x64-versions-${{ steps.runtime.outputs.commit }}
+
+      - uses: actions/checkout@v5
+        if: steps.runtime-cache.outputs.cache-hit != 'true'
+        with:
+          repository: ${{ steps.runtime.outputs.repository }}
+          ref: ${{ steps.runtime.outputs.commit }}
+          path: runtime
+
+      - name: Build native runtime
+        if: steps.runtime-cache.outputs.cache-hit != 'true'
+        run: dotnet run --file ./eng/Ankus.Ci.cs -- runtime-build linux x64 linux-x64
+
+      - name: Save native runtime
+        if: steps.runtime-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: artifacts/nativeaot/linux-x64
+          key: ${{ steps.runtime-cache.outputs.cache-primary-key }}
+
+      - name: Pack runtime
+        run: dotnet run --file ./eng/Ankus.Ci.cs -- runtime-pack linux-x64
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: nativeaot-linux-x64-versions
+          path: artifacts/nativeaot/linux-x64
+          if-no-files-found: error
+          retention-days: 3
+
+  test:
+    if: github.repository == 'willibrandon/ankus' && github.actor == 'willibrandon' && github.triggering_actor == 'willibrandon' && github.ref == 'refs/heads/main'
+    needs: runtime
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        postgresql: ${{ fromJSON((github.event_name == 'schedule' || inputs.postgresql == 'all') && '[13,14,15,16,17,19]' || format('[{0}]', inputs.postgresql)) }}
+    runs-on: [self-hosted, Linux, X64, ankus-linux-versions-x64]
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: nativeaot-linux-x64-versions
+          path: artifacts/nativeaot/linux-x64
+
+      - name: Restore NuGet packages
+        run: dotnet restore Ankus.slnx -p:Platform="Any CPU"
+
+      - name: Build PostgreSQL tests
+        env:
+          ANKUS_POSTGRES_VERSION: ${{ matrix.postgresql }}
+        run: dotnet run --file ./eng/Ankus.Ci.cs -- runtime-test-build linux-x64 "$ANKUS_POSTGRES_VERSION"
+
+      - name: Run full PostgreSQL tests
+        env:
+          ANKUS_PACKAGE_TEST_CONCURRENCY: ${{ inputs.package-test-concurrency || vars.ANKUS_LINUX_VERSIONS_PACKAGE_TEST_CONCURRENCY || '' }}
+        run: dotnet run --file ./eng/Ankus.Ci.cs -- runtime-test-run
+
+      - name: Remove private identifiers from reports
+        if: always()
+        id: reports
+        run: dotnet run --file ./eng/Ankus.Ci.cs -- prepare-reports
+
+      - name: Save test results and timings
+        if: always() && steps.reports.outcome == 'success'
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results-linux-x64-pg${{ matrix.postgresql }}
+          path: artifacts/ci-reports/test-results/*.trx
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Save failure logs
+        if: (failure() || cancelled()) && steps.reports.outcome == 'success'
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-logs-linux-x64-pg${{ matrix.postgresql }}
+          path: artifacts/ci-reports/test-logs/**
+          if-no-files-found: ignore
+          retention-days: 7

@@ -104,6 +104,7 @@ public sealed class PostgresValgrindTests(TestContext context)
             PG_MODULE_MAGIC;
             PG_FUNCTION_INFO_V1(valgrind_error_probe);
             Datum valgrind_error_probe(PG_FUNCTION_ARGS);
+            static volatile unsigned char observed;
             Datum valgrind_error_probe(PG_FUNCTION_ARGS)
             {
                 unsigned char *allocation = malloc(16);
@@ -112,8 +113,8 @@ public sealed class PostgresValgrindTests(TestContext context)
                 allocation[0] = 42;
                 volatile unsigned char *released = allocation;
                 free(allocation);
-                /* Deliberate test-only fault: Memcheck must report this read. */
-                (void)*released;
+                /* Keep the deliberate fault observable to Memcheck's optimizer. */
+                observed = *released;
                 PG_RETURN_INT32(42);
             }
             """, token);
@@ -151,7 +152,7 @@ public sealed class PostgresValgrindTests(TestContext context)
             string diagnostic = Assert.ContainsSingle(log.Split("VALGRINDERROR-BEGIN", StringSplitOptions.None)
                 .Skip(1).Select(static report => report.Split("VALGRINDERROR-END", StringSplitOptions.None)[0])
                 .Where(static report => report.Contains("Invalid read of size 1", StringComparison.Ordinal) &&
-                    report.Contains("valgrind_error_probe", StringComparison.Ordinal)));
+                    report.Contains("valgrind_error_probe", StringComparison.Ordinal)), log);
             Assert.Contains("free", diagnostic);
             Assert.Contains("VALGRINDERROR-END", log);
         }

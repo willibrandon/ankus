@@ -15,6 +15,11 @@ pgrx's `__pgrx_cshim` symbols; those names are not PostgreSQL exports. Hook alia
 resolve through the corresponding type catalog. Both inventories preserve each
 major's own signatures instead of applying the newest signature to older servers.
 
+Selected-header helpers supplement declarations missing from a major's foreign
+inventory. This includes `pg_add_s32_overflow` from `common/int.h` on all seven
+majors. The compiler measures its actual signature and the native call uses the
+installed header implementation; the pinned inventories remain unchanged.
+
 `ReferenceConstants` retain unevaluated expressions from pgrx's reference build.
 They include configuration values and platform-specific widths. Never use them
 as measurements of the extension's selected target; use its headers and compiler.

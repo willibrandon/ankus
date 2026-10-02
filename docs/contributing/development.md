@@ -45,6 +45,14 @@ the Windows LLVM installer include it. The collector uses the compiler's reporte
 resource directory to find its library, including when the compiler is a shim.
 It loads a serialized declaration AST from that exact compiler in a separate
 worker process; incompatible compiler/library builds fail explicitly.
+
+The weekly PostgreSQL version workflow uses a separate Linux runner for complete
+suites against PostgreSQL 13–17 and 19. It can also select PostgreSQL 18 manually.
+Each installation needs matching server headers, ICU and the same native
+toolchain prerequisites. See [engineering apps](../../eng/README.md) for the
+preflight command, runner isolation and retained evidence. A scheduled matrix
+does not replace successful full-suite results for each supported target.
+
 The `header-frontend-check` engineering command checks a compiler's version and
 required option without modifying the machine; see [engineering apps](../../eng/README.md).
 

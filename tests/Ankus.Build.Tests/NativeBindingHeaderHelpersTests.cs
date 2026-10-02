@@ -24,7 +24,7 @@ public sealed class NativeBindingHeaderHelpersTests
         Assert.AreSequenceEqual<string>(["PageHeaderData"], NativeBindingHeaderHelpers.RequiredTypes);
         Assert.ThrowsExactly<NotSupportedException>(() => ((IList<string>)NativeBindingHeaderHelpers.RequiredTypes).Clear());
         Dictionary<string, NativeBindingHeaderHelper> names = helpers.ToDictionary(static helper => helper.Name, StringComparer.Ordinal);
-        string[] expected = ["GETSTRUCT", "TYPEALIGN", "MAXALIGN", "GetMemoryChunkContext", "MemoryContextIsValid", "MemoryContextSwitchTo",
+        string[] expected = ["pg_add_s32_overflow", "GETSTRUCT", "TYPEALIGN", "MAXALIGN", "GetMemoryChunkContext", "MemoryContextIsValid", "MemoryContextSwitchTo",
             "TransactionIdIsNormal", "TransactionIdPrecedes", "TransactionIdPrecedesOrEquals", "TransactionIdFollows", "TransactionIdFollowsOrEquals",
             "type_is_array", "BufferIsLocal", "BufferIsValid", "ItemIdGetOffset", "PageIsValid", "PageSizeIsValid", "SizeOfPageHeaderData",
             "PageValidateSpecialPointer", "HeapTupleHeaderGetNatts", "heap_getattr", "SpinLockInit", "SpinLockAcquire", "SpinLockRelease",

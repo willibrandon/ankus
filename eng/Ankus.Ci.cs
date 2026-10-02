@@ -1,11 +1,13 @@
 #:property TargetFramework=net10.0
 #:property PackAsTool=false
 #:property PublishAot=false
+#:project ../src/Ankus.PgConfig/Ankus.PgConfig.csproj
 
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Security;
 using System.Text.RegularExpressions;
+using Ankus.PgConfig;
 
 const string RuntimeRepository = "willibrandon/runtime";
 const string RuntimeBase = "v10.0.12";
@@ -97,6 +99,12 @@ try
         case "header-frontend-check":
             RequireArguments(args, 2);
             VerifyHeaderFrontend(args[1]);
+            break;
+
+        case "postgresql-check":
+            RequireArguments(args, 3);
+            VerifyPostgreSqlVersion(args[1]);
+            VerifyPostgreSqlHeaders(args[2], args[1]);
             break;
 
         case "windows-toolchain":
@@ -501,7 +509,7 @@ static void InstallPostgreSql(string repositoryRoot, string version)
 
         string prefix = Capture("brew", ["--prefix", formula]);
         string pgConfig = Path.Combine(prefix, "bin", "pg_config");
-        VerifyPostgreSqlHeaders(pgConfig);
+        VerifyPostgreSqlHeaders(pgConfig, version);
         SelectPostgreSql(version, pgConfig);
         return;
     }
@@ -517,23 +525,17 @@ static void InstallPostgreSql(string repositoryRoot, string version)
             throw new FileNotFoundException($"The Windows runner does not contain PostgreSQL {version}.", pgConfig);
         }
 
-        string actualVersion = Capture(pgConfig, ["--version"]);
-
-        if (!actualVersion.StartsWith($"PostgreSQL {version}.", StringComparison.Ordinal))
+        PostgresVersion actualVersion = VerifyPostgreSqlHeaders(pgConfig, version);
+        int minimumMinor = version switch
         {
-            throw new InvalidOperationException($"Expected PostgreSQL {version}, but the runner provides {actualVersion}.");
-        }
-
-        Version minimum = version switch
-        {
-            "16" => new(16, 15),
-            "17" => new(17, 11),
-            "18" => new(18, 6),
-            _ => new(15, 0),
+            "16" => 15,
+            "17" => 11,
+            "18" => 6,
+            _ => 0,
         };
-        if (!Version.TryParse(actualVersion["PostgreSQL ".Length..], out Version? installed) || installed < minimum)
+        if (actualVersion.Stage == PostgresReleaseStage.Stable && actualVersion.Minor < minimumMinor)
         {
-            throw new InvalidOperationException($"The complete test suite requires PostgreSQL {minimum} or later in major {version}; the runner provides {actualVersion}. Update the runner installation or select it through PGROOT.");
+            throw new InvalidOperationException($"The complete test suite requires PostgreSQL {version}.{minimumMinor} or later in major {version}; the runner provides {actualVersion}. Update the runner installation or select it through PGROOT.");
         }
 
         Console.WriteLine($"Using preinstalled {actualVersion}.");
@@ -553,9 +555,9 @@ static void SelectPostgreSql(string version, string pgConfig)
 
 static void VerifyPostgreSqlVersion(string version)
 {
-    if (version is not ("15" or "16" or "17" or "18"))
+    if (version is not ("13" or "14" or "15" or "16" or "17" or "18" or "19"))
     {
-        throw new ArgumentOutOfRangeException(nameof(version), version, "PostgreSQL 15 through 18 are supported.");
+        throw new ArgumentOutOfRangeException(nameof(version), version, "PostgreSQL 13 through 19 are supported.");
     }
 }
 
@@ -693,7 +695,7 @@ static void InstallPostgreSqlLinux(string repositoryRoot, string version)
     if (Environment.GetEnvironmentVariable("RUNNER_ENVIRONMENT") == "self-hosted")
     {
         string pgConfig = $"/usr/lib/postgresql/{version}/bin/pg_config";
-        VerifyPostgreSqlHeaders(pgConfig);
+        VerifyPostgreSqlHeaders(pgConfig, version);
         Run("valgrind", ["--version"]);
         Run("valgrind", ["--error-exitcode=1", "/bin/true"]);
         return;
@@ -719,21 +721,30 @@ static void InstallPostgreSqlLinux(string repositoryRoot, string version)
         File.WriteAllBytes(keyPath, key);
     }
 
-    File.WriteAllText(sourcePath, $"deb [signed-by=/usr/share/keyrings/postgresql.gpg] https://apt.postgresql.org/pub/repos/apt {codeName}-pgdg main{Environment.NewLine}");
+    string components = version == "19" ? "main 19" : "main";
+    File.WriteAllText(sourcePath, $"deb [signed-by=/usr/share/keyrings/postgresql.gpg] https://apt.postgresql.org/pub/repos/apt {codeName}-pgdg {components}{Environment.NewLine}");
     Run("sudo", ["gpg", "--dearmor", "--yes", "--output", "/usr/share/keyrings/postgresql.gpg", keyPath]);
     Run("sudo", ["install", "-m", "644", sourcePath, "/etc/apt/sources.list.d/pgdg.list"]);
     Run("sudo", ["apt-get", "update"]);
     Run("sudo", ["apt-get", "install", "--yes", $"postgresql-{version}", $"postgresql-server-dev-{version}", "valgrind", "libc6-dbg"]);
 }
 
-static void VerifyPostgreSqlHeaders(string pgConfig)
+static PostgresVersion VerifyPostgreSqlHeaders(string pgConfig, string version)
 {
-    Run(pgConfig, ["--version"]);
-    string header = Path.Combine(Capture(pgConfig, ["--includedir-server"]), "postgres.h");
+    PostgresInstallation installation = PostgresInstallation.CreateAsync(pgConfig).GetAwaiter().GetResult();
+    if (installation.Label != "pg" + version)
+    {
+        throw new InvalidOperationException($"Expected PostgreSQL {version}, but the installation provides {installation.Version}.");
+    }
+
+    Console.WriteLine($"Using PostgreSQL {installation.Version}.");
+    string header = Path.Combine(installation.ServerIncludeDirectory, "postgres.h");
     if (!File.Exists(header))
     {
         throw new FileNotFoundException("The runner requires PostgreSQL server headers.", header);
     }
+
+    return installation.Version;
 }
 
 static void WriteEnvironment(string name, string value)
