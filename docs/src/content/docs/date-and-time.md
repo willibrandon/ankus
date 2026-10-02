@@ -129,6 +129,15 @@ components are zero. Mixed component signs are preserved. Managed equality
 compares exact components; PostgreSQL's interval comparison instead treats a
 month as thirty days.
 
+`PgInterval` implements `IComparable<PgInterval>`, so `Array.Sort`, `OrderBy`,
+`CompareTo` and the `<`, `>`, `<=` and `>=` operators use PostgreSQL's interval
+ordering outside the backend. Comparison treats months as thirty days and days
+as twenty-four hours, uses wide arithmetic, and sorts negative and positive
+infinity below and above every finite value. This is an ordering approximation,
+not a calendar-aware elapsed duration. One month and thirty days compare as zero
+while managed equality still distinguishes their stored components. Sorted
+collections that use this ordering therefore treat those values as equivalent.
+
 Use `Add`, `Subtract`, or arithmetic operators for PostgreSQL calendar arithmetic:
 
 ```csharp
@@ -144,7 +153,7 @@ result across a daylight-saving transition.
 Subtracting two timestamps returns an elapsed interval. `Age` returns a symbolic
 calendar difference with years and months. Intervals also support `Multiply`,
 `Divide`, `Negate`, `JustifyDays`, `JustifyHours`, and `Justify`. Use
-`CompareInPostgres` when you want PostgreSQL's interval ordering.
+`CompareInPostgres` to perform an interval comparison in the current backend.
 
 `PgInterval.Create` accepts years, months, weeks, days, hours, minutes, and fractional
 seconds. Named arguments make the calendar distinction explicit:

@@ -14,10 +14,10 @@ Equality compares storage components, rather than PostgreSQL's thirty-day-month 
 
 ```csharp
 [JsonConverter(typeof(PgIntervalConverter))]
-public readonly struct PgInterval : IEquatable<PgInterval>
+public readonly struct PgInterval : IComparable<PgInterval>, IEquatable<PgInterval>
 ```
 
-Implements: [IEquatable&lt;PgInterval&gt;](https://learn.microsoft.com/dotnet/api/system.iequatable-1)
+Implements: [IComparable&lt;PgInterval&gt;](https://learn.microsoft.com/dotnet/api/system.icomparable-1), [IEquatable&lt;PgInterval&gt;](https://learn.microsoft.com/dotnet/api/system.iequatable-1)
 
 ## Constructors
 
@@ -105,6 +105,29 @@ The interval to compare.
 Returns: [int](https://learn.microsoft.com/dotnet/api/system.int32)
 
 A negative value, zero, or a positive value when this interval sorts before, equals, or sorts after the other.
+
+<a id="member-264ff589a3b5c3f5"></a>
+
+### CompareTo(PgInterval)
+
+Compares intervals using PostgreSQL's thirty-day months and twenty-four-hour days without requiring a backend.
+Infinity sorts outside every finite interval. Distinct stored components can compare as equal.
+
+```csharp
+public int CompareTo(PgInterval other)
+```
+
+Parameters:
+
+`other` — [PgInterval](/api/ankus.pginterval/)
+
+The interval to compare.
+
+Returns: [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+A negative value, zero, or a positive value for a smaller, equivalent, or larger comparison duration.
+
+Ordering uses PostgreSQL's duration approximation; managed equality continues to compare exact components.
 
 <a id="member-6f75a51230cbe540"></a>
 
@@ -800,12 +823,84 @@ Parameters:
 
 Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
 
+<a id="member-44ec60c0dd546474"></a>
+
+### operator &gt;(PgInterval, PgInterval)
+
+Tests whether the left interval sorts after the right interval using PostgreSQL's comparison approximation.
+
+```csharp
+public static bool operator >(PgInterval left, PgInterval right)
+```
+
+Parameters:
+
+`left` — [PgInterval](/api/ankus.pginterval/)
+
+`right` — [PgInterval](/api/ankus.pginterval/)
+
+Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+<a id="member-d75f12ef81d64e36"></a>
+
+### operator &gt;=(PgInterval, PgInterval)
+
+Tests whether the left interval sorts after or compares as equivalent to the right interval.
+
+```csharp
+public static bool operator >=(PgInterval left, PgInterval right)
+```
+
+Parameters:
+
+`left` — [PgInterval](/api/ankus.pginterval/)
+
+`right` — [PgInterval](/api/ankus.pginterval/)
+
+Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
 <a id="member-e60a4a90c24caf99"></a>
 
 ### operator !=(PgInterval, PgInterval)
 
 ```csharp
 public static bool operator !=(PgInterval left, PgInterval right)
+```
+
+Parameters:
+
+`left` — [PgInterval](/api/ankus.pginterval/)
+
+`right` — [PgInterval](/api/ankus.pginterval/)
+
+Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+<a id="member-16965df577e0ad11"></a>
+
+### operator &lt;(PgInterval, PgInterval)
+
+Tests whether the left interval sorts before the right interval using PostgreSQL's comparison approximation.
+
+```csharp
+public static bool operator <(PgInterval left, PgInterval right)
+```
+
+Parameters:
+
+`left` — [PgInterval](/api/ankus.pginterval/)
+
+`right` — [PgInterval](/api/ankus.pginterval/)
+
+Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+<a id="member-ebbd2adce391ee46"></a>
+
+### operator &lt;=(PgInterval, PgInterval)
+
+Tests whether the left interval sorts before or compares as equivalent to the right interval.
+
+```csharp
+public static bool operator <=(PgInterval left, PgInterval right)
 ```
 
 Parameters:

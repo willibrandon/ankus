@@ -7,7 +7,7 @@ namespace Ankus;
 /// Equality compares storage components, rather than PostgreSQL's thirty-day-month comparison convention.
 /// </summary>
 [JsonConverter(typeof(PgIntervalConverter))]
-public readonly record struct PgInterval
+public readonly record struct PgInterval : IComparable<PgInterval>
 {
     private readonly int _infinity;
 
@@ -146,6 +146,40 @@ public readonly record struct PgInterval
 
         return ((Int128)Months * 30 + Days) * PgTemporal.MicrosecondsPerDay + Microseconds;
     }
+
+    /// <summary>
+    /// Compares intervals using PostgreSQL's thirty-day months and twenty-four-hour days without requiring a backend.
+    /// Infinity sorts outside every finite interval. Distinct stored components can compare as equal.
+    /// </summary>
+    /// <param name="other">The interval to compare.</param>
+    /// <returns>A negative value, zero, or a positive value for a smaller, equivalent, or larger comparison duration.</returns>
+    /// <remarks>
+    /// Ordering uses PostgreSQL's duration approximation; managed equality continues to compare exact components.
+    /// </remarks>
+    public int CompareTo(PgInterval other)
+        => IsFinite && other.IsFinite
+            ? ToComparisonMicroseconds().CompareTo(other.ToComparisonMicroseconds())
+            : _infinity.CompareTo(other._infinity);
+
+    /// <summary>
+    /// Tests whether the left interval sorts before the right interval using PostgreSQL's comparison approximation.
+    /// </summary>
+    public static bool operator <(PgInterval left, PgInterval right) => left.CompareTo(right) < 0;
+
+    /// <summary>
+    /// Tests whether the left interval sorts after the right interval using PostgreSQL's comparison approximation.
+    /// </summary>
+    public static bool operator >(PgInterval left, PgInterval right) => left.CompareTo(right) > 0;
+
+    /// <summary>
+    /// Tests whether the left interval sorts before or compares as equivalent to the right interval.
+    /// </summary>
+    public static bool operator <=(PgInterval left, PgInterval right) => left.CompareTo(right) <= 0;
+
+    /// <summary>
+    /// Tests whether the left interval sorts after or compares as equivalent to the right interval.
+    /// </summary>
+    public static bool operator >=(PgInterval left, PgInterval right) => left.CompareTo(right) >= 0;
 
     /// <summary>
     /// Gets -1, 0, or 1 using PostgreSQL's thirty-day-month comparison, including infinities. No backend is required.

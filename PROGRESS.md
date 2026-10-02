@@ -1981,6 +1981,16 @@ acceptance and scheduled-version activation remain required.
 
 ## Interval ordering review draft
 
+Interval ordering is promoted as a separate API milestone after the additional-
+major prerequisites. `PgInterval` now implements `IComparable<PgInterval>` and
+ordered operators using PostgreSQL's thirty-day-month comparison rule with an
+exact wide accumulator and separate infinity ordering. Component equality is
+unchanged. The managed boundary cases and real `interval_cmp`/SQL operator,
+unsupported-infinity and same-backend recovery cases pass as recorded below.
+Both complete accepted compositions and final Release/API/site checks are
+retained; all **244** composed identities match the primary checkout before
+commit. No later unrelated template draft is included in that evidence.
+
 Final combined PostgreSQL **13.23/Linux x64** acceptance completes with
 **10,978 total, 10,964 passed, zero failures, 14 platform skips**, all six
 modules, **23m02.233s**. All **244** local and tested remote source identities
