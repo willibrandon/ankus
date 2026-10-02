@@ -32,7 +32,11 @@ public sealed class GlobalProjectPropertiesTests(TestContext context)
                 """, context.CancellationToken);
             await File.WriteAllTextAsync(parent, """
                 <Project Sdk="Microsoft.NET.Sdk">
-                  <PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup>
+                  <PropertyGroup>
+                    <TargetFramework>net10.0</TargetFramework>
+                    <AnkusPostgresMajor />
+                    <AnkusPgConfigPath />
+                  </PropertyGroup>
                   <ItemGroup><ProjectReference Include="extension.csproj" /></ItemGroup>
                 </Project>
                 """, context.CancellationToken);

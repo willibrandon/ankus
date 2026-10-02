@@ -346,7 +346,7 @@ public sealed partial class ToolCommandTests
     /// Creates a packed consumer whose fixture and native SQL both observe the selected server major.
     /// </summary>
     /// <param name="token">Cancels scaffolding and writes.</param>
-    /// <returns>The generated solution directory.</returns>
+    /// <returns>The generated solution directory with symbolic-link ancestors resolved.</returns>
     private static async Task<string> CreateSelectionProjectAsync(CancellationToken token)
     {
         string output = Path.Combine(CreateDirectory(), "selection project");
@@ -371,7 +371,7 @@ public sealed partial class ToolCommandTests
                 }
             }
             """, token);
-        return output;
+        return IntegrationEnvironment.PhysicalDirectory(new DirectoryInfo(output));
     }
 
     /// <summary>

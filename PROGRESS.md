@@ -84,10 +84,10 @@ remains incomplete; the following work is additional to the open parity gates.
 | PostgreSQL selection | Confirmed and corrected. Project evaluation, test-host runtime configuration and CLI defaults honor the selected major and installation. Explicit choices retain precedence. The complete PostgreSQL 17.11/Linux x64 suite passes, including packed consumers and actual backend execution. CI also passes on Linux x64/macOS ARM64 PostgreSQL 18 and Windows x64 PostgreSQL 17. |
 | Declarative parity | Extended module magic, custom datum alignment and managed `PgRequires`/`PgBefore` references pass complete dedicated-platform CI. `PgSupportFunction` provides checked planner references and prerequisites. Typed aggregate capabilities cover owned state, parallel transport, moving windows, ordered/hypothetical calls and polymorphic final-extra values. Generated SQL now retains source lines, managed declarations, prerequisites and connected-object markers through publication and full/selected extraction, preserving deterministic ordering. Planner, aggregate and provenance milestones now pass full CI on Linux x64/macOS ARM64 PostgreSQL 18 and Windows x64 PostgreSQL 17. The remaining version/platform matrix is still required. |
 | Runtime APIs and performance | Guarded `PgInterrupts.Check()` supports managed loops, retained cancellation and Windows queued signals. Nonterminal reporting now defers interrupts through native emission and cleanup, preserving inherited holdoffs on success and failure. Direct/native checks and the complete PostgreSQL 18.6/Linux x64 suite pass; full reporting CI also passes on Linux x64/macOS ARM64 PostgreSQL 18 and Windows x64 PostgreSQL 17. SPI read/write semantics, numeric representation and guard/array costs remain open. Preserve the recovery contract and measure performance claims. |
-| Tooling and upstream drift | The pgrx 0.19.3 inventory and OID refresh plus PostgreSQL 19 beta 4 SQLSTATE alignment pass complete PostgreSQL 18.6 and 19 beta 4/Linux x64 suites. Independent binding generation passes for all seven majors on Linux x64, plus macOS ARM64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.11. Refresh/repair CI passes the complete dedicated-platform suites; the remaining full version/platform matrix is still required. General build-property forwarding and environment selection pass plain full PostgreSQL 18.6/Linux x64 and primary Release/API/site gates; committed 673c44c awaits fresh platform CI. Scriptable information now passes plain full PostgreSQL 18.6/Linux x64, Release/API/site gates; fresh platform CI remains required. The package-prefix final complete suite is active. Additional-major workflow and prerequisites are being prepared, with actual complete version results still required. Account/privilege selection, benchmarks and regression scaffolding remain open. Test-command custom data directories and schema reuse have real installed-consumer evidence below. |
+| Tooling and upstream drift | The pgrx 0.19.3 inventory and OID refresh plus PostgreSQL 19 beta 4 SQLSTATE alignment pass complete PostgreSQL 18.6 and 19 beta 4/Linux x64 suites. Independent binding generation passes for all seven majors on Linux x64, plus macOS ARM64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.11. Refresh/repair CI passes the complete dedicated-platform suites; the remaining full version/platform matrix is still required. General build-property forwarding, environment selection, scriptable information and package prefixes pass plain full PostgreSQL 18.6/Linux x64 and Release/API/site gates. The final composition also passes complete native acceptance with both CI fixture corrections and bounded compiler-input hashing; fresh corrected platform CI remains required. Additional-major workflow and prerequisites are being prepared, with actual complete version results still required. Account/privilege selection and benchmarks remain open; regression scaffolding has focused native evidence with its complete suite active. Test-command custom data directories and schema reuse have real installed-consumer evidence below. |
 | .NET author experience | Cached declaration, conversion, catalog and method-inventory stages pass complete PostgreSQL 18.6/Linux acceptance and dedicated-platform CI, including reference/provider/native-compilation models. Final graph/artifact rendering and the Windows assertion repair pass the complete Linux/macOS PostgreSQL 18 and Windows PostgreSQL 17 CI suites. Precise ANKUS030–043 asynchronous and ordinary-signature diagnostics, installation-schema search paths and C# operator/conversion declarations pass complete native, Release/docs and all three platform CI gates. Broader diagnostics/code fixes, templates, namespace/API discoverability, formatting/parsing/comparison helpers, safe parameter binding, raw-call visibility and testing discovery/framework documentation remain open. |
 | Packaging | Added the MIT license, copyright Brandon Williams, and shared author/license/project/repository metadata following the author's other repository. Verified the metadata in all seven locally packed packages, including the Linux runtime package; no packages are published. |
-| Platform coverage | Complete full-suite evidence for the supported major/platform combinations, including macOS x64 and library-suffix boundaries. Use GitHub-hosted runners where dedicated machines cannot cover the target, retaining complete suites and appropriate caches. The first weekly/manual GitHub-hosted Intel macOS run built and cached the runtime, then exposed a stale PostgreSQL build-time SDK path before tests. Native builds now select the installed macOS SDK; a successful complete Intel run remains required. Existing focused version probes are not full-suite coverage. |
+| Platform coverage | Complete full-suite evidence for the supported major/platform combinations, including macOS x64 and library-suffix boundaries, remains required. Use GitHub-hosted runners where dedicated machines cannot cover the target, retaining complete suites and appropriate caches. Native builds now select the installed macOS SDK. The latest Intel run reaches real backend testing but exposes three relative-path fixture errors and hits the 60-minute limit. Its fixture correction and measured binding-build investigation are active; a successful complete Intel run remains required. Existing focused version probes are not full-suite coverage. |
 | Documentation and samples | Marked the old macOS checkpoint-server prototype as superseded by stock-server evidence and labelled higher-level custom scans as additional Ankus scope. Added the pgrx migration guide and expanded .NET hosting guidance for threads, signals, memory and backend lifetimes. Converted the public average sample to compiler-checked aggregate capabilities and verified its PostgreSQL behavior. Other representative samples and a more navigable evidence archive remain required. Reference-repository process rules do not replace this repository's progress requirements. |
 
 ## Custom datum alignment review
@@ -974,6 +974,17 @@ Historical **36930730662** retains its recorded Windows newline failure, already
 repaired by **d08bdc6** and verified by subsequent full platform runs. No new
 failure is outstanding and no active run is canceled.
 
+The information milestone is committed and pushed as **5a46269**. The same
+twenty preceding run outcomes are checked and retained again immediately before
+push: **17 successful**, the previously repaired historical failure, and the
+two active runs described above. Fresh CI **36957512067** is queued and Docs
+**36957511980** is active. The complete package-prefix validator continues on
+its unchanged source; no CI or local test run is canceled.
+
+Documentation CI **36957511980** now succeeds. Information CI **36957512067**
+remains queued behind active dedicated-platform work; the preceding main run and
+Intel macOS validation remain live. All configured runners report online.
+
 ## Package-prefix draft
 
 The package-prefix gap is confirmed against the pinned pgrx **0.19.3** source.
@@ -1036,6 +1047,65 @@ starts on that unchanged final source. Its terminal result, primary verification
 and fresh dedicated-platform execution remain required; the earlier focused
 results do not establish this full gate.
 
+That unchanged package-prefix source now passes plain complete `dotnet test`
+on PostgreSQL **18.6/Linux x64**: **10,830 total, 10,816 passed, zero failed,
+14 platform skips, 53m49.176s**. All six modules finish; the durable wrapper
+records terminal exit **0** and all **199** source hashes match afterward.
+Elapsed invocation time including the initial solution build is **56m09.269s**.
+This validates the prefix snapshot; the later CI fixture and compiler-input
+corrections still require final combined acceptance and fresh platform CI.
+
+## CI project-selection fixture repair
+
+Fresh property/environment CI **36956361987** exposes one macOS ARM64/PostgreSQL
+18 generator failure in **20m56s**: `GlobalPropertiesSelectConditionalProjectAndReference`
+expects inherited major 17 but receives 18. The full backend module succeeds.
+The same test reproduces this exact failure on Linux x64 under scoped CI
+environment values. Its parent fixture did not declare an absence of PostgreSQL
+settings, so MSBuild correctly inherited the CI installation before inspecting
+project references. Existing selection fixtures already explicitly empty both
+properties when testing reference inheritance.
+
+The correction explicitly empties the parent's major and executable path.
+Every original behavior assertion remains: conditional major, exact inherited
+path across three public entry points, and unchanged caller properties. No
+production discovery rule or diagnostic severity changes. All **five** affected
+class cases pass under scoped CI major **18** (**2.869s**) and **17**
+(**3.127s**), zero failures/skips. These are evaluation checks, not a PostgreSQL
+17 server run. The failing original and exact source identities are retained.
+
+Final acceptance combines this test-only correction with the pending package
+prefix feature on the committed information baseline. All **199** source hashes
+verify on the separate validator. Complete generator, Release/API/site and plain
+full native gates now target that composition; the earlier prefix full run stays
+unchanged and active. Other CI jobs and Intel macOS remain independently active.
+Fresh platform execution of the final correction remains required.
+
+The final composition's complete generator project passes **3,031 tests, zero
+failures/skips, 1m01.374s**, with the scoped CI PostgreSQL 18 environment.
+Its process exits **0** and all **199** source hashes match afterward. Release,
+API/site and plain complete native validation remain required before promotion.
+
+The same final composition now passes its Release rebuild with **zero warnings
+or errors, 2m57.22s**. API freshness and actual regeneration verify **235
+pages / 2,683 members**; the site builds **283 pages in 4.66s** and checks with
+zero errors, warnings or hints. All **199** source hashes match after these
+terminal checks. Plain full `dotnet test` is running against PostgreSQL
+**18.6/Linux x64** with the scoped CI settings. Its terminal result and fresh
+platform CI remain required; no dependency installation changes either live
+full-suite validator.
+
+Run **36956361987** now finishes: Linux x64/PostgreSQL 18 **25m36s**,
+macOS ARM64/PostgreSQL 18 **20m56s**, Windows x64/PostgreSQL 17 **26m33s**.
+All three fail only the same parent-selection fixture; Windows reaches the
+exact-path assertion because its ambient major already equals 17. Every backend
+integration module passes: **4,232** cases on Linux, **4,220** on macOS and
+**4,216** on Windows, with their documented platform skips. Quality and all
+runtime jobs succeed. No timeout or backend failure is reported. These successes
+do not make the failed whole jobs passing evidence; final corrected CI remains
+required. Information CI **36957512067** and Intel macOS **36954573679** retain
+their unchanged commits and continue independently.
+
 ## Additional PostgreSQL version workflow draft
 
 A separate weekly/manual workflow is drafted for complete Linux x64 suites
@@ -1062,6 +1132,206 @@ The scriptable-information complete run remains live, as do the final prefix
 suite and hosted Intel macOS CI. Current property/environment Docs CI succeeds;
 its quality/runtime jobs succeed while the three platform suites remain active.
 No new platform success is inferred from those unfinished jobs.
+
+Further review replaces the draft major-prefix check and the Windows-only
+`System.Version` parser with the existing public PostgreSQL installation API.
+The engineering app references `Ankus.PgConfig` directly; no production
+`InternalsVisibleTo`, duplicate parser or version coercion is introduced.
+Stable maintenance floors for 16–18 remain, while other majors use their own
+minor-zero floor instead of incorrectly applying 15.0 to PostgreSQL 13/14.
+The actual stable SDK compiles that project reference and the PostgreSQL 18.6
+preflight succeeds. Wrong-major and missing-header checks retain their precise
+failures, and all **40** frozen descriptor/helper paths match. Actual beta,
+Windows and additional-major full execution remains required.
+
+## Hosted Intel timeout and relative-path fixture
+
+Additional-platform run **36954573679**, committed **c328b30**, ends at its
+**60-minute** job limit. The complete terminal log now exposes three failed
+`PlainTestHonorsProjectPostgresSelection` rows: extension-relative,
+project-relative and import-relative. The earlier downloadable partial log
+ended before those failures. Five other modules finish with zero failures;
+integration has no completed whole-module result and cannot count as passing
+platform evidence. The canceled run and its timing/report artifacts are retained.
+
+The relative-path fixtures calculate parent traversal from macOS's logical
+temporary-directory alias, while their child build uses the physical directory
+with an extra ancestor. Their authored paths consequently select a nonexistent
+installation. The existing shared physical-directory resolver supplies the
+correct fixture base. A separate test-only revision preserves genuinely relative
+paths, exact path assertions and actual server checks. Original sources are
+being checked with an owned ancestor alias on Linux; no production discovery
+rule, assertion, platform skip or analyzer severity changes. The two earlier
+full validators retain their unchanged sources and cannot prove this revision.
+
+Timing artifacts also show repeated native binding work dominating publication:
+the initial build's **22** binding target calls total **1,970.477s** of aggregate
+target time, while later consumer publications record roughly **34–223s** per
+binding target. Aggregate target times overlap and are not wall-clock duration.
+Individual Native AOT compilation targets are usually much shorter. Further
+phase measurement is required before changing caching or verification. Retain
+the complete suite and the requested 60-minute limit.
+
+After the session restart, all three existing validation processes are checked
+directly and remain alive; no tests are restarted or canceled. Information CI
+**36957512067** completes its macOS ARM64/PostgreSQL 18 job in **20m53s** with
+the same single ambient-property fixture failure already reproduced and fixed
+in the draft. Its integration module passes; Linux and Windows remain active.
+The additional relative-path correction still needs terminal affected-scope
+results and final complete acceptance before promotion.
+
+The unchanged original relative-path fixture reproduces **all three failures**
+under an owned temporary-directory ancestor alias on PostgreSQL **18.6/Linux
+x64**: **three failed, zero passed/skipped, 10m00.028s**, terminal exit **2**.
+Each child build resolves the authored relative executable from its physical
+project directory and fails before testing; this matches the Intel failures.
+All **196** original source hashes still match after the run. The corrected
+composition's **199** hashes verify before deployment, and all **seven** plain
+test selection cases now run under that same alias. No filtered result is yet
+claimed as complete acceptance.
+
+Information CI **36957512067** now ends: Linux x64/PostgreSQL 18 **25m29s**,
+macOS ARM64/PostgreSQL 18 **20m53s**, Windows x64/PostgreSQL 17 **24m00s**.
+Every whole platform job fails only the same inherited-property generator
+fixture; the full integration modules, quality and runtime jobs succeed.
+The terminal logs are checked individually. This is repeated evidence on the
+unchanged committed source, not a new failure in the correction. The remaining
+Intel timeout investigation uses isolated phase timestamps around the existing
+binding checks; it does not remove ABI verification or change live validators.
+
+## Managed binding compiler-input hashing draft
+
+Isolated phase measurements on PostgreSQL **18.6/Linux x64** preserve all ten
+native source artifacts exactly: cold collection **16.421s**, warm verification
+**3.965s / 4.154s**, all terminal exit **0**. Separate managed companion calls
+complete cold **129.142s** and warm **22.654s / 21.467s**, with identical DLL,
+XML and PDB artifacts. These workloads overlap other validation and are not a
+controlled platform speed comparison.
+
+The companion's retained binary log identifies **16.269s** inside MSBuild's
+`GetFileHash`; the preparation-only pass repeats that same target on every warm
+cache lookup. Phase timestamps record roughly **19–21s** there, while hashing
+the complete SDK/runtime inventory takes less than half a second. The MSBuild
+reference implements these hashes through parallel workers waiting synchronously
+on asynchronous reads. The draft keeps MSBuild's exact selected file inventory
+and uses the existing build helper's bounded asynchronous content reader,
+deduplicating paths before hashing. Reference, analyzer/dependency, source,
+editor-configuration, SDK/runtime and restore observations remain required;
+post-compilation comparison, cache verification and native ABI checks remain.
+
+Direct inventory and existing cache tests pass **35/35**, zero failures/skips,
+**0.904s** on Linux x64. Independent SHA-256 oracles cover duplicate/unordered
+inputs, spaces/Unicode, empty files, same-timestamp content changes, malformed
+inventories, missing files and cancellation. The build-helper Release build
+passes with zero warnings/errors (**5.09s**). Complete companion measurement,
+installed/native regression, final plain full-suite, Release/API/site and fresh
+platform gates remain required; no timing-only result establishes port parity.
+
+The corrected companion completes one cold and two warm calls with all checks
+enabled: **76.944s**, then **1.700s / 1.659s**, all terminal exit **0**.
+Each warm result retains identical DLL/XML/PDB bytes, and the three final
+artifacts also match the original implementation's compiled artifacts exactly.
+The observed warm-call reduction is about **92%** for this isolated command;
+overlapping workloads and cold compilation differ, so this does not establish
+a whole-suite or Intel platform speedup. A final composition freezes **202**
+source hashes without diagnostic instrumentation. Complete acceptance and fresh
+platform CI remain required.
+
+The physical-directory correction passes all **seven** plain project-selection
+rows beneath the same owned ancestor alias: **7/7**, zero failures/skips,
+**13m55.389s**, PostgreSQL **18.6/Linux x64**. It executes the generated test
+hosts and published native extensions against the actual selected server;
+all **199** corrected snapshot hashes match after terminal exit **0**. Final
+Release/API/site and plain full acceptance now use the **202**-hash composition
+with the compiler-input correction. The earlier full environment validator
+continues on its unchanged source, and dependency installation remains deferred
+until those processes finish.
+
+The final **202**-hash composition passes a Release rebuild with **zero warnings
+or errors, 2m06.70s**. API freshness verifies **235 pages / 2,683 members**;
+actual site regeneration builds **283 pages in 3.38s**, and the site check has
+zero errors, warnings or hints. All **202** source hashes match after those
+terminal gates. Plain complete `dotnet test` now runs against PostgreSQL
+**18.6/Linux x64** with the same scoped CI settings. Its terminal outcome and
+fresh corrected platform CI remain required before treating this repair as
+fully verified. Both reported primary CI runs were rechecked and retain the
+same single fixture failure per platform; quality and runtime jobs succeed.
+
+The preceding **199**-hash environment/prefix composition's complete plain suite
+now exits **0**, PostgreSQL **18.6/Linux x64**: **10,830 total, 10,816 passed,
+zero failed and 14 platform skips, 55m33.007s**. All six modules complete and all
+**199** source hashes match after terminal exit. This proves the original CI
+ambient-property fixture repair in a full suite under the scoped CI settings;
+it does not substitute for final **202**-hash acceptance with the additional
+physical-directory and compiler-input corrections, which remains active at that checkpoint.
+
+The final **202**-hash composition now passes plain complete `dotnet test`,
+PostgreSQL **18.6/Linux x64**: **10,836 total, 10,822 passed, zero failed and
+14 platform skips, 32m07.661s**. All six modules complete, terminal exit is
+**0**, and all **202** source hashes match in both the validator and primary
+checkout afterward. Invocation time including the initial build is **33m32.025s**.
+Together with the final Release/API/site results above, this establishes local
+acceptance for the fixture repairs, package-prefix feature and compiler-input
+hashing change. It does not establish a controlled whole-suite speed comparison
+or successful Intel/macOS/Windows execution of this revision.
+
+Immediately before the fixture repair commit, preceding CI outcomes are checked:
+**36957512067** and **36956361987** retain their single fixture failure per
+platform; Docs **36957511980** and **36956361960** succeed. Hosted Intel
+**36954573679** retains its three relative-path fixture failures and 60-minute
+timeout. Earlier main CI **36951253669** and its Docs run succeed. No preceding
+run is still active. The fixes retain the original assertions, full test suites
+and analyzer standards; fresh platform execution remains required.
+
+## SQL regression scaffolding draft
+
+The review's missing `ankus new` SQL regression files are confirmed against the
+current bundled templates and pgrx's new-project command. A separate draft adds
+`pg_regress/sql/setup.sql` and matching `expected/setup.out` beside the extension
+project, using the chosen SQL extension name. Common templates provide the files
+for ordinary and background-worker projects. Expectations are written after SQL,
+matching pgrx's initial setup timestamp baseline rather than depending on
+filesystem enumeration order. No output timestamps are rewritten.
+
+Two installed-consumer cases exercise derived and explicit extension names,
+actual Native AOT regression execution, backend catalog identity and arithmetic,
+database reuse and unchanged setup/expected bytes. The existing worker-template
+case also checks its rendered setup files. Compilation and execution remain
+pending; this draft does not change the running CI repair acceptance snapshot.
+
+The affected integration project compiles in Release with **zero warnings/errors,
+1m03.08s**, PostgreSQL **18.6/Linux x64**, LLVM Clang **21**. An initial local
+invocation selected Clang 19 and failed the documented Clang 20 minimum before
+test compilation; selecting the already installed supported frontend resolves
+that environment error without a source change. The three affected installed
+consumer cases are now running. Their terminal outcome and complete final gates
+remain required.
+
+The affected installed-consumer scope now exits **0**: **three passed, zero
+failed/skipped, 5m07.989s**, PostgreSQL **18.6/Linux x64**. Both ordinary scaffold
+rows run PostgreSQL's real regression comparator and execute the generated native
+`add` function. They retain the expected extension catalog name, reuse the same
+regression database and leave initial setup/expected bytes unchanged. The worker
+scaffold retains its eight passing generated managed/backend tests, including
+the independent preloaded worker, and checks its rendered setup files. Complete
+final scaffold acceptance and cross-platform CI remain required; this result is
+independent of the still-running CI repair composition.
+
+After that focused child exits, final scaffold acceptance combines the draft
+with the unchanged CI fixture, package-prefix and compiler-input corrections.
+It freezes **209** source hashes and begins its Release rebuild. The separate
+**202**-hash CI repair full run remains unchanged. Full scaffold/native,
+Release/API/site and fresh platform gates on the combined source remain required.
+
+The **209**-hash scaffold composition's Release rebuild succeeds with **zero
+warnings/errors, 1m10.35s**. API freshness verifies **235 pages / 2,683 members**;
+actual regeneration builds **283 site pages in 8.91s**, and site checking has
+zero errors, warnings or hints. All **209** source hashes match after these
+terminal gates. After the preceding environment validator finishes and its
+original hashes verify, that idle checkout receives the final scaffold snapshot
+and starts plain complete `dotnet test` against PostgreSQL **18.6/Linux x64**.
+The separate CI repair validator keeps its unchanged **202**-hash source.
+No shared host dependencies are installed during either live complete run.
 
 ## C# operator and conversion declaration draft
 
