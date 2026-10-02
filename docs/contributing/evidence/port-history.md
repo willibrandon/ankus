@@ -1,6 +1,67 @@
 # Historical port evidence
 
+## Binding source-cache generator identity
+
+The source-cache key included the generator's absolute installation path, and
+the persisted dependency list retained that producer path. A controlled baseline
+with identical helper bytes in two owned locations creates two entries despite
+all ten delivered artifacts matching. Reuse also depends on the old producer
+remaining present if only the key is changed.
+
+The correction keys the generator by its content hash and retains physical
+compiler/library dependencies. The current helper remains in before/after input
+verification; native preprocessing, declaration and ABI checks are unchanged.
+The corrected probe uses one entry through relocation and removal of the
+original helper, with identical delivered bytes.
+
+A real packaged-helper regression passes **1/1**, zero failures/skips,
+**5m45.273s**, on PostgreSQL **18.6/Linux x64**. It verifies all ten artifact
+hashes, one immutable cache entry through relocation/producer removal, and a
+new entry when helper bytes change while its timestamp is preserved. The helper
+Release build also passes with zero warnings/errors (**9.28s**). These runs share
+resources with independent validation and do not establish a speedup.
+
+The composed correction then passes literal plain `dotnet test` against
+PostgreSQL **18.6/Linux x64**, with all six modules complete: **11,346 total;
+11,332 passed; zero failures; 14 platform skips; 39m21.504s**. All **336**
+frozen source and **26** accepted runtime identities verify after terminal
+success. Independent namespace checks and the companion probe share this host
+during part of the run. Its elapsed time is acceptance evidence, not an isolated
+performance comparison. Final Release passes with **zero warnings/errors,
+1m34.11s**. API freshness verifies **238 pages / 2,757 members**; the site builds
+**286 pages in 9.41s** and reports zero errors, warnings or hints. All 336 source
+and 26 runtime identities verify again afterward.
+
+The packaged Windows x64/PostgreSQL **17.11** regression passes **1/1**, zero
+failures/skips, **5m16.398s**. All **336** physical source and **52** accepted
+runtime identities verify afterward. The **334** non-evidence source files
+match Linux's final draft apart from Git line endings. Fresh complete platform
+CI remains required. Previous primary/docs/version results are checked before
+commit: 2446e3c and d78e49c are fully green; the c4a092d Windows failures have
+passing replacements. The independent Intel timeout remains open.
+
+A separate compiled-companion probe confirms a related remaining issue. With
+the generated source, SDK and restore settings held fixed, moving identical
+runtime bytes causes another compilation and a second entry. Moving identical
+helper bytes then causes a third compilation and entry. All three delivered
+artifacts (DLL, PDB and XML) remain byte-identical through both relocations.
+Removing the original producer permits reuse of the third entry. This proves
+unnecessary compiled-cache invalidation; it is not fixed by the source-cache
+change above. Restore policy and current input verification must be preserved
+when correcting it. The probe shares resources with ongoing acceptance and
+does not establish an isolated speedup or resolve the Intel timeout.
+
 ## Relative Ankus home across build and test processes
+
+The milestone is committed and pushed as **2446e3c**.
+[CI 37066979915](https://github.com/willibrandon/ankus/actions/runs/37066979915)
+passes quality, all runtime jobs and all three complete primary-platform suites.
+Six downloaded TRX modules per platform report **11,345 total**, with zero
+failures: Linux x64/PostgreSQL 18 has **11,331 passed / 14 skips, 36m26s** job
+time; macOS ARM64/18 has **11,319 passed / 26 skips, 26m54s**; Windows x64/17
+has **11,320 passed / 25 skips, 31m21s**.
+[Docs 37066979878](https://github.com/willibrandon/ankus/actions/runs/37066979878)
+passes. The separate Intel timeout remains unresolved.
 
 The unchanged-product regression fails both cases: a native build started from
 the caller's directory ignores an unavailable registration in a relative

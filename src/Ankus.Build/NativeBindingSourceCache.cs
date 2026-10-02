@@ -48,11 +48,15 @@ internal static class NativeBindingSourceCache
             }
 
             NativeBindingCacheFile[] tools = await NativeBindingCache.SnapshotAsync(ToolFiles(compiler, library), cancellationToken);
+            string helperPath = PhysicalPath(typeof(NativeBindingSourceCache).Assembly.Location);
+            NativeBindingCacheFile helper = tools.Single(input => input.Path == helperPath);
+            NativeBindingCacheFile[] nativeTools = [.. tools.Where(input => input.Path != helperPath)];
             string key = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new
             {
                 Observation = observation,
                 NativeCompiler = arguments.Length >= 4 ? arguments[3] : "",
-                Tools = tools,
+                Tools = nativeTools,
+                Generator = helper.Hash,
                 Compiler = compiler,
                 Library = library,
                 Options = options,
@@ -81,7 +85,9 @@ internal static class NativeBindingSourceCache
                 await File.WriteAllTextAsync(Path.Combine(stage, Artifacts[3]), binding.AssemblyName + "\n", token);
                 await File.WriteAllTextAsync(Path.Combine(stage, Artifacts[4]), binding.AbiIdentity + "\n", token);
                 await VerifyObservationAsync(token);
-                return tools;
+                // The generator's current bytes are part of the key and verified again above.
+                // Keeping its former package location here would invalidate an otherwise shared entry.
+                return nativeTools;
             }, cancellationToken))
             {
                 // Keep the shared entry stable only until its artifacts have been copied.
@@ -159,7 +165,15 @@ internal static class NativeBindingSourceCache
             .Where(static file => file.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) || file.EndsWith(".dylib", StringComparison.Ordinal) ||
                 Path.GetFileName(file).Contains(".so", StringComparison.Ordinal))
             .Append(compiler).Append(library).Append(typeof(NativeBindingSourceCache).Assembly.Location)
-            .Select(static file => new FileInfo(file).ResolveLinkTarget(returnFinalTarget: true)?.FullName ?? Path.GetFullPath(file))
+            .Select(PhysicalPath)
             .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal);
     }
+
+    /// <summary>
+    /// Resolves selected tool links consistently for content observation and dependency classification.
+    /// </summary>
+    /// <param name="file">The selected compiler, library or generator file.</param>
+    /// <returns>The final link target or absolute file path.</returns>
+    private static string PhysicalPath(string file)
+        => new FileInfo(file).ResolveLinkTarget(returnFinalTarget: true)?.FullName ?? Path.GetFullPath(file);
 }
