@@ -81,7 +81,6 @@ internal static class NativeRangeBridge
         {
             AnkusParameter parameter = {0};
             const char *data;
-            char *terminated = NULL;
             Datum result;
             parameter.type_oid = subtype;
             parameter.value.integral = pq_getmsgint64(buffer);
@@ -96,18 +95,8 @@ internal static class NativeRangeBridge
             if (parameter.value.length < 0 || (subtype != NUMERICOID && parameter.value.length != 0))
                 ereport(ERROR, (errcode(ERRCODE_INVALID_BINARY_REPRESENTATION), errmsg("Invalid range bound length")));
             data = pq_getmsgbytes(buffer, parameter.value.length);
-            if (subtype == NUMERICOID)
-            {
-                if (memchr(data, 0, parameter.value.length) != NULL)
-                    ereport(ERROR, (errcode(ERRCODE_INVALID_BINARY_REPRESENTATION), errmsg("NUL in numeric range bound")));
-                terminated = pnstrdup(data, parameter.value.length);
-                data = terminated;
-            }
-
             parameter.value.data = (unsigned char *) data;
             result = ankus_parameter_datum(&parameter);
-            if (terminated != NULL)
-                pfree(terminated);
             return result;
         }
 

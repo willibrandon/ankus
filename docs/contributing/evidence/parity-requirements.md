@@ -42,8 +42,10 @@ Additional tooling sources: `cargo-pgrx/src/{manifest,metadata}.rs`, command opt
 `pgrx-pg-config/src/`, `pgrx-bindgen/src/`, and installation/upgrade fixtures in `cargo-pgrx/tests/`.
 General build-property forwarding must reach both project evaluation and every
 related build/test invocation, matching the upstream cargo-option contract.
-That support, environment-based installation selection, execution-account options
-and privileged installation remain open; the review matrix tracks them explicitly.
+Build-property forwarding and environment-based installation selection are
+implemented; see the [CLI guide](../../src/content/docs/reference/cli.md#pass-msbuild-properties)
+and recorded complete-suite evidence. Execution-account options and privileged
+installation remain open. Complete version/platform validation is still required.
 The framework also requires versioned extension SQL upgrades, custom/versioned shared-library names,
 control-file settings, dependency handling, and deterministic packaging.
 Primary author settings and native dependency/privilege behavior are implemented

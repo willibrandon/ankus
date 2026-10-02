@@ -61,7 +61,7 @@ defines the full scope; family-level implementation is not API-by-API completion
 | Aggregates and SQL graph | Static abstract aggregate capabilities, typed Requires/Before/SupportFunction references, deterministic SQL provenance and extended module magic. | Remaining inventoried contracts and complete version/platform acceptance. |
 | Generator caching | Detached equatable declaration/provider/reference models and cached dispatcher/C/SQL artifact rendering, with tracked-step regressions. | Broader precise diagnostics, useful semantic code fixes and final inventory audit. |
 | Values and ownership | Documented scalar, array, composite, temporal, JSON, network, geometry, custom codec and raw datum contracts. Interval ordering matches PostgreSQL outside the backend. | Remaining mapped/container contracts, parsing/formatting ergonomics and complete source-case mapping. |
-| Runtime performance | Recovery and allocator invariants have native tests. | Owned binary PgNumeric, appropriately guarded pure operations, array costs and measured benchmarks. Never weaken error recovery to reduce overhead. |
+| Runtime performance | Owned binary PgNumeric, native recovery/allocator tests and measured text/binary query comparisons. | Direct managed-decimal encoding, appropriately guarded pure operations, array costs and permanent benchmarks. Never weaken error recovery to reduce overhead. |
 | Native bindings | pgrx 0.19.3 inventories, matching PostgreSQL 19 beta 4 inputs and target-compiler ABI checks; focused binding checks cover all seven majors. | Full supported-major/platform tests, raw-call unsafe visibility and final inventory audit. |
 | Development CLI | Version/project selection, installation/registration, cluster lifecycle, run/connect, test/regress, property forwarding, environment selection, scriptable info and package prefixes. | Account/privilege selection, in-backend benchmarking and remaining inventoried CLI/platform contracts. |
 | .NET templates | Version-matched ordinary extension and worker templates reuse the CLI assets, pin local tools and run real backend/MSTest consumers. Complete primary-platform CI passes. | Additional test-framework templates and discovery documentation. |
@@ -104,6 +104,11 @@ tests or binding-only probes. Counts supplement the native behavior assertions.
 | Same CI / revision | Windows x64 / 17 | 11,027 total; 11,002 passed; 25 platform skips; zero failures | 25m23s job |
 | 906b752 with both regression-fixture corrections | Linux x64 / 19 beta 4 | 11,027 total; 11,013 passed; 14 platform skips; zero failures | 26m39.146s tests |
 | 7b6ce06 source composition with parameterized SPI commands | Linux x64 / 18.6 | 11,120 total; 11,106 passed; 14 platform skips; zero failures | 24m31.735s tests |
+| [CI 37016083898](https://github.com/willibrandon/ankus/actions/runs/37016083898), c3db5ed | Linux x64 / 18 | 11,120 total; 11,106 passed; 14 platform skips; zero failures | 26m36s job |
+| Same CI / revision | macOS ARM64 / 18 | 11,120 total; 11,094 passed; 26 platform skips; zero failures | 20m12s job |
+| Same CI / revision | Windows x64 / 17 | 11,120 total; 11,095 passed; 25 platform skips; zero failures | 25m22s job |
+| [Version CI 37016275325](https://github.com/willibrandon/ankus/actions/runs/37016275325), c3db5ed | Linux x64 / 19 beta 4 | 11,120 total; 11,106 passed; 14 platform skips; zero failures | 28m12s job |
+| c3db5ed composition with owned binary numeric | Linux x64 / 18.6 | 11,202 total; 11,188 passed; 14 platform skips; zero failures | 26m26.659s tests |
 
 The accepted template composition passes Release with **zero warnings/errors,
 1m38.33s**. API freshness verifies **235 pages / 2,700 members**; the site builds
@@ -119,6 +124,8 @@ primary-platform CI pass without weakening the original assertions.
 
 ## Active validation and work
 
+- PostgreSQL 19 fixture corrections are committed as **7b6ce06**, followed by parameterized SPI commands as **c3db5ed**; both are pushed. [Primary CI 37016083898](https://github.com/willibrandon/ankus/actions/runs/37016083898) passes quality, all runtime jobs and all three complete platform suites. [Docs 37016083680](https://github.com/willibrandon/ankus/actions/runs/37016083680) and [PostgreSQL 19 replacement CI 37016275325](https://github.com/willibrandon/ankus/actions/runs/37016275325) also pass. Each of the four platform/version suites has six downloaded TRX modules independently confirming the counters above.
+- Owned binary numeric passes the plain complete PostgreSQL **18.6/Linux x64** suite: **11,202 total; 11,188 passed; zero failures; 14 platform skips; 26m26.659s**. All six module summaries finish successfully and all **293** frozen source identities verify afterward. Focused managed checks pass **81/81**, and focused numeric/range/tuple checks pass **271/271** on both PostgreSQL **18.6** and **13.23**, with no skips. The latter also verifies all **26** accepted runtime files after completion. Release/API/site gates pass. Measured 20,000-row comparisons retain independent SQL checksums and 22 samples per variant: binary/text median ratios are **0.850** for small identity, **0.940** for small addition, **0.505** for 1,024-digit identity and **0.581** for wide addition; the native SQL control is **1.009**. Managed decimal returns regress to **1.133** and need direct binary encoding rather than intermediate text. These are query timings, not isolated arithmetic/allocation or guard-tier claims. Fresh complete platform CI remains required after committing, and pure guards, array costs, permanent benchmarks and complete version/platform acceptance remain open. Detailed failures, corrections and timings are retained in the history.
 - Explicit `Spi.Sql` interpolation and typed `SpiCommand` overloads now pass the final complete PostgreSQL **18.6/Linux x64** composition: **11,120 total; 11,106 passed; zero failures; 14 platform skips; 24m31.735s**. All six completed TRX modules confirm the counters and all 279 frozen source identities verify afterward. The final Release build has zero warnings/errors (**31.37s**); API freshness verifies **238 pages / 2,756 members**, and site build/check passes with zero diagnostics. Native guards, transaction snapshots and original string APIs remain intact. Fresh primary-platform CI remains required after publishing.
 - Current-helper isolated PostgreSQL **18.6/Linux x64** diagnostics preserve all ten native artifacts and all three managed companion artifacts across cold and two warm calls. Source collection takes **12.151s**, then **3.355s / 3.340s**; companion compilation takes **37.862s**, then **1.568s / 1.579s**. A representative warm source call spends **1.236s** on native declaration verification and **0.727s** on layout measurement; SDK/runtime hashing in a warm companion call takes **0.140s**. This narrows the investigation without establishing Intel's cause or a performance correction. The diagnostic instrumentation remains isolated and is not promoted.
 - Both PostgreSQL 19 regression-fixture corrections now pass the complete six-module Native AOT suite: **11,027 total; 11,013 passed; zero failures; 14 platform skips; 26m39.146s**. All 267 frozen source identities verify after completion. Final composed Release passes with zero warnings/errors (**1m28.83s**); API freshness verifies **235 pages / 2,726 members**; site build/check passes with zero diagnostics. No ambient major override or relaxed CLI validation is used. The focused property fixture also passes against PostgreSQL 18.6. Replacement compatibility CI remains required after publishing the fixes.
@@ -150,7 +157,7 @@ and timeouts; do not shard the complete suite or cancel runs automatically.
 1. Resolve discovered correctness and CI failures before accepting affected work.
 2. Finish the Intel timing milestone and complete supported-major/platform coverage, including Intel macOS and the macOS 15/16 library-suffix boundary.
 3. Complete declaration diagnostics/code fixes, API discoverability and unsafe raw-call contracts.
-4. Implement binary numeric storage and appropriate guard/array improvements with recovery tests and measured benchmarks.
+4. Finish direct decimal encoding and appropriate guard/array improvements with recovery tests and measured benchmarks.
 5. Close remaining CLI, account/privilege, benchmark and platform-installation contracts.
 6. Complete framework/discovery support, parsing/formatting helpers, representative samples and documentation.
 7. Complete .NET servicing and every release requirement in the full inventory before publishing 0.1.0. If .NET 11 reaches GA first, complete its acceptance for that release; preview validation does not block the initial .NET 10 release.
@@ -160,8 +167,10 @@ record previous run outcomes, including live runs, and resolve reported failures
 Keep this file current; append detailed implementation evidence to the archive
 with a clear tested revision, platform/version, outcome and any remaining scope.
 
-Final logging/documentation verification passes Release with zero warnings or
-errors (**32.32s**), API freshness (**235 pages / 2,726 members**), site build
-(**283 pages, 3.16s**) and zero check diagnostics. Preceding CI and queued/live
-version jobs are checked and recorded again before commit. Detailed negative,
-corrected and final evidence is retained in the linked history.
+Final composed binary numeric verification passes Release with zero warnings or
+errors (**1m14.45s**), API freshness (**238 pages / 2,756 members**), site build
+(**286 pages, 4.30s**) and zero check diagnostics. All **290** applicable frozen
+product/guide identities match after promotion. Previous primary, docs and
+PostgreSQL 19 CI results are checked again before committing and pass; the
+earlier Intel timeout remains open. Detailed negative, corrected and final
+evidence is retained in the linked history.

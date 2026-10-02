@@ -40,6 +40,10 @@ Numeric infinities require PostgreSQL 14 or later. On PostgreSQL 13, parsing
 numeric infinity text reports SQLSTATE `22P02`; converting floating-point
 infinity to numeric reports the unsupported-feature code `0A000`.
 
+Numeric values own detached binary copies. They remain valid after the SPI
+session or native memory context that supplied them ends. Display text is
+formatted when requested; accessing it does not require a PostgreSQL backend.
+
 ## Arithmetic and precision
 
 Operators `+`, `-`, `*`, `/`, `%`, and unary `-` use PostgreSQL's numeric routines.

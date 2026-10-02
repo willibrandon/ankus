@@ -92,7 +92,7 @@ internal static class ManagedConversion
             "global::System.Net.IPNetwork" => $"*{target} = global::Ankus.NativeValue.FromCidr(new global::Ankus.PgCidr({value}));",
             "global::Ankus.PgJson" or "global::Ankus.PgJsonb" =>
                 $"*{target} = global::Ankus.NativeValue.FromString({value}.Text);",
-            "global::Ankus.PgNumeric" or "decimal" => $"*{target} = global::Ankus.NativeValue.FromString({numericValue}.Text);",
+            "global::Ankus.PgNumeric" or "decimal" => $"*{target} = global::Ankus.NativeValue.FromNumeric({numericValue});",
             "global::Ankus.PgItemPointer" => $"*{target} = global::Ankus.NativeValue.FromItemPointer({value});",
             "global::Ankus.PgTransactionId" => $"*{target} = global::Ankus.NativeValue.FromTransactionId({value});",
             "bool" => $"{target}->Integral = {value} ? 1 : 0;",

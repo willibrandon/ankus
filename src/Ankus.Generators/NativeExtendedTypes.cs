@@ -52,7 +52,35 @@ internal static class NativeExtendedTypes
                 value->length = VARSIZE(wire) - VARHDRSZ;
                 value->data[0] = value->data[0] == PGSQL_AF_INET ? 4 : 6;
             }
-            else if (type == JSONBOID || type == NUMERICOID)
+            else if (type == NUMERICOID)
+            {
+                struct varlena *original = (struct varlena *) DatumGetPointer(datum);
+                struct varlena *unpacked = pg_detoast_datum(original);
+                bytea *wire;
+                Size raw_length = VARSIZE(unpacked);
+                Size wire_length;
+                if (unpacked != original)
+                {
+                    owned->detoasted = unpacked;
+                }
+
+                wire = DatumGetByteaP(DirectFunctionCall1(numeric_send, PointerGetDatum(unpacked)));
+                owned->converted = (char *) wire;
+                wire_length = VARSIZE(wire) - VARHDRSZ;
+                if (raw_length >= MaxAllocSize || wire_length >= MaxAllocSize - raw_length)
+                {
+                    ereport(ERROR, (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED), errmsg("Numeric transport exceeds supported byte capacity")));
+                }
+
+                owned->serialized = palloc(raw_length + wire_length);
+                memcpy(owned->serialized, unpacked, raw_length);
+                memcpy(owned->serialized + raw_length, VARDATA(wire), wire_length);
+                value->data = (unsigned char *) owned->serialized;
+                value->length = (int) (raw_length + wire_length);
+                value->integral = (int64) raw_length;
+                value->auxiliary1 = -8;
+            }
+            else if (type == JSONBOID)
             {
                 struct varlena *original = (struct varlena *) DatumGetPointer(datum);
                 struct varlena *unpacked = pg_detoast_datum(original);
@@ -62,7 +90,7 @@ internal static class NativeExtendedTypes
                     owned->detoasted = unpacked;
                 }
 
-                owned->serialized = DatumGetCString(DirectFunctionCall1(type == JSONBOID ? jsonb_out : numeric_out,
+                owned->serialized = DatumGetCString(DirectFunctionCall1(jsonb_out,
                     PointerGetDatum(unpacked)));
                 converted = pg_server_to_any(owned->serialized, strlen(owned->serialized), PG_UTF8);
                 if (converted != owned->serialized)
@@ -138,12 +166,57 @@ internal static class NativeExtendedTypes
                 return result;
             }
 
-            if (type == JSONOID || type == JSONBOID || type == NUMERICOID)
+            if (type == NUMERICOID)
+            {
+                Size raw_length;
+                StringInfoData buffer;
+                Datum result;
+                if (value->auxiliary1 != -8 || value->data == NULL || value->length < 8 ||
+                    value->integral < 0 || value->integral > value->length - 8)
+                {
+                    ereport(ERROR, (errcode(ERRCODE_INVALID_BINARY_REPRESENTATION), errmsg("Invalid numeric binary transport")));
+                }
+
+                raw_length = (Size) value->integral;
+                if (raw_length != 0)
+                {
+                    struct varlena *copy;
+                    if (raw_length < VARHDRSZ || raw_length >= MaxAllocSize)
+                    {
+                        ereport(ERROR, (errcode(ERRCODE_INVALID_BINARY_REPRESENTATION), errmsg("Invalid numeric datum length")));
+                    }
+
+                    copy = palloc(raw_length);
+                    memcpy(copy, value->data, raw_length);
+                    if (VARATT_IS_EXTENDED(copy) || (Size) VARSIZE(copy) != raw_length)
+                    {
+                        pfree(copy);
+                        ereport(ERROR, (errcode(ERRCODE_INVALID_BINARY_REPRESENTATION), errmsg("Invalid numeric datum header")));
+                    }
+
+                    return PointerGetDatum(copy);
+                }
+
+                buffer.data = (char *) value->data;
+                buffer.len = value->length;
+                buffer.maxlen = value->length;
+                buffer.cursor = 0;
+        #if PG_VERSION_NUM < 140000
+                if ((value->data[4] == 0xD0 || value->data[4] == 0xF0) && value->data[5] == 0)
+                {
+                    ereport(ERROR, (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
+                        errmsg("invalid input syntax for type numeric: \"%s\"", value->data[4] == 0xD0 ? "Infinity" : "-Infinity")));
+                }
+        #endif
+                result = DirectFunctionCall3(numeric_recv, PointerGetDatum(&buffer), ObjectIdGetDatum(InvalidOid), Int32GetDatum(-1));
+                pq_getmsgend(&buffer);
+                return result;
+            }
+
+            if (type == JSONOID || type == JSONBOID)
             {
                 char *text = pg_any_to_server((char *) value->data, value->length, PG_UTF8);
-                Datum result = type == NUMERICOID
-                    ? DirectFunctionCall3(numeric_in, CStringGetDatum(text), ObjectIdGetDatum(InvalidOid), Int32GetDatum(-1))
-                    : type == JSONOID
+                Datum result = type == JSONOID
                     ? DirectFunctionCall1(json_in, CStringGetDatum(text))
                     : DirectFunctionCall1(jsonb_in, CStringGetDatum(text));
                 if (text != (char *) value->data)

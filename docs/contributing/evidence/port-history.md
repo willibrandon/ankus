@@ -1,5 +1,99 @@
 # Historical port evidence
 
+## Owned binary numeric: complete local acceptance and measured tradeoffs
+
+The composition based on **c3db5ed** owns an opaque detoasted numeric datum together
+with PostgreSQL's public `numeric_send` representation. Native-origin inputs copy
+the opaque datum back without `numeric_in`/`numeric_out`; managed-origin values
+use `numeric_recv`. Managed formatting interprets only the public binary format,
+without assuming a private `NumericData` layout. Native guards and subtransactions
+remain intact throughout scalar, SPI, array, tuple, trigger and range transport.
+
+The initial managed build reports **MSTEST0032** before testing; a redundant
+identity assertion is removed without changing analyzer enforcement. Initial
+native acceptance executes **269 cases: 253 pass, 16 fail, zero skips**. Those
+failures expose an incorrect decoder restriction on special-value metadata:
+`numeric_send` emits infinity with scale 32, while `numeric_recv` ignores valid
+special weight, scale and digits. Following that public protocol contract fixes
+the actual defect; explicit protocol and native regressions preserve it.
+
+The corrected frozen source has **293** recorded identities:
+
+| Scope | Platform / PostgreSQL | Terminal outcome |
+| --- | --- | --- |
+| Managed numeric and codec checks | Linux x64 | 81 passed; zero failed/skipped; 2.632s |
+| Native numeric, range and primitive tuple checks | Linux x64 / 18.6 | 271 passed; zero failed/skipped; 2m10.902s |
+| Same native scope | Linux x64 / 13.23 | 271 passed; zero failed/skipped; 2m25.741s |
+| Plain complete six-module suite | Linux x64 / 18.6 | 11,202 total; 11,188 passed; zero failed; 14 platform skips; 26m26.659s |
+| Release build | Linux x64 | Zero warnings/errors; 31.03s |
+| Generated API freshness | Linux x64 | 238 pages / 2,756 members |
+| Documentation build/check | Linux x64 | Pass; zero check diagnostics |
+
+The first PostgreSQL 13 launch fails during building because `clang` is absent
+from PATH; direct helper execution confirms `FileNotFoundException`. It executes
+no product assertions. The corrected launch selects LLVM 23 and explicit matching
+build/test PostgreSQL paths. All 293 source identities and all **26** previously
+accepted runtime files verify after terminal success. The complete PostgreSQL
+18.6 suite then passes, with six terminal successful module summaries and all 293
+frozen source identities verified afterward. The plain run has no TRX option;
+its final counters and module summaries establish this local result. Fresh
+complete platform CI remains required after committing.
+
+After promoting only the fourteen owned product/test/guide paths, the composed
+Release build again passes with **zero warnings/errors, 1m14.45s**. API freshness
+verifies **238 pages / 2,756 members**; the site builds **286 pages in 4.30s** and
+checks with zero errors, warnings or hints. All **290** applicable frozen product/
+guide identities verify against the promoted source; three independently updated
+progress/inventory documents are excluded explicitly. Before committing, previous
+CI is checked again: primary **37016083898**, docs **37016083680** and version
+**37016275325** have terminal passing results. The earlier Intel **37003910952**
+timeout remains unresolved; no incomplete Intel result is counted as acceptance.
+
+A separate PostgreSQL **18.6/Linux x64** comparison uses the existing extension
+functions from the accepted text-storage composition and this binary draft. Both
+library hashes and raw `EXPLAIN ANALYZE` JSON samples are retained privately.
+Every measured query processes **20,000 rows**, checks its sum against an
+independent PostgreSQL expression, discards two warmups and retains eleven samples
+per pass. Four independent clusters run in **text/binary/binary/text** order;
+pooled medians below use 22 retained samples per variant/case. PostgreSQL JIT and
+parallel query execution are disabled equally in both variants.
+
+| Query | Text median | Binary median | Binary/text |
+| --- | --- | --- | --- |
+| Native PostgreSQL small-number addition control | 3.124ms | 3.152ms | 1.009 |
+| Small-number identity through Ankus | 7.129ms | 6.059ms | 0.850 |
+| Small-number addition through Ankus | 29.065ms | 27.327ms | 0.940 |
+| 1,024-digit identity through Ankus | 54.207ms | 27.356ms | 0.505 |
+| 1,024-digit addition through Ankus | 126.169ms | 73.273ms | 0.581 |
+| Managed decimal return through Ankus | 7.147ms | 8.097ms | 1.133 |
+
+These are complete query execution times, including expression evaluation and
+native/managed transport. They do not isolate managed arithmetic, allocations or
+guard costs, and they are not a platform-wide throughput guarantee. The measured
+managed-decimal regression remains visible: its current construction formats a
+decimal as text before encoding binary digits. Direct decimal encoding requires
+a separate measured correction. Lighter guards, array costs, complete platform/
+version validation and the rest of the review remain open.
+
+## Primary CI and PostgreSQL 19 acceptance for typed SPI commands
+
+Commit **c3db5ed** passes [primary CI 37016083898](https://github.com/willibrandon/ankus/actions/runs/37016083898),
+including quality, all patched-runtime jobs and all three unsharded complete
+platform suites. Downloaded TRX reports contain six completed modules per platform:
+
+| Platform / PostgreSQL | Total | Passed | Failed | Platform skips | Job duration |
+| --- | --- | --- | --- | --- | --- |
+| Linux x64 / 18 | 11,120 | 11,106 | 0 | 14 | 26m36s |
+| macOS ARM64 / 18 | 11,120 | 11,094 | 0 | 26 | 20m12s |
+| Windows x64 / 17 | 11,120 | 11,095 | 0 | 25 | 25m22s |
+| Linux x64 / 19 beta 4 | 11,120 | 11,106 | 0 | 14 | 28m12s |
+
+The PostgreSQL 19 row is [replacement version CI 37016275325](https://github.com/willibrandon/ankus/actions/runs/37016275325)
+on the same commit, including both corrected fixtures and the SPI command APIs.
+[Docs 37016083680](https://github.com/willibrandon/ankus/actions/runs/37016083680)
+also passes. These terminal results supersede pending outcomes in earlier entries.
+Intel macOS's timeout and remaining supported-version/platform gaps remain open.
+
 ## Complete parameterized SPI command acceptance
 
 The final composition includes both accepted PostgreSQL 19 fixture corrections

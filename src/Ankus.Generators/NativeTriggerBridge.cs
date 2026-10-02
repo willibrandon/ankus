@@ -159,7 +159,7 @@ internal static class NativeTriggerBridge
                 nulls[index] = field->value.is_null != 0;
                 parameter.type_oid = attribute->atttypid;
                 parameter.value = field->value;
-                if (!nulls[index] && (field->base_type == JSONOID || field->base_type == JSONBOID || field->base_type == NUMERICOID))
+                if (!nulls[index] && (field->base_type == JSONOID || field->base_type == JSONBOID))
                     parameter.value.data = (unsigned char *) pnstrdup((char *) parameter.value.data, parameter.value.length);
                 values[index] = ankus_parameter_datum(&parameter);
                 if (attribute->atttypmod >= 0)

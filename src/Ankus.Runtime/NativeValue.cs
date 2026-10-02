@@ -30,7 +30,7 @@ public unsafe partial struct NativeValue
     private delegate* unmanaged[Cdecl]<void*, void> _release;
 
     /// <summary>
-    /// Gets or sets the integer, Boolean, OID, or floating-point bit representation.
+    /// Gets or sets the integer, Boolean, OID, floating-point bits, or opaque numeric datum length.
     /// </summary>
     public long Integral
     {
@@ -198,10 +198,31 @@ public unsafe partial struct NativeValue
     public readonly PgJsonb ReadJsonb() => new(ReadString());
 
     /// <summary>
-    /// Copies canonical PostgreSQL numeric output into an owned managed value.
+    /// Copies opaque PostgreSQL numeric datum and portable binary bytes into an owned value.
     /// </summary>
     /// <returns>The full-range numeric.</returns>
-    public readonly PgNumeric ReadNumeric() => PgNumeric.FromCanonicalText(ReadString());
+    public readonly PgNumeric ReadNumeric()
+    {
+        if (_isNull != 0 || _auxiliary1 != -8 || _data == null || _length < 8 || _integer < 0 || _integer > _length)
+        {
+            throw new InvalidOperationException("Invalid native numeric transport.");
+        }
+
+        return PgNumeric.FromBinary(new ReadOnlySpan<byte>(_data, _length), checked((int)_integer));
+    }
+
+    /// <summary>
+    /// Copies an owned numeric's opaque datum and portable bytes into a matching-allocator native buffer.
+    /// </summary>
+    /// <param name="value">The exact numeric, including display scale.</param>
+    /// <returns>The owned numeric transport, which the native boundary must release.</returns>
+    public static NativeValue FromNumeric(PgNumeric value)
+    {
+        NativeValue result = FromBytes(value.Storage.Buffer);
+        result._integer = value.Storage.RawLength;
+        result._auxiliary1 = -8;
+        return result;
+    }
 
     /// <summary>
     /// Copies a UUID into PostgreSQL's network-order sixteen-byte representation.

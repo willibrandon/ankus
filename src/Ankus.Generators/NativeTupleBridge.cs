@@ -294,7 +294,7 @@ internal static class NativeTupleBridge
                 parameter.type_oid = attribute->atttypid;
                 parameter.value = field->value;
                 if (!nulls[index] && (getBaseType(parameter.type_oid) == JSONOID ||
-                    getBaseType(parameter.type_oid) == JSONBOID || getBaseType(parameter.type_oid) == NUMERICOID))
+                    getBaseType(parameter.type_oid) == JSONBOID))
                     parameter.value.data = (unsigned char *) pnstrdup((char *) parameter.value.data, parameter.value.length);
                 values[index] = ankus_parameter_datum(&parameter);
                 if (attribute->atttypmod >= 0)

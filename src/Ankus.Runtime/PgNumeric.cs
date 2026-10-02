@@ -16,14 +16,55 @@ public readonly record struct PgNumeric : IComparable<PgNumeric>,
     IUnaryPlusOperators<PgNumeric, PgNumeric>, IComparisonOperators<PgNumeric, PgNumeric, bool>,
     IAdditiveIdentity<PgNumeric, PgNumeric>, IMultiplicativeIdentity<PgNumeric, PgNumeric>
 {
-    private readonly string? _text;
+    /// <summary>
+    /// Shares the immutable portable representation of scale-zero zero.
+    /// </summary>
+    private static readonly PgNumericStorage s_zero = PgNumericStorage.FromCanonicalText("0");
 
-    private PgNumeric(string text) => _text = text;
+    /// <summary>
+    /// Shares the immutable portable representation of one.
+    /// </summary>
+    private static readonly PgNumericStorage s_one = PgNumericStorage.FromCanonicalText("1");
+
+    /// <summary>
+    /// Shares PostgreSQL's portable not-a-number representation.
+    /// </summary>
+    private static readonly PgNumericStorage s_nan = PgNumericStorage.FromCanonicalText("NaN");
+
+    /// <summary>
+    /// Shares the portable positive-infinity representation.
+    /// </summary>
+    private static readonly PgNumericStorage s_positiveInfinity = PgNumericStorage.FromCanonicalText("Infinity");
+
+    /// <summary>
+    /// Shares the portable negative-infinity representation.
+    /// </summary>
+    private static readonly PgNumericStorage s_negativeInfinity = PgNumericStorage.FromCanonicalText("-Infinity");
+
+    /// <summary>
+    /// Owns binary numeric storage independently of PostgreSQL memory contexts.
+    /// </summary>
+    private readonly PgNumericStorage? _storage;
+
+    /// <summary>
+    /// Encodes managed-origin canonical text into portable binary digits.
+    /// </summary>
+    private PgNumeric(string text) => _storage = PgNumericStorage.FromCanonicalText(text);
+
+    /// <summary>
+    /// Wraps immutable owned binary storage.
+    /// </summary>
+    private PgNumeric(PgNumericStorage storage) => _storage = storage;
+
+    /// <summary>
+    /// Gets binary storage, treating the default struct as scale-zero zero.
+    /// </summary>
+    internal PgNumericStorage Storage => _storage ?? s_zero;
 
     /// <summary>
     /// Gets the owned, culture-independent PostgreSQL output text, retaining display scale.
     /// </summary>
-    public string Text => _text ?? "0";
+    public string Text => Storage.Text;
 
     /// <summary>
     /// Gets zero with scale zero, without backend access.
@@ -33,7 +74,7 @@ public readonly record struct PgNumeric : IComparable<PgNumeric>,
     /// <summary>
     /// Gets one with scale zero, without backend access.
     /// </summary>
-    public static PgNumeric One => new("1");
+    public static PgNumeric One => new(s_one);
 
     /// <summary>
     /// Gets the additive identity for generic arithmetic.
@@ -48,17 +89,17 @@ public readonly record struct PgNumeric : IComparable<PgNumeric>,
     /// <summary>
     /// Gets PostgreSQL's not-a-number value, which sorts above all other numeric values.
     /// </summary>
-    public static PgNumeric NaN => new("NaN");
+    public static PgNumeric NaN => new(s_nan);
 
     /// <summary>
     /// Gets positive infinity. Native numeric infinities require PostgreSQL 14 or later.
     /// </summary>
-    public static PgNumeric PositiveInfinity => new("Infinity");
+    public static PgNumeric PositiveInfinity => new(s_positiveInfinity);
 
     /// <summary>
     /// Gets negative infinity. Native numeric infinities require PostgreSQL 14 or later.
     /// </summary>
-    public static PgNumeric NegativeInfinity => new("-Infinity");
+    public static PgNumeric NegativeInfinity => new(s_negativeInfinity);
 
     /// <summary>
     /// Gets whether the value is finite.
@@ -73,26 +114,14 @@ public readonly record struct PgNumeric : IComparable<PgNumeric>,
     /// <summary>
     /// Gets the display scale, or null for NaN and infinities.
     /// </summary>
-    public int? Scale
-    {
-        get
-        {
-            if (!IsFinite)
-            {
-                return null;
-            }
-
-            int point = Text.IndexOf('.', StringComparison.Ordinal);
-            return point < 0 ? 0 : Text.Length - point - 1;
-        }
-    }
+    public int? Scale => Storage.Scale;
 
     /// <summary>
     /// Gets -1, 0, or 1 for negative, zero, or positive values, or null for NaN.
     /// </summary>
-    public int? Sign => IsNaN ? null : NormalizedText.SequenceEqual("0") ? 0 : Text[0] == '-' ? -1 : 1;
+    public int? Sign => Storage.Sign;
 
-    private int Kind => Text switch { "-Infinity" => 0, "Infinity" => 2, "NaN" => 3, _ => 1 };
+    private int Kind => Storage.Kind;
 
     private ReadOnlySpan<char> NormalizedText
     {
@@ -109,9 +138,15 @@ public readonly record struct PgNumeric : IComparable<PgNumeric>,
     }
 
     /// <summary>
-    /// Copies canonical numeric_out text received through the guarded native boundary.
+    /// Encodes canonical text for managed-only value creation without a backend.
     /// </summary>
     internal static PgNumeric FromCanonicalText(string text) => new(text);
+
+    /// <summary>
+    /// Copies borrowed opaque datum and portable numeric_send bytes into an owned numeric.
+    /// </summary>
+    internal static PgNumeric FromBinary(ReadOnlySpan<byte> buffer, int rawLength)
+        => new(PgNumericStorage.Copy(buffer, rawLength));
 
     /// <summary>
     /// Parses PostgreSQL numeric syntax on the active backend thread, including exponents and special values.
