@@ -17,6 +17,20 @@ Use the Ankus version available from your feed. Packages are currently built
 locally; a public release is pending. The solution includes an extension project,
 managed tests, and tests that load the native extension into PostgreSQL.
 
+Alternatively, install the matching .NET template package from your feed:
+
+```console
+dotnet new install Ankus.Templates::0.1.0
+dotnet new ankus -n Hello
+cd Hello
+dotnet tool restore
+```
+
+Both paths include the same managed and backend tests, SQL regression setup and
+matching local tool manifest. After `dotnet tool restore`, run extension commands
+with `dotnet ankus`. Use `dotnet new ankus-worker -n MyWorker` for a background
+worker with shared preload and a test that checks its separate PostgreSQL process.
+
 The generated `src/Hello/Hello.csproj` uses `Ankus.Sdk`:
 
 ```xml

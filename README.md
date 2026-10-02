@@ -47,6 +47,21 @@ The version follows `AnkusPostgresMajor`, defaulting to 18. Plain
 `dotnet test -p:AnkusPostgresMajor=17` selects matching headers and a PostgreSQL 17
 server.
 
+You can also install the matching `Ankus.Templates` package from your configured
+feed and use ordinary .NET templates:
+
+```console
+dotnet new install Ankus.Templates::0.1.0
+dotnet new ankus -n Hello
+cd Hello
+dotnet tool restore
+dotnet test
+```
+
+Use `dotnet new ankus-worker -n MyWorker` for a preloaded background worker.
+Both creation paths pin the matching local tool in `.config/dotnet-tools.json`;
+after restoring it, use `dotnet ankus` for extension commands.
+
 Use `ankus test --pg 17` for another registered PostgreSQL major, or
 `ankus test --all` for every registered version. Pass ordinary test filters and
 report options after `--`. See [test command options](docs/src/content/docs/reference/cli.md#run-extension-tests).

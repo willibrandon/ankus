@@ -83,11 +83,11 @@ remains incomplete; the following work is additional to the open parity gates.
 | Nullable declarations and aggregate roles | Confirmed oblivious-reference inference is corrected by ANKUS024, with precise type locations and explicit SQL nullability required. Explicitly named nonexistent aggregate roles already fail validation. Six static abstract aggregate interfaces now provide compiler-checked required and optional callbacks, including explicit/inherited/default implementations and tuple input metadata. The complete PostgreSQL 18.6/Linux x64 suite and all three dedicated-platform CI jobs pass. |
 | PostgreSQL selection | Confirmed and corrected. Project evaluation, test-host runtime configuration and CLI defaults honor the selected major and installation. Explicit choices retain precedence. The complete PostgreSQL 17.11/Linux x64 suite passes, including packed consumers and actual backend execution. CI also passes on Linux x64/macOS ARM64 PostgreSQL 18 and Windows x64 PostgreSQL 17. |
 | Declarative parity | Extended module magic, custom datum alignment and managed `PgRequires`/`PgBefore` references pass complete dedicated-platform CI. `PgSupportFunction` provides checked planner references and prerequisites. Typed aggregate capabilities cover owned state, parallel transport, moving windows, ordered/hypothetical calls and polymorphic final-extra values. Generated SQL now retains source lines, managed declarations, prerequisites and connected-object markers through publication and full/selected extraction, preserving deterministic ordering. Planner, aggregate and provenance milestones now pass full CI on Linux x64/macOS ARM64 PostgreSQL 18 and Windows x64 PostgreSQL 17. The remaining version/platform matrix is still required. |
-| Runtime APIs and performance | Guarded `PgInterrupts.Check()` supports managed loops, retained cancellation and Windows queued signals. Nonterminal reporting now defers interrupts through native emission and cleanup, preserving inherited holdoffs on success and failure. Direct/native checks and the complete PostgreSQL 18.6/Linux x64 suite pass; full reporting CI also passes on Linux x64/macOS ARM64 PostgreSQL 18 and Windows x64 PostgreSQL 17. Transaction-aware SPI selection now passes focused managed/native cases, installed-consumer callbacks, Release/docs and the complete PostgreSQL 18.6/Linux x64 suite; its platform CI remains required. Numeric representation and guard/array costs remain open. Preserve the recovery contract and measure performance claims. |
+| Runtime APIs and performance | Guarded `PgInterrupts.Check()` supports managed loops, retained cancellation and Windows queued signals. Nonterminal reporting now defers interrupts through native emission and cleanup, preserving inherited holdoffs on success and failure. Direct/native checks and the complete PostgreSQL 18.6/Linux x64 suite pass; full reporting CI also passes on Linux x64/macOS ARM64 PostgreSQL 18 and Windows x64 PostgreSQL 17. Transaction-aware SPI selection and its parallel child-identity repair pass focused managed/native cases, installed consumers, Release/docs and all three complete primary-platform CI suites. PostgreSQL-compatible interval ordering also passes complete PostgreSQL 13/Linux acceptance and primary-platform CI. Numeric representation and guard/array costs remain open. Preserve the recovery contract and measure performance claims. |
 | Tooling and upstream drift | The pgrx 0.19.3 inventory and OID refresh plus PostgreSQL 19 beta 4 SQLSTATE alignment pass complete PostgreSQL 18.6 and 19 beta 4/Linux x64 suites. Independent binding generation passes for all seven majors on Linux x64, plus macOS ARM64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.11. Refresh/repair CI passes the complete dedicated-platform suites; the remaining full version/platform matrix is still required. General build-property forwarding, environment selection, scriptable information and package prefixes pass plain full PostgreSQL 18.6/Linux x64 and Release/API/site gates. The final composition also passes complete native acceptance with both CI fixture corrections and bounded compiler-input hashing; fresh corrected platform CI is active. Additional-major workflow and prerequisites are being prepared, with actual complete version results still required. Account/privilege selection and benchmarks remain open. Regression scaffolding passes its complete PostgreSQL 18.6/Linux x64 suite and Release/API/site gates, with fresh platform CI pending. Test-command custom data directories and schema reuse have real installed-consumer evidence below. |
-| .NET author experience | Cached declaration, conversion, catalog and method-inventory stages pass complete PostgreSQL 18.6/Linux acceptance and dedicated-platform CI, including reference/provider/native-compilation models. Final graph/artifact rendering and the Windows assertion repair pass the complete Linux/macOS PostgreSQL 18 and Windows PostgreSQL 17 CI suites. Precise ANKUS030–043 asynchronous and ordinary-signature diagnostics, installation-schema search paths and C# operator/conversion declarations pass complete native, Release/docs and all three platform CI gates. Broader diagnostics/code fixes, templates, namespace/API discoverability, formatting/parsing/comparison helpers, safe parameter binding, raw-call visibility and testing discovery/framework documentation remain open. |
+| .NET author experience | Cached declaration, conversion, catalog and method-inventory stages pass complete PostgreSQL 18.6/Linux acceptance and dedicated-platform CI, including reference/provider/native-compilation models. Final graph/artifact rendering and the Windows assertion repair pass the complete Linux/macOS PostgreSQL 18 and Windows PostgreSQL 17 CI suites. Precise ANKUS030–043 asynchronous and ordinary-signature diagnostics, installation-schema search paths and C# operator/conversion declarations pass complete native, Release/docs and all three platform CI gates. Standard extension and worker templates with MSTest pass installed native consumers, complete PostgreSQL 17/Linux acceptance and Release/docs; fresh template platform CI remains required. Broader diagnostics/code fixes, additional test-framework templates, namespace/API discoverability, formatting/parsing helpers, convenient parameter binding, raw-call visibility and testing discovery/framework documentation remain open. |
 | Packaging | Added the MIT license, copyright Brandon Williams, and shared author/license/project/repository metadata following the author's other repository. Verified the metadata in all seven locally packed packages, including the Linux runtime package; no packages are published. |
-| Platform coverage | Complete full-suite evidence for the supported major/platform combinations, including macOS x64 and library-suffix boundaries, remains required. Use GitHub-hosted runners where dedicated machines cannot cover the target, retaining complete suites and appropriate caches. Native builds now select the installed macOS SDK. The corrected Intel run reaches real backend testing and times out at 60 minutes: five completed modules report zero failures, but integration has no completed report. Binding-build timings are retained for investigation; a successful complete Intel run remains required. PostgreSQL 13's complete run exposes a native diagnostic witness subsequently corrected and verified in the actual focused class; corrected full acceptance is pending. Existing focused version probes are not full-suite coverage. |
+| Platform coverage | Complete full-suite evidence for the supported major/platform combinations, including macOS x64 and library-suffix boundaries, remains required. Use GitHub-hosted runners where dedicated machines cannot cover the target, retaining complete suites and appropriate caches. Native builds now select the installed macOS SDK. The corrected Intel run reaches real backend testing and times out at 60 minutes: five completed modules report zero failures, but integration has no completed report. Binding-build timings and same-revision two/four-slot runs are retained for investigation; a successful complete Intel run remains required. The corrected PostgreSQL 13.23/Linux x64 composition passes all six complete modules: 10,978 total, zero failed and 14 platform skips, 23m02.233s. The published additional-major workflow still needs successful complete scheduled/manual results. Existing focused version probes are not full-suite coverage. |
 | Documentation and samples | Marked the old macOS checkpoint-server prototype as superseded by stock-server evidence and labelled higher-level custom scans as additional Ankus scope. Added the pgrx migration guide and expanded .NET hosting guidance for threads, signals, memory and backend lifetimes. Converted the public average sample to compiler-checked aggregate capabilities and verified its PostgreSQL behavior. Other representative samples and a more navigable evidence archive remain required. Reference-repository process rules do not replace this repository's progress requirements. |
 
 ## Custom datum alignment review
@@ -1494,7 +1494,75 @@ and Docs **36968008834** is active on that revision. The independent SPI
 validator retains its separate source and does not receive this template delta
 while its native checks run.
 
+## .NET template package review
+
+The missing `dotnet new` package is implemented in an isolated draft using the
+same extension/background-worker scaffold assets as the CLI. `Ankus.Templates`
+contains the `ankus` and `ankus-worker` identities, version-matched SDK/testing
+references and local tool manifests. It retains ordinary consumer warning
+defaults. Standard namespace/keyword and SQL naming symbols are checked through
+actual installed packages; no production internal-access exception is added.
+
+The installed-consumer scope passes **8/8**, zero failures/skips,
+**4m36.874s**, on PostgreSQL **17.11/Linux x64**. It executes real managed and
+backend tests for both variants, including a worker in another PostgreSQL
+process, checks exact package/license/author/repository metadata and hidden
+assets, restores the pinned tool, verifies independent worker identities, and
+runs SQL setup and database reuse for ordinary and keyword names through both
+creation paths. Source groups write expected output after SQL; no timestamp
+post-action or weakened change detector is used. Initial worker-name/engine
+format failures are retained separately; compact GUID replacements now fit
+older native shared-memory keys and pass actual startup.
+
+All **251** source identities verify after the focused run and final gates.
+Release succeeds with **zero warnings/errors, 1m38.33s**; API freshness is
+**235 pages / 2,700 members**; the site builds **283 pages in 2.98s** and
+reports zero errors, warnings or hints. Plain complete PostgreSQL **17.11/Linux
+x64** acceptance now passes on that unchanged composition: **10,984 total,
+10,970 passed, zero failures and 14 platform skips, 24m20.771s**. All six modules
+complete with terminal exit **0**; invocation time including the initial build
+is **24m41.957s**. All **251** source hashes verify again in both the validator
+and implementation draft after completion. The primary checkout's original
+**244** identities verify before promotion, which copies only the **17**
+template-owned paths and preserves the accepted SPI, version and interval work.
+Consumer xUnit/NUnit/TUnit references remain pending
+the package-policy clarification; this MSTest evidence does not close that gap.
+
+Immediately before the template commit, preceding CI **36983211444** and Docs
+**36983211302** are fully successful on **3c5ab73**. Repair **36982637075**
+also remains successful. Same-revision Intel comparison runs **36986333238**
+and **36986335992** have passing runtime jobs and active complete platform
+suites; their full or timeout outcomes remain required. All **251** source
+identities match the promoted primary checkout. Fresh template platform CI
+is required after push; no package is published.
+
 ## SPI read-mode review clarification
+
+Repair CI **36982637075** on **0c96349** now passes quality, all three runtime
+jobs and all three complete platform suites. Linux x64/PostgreSQL 18 completes
+in **26m02s**, macOS ARM64/PostgreSQL 18 in **19m37s**, and Windows
+x64/PostgreSQL 17 in **24m37s**. This closes the thirty parallel callback
+failures in **36975738742** with the original assertions retained. The composed
+version/interval revision **3c5ab73** has passing quality, all three runtime
+jobs and Docs **36983211302**. All three complete suites now pass: Linux
+x64/PostgreSQL 18 **26m00s**, macOS ARM64/PostgreSQL 18 **19m38s**, and Windows
+x64/PostgreSQL 17 **24m25s**. Each reports **10,978 total, zero failed**, with
+**14**, **26** and **25** platform skips respectively. All six reports for
+each platform are retained and their exact counters verified.
+
+Two hosted Intel macOS full-suite runs now compare the same **3c5ab73** revision:
+**36986333238** uses two package-consumer slots and **36986335992** uses four.
+Both runtime jobs pass and both platform jobs are active. Cache hits, runner
+images, compiler versions, preparation durations and complete or timeout outcomes
+must be compared before attributing a difference to concurrency. No suite is
+sharded and neither run is canceled.
+
+The compatibility runner is now online with its exclusive
+`ankus-linux-versions-x64` label after a fresh successful seven-major server/
+header preflight. The report privacy secret is present. No full version job
+is inferred from that activation, and no compatibility job is dispatched while
+the independent template validator is active. The next additional-major full
+workflow result remains required.
 
 The parallel callback repair completes plain `dotnet test` on PostgreSQL
 **17.11/Windows x64**: **10,937 total, 10,912 passed, zero failures, 25 platform
@@ -1980,6 +2048,27 @@ next while preserving the version workflow's owned changes; final composed
 acceptance and scheduled-version activation remain required.
 
 ## Interval ordering review draft
+
+Hosted Intel macOS **36977693891** completes as a timeout/cancelled outcome:
+the job spans **61m11s**, including cleanup after the **60-minute** limit.
+Preparation succeeds in **8m09s**, and complete-suite execution runs for
+**50m51s** before cancellation. Its five completed module reports contain
+**6,578 total, 6,569 passed, zero failed and nine skips**; the integration
+report is incomplete and is not accepted as platform proof. The configured two
+package-test slots do not complete this run within the budget. This is not a
+controlled comparison with the prior three-slot run, which used different code
+and cache contents. Retained summaries cover **67** completed nested builds;
+binding/toolchain targets dominate their accumulated durations, which overlap
+and are not wall-clock measurements. The actual bottleneck and a successful
+complete Intel run remain open; no test, assertion or analyzer is weakened.
+
+Two new hosted Intel runs are dispatched on the same committed composition,
+**3c5ab73**, with **two** and **four** package-consumer slots. Each still runs
+all six complete modules in one platform job with the unchanged **60-minute**
+limit. Both use the same runtime identity and dependency configuration. Exact
+cache hits, image/tool versions, preparation time and complete/timeout outcomes
+must be retained before attributing a difference to concurrency. No performance
+gain or full Intel platform coverage is claimed from dispatch alone.
 
 Interval ordering is promoted as a separate API milestone after the additional-
 major prerequisites. `PgInterval` now implements `IComparable<PgInterval>` and

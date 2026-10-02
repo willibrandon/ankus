@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "isRoot": true,
+  "tools": {
+    "ankus.tool": {
+      "version": "__VERSION__",
+      "commands": ["ankus"]
+    }
+  }
+}

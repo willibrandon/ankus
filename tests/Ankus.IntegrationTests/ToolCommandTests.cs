@@ -60,7 +60,7 @@ public sealed partial class ToolCommandTests(TestContext context)
             new Dictionary<string, string?>(), token);
 
         string[] projects = ["src/Ankus.Runtime", "src/Ankus.Generators", "src/Ankus.PgConfig",
-            "src/Ankus.Sdk", "src/Ankus.Tool", "src/Ankus.Testing"];
+            "src/Ankus.Sdk", "src/Ankus.Tool", "src/Ankus.Testing", "src/Ankus.Templates"];
         foreach (string project in projects)
         {
             await ProcessRunner.RunCheckedAsync("dotnet",

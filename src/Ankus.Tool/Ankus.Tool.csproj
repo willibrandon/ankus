@@ -16,6 +16,8 @@
     <PackageReference Include="NuGet.Configuration" />
     <ProjectReference Include="../Ankus.PgConfig/Ankus.PgConfig.csproj" />
     <None Update="Templates/**/*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Remove="Templates/Extension/.config/**/*" />
+    <None Include="Templates/Extension/.config/**/*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
   <Target Name="_WriteAnkusToolVersion" BeforeTargets="AssignTargetPaths">

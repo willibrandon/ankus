@@ -20,6 +20,22 @@ Generated projects use ordinary .NET warning defaults. To require warning-free
 builds, set `TreatWarningsAsErrors` in your project's build properties.
 Invalid Ankus declarations remain errors regardless of that setting.
 
+Alternatively, install `Ankus.Templates` from your configured feed:
+
+```console
+dotnet new install Ankus.Templates::0.1.0
+dotnet new ankus -n Acme.Search
+cd Acme.Search
+dotnet tool restore
+dotnet test
+```
+
+Use `ankus-worker` instead of `ankus` for a preloaded background worker. These
+templates share the CLI scaffold and its managed/backend tests. Both creation
+paths pin the matching local tool; invoke it with `dotnet ankus` after restoration.
+Select a package version available in your feed; the initial public release
+remains pending.
+
 Each extension also contains `pg_regress/sql/setup.sql` and a matching
 `pg_regress/expected/setup.out`. They create the extension before your
 [SQL regression tests](#run-sql-regression-suites) run.

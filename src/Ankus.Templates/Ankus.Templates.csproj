@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>Ankus.Templates</PackageId>
+    <Description>Project templates for .NET Native AOT PostgreSQL extensions and background workers.</Description>
+    <PackageType>Template</PackageType>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+    <NoDefaultExcludes>true</NoDefaultExcludes>
+    <EnableDefaultItems>false</EnableDefaultItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <_AnkusTemplateInput Include="../Ankus.Tool/Templates/**/*.template;Configuration/template.json;../../eng/Ankus.Templates.cs" />
+  </ItemGroup>
+
+  <Target Name="_ValidateAnkusTemplateVersion" BeforeTargets="_StageAnkusTemplates">
+    <Error Condition="!$([System.Text.RegularExpressions.Regex]::IsMatch('$(PackageVersion)', '^[0-9A-Za-z][0-9A-Za-z.+-]*$'))"
+           Text="The template package version must contain only ASCII letters, digits, dots, plus signs and hyphens." />
+    <PropertyGroup>
+      <_AnkusTemplateRoot>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'ankus-templates', '$(PackageVersion)'))</_AnkusTemplateRoot>
+    </PropertyGroup>
+  </Target>
+
+  <Target Name="_StageAnkusTemplates" BeforeTargets="_GetPackageFiles"
+          DependsOnTargets="_ValidateAnkusTemplateVersion"
+          Inputs="@(_AnkusTemplateInput);$(MSBuildProjectFullPath)"
+          Outputs="$(_AnkusTemplateRoot)/complete.txt">
+    <Exec Command="dotnet run --file &quot;$(MSBuildThisFileDirectory)../../eng/Ankus.Templates.cs&quot; -- &quot;$(MSBuildThisFileDirectory)../Ankus.Tool/Templates&quot; &quot;$(MSBuildThisFileDirectory)Configuration/template.json&quot; &quot;$(_AnkusTemplateRoot)&quot; &quot;$(PackageVersion)&quot;" />
+  </Target>
+
+  <Target Name="_IncludeAnkusTemplates" BeforeTargets="_GetPackageFiles" DependsOnTargets="_StageAnkusTemplates">
+    <ItemGroup>
+      <_AnkusTemplateContent Include="$(_AnkusTemplateRoot)/content/**/*" />
+      <None Include="@(_AnkusTemplateContent)" Pack="true"
+            PackagePath="content/%(_AnkusTemplateContent.RecursiveDir)%(_AnkusTemplateContent.Filename)%(_AnkusTemplateContent.Extension)" />
+      <FileWrites Include="$(_AnkusTemplateRoot)/**/*" />
+    </ItemGroup>
+  </Target>
+
+</Project>

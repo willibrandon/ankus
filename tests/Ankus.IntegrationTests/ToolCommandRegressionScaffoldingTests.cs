@@ -12,16 +12,27 @@ public sealed partial class ToolCommandTests
     /// <param name="projectName">The generated managed project name.</param>
     /// <param name="extensionName">An explicit SQL name, or null to use the derived name.</param>
     /// <param name="expectedName">The independently expected SQL extension name.</param>
+    /// <param name="template">Whether to create through the installed dotnet-new template.</param>
     [TestMethod]
-    [DataRow("Acme.RegressProbe", null, "acme_regress_probe")]
-    [DataRow("class.select", "regression_named", "regression_named")]
-    public async Task NewSolutionScaffoldsRunnableRegressionSetup(string projectName, string? extensionName, string expectedName)
+    [DataRow("Acme.RegressProbe", null, "acme_regress_probe", false)]
+    [DataRow("class.select", "regression_named", "regression_named", false)]
+    [DataRow("Acme.RegressProbe", null, "acme_regress_probe", true)]
+    [DataRow("class.select", null, "class_select", true)]
+    public async Task NewSolutionScaffoldsRunnableRegressionSetup(string projectName, string? extensionName, string expectedName, bool template)
     {
         CancellationToken token = context.CancellationToken;
         string output = Path.Combine(CreateDirectory(), "regression solution with spaces");
         string[] arguments = ["new", projectName, "--output", output,
             .. extensionName is null ? Array.Empty<string>() : ["--extension-name", extensionName]];
-        (await InvokeAsync(arguments, token)).EnsureSuccess(s_tool, arguments);
+        if (template)
+        {
+            await CreateTemplateAsync("ankus", projectName, output, token);
+        }
+        else
+        {
+            (await InvokeAsync(arguments, token)).EnsureSuccess(s_tool, arguments);
+        }
+
         string project = Path.Combine(output, "src", projectName, projectName + ".csproj");
         string suite = Path.Combine(Path.GetDirectoryName(project)!, "pg_regress");
         string expectedSetup = "-- This setup file runs when the regression database is created or recreated.\n" +

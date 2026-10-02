@@ -23,6 +23,7 @@
     <Project Path="src/Ankus.PgConfig/Ankus.PgConfig.csproj" />
     <Project Path="src/Ankus.Runtime/Ankus.Runtime.csproj" />
     <Project Path="src/Ankus.Sdk/Ankus.Sdk.csproj" />
+    <Project Path="src/Ankus.Templates/Ankus.Templates.csproj" />
     <Project Path="src/Ankus.Testing/Ankus.Testing.csproj" />
     <Project Path="src/Ankus.Tool/Ankus.Tool.csproj" />
   </Folder>

@@ -259,7 +259,7 @@ dotnet pack -c Release -o artifacts/packages
 ```
 
 This produces `Ankus.Sdk`, `Ankus.Runtime`, `Ankus.Generators`, `Ankus.PgConfig`,
-`Ankus.Testing`, and `Ankus.Tool`. The SDK includes its native build helper and
+`Ankus.Testing`, `Ankus.Tool`, and `Ankus.Templates`. The SDK includes its native build helper and
 matching runtime/generator versions. It uses NuGet's MSBuild SDK resolver.
 
 Add the absolute feed path to a consumer's `NuGet.Config` and use

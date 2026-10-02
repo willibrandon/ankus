@@ -935,6 +935,7 @@ static void PackManaged(string repositoryRoot, string packageVersion)
         "src/Ankus.Runtime/Ankus.Runtime.csproj",
         "src/Ankus.Sdk/Ankus.Sdk.csproj",
         "src/Ankus.Testing/Ankus.Testing.csproj",
+        "src/Ankus.Templates/Ankus.Templates.csproj",
         "src/Ankus.Tool/Ankus.Tool.csproj",
     ];
 
@@ -993,6 +994,7 @@ static void PublishPackages(string repositoryRoot, string packageVersion)
         $"Ankus.PgConfig.{packageVersion}.nupkg",
         $"Ankus.Runtime.{packageVersion}.nupkg",
         $"Ankus.Testing.{packageVersion}.nupkg",
+        $"Ankus.Templates.{packageVersion}.nupkg",
         $"Ankus.Tool.{packageVersion}.nupkg",
         $"Ankus.Sdk.{packageVersion}.nupkg",
     ];

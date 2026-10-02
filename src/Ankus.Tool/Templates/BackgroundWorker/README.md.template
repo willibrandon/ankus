@@ -3,10 +3,12 @@
 A PostgreSQL extension with a managed background worker compiled with .NET Native AOT.
 Requires .NET 10, a native C toolchain and PostgreSQL 18 with server headers.
 
-Register PostgreSQL, then run the managed and native tests:
+Restore the matching local tool and register PostgreSQL, then run the managed
+and native tests:
 
 ```console
-ankus init --pg18 /path/to/pg_config
+dotnet tool restore
+dotnet ankus init --pg18 /path/to/pg_config
 dotnet test
 ```
 
@@ -18,8 +20,8 @@ Build and server logs remain under `src/__PROJECT__/bin/ankus-test-logs/`.
 Publish and install the extension:
 
 ```console
-ankus publish
-ankus install
+dotnet ankus publish
+dotnet ankus install
 ```
 
 Add the library to `postgresql.conf`, preserving any other preloaded libraries,
@@ -43,7 +45,8 @@ case. Configuration reload wakes the worker; server shutdown terminates it.
 An unsuccessful worker exit restarts after five seconds.
 
 Ordinary SQL functions remain in `Functions.cs`. Package versions live in
-`global.json` and `Directory.Packages.props`.
+`global.json` and `Directory.Packages.props`. The local tool version is pinned in
+`.config/dotnet-tools.json`.
 
 SQL regression files live beside the extension project under `pg_regress/`.
 The generated `sql/setup.sql` and `expected/setup.out` create the extension.

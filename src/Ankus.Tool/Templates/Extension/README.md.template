@@ -3,17 +3,18 @@
 A PostgreSQL extension written in C# and published with .NET Native AOT.
 
 Requires .NET 10, a native C toolchain, and PostgreSQL 18 with server headers.
-Register PostgreSQL once:
+Restore the matching local Ankus tool, then register PostgreSQL once:
 
 ```sh
-ankus init --pg18 /path/to/pg_config
+dotnet tool restore
+dotnet ankus init --pg18 /path/to/pg_config
 ```
 
 From this directory:
 
 ```sh
 dotnet test
-ankus publish
+dotnet ankus publish
 ```
 
 The tests check ordinary C# calls and publish the extension into an isolated
@@ -30,7 +31,7 @@ rolled back, including when an expected error occurs.
 Install and call the extension:
 
 ```sh
-ankus install
+dotnet ankus install
 ```
 
 ```sql
@@ -44,11 +45,12 @@ Add SQL cases under `src/__PROJECT__/pg_regress/sql/`, then record and review
 their expected output:
 
 ```console
-ankus regress --add addition
-ankus regress
+dotnet ankus regress --add addition
+dotnet ankus regress
 ```
 
 Add attributed functions in `src/__PROJECT__/Functions.cs`. Ankus generates the
 native wrappers and SQL. Set `AnkusExtensionVersion` in the extension project
 before publishing a new extension version. Package versions live in `global.json`
-and `Directory.Packages.props`.
+and `Directory.Packages.props`. The local tool version is pinned in
+`.config/dotnet-tools.json`.
