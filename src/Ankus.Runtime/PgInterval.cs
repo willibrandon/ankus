@@ -4,7 +4,7 @@ namespace Ankus;
 
 /// <summary>
 /// Preserves PostgreSQL interval's independent month, day, and microsecond components, including mixed signs.
-/// Equality compares storage components, rather than PostgreSQL's thirty-day-month comparison convention.
+/// Equality and ordering use PostgreSQL's thirty-day-month comparison convention without changing stored components.
 /// </summary>
 [JsonConverter(typeof(PgIntervalConverter))]
 public readonly record struct PgInterval : IComparable<PgInterval>
@@ -153,13 +153,24 @@ public readonly record struct PgInterval : IComparable<PgInterval>
     /// </summary>
     /// <param name="other">The interval to compare.</param>
     /// <returns>A negative value, zero, or a positive value for a smaller, equivalent, or larger comparison duration.</returns>
-    /// <remarks>
-    /// Ordering uses PostgreSQL's duration approximation; managed equality continues to compare exact components.
-    /// </remarks>
     public int CompareTo(PgInterval other)
         => IsFinite && other.IsFinite
             ? ToComparisonMicroseconds().CompareTo(other.ToComparisonMicroseconds())
             : _infinity.CompareTo(other._infinity);
+
+    /// <summary>
+    /// Tests equality using PostgreSQL's interval comparison, preserving the original calendar components.
+    /// </summary>
+    /// <param name="other">The interval to compare.</param>
+    /// <returns>Whether both intervals have the same comparison duration or the same infinity.</returns>
+    public bool Equals(PgInterval other) => CompareTo(other) == 0;
+
+    /// <summary>
+    /// Hashes PostgreSQL's comparison duration so equivalent intervals have equal managed hashes.
+    /// </summary>
+    /// <returns>A managed hash consistent with equality, without requiring backend access.</returns>
+    public override int GetHashCode()
+        => IsFinite ? HashCode.Combine(0, ToComparisonMicroseconds()) : HashCode.Combine(_infinity);
 
     /// <summary>
     /// Tests whether the left interval sorts before the right interval using PostgreSQL's comparison approximation.
@@ -343,7 +354,7 @@ public readonly record struct PgInterval : IComparable<PgInterval>
         => PgTemporal.Call<PgNumeric?>(TemporalOperation.Extract, PgTemporal.Part(part), SpiParameter.Create(this));
 
     /// <summary>
-    /// Compares with PostgreSQL's thirty-day-month convention, separately from exact managed component equality.
+    /// Compares with PostgreSQL's thirty-day-month convention, consistent with managed equality.
     /// </summary>
     /// <param name="other">The interval to compare.</param>
     /// <returns>A negative value, zero, or a positive value when this interval sorts before, equals, or sorts after the other.</returns>

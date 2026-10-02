@@ -230,6 +230,13 @@ Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
 
 Whether the worker may continue after waking.
 
+Exceptions:
+
+- [PgQueryCanceledException](/api/ankus.pgquerycanceledexception/): PostgreSQL cancels the wait through its default SIGINT handler.
+
+Cancellation outside a transaction ends only this wait and can be caught before waiting or starting a transaction again.
+Inside RunTransaction, cancellation still requires the transaction to abort before the worker resumes.
+
 
 ## Properties
 

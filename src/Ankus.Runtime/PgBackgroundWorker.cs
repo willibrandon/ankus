@@ -83,6 +83,11 @@ public static class PgBackgroundWorker
     /// </summary>
     /// <param name="timeout">A whole-millisecond timeout, or null to wait indefinitely.</param>
     /// <returns>Whether the worker may continue after waking.</returns>
+    /// <exception cref="PgQueryCanceledException">PostgreSQL cancels the wait through its default SIGINT handler.</exception>
+    /// <remarks>
+    /// Cancellation outside a transaction ends only this wait and can be caught before waiting or starting a transaction again.
+    /// Inside RunTransaction, cancellation still requires the transaction to abort before the worker resumes.
+    /// </remarks>
     public static bool Wait(TimeSpan? timeout = null) => NativeBackgroundWorker.Wait(timeout);
 
     /// <summary>

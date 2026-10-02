@@ -117,7 +117,8 @@ public sealed class IntervalOrderingTests(TestContext context)
     /// Independently evaluates native ordering and the compiled managed callback on the same input datums.
     /// </summary>
     private const string ComparisonSql = """
-        SELECT ARRAY[interval_cmp(l,r),(l<r)::int,(l>r)::int,(l<=r)::int,(l>=r)::int],
+        SELECT ARRAY[interval_cmp(l,r),(l<r)::int,(l>r)::int,(l<=r)::int,(l>=r)::int,(l=r)::int,(l<>r)::int,
+            CASE WHEN l=r THEN (interval_hash(l)=interval_hash(r))::int ELSE 1 END],
             datatype.interval_ordering(l,r) FROM inputs
         """;
 

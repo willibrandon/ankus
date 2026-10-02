@@ -1,5 +1,59 @@
 # Historical port evidence
 
+## Idle worker cancellation and PostgreSQL interval equality
+
+The worker's lifetime frame retained cancellation from `Wait` outside any
+transaction. A native idle-wait recovery boundary now owns that operation;
+only ERROR/57014 with no transaction state is recovered. Wait within a
+transaction still requires abort, and terminal reports propagate to the lifetime
+frame. PostgreSQL errors never cross a managed frame.
+
+`WorkerIdleWaitRecoversRepeatedCancellation` observes the real native wait and
+no active transaction, sends two `pg_cancel_backend` requests, checks exact
+57014 diagnostics and cleanup, and proves later waits, logging and commits in
+the same process. Shared phase markers distinguish the operation from startup
+waits. The corrected fixture fails against the unchanged guard and passes the
+fix; earlier preliminary runs and their runtime/synchronization mistakes are
+retained privately rather than treated as final evidence. Existing cancellation
+and swallowed-FATAL cases remain, with a new transactional-Wait case proving
+mandatory rollback. All five focused worker cases pass.
+
+`PgInterval.Equals` and `GetHashCode` now use the same thirty-day-month duration
+as `CompareTo`, without altering months, days or microseconds. Nineteen managed
+cases prove typed/object equality, operators, hashes, collection behavior,
+infinities and exact stored components. Twenty-two native cases compare against
+PostgreSQL's independent comparison/equality/hash oracle. The composed native
+worker/interval scope passes **27/27, zero skips, 4m49.585s** against PostgreSQL
+**18.6/Linux x64**.
+
+The first literal complete suite finishes **11,250 total; 11,235 passed; one
+failure; 14 platform skips; 30m22.843s**. Its sole failure is an older test that
+expects one month and thirty days to be unequal. The corrected test independently
+asserts their distinct component tuples and PostgreSQL equality. No product
+contract or analyzer is weakened. The corrected literal `dotnet test` passes
+all six modules: **11,250 total; 11,236 passed; zero failures; 14 platform skips;
+34m47.341s**. All **299** source and **26** accepted runtime hashes verify after
+terminal success. Another full validation shares the validation system during
+this run; these durations are acceptance evidence, not a speed comparison.
+
+Twelve verified owned paths are promoted into the e38dce4 source composition.
+Final composed Release passes with zero warnings/errors, **1m22.89s**; API
+freshness verifies **238 pages / 2,756 members**; the site builds **286 pages in
+4.39s**, with zero check errors, warnings or hints. All **297** applicable source
+identities match the tested composition; only the progress/evidence documents
+are excluded explicitly. Previous primary, Docs and version CI outcomes are
+checked and recorded immediately before commit. No preceding runs are active;
+the older Intel run retains its cancelled timeout. Fresh primary-platform CI
+remains required; Intel and complete version/platform acceptance remain open.
+
+The preceding direct-decimal milestone **e38dce4** passes primary CI
+[37030652354](https://github.com/willibrandon/ankus/actions/runs/37030652354) and
+[Docs 37030652372](https://github.com/willibrandon/ankus/actions/runs/37030652372).
+Six completed TRX modules per platform establish **11,248 total**, zero failures:
+Linux x64/PostgreSQL 18 has **11,234 passed / 14 skips**, **26m39s** job time;
+macOS ARM64/18 has **11,222 passed / 26 skips**, **20m12s**;
+Windows x64/17 has **11,223 passed / 25 skips**, **26m49s**.
+
 ## Direct decimal encoding: complete acceptance and controlled comparison
 
 The **ac01b4b** composition replaces decimal-to-text parsing with direct encoding

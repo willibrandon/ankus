@@ -1560,6 +1560,15 @@ internal static class NativeMemoryBridge
                     ErrorData *data = ankus_copy_error_data();
                     FlushErrorState();
                     ankus_capture_error(data, error);
+                    if (request->operation == ANKUS_MEMORY_WORKER && request->flags == 10 &&
+                        data->elevel == ERROR && data->sqlerrcode == ERRCODE_QUERY_CANCELED && !IsTransactionState())
+                    {
+                        /* WaitLatch owns no transaction resources. The native wait
+                         * and interrupt check have ended, so an idle cancellation
+                         * needs no transaction abort before the worker can resume. */
+                        *recovered = true;
+                    }
+
                     ankus_recovery_record(error, *recovered);
                     ankus_free_error_data(data);
                     MemoryContextSwitchTo(recovery);
@@ -1640,11 +1649,13 @@ internal static class NativeMemoryBridge
             volatile bool recovered = false;
             AnkusRecoveryFrame transaction = {0};
             bool worker_transaction = request->operation == ANKUS_MEMORY_WORKER && request->flags == 13;
-            if (worker_transaction)
+            bool worker_idle_wait = request->operation == ANKUS_MEMORY_WORKER && request->flags == 10 && !IsTransactionState();
+            bool worker_boundary = worker_transaction || worker_idle_wait;
+            if (worker_boundary)
             {
-                /* A worker transaction owns a complete commit/abort boundary.
-                 * Keep mandatory failures here until that transaction has ended,
-                 * rather than attaching cancellation to the worker's lifetime. */
+                /* Transactions own a complete commit/abort boundary. An idle
+                 * latch wait owns only its wait/interrupt boundary. Keep failures
+                 * here until that operation ends instead of the worker lifetime. */
                 transaction.previous = ankus_recovery_frame;
                 ankus_recovery_frame = &transaction;
             }
@@ -1652,9 +1663,9 @@ internal static class NativeMemoryBridge
             /* The frame lives outside the function containing sigsetjmp, so its
              * modified fields remain defined after a PostgreSQL longjmp. */
             int status = ankus_memory_execute_guarded(api, request, result, error, &recovered);
-            if (worker_transaction)
+            if (worker_boundary)
             {
-                /* Failure before a completed native abort still poisons the
+                /* Failure without proven native recovery still poisons the
                  * lifetime frame. Terminal reports always propagate in finish. */
                 if (transaction.failed && !recovered)
                 {

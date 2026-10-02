@@ -239,7 +239,11 @@ public sealed class PgTemporalTests
         Assert.AreEqual(1, mixed.Months);
         Assert.AreEqual(-2, mixed.Days);
         Assert.AreEqual(3L, mixed.Microseconds);
-        Assert.AreNotEqual(new PgInterval(0, 30, 0), new PgInterval(1, 0, 0));
+        var month = new PgInterval(1, 0, 0);
+        var days = new PgInterval(0, 30, 0);
+        Assert.AreEqual(days, month);
+        Assert.AreEqual((1, 0, 0L), (month.Months, month.Days, month.Microseconds));
+        Assert.AreEqual((0, 30, 0L), (days.Months, days.Days, days.Microseconds));
         Assert.IsTrue(mixed.IsFinite);
         Assert.IsFalse(PgInterval.PositiveInfinity.IsFinite);
         Assert.IsFalse(PgInterval.NegativeInfinity.IsFinite);

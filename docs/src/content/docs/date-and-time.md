@@ -125,18 +125,18 @@ PgInterval elapsedDay = PgInterval.FromTimeSpan(TimeSpan.FromHours(24));
 
 These can produce different timestamps when added to the same instant.
 `ToTimeSpan()` therefore accepts only finite intervals whose month and day
-components are zero. Mixed component signs are preserved. Managed equality
-compares exact components; PostgreSQL's interval comparison instead treats a
-month as thirty days.
+components are zero. Mixed component signs are preserved. Equality, hashing and
+ordering follow PostgreSQL's interval comparison, which treats a month as thirty
+days. Read `Months`, `Days` and `Microseconds` to compare stored components.
 
 `PgInterval` implements `IComparable<PgInterval>`, so `Array.Sort`, `OrderBy`,
 `CompareTo` and the `<`, `>`, `<=` and `>=` operators use PostgreSQL's interval
 ordering outside the backend. Comparison treats months as thirty days and days
 as twenty-four hours, uses wide arithmetic, and sorts negative and positive
 infinity below and above every finite value. This is an ordering approximation,
-not a calendar-aware elapsed duration. One month and thirty days compare as zero
-while managed equality still distinguishes their stored components. Sorted
-collections that use this ordering therefore treat those values as equivalent.
+not a calendar-aware elapsed duration. One month and thirty days are equal and
+have the same managed hash while retaining their original components. Both
+sorted and hashed collections therefore treat those values as equivalent.
 
 Use `Add`, `Subtract`, or arithmetic operators for PostgreSQL calendar arithmetic:
 

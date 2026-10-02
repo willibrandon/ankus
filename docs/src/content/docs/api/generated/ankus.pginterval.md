@@ -10,7 +10,7 @@ Namespace: [Ankus](/api/ankus/)
 Assembly: `Ankus.Runtime.dll`
 
 Preserves PostgreSQL interval's independent month, day, and microsecond components, including mixed signs.
-Equality compares storage components, rather than PostgreSQL's thirty-day-month comparison convention.
+Equality and ordering use PostgreSQL's thirty-day-month comparison convention without changing stored components.
 
 ```csharp
 [JsonConverter(typeof(PgIntervalConverter))]
@@ -90,7 +90,7 @@ The resulting interval.
 
 ### CompareInPostgres(PgInterval)
 
-Compares with PostgreSQL's thirty-day-month convention, separately from exact managed component equality.
+Compares with PostgreSQL's thirty-day-month convention, consistent with managed equality.
 
 ```csharp
 public int CompareInPostgres(PgInterval other)
@@ -126,8 +126,6 @@ The interval to compare.
 Returns: [int](https://learn.microsoft.com/dotnet/api/system.int32)
 
 A negative value, zero, or a positive value for a smaller, equivalent, or larger comparison duration.
-
-Ordering uses PostgreSQL's duration approximation; managed equality continues to compare exact components.
 
 <a id="member-6f75a51230cbe540"></a>
 
@@ -200,6 +198,8 @@ The divided interval.
 
 ### Equals(PgInterval)
 
+Tests equality using PostgreSQL's interval comparison, preserving the original calendar components.
+
 ```csharp
 public bool Equals(PgInterval other)
 ```
@@ -208,7 +208,11 @@ Parameters:
 
 `other` — [PgInterval](/api/ankus.pginterval/)
 
+The interval to compare.
+
 Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+Whether both intervals have the same comparison duration or the same infinity.
 
 <a id="member-1ae0b7217568f1ae"></a>
 
@@ -432,11 +436,15 @@ The interval.
 
 ### GetHashCode()
 
+Hashes PostgreSQL's comparison duration so equivalent intervals have equal managed hashes.
+
 ```csharp
 public override int GetHashCode()
 ```
 
 Returns: [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+A managed hash consistent with equality, without requiring backend access.
 
 <a id="member-89145ef945f28ad1"></a>
 
