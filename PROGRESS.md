@@ -1486,6 +1486,14 @@ revisions retain their earlier recorded outcomes, resolved by the accepted repai
 and its three passing complete platform jobs. No run is canceled and no new
 failure is reported at this checkpoint.
 
+The accepted consumer-template milestone is committed and pushed as
+**fc0f4af**. Prior CI is checked and retained again before push, with the same
+terminal successes and active platform/Intel suites. All **211** source hashes
+still match the committed primary checkout. Fresh CI **36968008741** is queued
+and Docs **36968008834** is active on that revision. The independent SPI
+validator retains its separate source and does not receive this template delta
+while its native checks run.
+
 ## SPI read-mode review clarification
 
 The pinned pgrx reference distinguishes explicit client `select` from `update`,
@@ -1558,6 +1566,258 @@ cancellation, initializer and transaction-boundary checks on that unchanged
 source. Its terminal result, complete combined suite, Release/API/site and
 platform gates remain required. No test assertion or production ownership
 guard is weakened to make these responder cases pass.
+
+The first expanded native invocation stops at compilation on MSTEST0037; the
+host transaction-state check now uses a typed boolean assertion, retaining
+`MSTestAnalysisMode=All` and enforced severity. The corrected expanded scope
+executes **512 cases**: **509 passed, three failed, zero skips, 3m16.461s**.
+All **63** new selection cases pass. The failures are the three actual parallel
+transaction-callback rows: the default test initializer uses a writable scalar
+helper, which correctly requests a transaction ID that PostgreSQL forbids
+assigning during a parallel operation.
+
+Its pure constant read now uses transaction-aware `Select`, including the
+existing outside-transaction rejection probe. Deliberate initialization writes,
+error probes, scalar writable intent, the parallel witness assertions and their
+exact expected error fields remain intact. The final draft also composes the
+accepted consumer-template delta, freezing **224** source hashes only after the
+original **221** hashes verify on the terminal expanded run. All **512** affected
+cases are running again on that new composition. Complete-suite, Release/API/
+site and platform evidence remain required before promotion.
+
+The corrected **224**-hash SPI composition now passes all **512** affected
+PostgreSQL **18.6/Linux x64** cases, **zero failed/skipped, 2m22.636s**, terminal
+exit **0**. This includes all **63** selection rows and the existing SPI,
+cancellation, initialization, parallel and transaction-boundary checks; the
+three actual worker callback rows retain their original terminal event/error
+and same-backend recovery assertions. All **224** source hashes match afterward.
+Final Release/API/site and plain complete acceptance on this exact composition
+remain required. No new runtime patch, diagnostic relaxation or assertion
+suppression accompanies selection.
+
+The original **224**-hash composition passes Release with **zero warnings/errors,
+1m02.00s**. Generated API documentation now includes the selection overloads:
+**235 pages / 2,695 members**. The final draft also includes the regression
+output assertion repair below and its three generated API pages, freezing
+**227** source identities. Final Release/API/site gates are running again on
+that exact composition before plain complete acceptance.
+
+Those final gates now pass: Release **zero warnings/errors, 2m24.75s**;
+API freshness **235 pages / 2,695 members**; site **283 pages in 3.52s**;
+site check **zero errors, warnings or hints**. All **227** source hashes
+match afterward. Plain complete PostgreSQL **18.6/Linux x64** acceptance starts
+on that frozen source; its terminal report and platform CI remain required.
+
+That complete draft run additionally exposes the same writable-scalar intent
+in an installed-consumer native callback fixture: its pure `SELECT 6 * 7`
+initializer is invoked in actual parallel workers and cannot assign a new
+transaction ID. The local draft now uses transaction-aware `Select` for that
+pure helper. Existing worker-launch, exact callback values, preload ownership,
+outside-backend rejection and error/recovery assertions remain unchanged.
+The running remote **227**-identity source remains immutable until terminal
+acceptance is retained and verified. The corrected fixture must then pass
+focused installed-consumer execution and a new complete run before promotion.
+
+The original full draft completes all six modules: **10,925 total, 10,910
+passed, one failed and 14 platform skips, 30m46.199s**, PostgreSQL **18.6/Linux
+x64**, exit **2**. That one failure is the installed-consumer callback described
+above; its exact SQLSTATE is **25000**. All **227** hashes verify after terminal
+execution. Only then does the idle validator receive the corrected pure helper,
+freezing **228** identities and starting the actual installed-consumer case.
+No passing complete result is claimed for the failed draft.
+
+The corrected **228**-identity composition passes the actual installed-consumer
+case on PostgreSQL **18.6/Linux x64**: **one passed, zero failed/skipped,
+7m20.777s**, exit **0**. That case publishes the cross-project native extension,
+exercises real parallel workers and managed native callbacks, and checks shared
+preload, exact state/error fields, owned values and same-backend recovery.
+All **228** hashes match after execution. Final Release/API/site gates run again
+before a new plain complete acceptance; the earlier failed full run stays visible.
+
+Those final **228**-identity gates now pass: Release **zero warnings/errors,
+2m18.82s**; API freshness **235 pages / 2,695 members**; site **283 pages in
+4.15s**; site check **zero errors, warnings or hints**. All hashes match again.
+A fresh plain complete PostgreSQL **18.6/Linux x64** run starts on the unchanged
+source. Its terminal six-module result remains required before promotion.
+
+## Regression scaffold Windows output contract
+
+Scaffold CI **36966035199** finishes with successful quality/runtime jobs,
+Linux x64/PostgreSQL 18 (**25m43s**) and macOS ARM64/PostgreSQL 18
+(**19m27s**). Windows x64/PostgreSQL 17 fails two regression-scaffold rows
+(**25m30s**); its other tests pass. Both failures compare psql's correct CRLF
+output with an LF-only test expectation. The expected output now uses the host's
+newline while retaining exact SQL echo, result and final newline checks.
+Template SQL and expected-output bytes remain checked independently and must
+remain unchanged through regression database reuse. Focused verification and
+the final full composition are required; this repair does not change extension
+execution or relax a regression comparison.
+
+The corrected scaffold scope passes both installed-tool cases on PostgreSQL
+**18.6/Linux x64**: **two passed, zero failed/skipped, 6m19.040s**.
+All **215** source identities match afterward. The complete SPI composition
+includes this same correction; Windows execution of the changed expectation
+and its full suite remain required.
+
+Docs **36966035246** and **36968008834** succeed. Consumer CI **36968008741**
+has successful quality/runtime jobs and all three platform suites active.
+It predates the assertion repair and may report those same two Windows failures.
+Hosted Intel **36964760110** remains active with its configured 60-minute limit;
+no completed Intel full-suite evidence or timeout change is claimed.
+
+Hosted Intel **36964760110** subsequently reaches that job limit and is canceled.
+Its five finished reports contain **6,556 total, 6,547 passed, zero failed and
+nine skips**; integration has no completed report, so this is not full-platform
+acceptance. Available PostgreSQL logs show integration activity through
+**05:28 UTC**, shortly before the timeout; silence in the console does not prove
+a hung test. The build step takes **7m14s** and the full-test step has roughly
+**52 minutes** before cancellation. Its **78** completed build reports identify
+binding-toolchain preparation and binding resolution as the largest accumulated
+target costs. Those nested/parallel timings overlap and are not elapsed time or
+an isolated optimization measurement. The retained reports guide further
+investigation; no tests, ownership checks or warning standards are disabled.
+
+Consumer CI **36968008741** finishes with quality/runtime and Linux x64/
+PostgreSQL 18 (**26m00s**) and macOS ARM64/PostgreSQL 18 (**19m42s**) successful.
+Windows x64/PostgreSQL 17 reports exactly the same two LF-only scaffold
+expectations (**25m19s**), with no additional failures. Both retained logs
+confirm the native SQL and regression database operations succeeded before
+the output assertion. Once that Windows job finishes, an isolated local
+PostgreSQL **17.11/Windows x64** validation starts the two corrected cases.
+It uses the identical assertion source; its terminal outcome remains required.
+
+The corrected cases now pass on actual PostgreSQL **17.11/Windows x64**:
+**two passed, zero failures/skips, 4m41.219s**, terminal exit **0**.
+The exact changed source hash matches the primary checkout. The native
+regression commands, extension query, database reuse and unchanged fixture
+bytes all pass; Windows CRLF is compared exactly. Final Release and plain
+complete acceptance are next before this assertion-only repair is committed.
+
+The isolated Windows source verifies all **211** owned hashes, matching the
+accepted consumer-template baseline plus the exact assertion repair. Its final
+Release rebuild succeeds with **zero warnings/errors, 41.19s**. Plain
+`dotnet test` now runs all six modules on that unchanged PostgreSQL 17.11
+composition. Its complete terminal report and fresh CI checks remain required
+before committing; the passing two-case result is not substituted for a full run.
+
+Plain complete PostgreSQL **17.11/Windows x64** acceptance now passes all six
+modules: **10,840 total, 10,815 passed, zero failed and 25 platform skips**,
+**29m25.464s**, terminal exit **0**. All **211** source hashes verify in both the
+primary checkout and Windows validator after execution. The corrected two regression cases pass in
+this full run as well as their focused run; no expectation normalization,
+test omission, diagnostic relaxation or runtime patch is introduced.
+
+Before commit, previous CI is checked again: **36968008741** and **36966035199**
+retain exactly their recorded two Windows LF-only expectation failures; their
+quality/runtime/Linux/macOS jobs succeeded. Docs **36968008834** and
+**36966035246** succeeded. Previous complete repair CI **36964760599** and Docs
+**36964760249** succeeded. Hosted Intel **36964760110** retains its documented
+one-hour timeout and incomplete integration report. Earlier **36957512067**
+failures retain their recorded subsequent repairs. No repository run is active
+or queued. Fresh CI for the locally accepted assertion correction remains required.
+
+The accepted Windows correction is committed as **87f283b**. Previous CI is
+checked and retained again before push: the same terminal outcomes hold,
+including the recorded Intel timeout, and no repository run is active or queued.
+The independent corrected SPI complete suite continues on its unchanged source.
+
+## Additional PostgreSQL version workflow composition
+
+The existing five-path version-workflow draft is recomposed onto accepted
+**fc0f4af**, freezing **215** source hashes. The previous template validator's
+terminal complete result and all **211** identities are preserved and verified
+before its idle checkout receives the workflow/helper/docs paths. The separate
+SPI checkout is unchanged. Actionlint succeeds with explicit legitimate custom
+runner labels. Compiled preflight succeeds against PostgreSQL **18.6** and its
+real server headers; a PostgreSQL 13 selection against that same installation
+fails with the exact major mismatch. These are prerequisite/configuration
+checks, not complete version-suite evidence.
+
+Both source validators are now terminal and their original hashes verify, so
+the authorized prerequisite installer starts additional PostgreSQL servers and
+headers. It retains the existing process/terminal-record guards. The exclusive
+version-runner label remains inactive; all seven actual installations, final
+workflow gates and complete version reports remain required before claiming
+coverage. No system packages are changed during live validator tests.
+
+Installation completes successfully while both validators are idle. Actual
+server binaries, `pg_config` descriptors and selected server headers now verify
+for **13.23, 14.24, 15.19, 16.15, 17.11, 18.6 and 19 beta 4**, Linux x64.
+The compiled seven-major prerequisite check exits **0**. These are installed
+prerequisites, not complete-suite version evidence. The compatibility runner
+label remains inactive pending final workflow validation and complete tests.
+
+The corrected **215**-identity matrix composition retains the two passing
+PostgreSQL 18.6 scaffold cases and is now running its Release/API/site gates
+with actual PostgreSQL **13.23** selected for every project. Complete version
+acceptance follows only after those gates; no new version coverage is claimed
+from build or prerequisite checks alone.
+
+PostgreSQL **13.23** Release validation exposes a real binding-surface gap:
+the existing native overflow probe cannot compile `pg_add_s32_overflow`.
+The pinned pgrx 0.19.3 foreign catalogs expose it in majors 17–19, while the
+actual `common/int.h` implementation exists in all seven installations. The
+legacy pinned include manifest omits that header. The supplemental selected-
+header path now includes it and requests the direct helper when the foreign
+inventory lacks it. The compiler still measures its actual prototype; generated
+catalogs, arithmetic behavior and the native boundary tests remain unchanged.
+
+The draft freezes **220** source identities. All **21** affected helper/resource
+cases pass, zero failures/skips; the initial command exits **9** because its
+mistaken minimum count was 25. The corrected command requires the actual 21
+cases and is running on unchanged source. PostgreSQL 13 native overflow/hash
+execution, corrected Release/API/site and the complete suite remain required.
+
+The corrected helper/resource invocation completes **21 passed, zero failed/
+skipped, 1.714s**, exit **0**, on unchanged source. PostgreSQL **13.23/Linux x64**
+Release gates pass with **zero warnings/errors, 2m35.80s**; API freshness verifies
+**235 pages / 2,683 members**; the site builds **283 pages in 3.42s** and reports
+zero errors, warnings or hints. All **220** source hashes still match. Actual
+native overflow/hash execution and plain complete acceptance remain pending.
+
+Actual PostgreSQL **13.23/Linux x64** native inventory execution now passes
+all **14** cases, **zero failures/skips, 4m20.047s**, exit **0**. The eight
+inline-addition rows cover signed endpoints and SQL NULL on overflow; six
+native hash rows compare PostgreSQL's own SQL functions with exact signed
+seeds and result bits. The unchanged tests retain ordinary-query recovery
+checks. All **220** identities verify after execution, and plain complete
+acceptance starts on that same immutable composition. This focused result
+does not establish full PostgreSQL 13 suite coverage.
+
+The PostgreSQL 13 full run exposes a native diagnostic-witness issue:
+`ValgrindReportsNativeErrorsAndPreservesDiagnostics` returns the correct SQL
+values but finds no freed-byte report. Retained native probes reproduce the
+miss on **13.23**, while **18.6** reports the fault. Disassembly confirms the
+read exists, but PostgreSQL 13's datum return immediately overwrites its unused
+register value. Running that unchanged probe with VEX optimization disabled
+restores the report, identifying elimination of the unobservable read.
+
+The proper fixture correction stores the freed-byte result in a static
+volatile witness. Default Memcheck now produces exactly one matching invalid-
+read report on both versions, with native allocation/free stacks and error
+delimiters retained. Product instrumentation options and all SQL/result/recovery
+assertions remain unchanged; optimization is not disabled in Ankus. The local
+matrix draft contains that correction, while the running remote full source
+remains immutable. The corrected actual test and a fresh complete run remain
+required after that original full run finishes and its evidence is retained.
+
+The corrected default-instrumentation native witness also succeeds on all seven
+installed PostgreSQL versions: **13.23, 14.24, 15.19, 16.15, 17.11, 18.6 and
+19 beta 4/Linux x64**. Each returns exact SQL values **42** and **43** and
+retains exactly one matching freed-byte diagnostic; these native-only probes
+use separate client connections and do not establish the actual test's same-
+backend recovery or complete-suite coverage. The existing actual test retains
+its single connection and now includes the complete native log in a failed
+diagnostic assertion. The corrected local composition freezes **221** hashes;
+the original **220**-hash full run remains unchanged while active.
+
+That original PostgreSQL **13.23/Linux x64** full run is now terminal:
+**10,840 total, 10,825 passed, one failed and 14 platform skips, 31m15.105s**,
+exit **2**. The sole failure is the discarded-read diagnostic witness above;
+all other tests pass. All **220** source hashes verify after terminal execution,
+and the complete failing report is retained before the idle validator receives
+the corrected **221**-identity composition. This original run is not claimed
+as complete passing PostgreSQL 13 coverage.
 
 ## C# operator and conversion declaration draft
 

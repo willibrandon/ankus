@@ -64,7 +64,8 @@ public sealed partial class ToolCommandTests
             Assert.Contains("Selected 1 tests; skipped 0.", reused.StandardOutput);
             Assert.AreSequenceEqual(originalSql, await File.ReadAllBytesAsync(setup, token));
             Assert.AreSequenceEqual(originalExpected, await File.ReadAllBytesAsync(setupOutput, token));
-            Assert.AreEqual("\\set ECHO none\n42\n", await File.ReadAllTextAsync(Path.Combine(suite, "results", "addition.out"), token));
+            string expectedResult = $"\\set ECHO none{Environment.NewLine}42{Environment.NewLine}";
+            Assert.AreEqual(expectedResult, await File.ReadAllTextAsync(Path.Combine(suite, "results", "addition.out"), token));
         }
         finally
         {
