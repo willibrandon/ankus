@@ -9,7 +9,7 @@ namespace Ankus.Runtime.Tests;
 /// Verifies independent logging capability, diagnostic ownership, and terminal managed unwinding.
 /// </summary>
 [TestClass]
-public sealed class NativeLogTests
+public sealed partial class NativeLogTests
 {
     [ThreadStatic]
     private static LogFixture? s_fixture;

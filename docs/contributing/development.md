@@ -87,6 +87,14 @@ publishes the extensions, starts an isolated cluster, installs the extensions,
 and invokes their functions through SQL. Test transactions roll back before their
 connections close. The cluster shuts down after the run.
 
+The complete suite also publishes independent installed-package consumers in
+temporary directories. Allow disk space for concurrent native builds. On Linux,
+if `/tmp` is a small RAM-backed filesystem, set `TMPDIR` for the test process to
+a directory on a disk-backed filesystem. Build outputs and NuGet extraction
+need that capacity even though the fixture removes its temporary directories
+after the run. A full temporary filesystem is a failed prerequisite, not a
+reason to skip consumer tests.
+
 Memory cleanup checks query `ankus_test_memory.contexts`, installed by the test
 extension. On PostgreSQL 14 and later this view reads the server's memory-context
 catalog. PostgreSQL 13 uses the standalone C allocator fixture to walk the actual

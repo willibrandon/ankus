@@ -6,7 +6,7 @@ description: Report PostgreSQL notices, structured diagnostics, and errors from 
 `PgLog` sends messages through PostgreSQL's reporting system:
 
 ```csharp
-PgLog.Write(PgLogLevel.Notice, "Refresh complete.");
+PgLog.Notice("Refresh complete.");
 ```
 
 Calls require the active PostgreSQL backend thread. `Console.WriteLine` does not
@@ -23,6 +23,11 @@ phase restrictions and the failure policy for an unhandled `Error`.
 messages, and `ServerOnly` keeps them out of the client connection. `Info` always
 reaches clients. `Notice` and `Warning` report events without stopping execution.
 
+Each level has a named helper with literal-text and `PgDiagnostic` overloads:
+`PgLog.Debug5` through `Debug1`, `Log`, `ServerOnly`, `Info`, `Notice`, `Warning`,
+`Error`, `Fatal` and `Panic`. Use `PgLog.Write` when the severity is selected at
+runtime. The helpers retain the same filtering, SQLSTATE and diagnostic fields.
+
 Nonterminal message emission temporarily holds PostgreSQL interrupts. Pending
 cancellation is processed at a later interrupt check, after the report finishes.
 Call `PgInterrupts.Check()` periodically in loops that only log messages. Native
@@ -36,7 +41,7 @@ Check the current settings before doing expensive formatting:
 ```csharp
 if (PgLog.IsEnabled(PgLogLevel.Debug1))
 {
-    PgLog.Write(PgLogLevel.Debug1, $"Prepared {items.Count} items.");
+    PgLog.Debug1($"Prepared {items.Count} items.");
 }
 ```
 
@@ -45,7 +50,7 @@ Messages are literal text. Percent signs have no special meaning.
 ## Structured messages
 
 ```csharp
-PgLog.Write(PgLogLevel.Warning, new PgDiagnostic("Entry has expired.")
+PgLog.Warning(new PgDiagnostic("Entry has expired.")
 {
     SqlState = PgSqlStates.Warning,
     Detail = "The entry was last refreshed yesterday.",
@@ -64,9 +69,19 @@ error levels cannot use `00000`.
 
 ## Errors
 
-`PgLog.Write(PgLogLevel.Error, ...)` throws `PgException`. Extension code can catch
+`PgLog.Error(...)` throws `PgException`. Extension code can catch
 it and continue. An unhandled exception becomes PostgreSQL `ERROR` after the
 managed method and its `finally` blocks have finished.
+
+`Error`, `Fatal` and `Panic` are marked as never returning normally, including
+when a report fails validation. `PgLog.Write(PgLogLevel.Error, ...)` remains
+available for code that chooses the severity at runtime.
+
+Client drivers can apply their own connection policy. For example,
+[Npgsql closes connections for SQLSTATE class XX](https://github.com/npgsql/npgsql/blob/v10.0.3/src/Npgsql/PostgresErrorCodes.cs#L432),
+including the default `XX000`, even when PostgreSQL can recover from the `ERROR`.
+For expected application errors, supply a condition-specific SQLSTATE such as
+`PgSqlStates.InvalidParameterValue`.
 
 Throwing `PgException` directly is also supported:
 

@@ -19,6 +19,278 @@ Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object)
 
 ## Methods
 
+<a id="member-58b8eecf623d4546"></a>
+
+### Debug1(PgDiagnostic)
+
+Reports debugging text at detail level one.
+
+```csharp
+public static void Debug1(PgDiagnostic diagnostic)
+```
+
+Parameters:
+
+`diagnostic` — [PgDiagnostic](/api/ankus.pgdiagnostic/)
+
+The message and optional PostgreSQL diagnostic fields.
+
+<a id="member-d3d92604b55c5321"></a>
+
+### Debug1(string)
+
+Reports debugging text at detail level one.
+
+```csharp
+public static void Debug1(string message)
+```
+
+Parameters:
+
+`message` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The primary message, treated as literal text.
+
+<a id="member-04ad22786b2b29b4"></a>
+
+### Debug2(PgDiagnostic)
+
+Reports debugging text at detail level two.
+
+```csharp
+public static void Debug2(PgDiagnostic diagnostic)
+```
+
+Parameters:
+
+`diagnostic` — [PgDiagnostic](/api/ankus.pgdiagnostic/)
+
+The message and optional PostgreSQL diagnostic fields.
+
+<a id="member-396982f926299a27"></a>
+
+### Debug2(string)
+
+Reports debugging text at detail level two.
+
+```csharp
+public static void Debug2(string message)
+```
+
+Parameters:
+
+`message` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The primary message, treated as literal text.
+
+<a id="member-435ec87f8df433c5"></a>
+
+### Debug3(PgDiagnostic)
+
+Reports debugging text at detail level three.
+
+```csharp
+public static void Debug3(PgDiagnostic diagnostic)
+```
+
+Parameters:
+
+`diagnostic` — [PgDiagnostic](/api/ankus.pgdiagnostic/)
+
+The message and optional PostgreSQL diagnostic fields.
+
+<a id="member-87c59829922d21cc"></a>
+
+### Debug3(string)
+
+Reports debugging text at detail level three.
+
+```csharp
+public static void Debug3(string message)
+```
+
+Parameters:
+
+`message` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The primary message, treated as literal text.
+
+<a id="member-c890d8bb2d2d2785"></a>
+
+### Debug4(PgDiagnostic)
+
+Reports debugging text at detail level four.
+
+```csharp
+public static void Debug4(PgDiagnostic diagnostic)
+```
+
+Parameters:
+
+`diagnostic` — [PgDiagnostic](/api/ankus.pgdiagnostic/)
+
+The message and optional PostgreSQL diagnostic fields.
+
+<a id="member-c630bf8e223f869e"></a>
+
+### Debug4(string)
+
+Reports debugging text at detail level four.
+
+```csharp
+public static void Debug4(string message)
+```
+
+Parameters:
+
+`message` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The primary message, treated as literal text.
+
+<a id="member-b39294375a2d4da6"></a>
+
+### Debug5(PgDiagnostic)
+
+Reports debugging text at detail level five.
+
+```csharp
+public static void Debug5(PgDiagnostic diagnostic)
+```
+
+Parameters:
+
+`diagnostic` — [PgDiagnostic](/api/ankus.pgdiagnostic/)
+
+The message and optional PostgreSQL diagnostic fields.
+
+<a id="member-4b9244b74e0eac09"></a>
+
+### Debug5(string)
+
+Reports debugging text at detail level five.
+
+```csharp
+public static void Debug5(string message)
+```
+
+Parameters:
+
+`message` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The primary message, treated as literal text.
+
+<a id="member-a2a005b734ca88d9"></a>
+
+### Error(PgDiagnostic)
+
+Throws a catchable PostgreSQL error after validating the active logging capability.
+
+```csharp
+[DoesNotReturn]
+public static void Error(PgDiagnostic diagnostic)
+```
+
+Parameters:
+
+`diagnostic` — [PgDiagnostic](/api/ankus.pgdiagnostic/)
+
+The message and optional PostgreSQL diagnostic fields.
+
+The default SQLSTATE is XX000. Explicit diagnostic fields and codes retain their meaning.
+An unhandled error is raised by PostgreSQL after managed frames unwind.
+
+<a id="member-9992428bb839ab30"></a>
+
+### Error(string)
+
+Throws a catchable PostgreSQL error after validating the active logging capability.
+
+```csharp
+[DoesNotReturn]
+public static void Error(string message)
+```
+
+Parameters:
+
+`message` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The primary message, treated as literal text.
+
+The default SQLSTATE is XX000. Explicit diagnostic fields and codes retain their meaning.
+An unhandled error is raised by PostgreSQL after managed frames unwind.
+
+<a id="member-d0a89e1abcdaede6"></a>
+
+### Fatal(PgDiagnostic)
+
+Records a terminal report and unwinds managed code before PostgreSQL terminates the connection.
+
+```csharp
+[DoesNotReturn]
+public static void Fatal(PgDiagnostic diagnostic)
+```
+
+Parameters:
+
+`diagnostic` — [PgDiagnostic](/api/ankus.pgdiagnostic/)
+
+The message and optional PostgreSQL diagnostic fields.
+
+The default SQLSTATE is XX000. Explicit diagnostic fields and codes retain their meaning.
+Catching the managed exception does not discard the terminal report.
+
+<a id="member-30216f5dedd45d17"></a>
+
+### Fatal(string)
+
+Records a terminal report and unwinds managed code before PostgreSQL terminates the connection.
+
+```csharp
+[DoesNotReturn]
+public static void Fatal(string message)
+```
+
+Parameters:
+
+`message` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The primary message, treated as literal text.
+
+The default SQLSTATE is XX000. Explicit diagnostic fields and codes retain their meaning.
+Catching the managed exception does not discard the terminal report.
+
+<a id="member-4b37fe625f667469"></a>
+
+### Info(PgDiagnostic)
+
+Reports information to the client regardless of client_min_messages.
+
+```csharp
+public static void Info(PgDiagnostic diagnostic)
+```
+
+Parameters:
+
+`diagnostic` — [PgDiagnostic](/api/ankus.pgdiagnostic/)
+
+The message and optional PostgreSQL diagnostic fields.
+
+<a id="member-f5a232c7370dbf81"></a>
+
+### Info(string)
+
+Reports information to the client regardless of client_min_messages.
+
+```csharp
+public static void Info(string message)
+```
+
+Parameters:
+
+`message` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The primary message, treated as literal text.
+
 <a id="member-e281232f5cbd92d2"></a>
 
 ### IsEnabled(PgLogLevel)
@@ -38,6 +310,174 @@ The reporting severity.
 Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
 
 Whether PostgreSQL would process this level for either destination.
+
+<a id="member-d1f5df21e48c75b4"></a>
+
+### Log(PgDiagnostic)
+
+Reports an operational message with PostgreSQL's LOG routing.
+
+```csharp
+public static void Log(PgDiagnostic diagnostic)
+```
+
+Parameters:
+
+`diagnostic` — [PgDiagnostic](/api/ankus.pgdiagnostic/)
+
+The message and optional PostgreSQL diagnostic fields.
+
+<a id="member-d3390b3053eaac43"></a>
+
+### Log(string)
+
+Reports an operational message with PostgreSQL's LOG routing.
+
+```csharp
+public static void Log(string message)
+```
+
+Parameters:
+
+`message` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The primary message, treated as literal text.
+
+<a id="member-8063fe62f279e081"></a>
+
+### Notice(PgDiagnostic)
+
+Reports an expected event without stopping execution.
+
+```csharp
+public static void Notice(PgDiagnostic diagnostic)
+```
+
+Parameters:
+
+`diagnostic` — [PgDiagnostic](/api/ankus.pgdiagnostic/)
+
+The message and optional PostgreSQL diagnostic fields.
+
+<a id="member-ce85b94379bcee89"></a>
+
+### Notice(string)
+
+Reports an expected event without stopping execution.
+
+```csharp
+public static void Notice(string message)
+```
+
+Parameters:
+
+`message` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The primary message, treated as literal text.
+
+<a id="member-7d4a37b072a0a8fb"></a>
+
+### Panic(PgDiagnostic)
+
+Records a terminal report and unwinds managed code before PostgreSQL starts cluster crash recovery.
+
+```csharp
+[DoesNotReturn]
+public static void Panic(PgDiagnostic diagnostic)
+```
+
+Parameters:
+
+`diagnostic` — [PgDiagnostic](/api/ankus.pgdiagnostic/)
+
+The message and optional PostgreSQL diagnostic fields.
+
+The default SQLSTATE is XX000. Explicit diagnostic fields and codes retain their meaning.
+Catching the managed exception does not discard the terminal report.
+
+<a id="member-b51250d44d2c353f"></a>
+
+### Panic(string)
+
+Records a terminal report and unwinds managed code before PostgreSQL starts cluster crash recovery.
+
+```csharp
+[DoesNotReturn]
+public static void Panic(string message)
+```
+
+Parameters:
+
+`message` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The primary message, treated as literal text.
+
+The default SQLSTATE is XX000. Explicit diagnostic fields and codes retain their meaning.
+Catching the managed exception does not discard the terminal report.
+
+<a id="member-569a3db5ab17e2ce"></a>
+
+### ServerOnly(PgDiagnostic)
+
+Reports an operational message to the server only.
+
+```csharp
+public static void ServerOnly(PgDiagnostic diagnostic)
+```
+
+Parameters:
+
+`diagnostic` — [PgDiagnostic](/api/ankus.pgdiagnostic/)
+
+The message and optional PostgreSQL diagnostic fields.
+
+<a id="member-6b4b87a659ad7f35"></a>
+
+### ServerOnly(string)
+
+Reports an operational message to the server only.
+
+```csharp
+public static void ServerOnly(string message)
+```
+
+Parameters:
+
+`message` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The primary message, treated as literal text.
+
+<a id="member-9eef12b8b4ef5903"></a>
+
+### Warning(PgDiagnostic)
+
+Reports an unexpected event without stopping execution.
+
+```csharp
+public static void Warning(PgDiagnostic diagnostic)
+```
+
+Parameters:
+
+`diagnostic` — [PgDiagnostic](/api/ankus.pgdiagnostic/)
+
+The message and optional PostgreSQL diagnostic fields.
+
+<a id="member-9ebb948db6822324"></a>
+
+### Warning(string)
+
+Reports an unexpected event without stopping execution.
+
+```csharp
+public static void Warning(string message)
+```
+
+Parameters:
+
+`message` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The primary message, treated as literal text.
 
 <a id="member-66a9a37c32dd731d"></a>
 

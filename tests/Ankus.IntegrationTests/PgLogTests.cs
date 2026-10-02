@@ -9,7 +9,7 @@ namespace Ankus.IntegrationTests;
 /// </summary>
 /// <param name="context">The per-test context.</param>
 [TestClass]
-public sealed class PgLogTests(TestContext context)
+public sealed partial class PgLogTests(TestContext context)
 {
     /// <summary>
     /// Verifies every nonterminal level's actual wire severity and default SQLSTATE, including server-only suppression.
@@ -82,16 +82,20 @@ public sealed class PgLogTests(TestContext context)
     /// <summary>
     /// Verifies complete structured diagnostics and server-only detail survive without truncation or session damage.
     /// </summary>
+    /// <param name="helper">Whether to use the structured warning helper.</param>
     [TestMethod]
-    public Task StructuredNoticePreservesFieldsAndLongUnicode()
+    [DataRow(false)]
+    [DataRow(true)]
+    public Task StructuredNoticePreservesFieldsAndLongUnicode(bool helper)
         => PostgresFixture.Cluster.RunInTransactionAsync(nameof(StructuredNoticePreservesFieldsAndLongUnicode),
             async (connection, transaction, token) =>
             {
                 string text = string.Concat(Enumerable.Repeat("é🐘%s", 2000));
                 var notices = new List<PostgresNotice>();
                 connection.Notice += (_, args) => notices.Add(args.Notice);
-                await using var command = new NpgsqlCommand("SELECT datatype.log_diagnostic($1)", connection, transaction);
+                await using var command = new NpgsqlCommand("SELECT datatype.log_diagnostic($1, $2)", connection, transaction);
                 command.Parameters.AddWithValue(text);
+                command.Parameters.AddWithValue(helper);
                 Assert.AreEqual(42, await command.ExecuteScalarAsync(token));
                 Assert.HasCount(1, notices);
                 PostgresNotice notice = notices[0];
@@ -227,14 +231,21 @@ public sealed class PgLogTests(TestContext context)
     /// <param name="level">The terminal severity.</param>
     /// <param name="severity">The expected wire severity.</param>
     /// <param name="mode">The managed propagation or swallowing path.</param>
+    /// <param name="helper">Whether to use the structured terminal helper.</param>
     [TestMethod]
-    [DataRow(11, "FATAL", 0)]
-    [DataRow(12, "PANIC", 0)]
-    [DataRow(11, "FATAL", 1)]
-    [DataRow(12, "PANIC", 1)]
-    [DataRow(11, "FATAL", 2)]
-    [DataRow(12, "PANIC", 2)]
-    public async Task TerminalLevelsUnwindBeforeNativeTermination(int level, string severity, int mode)
+    [DataRow(11, "FATAL", 0, false)]
+    [DataRow(12, "PANIC", 0, false)]
+    [DataRow(11, "FATAL", 1, false)]
+    [DataRow(12, "PANIC", 1, false)]
+    [DataRow(11, "FATAL", 2, false)]
+    [DataRow(12, "PANIC", 2, false)]
+    [DataRow(11, "FATAL", 0, true)]
+    [DataRow(12, "PANIC", 0, true)]
+    [DataRow(11, "FATAL", 1, true)]
+    [DataRow(12, "PANIC", 1, true)]
+    [DataRow(11, "FATAL", 2, true)]
+    [DataRow(12, "PANIC", 2, true)]
+    public async Task TerminalLevelsUnwindBeforeNativeTermination(int level, string severity, int mode, bool helper)
     {
         CancellationToken token = context.CancellationToken;
         PostgresTestClusterOptions options = await IntegrationEnvironment.CreateOptionsAsync(token);
@@ -254,10 +265,11 @@ public sealed class PgLogTests(TestContext context)
             await identify.ExecuteNonQueryAsync(token);
         }
 
-        await using var command = new NpgsqlCommand("SELECT log_terminal($1, $2, $3)", connection);
+        await using var command = new NpgsqlCommand("SELECT log_terminal($1, $2, $3, $4)", connection);
         command.Parameters.AddWithValue(level);
         command.Parameters.AddWithValue(marker);
         command.Parameters.AddWithValue(mode);
+        command.Parameters.AddWithValue(helper);
         NpgsqlException terminalFailure = await Assert.ThrowsAsync<NpgsqlException>(() => command.ExecuteScalarAsync(token));
         if (terminalFailure is PostgresException error)
         {

@@ -6,6 +6,63 @@ namespace Ankus.TestExtension;
 public static class PgLogFunctions
 {
     /// <summary>
+    /// Calls the literal severity helpers and proves the same backend remains usable after nonterminal reporting.
+    /// </summary>
+    /// <param name="level">The helper's PostgreSQL reporting severity.</param>
+    /// <param name="message">Literal text, including percent signs and Unicode.</param>
+    /// <returns>The query result after a nonterminal report.</returns>
+    [PgFunction]
+    public static int LogHelper(int level, string message)
+    {
+        Action<string> report = (PgLogLevel)level switch
+        {
+            PgLogLevel.Debug5 => PgLog.Debug5,
+            PgLogLevel.Debug4 => PgLog.Debug4,
+            PgLogLevel.Debug3 => PgLog.Debug3,
+            PgLogLevel.Debug2 => PgLog.Debug2,
+            PgLogLevel.Debug1 => PgLog.Debug1,
+            PgLogLevel.Log => PgLog.Log,
+            PgLogLevel.ServerOnly => PgLog.ServerOnly,
+            PgLogLevel.Info => PgLog.Info,
+            PgLogLevel.Notice => PgLog.Notice,
+            PgLogLevel.Warning => PgLog.Warning,
+            PgLogLevel.Error => PgLog.Error,
+            PgLogLevel.Fatal => PgLog.Fatal,
+            PgLogLevel.Panic => PgLog.Panic,
+            _ => throw new ArgumentOutOfRangeException(nameof(level)),
+        };
+        report(message);
+        return Spi.ExecuteScalar<int>("SELECT 42");
+    }
+
+    /// <summary>
+    /// Catches default-code errors from both convenience overloads without losing fields or backend access.
+    /// </summary>
+    /// <param name="structured">Whether to provide optional detail and hint fields.</param>
+    /// <returns>The original error and continued query result.</returns>
+    [PgFunction]
+    public static string LogCatchHelperError(bool structured)
+    {
+        try
+        {
+            if (structured)
+            {
+                PgLog.Error(new PgDiagnostic("helper error") { Detail = "detail", Hint = "hint" });
+            }
+            else
+            {
+                PgLog.Error("helper error");
+            }
+        }
+        catch (PgException error)
+        {
+            return error.SqlState + "|" + error.Message + "|" + error.Detail + "|" + error.Hint + "|" + Spi.ExecuteScalar<int>("SELECT 42");
+        }
+
+        throw new InvalidOperationException("The ERROR helper returned normally.");
+    }
+
+    /// <summary>
     /// Observes inherited holdoffs after the native reporter fails and its subtransaction rolls back.
     /// </summary>
     /// <returns>The original diagnostic and native holdoff counts before managed callback exit.</returns>
@@ -63,12 +120,13 @@ public static class PgLogFunctions
     /// Reports all structured fields through a scoped connection, retaining ownership of the session.
     /// </summary>
     /// <param name="message">The primary text.</param>
+    /// <param name="helper">Whether to use the structured warning helper.</param>
     /// <returns>The result from the existing session after reporting.</returns>
     [PgFunction]
-    public static int LogDiagnostic(string message)
+    public static int LogDiagnostic(string message, bool helper = false)
         => Spi.Connect(session =>
         {
-            PgLog.Write(PgLogLevel.Warning, new PgDiagnostic(message)
+            var diagnostic = new PgDiagnostic(message)
             {
                 SqlState = PgSqlStates.WarningDeprecatedFeature,
                 Detail = "client détail",
@@ -86,7 +144,16 @@ public static class PgLogFunctions
                 File = "logging.cs",
                 Line = 42,
                 Routine = "LogDiagnostic",
-            });
+            };
+            if (helper)
+            {
+                PgLog.Warning(diagnostic);
+            }
+            else
+            {
+                PgLog.Write(PgLogLevel.Warning, diagnostic);
+            }
+
             return session.ExecuteScalar<int>("SELECT 42");
         });
 
@@ -115,15 +182,31 @@ public static class PgLogFunctions
     /// <param name="level">ERROR, FATAL, or PANIC.</param>
     /// <param name="marker">The unique primary message.</param>
     /// <param name="mode">Zero to propagate, one to swallow, or two to swallow across an explicit recovery scope.</param>
+    /// <param name="helper">Whether to use the structured severity helper.</param>
     [PgFunction]
-    public static void LogTerminal(int level, string marker, int mode = 0)
+    public static void LogTerminal(int level, string marker, int mode = 0, bool helper = false)
     {
         try
         {
             void Report() => Spi.Connect(session =>
             {
                 session.Execute("INSERT INTO log_rollback VALUES (99)");
-                PgLog.Write((PgLogLevel)level, new PgDiagnostic(marker) { SqlState = PgSqlStates.RaiseException, Detail = "terminal detail" });
+                var diagnostic = new PgDiagnostic(marker) { SqlState = PgSqlStates.RaiseException, Detail = "terminal detail" };
+                if (helper)
+                {
+                    Action<PgDiagnostic> report = (PgLogLevel)level switch
+                    {
+                        PgLogLevel.Error => PgLog.Error,
+                        PgLogLevel.Fatal => PgLog.Fatal,
+                        PgLogLevel.Panic => PgLog.Panic,
+                        _ => throw new ArgumentOutOfRangeException(nameof(level)),
+                    };
+                    report(diagnostic);
+                }
+                else
+                {
+                    PgLog.Write((PgLogLevel)level, diagnostic);
+                }
             });
 
             if (mode == 2)

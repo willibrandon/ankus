@@ -3,7 +3,7 @@ namespace Ankus;
 /// <summary>
 /// Reports through PostgreSQL's client and server diagnostics on the active backend thread.
 /// </summary>
-public static class PgLog
+public static partial class PgLog
 {
     /// <summary>
     /// Tests PostgreSQL's current reporting thresholds before formatting a message.
@@ -36,6 +36,41 @@ public static class PgLog
     /// <param name="diagnostic">The message and optional diagnostic fields.</param>
     public static void Write(PgLogLevel level, PgDiagnostic diagnostic)
     {
+        if (level >= PgLogLevel.Error)
+        {
+            throw CreateTerminal(level, diagnostic);
+        }
+
+        ValidateDiagnostic(level, diagnostic);
+        NativeLog.Report(level, diagnostic);
+    }
+
+    /// <summary>
+    /// Creates an error after validating its capability and retains terminal intent before managed unwinding.
+    /// </summary>
+    /// <param name="level">ERROR, FATAL or PANIC.</param>
+    /// <param name="diagnostic">The owned message and exact diagnostic fields.</param>
+    /// <returns>The exception to throw without a normally returning terminal-report path.</returns>
+    private static Exception CreateTerminal(PgLogLevel level, PgDiagnostic diagnostic)
+    {
+        ValidateDiagnostic(level, diagnostic);
+        if (level == PgLogLevel.Error)
+        {
+            return diagnostic.ToException();
+        }
+
+        var terminal = new PgTerminalException(level, diagnostic);
+        NativeLog.RecordTerminal(terminal);
+        return terminal;
+    }
+
+    /// <summary>
+    /// Validates a report before filtering, native encoding or managed error construction.
+    /// </summary>
+    /// <param name="level">The reporting severity.</param>
+    /// <param name="diagnostic">The message and optional SQLSTATE.</param>
+    private static void ValidateDiagnostic(PgLogLevel level, PgDiagnostic diagnostic)
+    {
         ArgumentNullException.ThrowIfNull(diagnostic);
         ValidateLevel(level);
         NativeLog.CheckAccess(terminal: level >= PgLogLevel.Error);
@@ -46,20 +81,6 @@ public static class PgLog
             throw new ArgumentException("SQLSTATE must contain five uppercase ASCII letters or digits; errors cannot use 00000.",
                 nameof(diagnostic));
         }
-
-        if (level == PgLogLevel.Error)
-        {
-            throw diagnostic.ToException();
-        }
-
-        if (level >= PgLogLevel.Fatal)
-        {
-            var terminal = new PgTerminalException(level, diagnostic);
-            NativeLog.RecordTerminal(terminal);
-            throw terminal;
-        }
-
-        NativeLog.Report(level, diagnostic);
     }
 
     private static void ValidateLevel(PgLogLevel level)
