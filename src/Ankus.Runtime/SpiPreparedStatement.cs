@@ -74,11 +74,12 @@ public sealed class SpiPreparedStatement : IDisposable
 
     /// <summary>
     /// Opens a transaction-bound cursor from this plan. The cursor remains valid after the plan is disposed.
+    /// Uses a read-only snapshot until the transaction becomes writable, then uses a fresh writable snapshot.
     /// </summary>
     /// <param name="parameters">Values matching the declared parameter types.</param>
     /// <returns>An owned cursor.</returns>
     public SpiCursor OpenCursor(params ReadOnlySpan<SpiParameter> parameters)
-        => OpenCursor(readOnly: false, parameters);
+        => OpenCursorCore(readOnly: null, parameters);
 
     /// <summary>
     /// Opens a cursor from this plan with explicit read-only execution mode.
@@ -87,6 +88,15 @@ public sealed class SpiPreparedStatement : IDisposable
     /// <param name="parameters">Values matching the declared parameter types.</param>
     /// <returns>An owned cursor independent of the prepared statement's lifetime.</returns>
     public SpiCursor OpenCursor(bool readOnly, params ReadOnlySpan<SpiParameter> parameters)
+        => OpenCursorCore(readOnly, parameters);
+
+    /// <summary>
+    /// Opens a cursor while retaining access, parameter and reentrancy checks for either explicit or transaction-aware snapshots.
+    /// </summary>
+    /// <param name="readOnly">The explicit snapshot choice, or null to follow PostgreSQL's transaction state.</param>
+    /// <param name="parameters">Values matching the declared parameter types.</param>
+    /// <returns>An owned cursor independent of the statement's lifetime.</returns>
+    private SpiCursor OpenCursorCore(bool? readOnly, ReadOnlySpan<SpiParameter> parameters)
     {
         ValidateParameters(parameters);
         _activeExecutions++;
@@ -127,6 +137,40 @@ public sealed class SpiPreparedStatement : IDisposable
         => Run(parameters, readOnly, limit, SpiResultMode.All);
 
     /// <summary>
+    /// Selects rows with a read-only snapshot until the transaction becomes writable, then uses fresh writable snapshots.
+    /// </summary>
+    /// <param name="parameters">Values matching the declared parameter types.</param>
+    /// <returns>The independently owned managed result.</returns>
+    public SpiResult Select(params ReadOnlySpan<SpiParameter> parameters)
+        => Select(limit: 0, parameters);
+
+    /// <summary>
+    /// Selects rows from this plan using PostgreSQL's transaction state and an explicit row limit.
+    /// </summary>
+    /// <param name="limit">The maximum returned rows, or zero for no limit.</param>
+    /// <param name="parameters">Values matching the declared parameter types.</param>
+    /// <returns>The independently owned managed result.</returns>
+    public SpiResult Select(int limit, params ReadOnlySpan<SpiParameter> parameters)
+        => Run(parameters, readOnly: null, limit, SpiResultMode.All);
+
+    /// <summary>
+    /// Selects native values from this plan using PostgreSQL's transaction state without requiring managed type mappings.
+    /// </summary>
+    /// <param name="parameters">Values matching the declared parameter types.</param>
+    /// <returns>An owned result that survives this plan and expires on disposal or callback-context cleanup.</returns>
+    public SpiRawResult SelectRaw(params ReadOnlySpan<SpiParameter> parameters)
+        => SelectRaw(limit: 0, parameters);
+
+    /// <summary>
+    /// Selects native values from this plan using transaction-aware snapshots and an explicit row limit.
+    /// </summary>
+    /// <param name="limit">The maximum returned rows, or zero for no limit.</param>
+    /// <param name="parameters">Values matching the declared parameter types.</param>
+    /// <returns>An owned result to dispose before leaving the backend callback.</returns>
+    public SpiRawResult SelectRaw(int limit, params ReadOnlySpan<SpiParameter> parameters)
+        => RunRaw(parameters, readOnly: null, limit);
+
+    /// <summary>
     /// Copies native result values without requiring a managed mapping for their PostgreSQL types.
     /// </summary>
     /// <param name="parameters">Values matching the declared parameter types.</param>
@@ -142,6 +186,16 @@ public sealed class SpiPreparedStatement : IDisposable
     /// <param name="parameters">Values matching the declared parameter types.</param>
     /// <returns>A result to dispose before leaving the backend callback.</returns>
     public SpiRawResult QueryRaw(bool readOnly, int limit, params ReadOnlySpan<SpiParameter> parameters)
+        => RunRaw(parameters, readOnly, limit);
+
+    /// <summary>
+    /// Executes native result transport with the plan's parameter, ownership and reentrancy checks intact.
+    /// </summary>
+    /// <param name="parameters">Values matching the declared parameter types.</param>
+    /// <param name="readOnly">The explicit snapshot choice, or null to follow PostgreSQL's transaction state.</param>
+    /// <param name="limit">The maximum returned rows, or zero for no limit.</param>
+    /// <returns>The owned native result.</returns>
+    private SpiRawResult RunRaw(ReadOnlySpan<SpiParameter> parameters, bool? readOnly, int limit)
     {
         ValidateParameters(parameters);
         _activeExecutions++;
@@ -235,7 +289,7 @@ public sealed class SpiPreparedStatement : IDisposable
         }
     }
 
-    private SpiResult Run(ReadOnlySpan<SpiParameter> parameters, bool readOnly, int limit, SpiResultMode resultMode)
+    private SpiResult Run(ReadOnlySpan<SpiParameter> parameters, bool? readOnly, int limit, SpiResultMode resultMode)
     {
         ValidateParameters(parameters);
         _activeExecutions++;

@@ -157,6 +157,25 @@ internal static class GuardedBackend
                         ereport(ERROR, (errcode(ERRCODE_INVALID_TRANSACTION_STATE),
                             errmsg("cannot start subtransactions during a parallel operation")));
 
+                    if (request->operation == ANKUS_SPI_EXECUTE || request->operation == ANKUS_SPI_EXECUTE_PLAN ||
+                        request->operation == ANKUS_SPI_OPEN_CURSOR || request->operation == ANKUS_SPI_OPEN_PLAN_CURSOR)
+                    {
+                        /* Observe the outer transaction before opening our recovery child.
+                         * Owned session/subtransaction guards can have no local XID even
+                         * though an earlier caller or SPI statement made the transaction writable. */
+                        if (request->read_only == 2)
+                        {
+                            request->read_only = !TransactionIdIsValid(GetTopTransactionIdIfAny());
+                        }
+
+                        /* Match pgrx's writable intent even for a SELECT executed through
+                         * a writable helper, so subsequent selection keeps fresh snapshots. */
+                        if (!request->read_only)
+                        {
+                            (void) GetCurrentTransactionId();
+                        }
+                    }
+
                     if (abort_session)
                     {
                         MemoryContextSwitchTo(recovery_context);

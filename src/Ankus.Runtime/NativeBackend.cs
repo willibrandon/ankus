@@ -120,13 +120,13 @@ public static unsafe partial class NativeBackend
     /// </summary>
     /// <param name="commandText">The SQL command text.</param>
     /// <param name="parameters">The positional parameters.</param>
-    /// <param name="readOnly">Whether to use a read-only SPI snapshot.</param>
+    /// <param name="readOnly">The explicit snapshot choice, or null to follow PostgreSQL's transaction state.</param>
     /// <param name="limit">The maximum returned rows, or zero for no limit.</param>
     /// <param name="resultMode">The result materialization mode.</param>
     /// <param name="session">The scoped connection, or null for an independent operation.</param>
     /// <returns>The managed query result.</returns>
     internal static SpiResult Run(
-        string commandText, ReadOnlySpan<SpiParameter> parameters, bool readOnly, int limit, SpiResultMode resultMode,
+        string commandText, ReadOnlySpan<SpiParameter> parameters, bool? readOnly, int limit, SpiResultMode resultMode,
         SpiSession? session = null)
     {
         CheckAccess();
@@ -137,7 +137,7 @@ public static unsafe partial class NativeBackend
             {
                 _command = text,
                 _commandLength = sql.Length - 1,
-                _readOnly = readOnly ? (byte)1 : (byte)0,
+                _readOnly = NativeSpiRequest.GetReadMode(readOnly),
                 _limit = limit,
                 _resultMode = resultMode,
                 _sessionId = session?.Identity ?? 0,
@@ -280,18 +280,18 @@ public static unsafe partial class NativeBackend
     /// </summary>
     /// <param name="plan">The owned native plan.</param>
     /// <param name="parameters">The positional values.</param>
-    /// <param name="readOnly">Whether to use read-only execution.</param>
+    /// <param name="readOnly">The explicit snapshot choice, or null to follow PostgreSQL's transaction state.</param>
     /// <param name="limit">The maximum returned rows, or zero for no limit.</param>
     /// <param name="resultMode">The materialization mode.</param>
     /// <param name="session">The plan's owning session, or null for a retained plan.</param>
     /// <returns>The managed result.</returns>
     internal static SpiResult RunPlan(
-        nint plan, ReadOnlySpan<SpiParameter> parameters, bool readOnly, int limit, SpiResultMode resultMode, SpiSession? session = null)
+        nint plan, ReadOnlySpan<SpiParameter> parameters, bool? readOnly, int limit, SpiResultMode resultMode, SpiSession? session = null)
         => RunRequest(new NativeSpiRequest
         {
             _operation = SpiOperation.ExecutePlan,
             _plan = plan,
-            _readOnly = readOnly ? (byte)1 : (byte)0,
+            _readOnly = NativeSpiRequest.GetReadMode(readOnly),
             _limit = limit,
             _resultMode = resultMode,
             _sessionId = session?.Identity ?? 0,
@@ -345,11 +345,11 @@ public static unsafe partial class NativeBackend
     /// </summary>
     /// <param name="commandText">The SQL command.</param>
     /// <param name="parameters">The bound parameters.</param>
-    /// <param name="readOnly">Whether to use read-only execution.</param>
+    /// <param name="readOnly">The explicit snapshot choice, or null to follow PostgreSQL's transaction state.</param>
     /// <param name="session">The scoped SPI connection, or null for an independent operation.</param>
     /// <returns>The owned managed cursor.</returns>
     internal static SpiCursor OpenCursor(
-        string commandText, ReadOnlySpan<SpiParameter> parameters, bool readOnly, SpiSession? session = null)
+        string commandText, ReadOnlySpan<SpiParameter> parameters, bool? readOnly, SpiSession? session = null)
     {
         CheckAccess();
         byte[] sql = EncodeCommand(commandText);
@@ -360,7 +360,7 @@ public static unsafe partial class NativeBackend
                 _operation = SpiOperation.OpenCursor,
                 _command = text,
                 _commandLength = sql.Length - 1,
-                _readOnly = readOnly ? (byte)1 : (byte)0,
+                _readOnly = NativeSpiRequest.GetReadMode(readOnly),
                 _sessionId = session?.Identity ?? 0,
             }, parameters);
         }
@@ -371,15 +371,15 @@ public static unsafe partial class NativeBackend
     /// </summary>
     /// <param name="plan">The prepared plan handle.</param>
     /// <param name="parameters">The bound parameters.</param>
-    /// <param name="readOnly">Whether to use read-only execution.</param>
+    /// <param name="readOnly">The explicit snapshot choice, or null to follow PostgreSQL's transaction state.</param>
     /// <param name="session">The plan's owning session, or null for a retained plan.</param>
     /// <returns>The owned managed cursor.</returns>
-    internal static SpiCursor OpenPlanCursor(nint plan, ReadOnlySpan<SpiParameter> parameters, bool readOnly, SpiSession? session = null)
+    internal static SpiCursor OpenPlanCursor(nint plan, ReadOnlySpan<SpiParameter> parameters, bool? readOnly, SpiSession? session = null)
         => CreateCursor(new NativeSpiRequest
         {
             _operation = SpiOperation.OpenPlanCursor,
             _plan = plan,
-            _readOnly = readOnly ? (byte)1 : (byte)0,
+            _readOnly = NativeSpiRequest.GetReadMode(readOnly),
             _sessionId = session?.Identity ?? 0,
         }, parameters);
 

@@ -215,6 +215,7 @@ An owned transaction-bound cursor.
 ### OpenCursor(string, params ReadOnlySpan&lt;SpiParameter&gt;)
 
 Opens a transaction-bound cursor whose portal remains valid after this session ends.
+Uses a read-only snapshot until the transaction becomes writable, then uses a fresh writable snapshot.
 
 ```csharp
 public SpiCursor OpenCursor(string commandText, params ReadOnlySpan<SpiParameter> parameters)
@@ -385,6 +386,110 @@ Parameters:
 `commandText` — [string](https://learn.microsoft.com/dotnet/api/system.string)
 
 The SQL command.
+
+`parameters` — [ReadOnlySpan&lt;SpiParameter&gt;](https://learn.microsoft.com/dotnet/api/system.readonlyspan-1)
+
+Typed positional parameters.
+
+Returns: [SpiRawResult](/api/ankus.spirawresult/)
+
+An owned result that survives this session and expires on disposal or callback-context cleanup.
+
+<a id="member-969e2c1312661db1"></a>
+
+### Select(string, int, params ReadOnlySpan&lt;SpiParameter&gt;)
+
+Selects rows using PostgreSQL's transaction state and an explicit row limit.
+
+```csharp
+public SpiResult Select(string commandText, int limit, params ReadOnlySpan<SpiParameter> parameters)
+```
+
+Parameters:
+
+`commandText` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The SQL query.
+
+`limit` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The maximum returned rows, or zero for no limit.
+
+`parameters` — [ReadOnlySpan&lt;SpiParameter&gt;](https://learn.microsoft.com/dotnet/api/system.readonlyspan-1)
+
+Typed positional parameters.
+
+Returns: [SpiResult](/api/ankus.spiresult/)
+
+The independently owned managed result.
+
+<a id="member-562c90fc0e4fdbb5"></a>
+
+### Select(string, params ReadOnlySpan&lt;SpiParameter&gt;)
+
+Selects rows with a read-only snapshot until the transaction becomes writable, then uses fresh writable snapshots.
+
+```csharp
+public SpiResult Select(string commandText, params ReadOnlySpan<SpiParameter> parameters)
+```
+
+Parameters:
+
+`commandText` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The SQL query.
+
+`parameters` — [ReadOnlySpan&lt;SpiParameter&gt;](https://learn.microsoft.com/dotnet/api/system.readonlyspan-1)
+
+Typed positional parameters.
+
+Returns: [SpiResult](/api/ankus.spiresult/)
+
+Owned rows and metadata that remain valid after the session ends.
+
+<a id="member-0fe13d6fcd42bbea"></a>
+
+### SelectRaw(string, int, params ReadOnlySpan&lt;SpiParameter&gt;)
+
+Selects native values using transaction-aware snapshots and an explicit row limit.
+
+```csharp
+public SpiRawResult SelectRaw(string commandText, int limit, params ReadOnlySpan<SpiParameter> parameters)
+```
+
+Parameters:
+
+`commandText` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The SQL query.
+
+`limit` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The maximum returned rows, or zero for no limit.
+
+`parameters` — [ReadOnlySpan&lt;SpiParameter&gt;](https://learn.microsoft.com/dotnet/api/system.readonlyspan-1)
+
+Typed positional parameters.
+
+Returns: [SpiRawResult](/api/ankus.spirawresult/)
+
+An owned result to dispose before leaving the backend callback.
+
+<a id="member-8bb7c7082a0159c7"></a>
+
+### SelectRaw(string, params ReadOnlySpan&lt;SpiParameter&gt;)
+
+Selects native values using PostgreSQL's transaction state without requiring managed type mappings.
+
+```csharp
+public SpiRawResult SelectRaw(string commandText, params ReadOnlySpan<SpiParameter> parameters)
+```
+
+Parameters:
+
+`commandText` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The SQL query.
 
 `parameters` — [ReadOnlySpan&lt;SpiParameter&gt;](https://learn.microsoft.com/dotnet/api/system.readonlyspan-1)
 

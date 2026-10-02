@@ -83,11 +83,11 @@ remains incomplete; the following work is additional to the open parity gates.
 | Nullable declarations and aggregate roles | Confirmed oblivious-reference inference is corrected by ANKUS024, with precise type locations and explicit SQL nullability required. Explicitly named nonexistent aggregate roles already fail validation. Six static abstract aggregate interfaces now provide compiler-checked required and optional callbacks, including explicit/inherited/default implementations and tuple input metadata. The complete PostgreSQL 18.6/Linux x64 suite and all three dedicated-platform CI jobs pass. |
 | PostgreSQL selection | Confirmed and corrected. Project evaluation, test-host runtime configuration and CLI defaults honor the selected major and installation. Explicit choices retain precedence. The complete PostgreSQL 17.11/Linux x64 suite passes, including packed consumers and actual backend execution. CI also passes on Linux x64/macOS ARM64 PostgreSQL 18 and Windows x64 PostgreSQL 17. |
 | Declarative parity | Extended module magic, custom datum alignment and managed `PgRequires`/`PgBefore` references pass complete dedicated-platform CI. `PgSupportFunction` provides checked planner references and prerequisites. Typed aggregate capabilities cover owned state, parallel transport, moving windows, ordered/hypothetical calls and polymorphic final-extra values. Generated SQL now retains source lines, managed declarations, prerequisites and connected-object markers through publication and full/selected extraction, preserving deterministic ordering. Planner, aggregate and provenance milestones now pass full CI on Linux x64/macOS ARM64 PostgreSQL 18 and Windows x64 PostgreSQL 17. The remaining version/platform matrix is still required. |
-| Runtime APIs and performance | Guarded `PgInterrupts.Check()` supports managed loops, retained cancellation and Windows queued signals. Nonterminal reporting now defers interrupts through native emission and cleanup, preserving inherited holdoffs on success and failure. Direct/native checks and the complete PostgreSQL 18.6/Linux x64 suite pass; full reporting CI also passes on Linux x64/macOS ARM64 PostgreSQL 18 and Windows x64 PostgreSQL 17. SPI read/write semantics, numeric representation and guard/array costs remain open. Preserve the recovery contract and measure performance claims. |
+| Runtime APIs and performance | Guarded `PgInterrupts.Check()` supports managed loops, retained cancellation and Windows queued signals. Nonterminal reporting now defers interrupts through native emission and cleanup, preserving inherited holdoffs on success and failure. Direct/native checks and the complete PostgreSQL 18.6/Linux x64 suite pass; full reporting CI also passes on Linux x64/macOS ARM64 PostgreSQL 18 and Windows x64 PostgreSQL 17. Transaction-aware SPI selection now passes focused managed/native cases, installed-consumer callbacks, Release/docs and the complete PostgreSQL 18.6/Linux x64 suite; its platform CI remains required. Numeric representation and guard/array costs remain open. Preserve the recovery contract and measure performance claims. |
 | Tooling and upstream drift | The pgrx 0.19.3 inventory and OID refresh plus PostgreSQL 19 beta 4 SQLSTATE alignment pass complete PostgreSQL 18.6 and 19 beta 4/Linux x64 suites. Independent binding generation passes for all seven majors on Linux x64, plus macOS ARM64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.11. Refresh/repair CI passes the complete dedicated-platform suites; the remaining full version/platform matrix is still required. General build-property forwarding, environment selection, scriptable information and package prefixes pass plain full PostgreSQL 18.6/Linux x64 and Release/API/site gates. The final composition also passes complete native acceptance with both CI fixture corrections and bounded compiler-input hashing; fresh corrected platform CI is active. Additional-major workflow and prerequisites are being prepared, with actual complete version results still required. Account/privilege selection and benchmarks remain open. Regression scaffolding passes its complete PostgreSQL 18.6/Linux x64 suite and Release/API/site gates, with fresh platform CI pending. Test-command custom data directories and schema reuse have real installed-consumer evidence below. |
 | .NET author experience | Cached declaration, conversion, catalog and method-inventory stages pass complete PostgreSQL 18.6/Linux acceptance and dedicated-platform CI, including reference/provider/native-compilation models. Final graph/artifact rendering and the Windows assertion repair pass the complete Linux/macOS PostgreSQL 18 and Windows PostgreSQL 17 CI suites. Precise ANKUS030–043 asynchronous and ordinary-signature diagnostics, installation-schema search paths and C# operator/conversion declarations pass complete native, Release/docs and all three platform CI gates. Broader diagnostics/code fixes, templates, namespace/API discoverability, formatting/parsing/comparison helpers, safe parameter binding, raw-call visibility and testing discovery/framework documentation remain open. |
 | Packaging | Added the MIT license, copyright Brandon Williams, and shared author/license/project/repository metadata following the author's other repository. Verified the metadata in all seven locally packed packages, including the Linux runtime package; no packages are published. |
-| Platform coverage | Complete full-suite evidence for the supported major/platform combinations, including macOS x64 and library-suffix boundaries, remains required. Use GitHub-hosted runners where dedicated machines cannot cover the target, retaining complete suites and appropriate caches. Native builds now select the installed macOS SDK. The latest Intel run reaches real backend testing but exposes three relative-path fixture errors and hits the 60-minute limit. Its fixture correction and measured binding-build investigation are active; a successful complete Intel run remains required. Existing focused version probes are not full-suite coverage. |
+| Platform coverage | Complete full-suite evidence for the supported major/platform combinations, including macOS x64 and library-suffix boundaries, remains required. Use GitHub-hosted runners where dedicated machines cannot cover the target, retaining complete suites and appropriate caches. Native builds now select the installed macOS SDK. The corrected Intel run reaches real backend testing and times out at 60 minutes: five completed modules report zero failures, but integration has no completed report. Binding-build timings are retained for investigation; a successful complete Intel run remains required. PostgreSQL 13's complete run exposes a native diagnostic witness subsequently corrected and verified in the actual focused class; corrected full acceptance is pending. Existing focused version probes are not full-suite coverage. |
 | Documentation and samples | Marked the old macOS checkpoint-server prototype as superseded by stock-server evidence and labelled higher-level custom scans as additional Ankus scope. Added the pgrx migration guide and expanded .NET hosting guidance for threads, signals, memory and backend lifetimes. Converted the public average sample to compiler-checked aggregate capabilities and verified its PostgreSQL behavior. Other representative samples and a more navigable evidence archive remain required. Reference-repository process rules do not replace this repository's progress requirements. |
 
 ## Custom datum alignment review
@@ -1640,6 +1640,25 @@ Those final **228**-identity gates now pass: Release **zero warnings/errors,
 A fresh plain complete PostgreSQL **18.6/Linux x64** run starts on the unchanged
 source. Its terminal six-module result remains required before promotion.
 
+The corrected plain complete SPI acceptance now passes all six modules on
+PostgreSQL **18.6/Linux x64**: **10,925 total, 10,911 passed, zero failed and
+14 platform skips, 32m50.985s**, exit **0**. This includes the actual installed-
+consumer callbacks and parallel workers that exposed the earlier scalar-intent
+fixture error. All **228** hashes verify in the remote and local source after
+terminal execution. Final Release/API/site gates above cover this exact source.
+Only changed owned files are promoted into the primary checkout; unrelated user
+changes and independent version/interval drafts are preserved.
+
+Before committing this SPI milestone, previous CI is checked again:
+**36974050149**, on **5ea18b9**, has successful quality and all three runtime
+jobs, with Linux/PostgreSQL 18, macOS ARM64/PostgreSQL 18 and Windows/PostgreSQL
+17 suites still active. No new failure is reported. Earlier **36968008741** and
+**36966035199** retain their resolved Windows newline assertions; both associated
+Docs runs succeeded. **36964760599** and Docs **36964760249** succeeded.
+Hosted Intel **36964760110** retains its recorded one-hour timeout and incomplete
+integration report. Corrected PostgreSQL 13 complete acceptance and the new
+interval native checks continue independently on immutable sources.
+
 ## Regression scaffold Windows output contract
 
 Scaffold CI **36966035199** finishes with successful quality/runtime jobs,
@@ -1716,10 +1735,19 @@ one-hour timeout and incomplete integration report. Earlier **36957512067**
 failures retain their recorded subsequent repairs. No repository run is active
 or queued. Fresh CI for the locally accepted assertion correction remains required.
 
-The accepted Windows correction is committed as **87f283b**. Previous CI is
+The accepted Windows correction is committed. Previous CI is
 checked and retained again before push: the same terminal outcomes hold,
 including the recorded Intel timeout, and no repository run is active or queued.
 The independent corrected SPI complete suite continues on its unchanged source.
+
+The final Windows correction is published as **5ea18b9**. It preserves the
+accepted **211** source identities and complete PostgreSQL 17.11/Windows x64
+evidence above. Subsequent CI outcomes will be recorded as they become available.
+
+Fresh CI **36974050149** is active on **5ea18b9**. Local Windows heavy validation
+has finished before that new CI starts. The separate Linux validators retain
+their independent immutable snapshots; no waiting for CI is substituted for
+continued full-port work.
 
 ## Additional PostgreSQL version workflow composition
 
@@ -1818,6 +1846,48 @@ all other tests pass. All **220** source hashes verify after terminal execution,
 and the complete failing report is retained before the idle validator receives
 the corrected **221**-identity composition. This original run is not claimed
 as complete passing PostgreSQL 13 coverage.
+
+The corrected actual Valgrind class now passes on PostgreSQL **13.23/Linux
+x64**: **seven total, six passed, zero failed and one Windows-only skip,
+4m15.994s**, exit **0**. Its original single-connection assertion confirms
+same-backend recovery after the native freed-byte diagnostic. All **221**
+source hashes match afterward. Final Release/API/site gates run on that
+unchanged composition before a fresh plain complete PostgreSQL 13 acceptance.
+The earlier failed full run remains recorded.
+
+Final gates on the corrected **221** identities pass: PostgreSQL
+**13.23/Linux x64** Release has **zero warnings/errors, 1m53.19s**; API
+freshness verifies **235 pages / 2,683 members**; the site builds **283 pages
+in 3.93s** and reports zero errors, warnings or hints. All hashes match again.
+Plain complete acceptance now runs all six modules on unchanged source.
+Its terminal result remains required before claiming full PostgreSQL 13 coverage.
+
+## Interval ordering review draft
+
+The review's missing `PgInterval` comparison interface is confirmed. An isolated
+draft now implements `IComparable<PgInterval>` and the four ordering operators
+with PostgreSQL's thirty-day-month and twenty-four-hour-day approximation.
+Finite comparisons use the existing `Int128` duration calculation; explicit
+infinities sort outside every finite component combination. No backend call or
+component normalization is introduced. Existing exact managed component equality
+remains unchanged, and the guide explicitly distinguishes ordering equivalence
+and sorted-collection behavior from stored identity.
+
+Direct tests specify finite signs, mixed components, adjacent microseconds,
+wide endpoints, all infinity pairings, generic sorting and preserved component
+identity. Real-server tests compare the compiled Native AOT callback with
+independent `interval_cmp` and all four SQL operators, including finite endpoints
+and native infinity version support. Static Roslyn pairing confirms existing
+temporal test references; it is not line or branch coverage. The new draft freezes
+**216** source identities and starts its focused runtime verification. Native
+execution, generated API freshness, Release/site and complete final composition
+remain required before promotion.
+
+Focused interval ordering now passes **19/19**, zero failures/skips,
+**1.201s**, on PostgreSQL **18.6/Linux x64** selection, exit **0**. These
+managed tests intentionally require no backend access. All **216** hashes match
+after execution. The actual Native AOT comparison class now runs against the
+real PostgreSQL server; its terminal result remains required.
 
 ## C# operator and conversion declaration draft
 

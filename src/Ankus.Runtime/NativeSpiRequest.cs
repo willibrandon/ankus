@@ -9,6 +9,18 @@ namespace Ankus;
 internal unsafe struct NativeSpiRequest
 {
     /// <summary>
+    /// Encodes an explicit snapshot choice or transaction-aware selection without changing the native request layout.
+    /// </summary>
+    /// <param name="readOnly">The explicit choice, or null to select from PostgreSQL's transaction state.</param>
+    /// <returns>Zero for writable, one for read-only or two for transaction-aware selection.</returns>
+    internal static byte GetReadMode(bool? readOnly) => readOnly switch
+    {
+        false => 0,
+        true => 1,
+        null => 2,
+    };
+
+    /// <summary>
     /// Points to null-terminated UTF-8 command text, when required by the operation.
     /// </summary>
     internal byte* _command;
@@ -64,7 +76,7 @@ internal unsafe struct NativeSpiRequest
     internal SpiResultMode _resultMode;
 
     /// <summary>
-    /// Selects read-only execution using a one-byte C flag.
+    /// Selects writable execution (zero), forced read-only execution (one), or transaction-aware selection (two).
     /// </summary>
     internal byte _readOnly;
 

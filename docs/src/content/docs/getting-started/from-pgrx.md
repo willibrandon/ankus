@@ -95,7 +95,11 @@ Parameters are explicit `SpiParameter` values. A connected session stays inside
 its callback. Result rows are managed copies; kept plans and cursors have their
 own lifetime rules. See [SPI queries](/spi/).
 
-The convenience query APIs currently use writable SPI execution. Use
+`Spi.Select`, `Spi.SelectRaw` and the default cursor overload follow
+`SpiClient::select`: they use read-only snapshots until the transaction becomes
+writable, then take fresh writable snapshots. Sessions and plans expose the
+same selection methods. `Execute`, default `Query` overloads and scalar helpers
+establish writable intent, matching pgrx's `run` and `get_one`. Use
 `Spi.Query(sql, readOnly: true, limit: 0)` or the corresponding `SpiSession.Query`
 overload for PostgreSQL's read-only snapshot and write restrictions. The
 `Execute` and `ExecuteScalar` methods have no `readOnly` overload. A query

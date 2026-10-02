@@ -112,7 +112,7 @@ rolls back the command's internal subtransaction.
 ## Rows and metadata
 
 ```csharp
-SpiResult result = Spi.Query("SELECT id, body FROM messages ORDER BY id");
+SpiResult result = Spi.Select("SELECT id, body FROM messages ORDER BY id");
 
 foreach (SpiRow row in result)
 {
@@ -130,12 +130,24 @@ underlying base type's value conversion.
 Results are managed copies. Rows, text, and binary buffers remain valid after
 another SPI command or after the original SPI connection is released.
 
+`Select` follows pgrx's transaction policy. Before the transaction has a real
+PostgreSQL transaction ID, it uses the caller's read-only SPI snapshot and rejects
+writes and row-locking queries. It does not allocate a transaction ID for a read.
+After the caller or a writable SPI operation establishes that ID, selection uses
+fresh writable snapshots so it sees preceding writes. This applies across nested
+SPI sessions and resets when the transaction ends.
+
+`Execute`, the default `Query` and `QueryRaw` overloads, and scalar helpers
+establish writable intent, including when their SQL is a `SELECT`. This matches
+pgrx's `run` and `get_one` helpers. Choose `Select` for transaction-aware reads;
+use an explicit `readOnly` overload when you need a fixed snapshot policy.
+
 ### Raw PostgreSQL values
 
-Use `QueryRaw` when a PostgreSQL type has no managed mapping:
+Use `SelectRaw` when a PostgreSQL type has no managed mapping:
 
 ```csharp
-using SpiRawResult result = Spi.QueryRaw("SELECT value FROM custom_values");
+using SpiRawResult result = Spi.SelectRaw("SELECT value FROM custom_values");
 PgDatum value = result[0]["value"];
 string? text = value.ToPostgresString();
 
@@ -144,7 +156,7 @@ Spi.Execute("INSERT INTO custom_values VALUES ($1)", SpiParameter.Create(value))
 
 Each `PgDatum` preserves its exact type OID and SQL NULL flag. `Read<T>()` converts
 to a supported representation; `Read(converter)` lets you supply your own conversion.
-Sessions and prepared statements also offer `QueryRaw`.
+Sessions and prepared statements also offer `SelectRaw` and writable `QueryRaw`.
 
 `result[0].Get<T>("value")` reads a column directly. Ordinary managed values are
 independent copies; `PgAnyElement` and `PgAnyArray` wrappers share the raw result's
@@ -208,6 +220,8 @@ SpiResult page = Spi.Query(
 
 A limit of zero means unlimited. Read-only mode uses PostgreSQL's read-only SPI
 snapshot and restrictions, including rejection of write commands.
+`Select(sql, limit: 100)` applies that limit with transaction-aware snapshots.
+`SelectRaw` accepts the same limit and keeps its usual owned native lifetime.
 
 ## Quoting SQL fragments
 
@@ -265,7 +279,7 @@ typed nullable parameter.
 An incorrect parameter count or SQL type throws `ArgumentException` before the
 plan executes.
 
-`SpiPreparedStatement` provides `Execute`, `Query`, `ExecuteScalar`, and `ExecuteScalars` with the
+`SpiPreparedStatement` provides `Select`, `SelectRaw`, `Execute`, `Query`, `ExecuteScalar`, and `ExecuteScalars` with the
 same result semantics as `Spi`. `Query` also accepts `readOnly` and `limit` options.
 Preparation supports multiple SQL commands; each execution's internal subtransaction
 covers all commands, and results describe the final command.
@@ -306,7 +320,7 @@ foreach (SpiRow row in rows)
 }
 ```
 
-The session offers `Execute`, `Query`, `ExecuteScalar`, `ExecuteScalars`, `Prepare`, and
+The session offers `Select`, `SelectRaw`, `Execute`, `Query`, `ExecuteScalar`, `ExecuteScalars`, `Prepare`, and
 `OpenCursor`, with the same parameter and owned-result conversions as the
 standalone API. `Query` and `OpenCursor` accept explicit read-only execution mode.
 Session operations run in individual internal subtransactions: a failed command
@@ -342,6 +356,10 @@ work is not supported.
 ## Cursors and batched results
 
 Use a cursor to fetch a query incrementally:
+
+The default cursor overload follows the same transaction policy as `Select` when
+opening its snapshot. An explicit `readOnly` argument chooses a fixed policy.
+These rules also apply to session cursors and prepared-plan cursors.
 
 ```csharp
 using SpiCursor cursor = Spi.OpenCursor(

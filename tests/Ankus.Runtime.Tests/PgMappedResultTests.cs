@@ -10,6 +10,86 @@ namespace Ankus.Runtime.Tests;
 public sealed unsafe class PgMappedResultTests
 {
     /// <summary>
+    /// Every selection owner forwards transaction-aware mode while preserving exact integer results and limits.
+    /// </summary>
+    /// <param name="api">The standalone, session, prepared or raw transport.</param>
+    [TestMethod]
+    [DataRow(0)]
+    [DataRow(1)]
+    [DataRow(2)]
+    [DataRow(3)]
+    [DataRow(4)]
+    [DataRow(5)]
+    [DataRow(6)]
+    [DataRow(7)]
+    public void SelectionOwnersPreserveReadModeAndRowLimit(int api)
+    {
+        using var script = new Script { Cells = [new(23, 42)] };
+        Assert.AreEqual(42, ReadSelection(api, 1));
+        Assert.AreEqual((byte)2, script.LastReadMode);
+        Assert.AreEqual(1, script.LastLimit);
+        Assert.AreEqual(SpiResultMode.All, script.LastMode);
+        Assert.AreEqual(1, script.Executions);
+        Assert.AreEqual(1, script.ResultReleases);
+    }
+
+    /// <summary>
+    /// Negative selection limits fail before any SQL executes, including prepared and raw owners.
+    /// </summary>
+    /// <param name="api">The selection transport.</param>
+    [TestMethod]
+    [DataRow(0)]
+    [DataRow(1)]
+    [DataRow(2)]
+    [DataRow(3)]
+    [DataRow(4)]
+    [DataRow(5)]
+    [DataRow(6)]
+    [DataRow(7)]
+    public void SelectionRejectsNegativeLimitsBeforeExecution(int api)
+    {
+        using var script = new Script { Cells = [new(23, 42)] };
+        ArgumentOutOfRangeException error = Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => ReadSelection(api, -1));
+        Assert.AreEqual("limit", error.ParamName);
+        Assert.AreEqual(0, script.Executions);
+        Assert.AreEqual(0, script.ResultReleases);
+    }
+
+    /// <summary>
+    /// Prepared selection preserves parameter validation and refuses use after native plan disposal.
+    /// </summary>
+    /// <param name="raw">Whether selection returns native datums.</param>
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void PreparedSelectionPreservesParameterAndDisposalChecks(bool raw)
+    {
+        using var script = new Script { Cells = [new(23, 42)] };
+        using SpiPreparedStatement plan = Spi.Prepare("SELECT $1", typeof(int));
+        if (raw)
+        {
+            Assert.ThrowsExactly<ArgumentException>(() => plan.SelectRaw());
+            Assert.ThrowsExactly<ArgumentException>(() => plan.SelectRaw(SpiParameter.Create("wrong type")));
+            Assert.AreEqual(0, script.Executions);
+            using SpiRawResult result = plan.SelectRaw(SpiParameter.Create(42));
+            Assert.AreEqual(42, result[0].Get<int>(0));
+            plan.Dispose();
+            Assert.ThrowsExactly<ObjectDisposedException>(() => plan.SelectRaw(SpiParameter.Create(42)));
+        }
+        else
+        {
+            Assert.ThrowsExactly<ArgumentException>(() => plan.Select());
+            Assert.ThrowsExactly<ArgumentException>(() => plan.Select(SpiParameter.Create("wrong type")));
+            Assert.AreEqual(0, script.Executions);
+            Assert.AreEqual(42, plan.Select(SpiParameter.Create(42))[0].Get<int>(0));
+            plan.Dispose();
+            Assert.ThrowsExactly<ObjectDisposedException>(() => plan.Select(SpiParameter.Create(42)));
+        }
+
+        Assert.AreEqual(1, script.Executions);
+    }
+
+    /// <summary>
     /// Registers isolated closed readers without invoking their factories or PostgreSQL.
     /// </summary>
     static PgMappedResultTests()
@@ -492,6 +572,51 @@ public sealed unsafe class PgMappedResultTests
     }
 
     /// <summary>
+    /// Executes selection through each owner while ending native result and plan ownership before returning.
+    /// </summary>
+    /// <param name="api">The selection transport.</param>
+    /// <param name="limit">The row limit.</param>
+    /// <returns>The selected integer.</returns>
+    private static int ReadSelection(int api, int limit)
+        => api switch
+        {
+            0 => Spi.Select("SELECT value", limit)[0].Get<int>(0),
+            1 => Spi.Connect(session => session.Select("SELECT value", limit)[0].Get<int>(0)),
+            2 => ReadSelectionPlan(null, limit, raw: false),
+            3 => Spi.Connect(session => ReadSelectionPlan(session, limit, raw: false)),
+            4 => ReadSelectionRaw(Spi.SelectRaw("SELECT value", limit)),
+            5 => Spi.Connect(session => ReadSelectionRaw(session.SelectRaw("SELECT value", limit))),
+            6 => ReadSelectionPlan(null, limit, raw: true),
+            _ => Spi.Connect(session => ReadSelectionPlan(session, limit, raw: true)),
+        };
+
+    /// <summary>
+    /// Executes selection through a retained or scoped plan.
+    /// </summary>
+    /// <param name="session">The optional scoped owner.</param>
+    /// <param name="limit">The row limit.</param>
+    /// <param name="raw">Whether to use owned native results.</param>
+    /// <returns>The selected integer.</returns>
+    private static int ReadSelectionPlan(SpiSession? session, int limit, bool raw)
+    {
+        using SpiPreparedStatement plan = session is null ? Spi.Prepare("SELECT value") : session.Prepare("SELECT value");
+        return raw ? ReadSelectionRaw(plan.SelectRaw(limit)) : plan.Select(limit)[0].Get<int>(0);
+    }
+
+    /// <summary>
+    /// Reads an independently owned native selection result before releasing it.
+    /// </summary>
+    /// <param name="result">The result owner.</param>
+    /// <returns>The exact native integer.</returns>
+    private static int ReadSelectionRaw(SpiRawResult result)
+    {
+        using (result)
+        {
+            return result[0].Get<int>(0);
+        }
+    }
+
+    /// <summary>
     /// Reads through a retained or session-owned prepared plan, ending its owner before returning values.
     /// </summary>
     private static (Number, Alias, Number) ReadPlan(SpiSession? session)
@@ -904,6 +1029,15 @@ public sealed unsafe class PgMappedResultTests
         }
 
         /// <summary>
+        /// Gets the exact explicit or transaction-aware snapshot mode sent by managed selection.
+        /// </summary>
+        internal byte LastReadMode
+        {
+            get;
+            private set;
+        }
+
+        /// <summary>
         /// Gets the requested SQL execution row limit.
         /// </summary>
         internal int LastLimit
@@ -1003,7 +1137,13 @@ public sealed unsafe class PgMappedResultTests
                 return;
             }
 
-            if (request->_operation is SpiOperation.CloseSession or SpiOperation.FreePlan)
+            if (request->_operation == SpiOperation.FreePlan)
+            {
+                request->_plan = 0;
+                return;
+            }
+
+            if (request->_operation == SpiOperation.CloseSession)
             {
                 return;
             }
@@ -1063,8 +1203,14 @@ public sealed unsafe class PgMappedResultTests
             }
 
             LastMode = request->_resultMode;
+            LastReadMode = request->_readOnly;
             LastLimit = request->_limit;
-            int columns = Math.Min(Cells.Length, (int)request->_resultMode - 1);
+            int columns = request->_resultMode switch
+            {
+                SpiResultMode.None => 0,
+                SpiResultMode.All => Cells.Length,
+                _ => Math.Min(Cells.Length, (int)request->_resultMode - 1),
+            };
             result->_columnCount = columns;
             result->_rowCount = Rows;
             result->_rowsAffected = Rows;

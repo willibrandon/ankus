@@ -72,12 +72,13 @@ public static class Spi
 
     /// <summary>
     /// Opens a transaction-bound cursor with optional typed positional parameters.
+    /// Uses a read-only snapshot until the transaction becomes writable, then uses a fresh writable snapshot.
     /// </summary>
     /// <param name="commandText">One SQL command that returns rows.</param>
     /// <param name="parameters">The positional parameter values.</param>
     /// <returns>An owned cursor that should be disposed or detached.</returns>
     public static SpiCursor OpenCursor(string commandText, params ReadOnlySpan<SpiParameter> parameters)
-        => OpenCursor(commandText, readOnly: false, parameters);
+        => NativeBackend.OpenCursor(commandText, parameters, readOnly: null);
 
     /// <summary>
     /// Opens a cursor with explicit read-only SPI execution mode.
@@ -147,6 +148,45 @@ public static class Spi
     /// <returns>The materialized result.</returns>
     public static SpiResult Query(string commandText, bool readOnly, int limit, params ReadOnlySpan<SpiParameter> parameters)
         => NativeBackend.Run(commandText, parameters, readOnly, limit, SpiResultMode.All);
+
+    /// <summary>
+    /// Selects rows with a read-only snapshot until the transaction becomes writable, then uses fresh writable snapshots.
+    /// </summary>
+    /// <param name="commandText">The SQL query.</param>
+    /// <param name="parameters">Typed positional parameters.</param>
+    /// <returns>The materialized rows and metadata.</returns>
+    public static SpiResult Select(string commandText, params ReadOnlySpan<SpiParameter> parameters)
+        => Select(commandText, limit: 0, parameters);
+
+    /// <summary>
+    /// Selects rows using PostgreSQL's transaction state and an explicit row limit.
+    /// Writes through other SPI sessions or the caller also select writable snapshots.
+    /// </summary>
+    /// <param name="commandText">The SQL query.</param>
+    /// <param name="limit">The maximum returned rows, or zero for no limit.</param>
+    /// <param name="parameters">Typed positional parameters.</param>
+    /// <returns>The materialized rows and metadata.</returns>
+    public static SpiResult Select(string commandText, int limit, params ReadOnlySpan<SpiParameter> parameters)
+        => NativeBackend.Run(commandText, parameters, readOnly: null, limit, SpiResultMode.All);
+
+    /// <summary>
+    /// Selects owned native values using PostgreSQL's transaction state without requiring managed type mappings.
+    /// </summary>
+    /// <param name="commandText">The SQL query.</param>
+    /// <param name="parameters">Typed positional parameters.</param>
+    /// <returns>An owned result to dispose before leaving the backend callback.</returns>
+    public static SpiRawResult SelectRaw(string commandText, params ReadOnlySpan<SpiParameter> parameters)
+        => SelectRaw(commandText, limit: 0, parameters);
+
+    /// <summary>
+    /// Selects owned native values using transaction-aware snapshots and an explicit row limit.
+    /// </summary>
+    /// <param name="commandText">The SQL query.</param>
+    /// <param name="limit">The maximum returned rows, or zero for no limit.</param>
+    /// <param name="parameters">Typed positional parameters.</param>
+    /// <returns>A result whose datums expire on disposal or callback-context cleanup.</returns>
+    public static SpiRawResult SelectRaw(string commandText, int limit, params ReadOnlySpan<SpiParameter> parameters)
+        => NativeBackend.RunRaw(commandText, parameters, readOnly: null, limit);
 
     /// <summary>
     /// Copies native result values without requiring a managed mapping for their PostgreSQL types.

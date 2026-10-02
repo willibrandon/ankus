@@ -464,7 +464,7 @@ public sealed partial class ToolCommandTests
             {
                 try
                 {
-                    return Spi.ExecuteScalar<int>("SELECT 6 * 7").ToString(System.Globalization.CultureInfo.InvariantCulture);
+                    return Spi.Select("SELECT 6 * 7")[0].Get<int>(0).ToString(System.Globalization.CultureInfo.InvariantCulture);
                 }
                 catch (System.InvalidOperationException error) when (error.Message == "PostgreSQL APIs can only be used on the active PostgreSQL backend thread.")
                 {

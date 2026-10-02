@@ -73,7 +73,7 @@ public static partial class InitializationFunctions
             {
                 try
                 {
-                    _ = Spi.ExecuteScalar<int>("SELECT 42");
+                    _ = Spi.Select("SELECT 42")[0].Get<int>(0);
                 }
                 catch (InvalidOperationException error) when (error.Message == "PostgreSQL APIs can only be used on the active PostgreSQL backend thread.")
                 {
@@ -84,7 +84,7 @@ public static partial class InitializationFunctions
                 throw new InvalidOperationException("SQL unexpectedly succeeded outside a transaction.");
             }
 
-            s_answer = Spi.ExecuteScalar<int>("SELECT 42");
+            s_answer = Spi.Select("SELECT 42")[0].Get<int>(0);
         }
         finally
         {

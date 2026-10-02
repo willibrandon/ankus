@@ -127,12 +127,12 @@ public static unsafe partial class NativeBackend
     /// </summary>
     /// <param name="commandText">The SQL commands.</param>
     /// <param name="parameters">Bound values.</param>
-    /// <param name="readOnly">The SPI snapshot mode.</param>
+    /// <param name="readOnly">The explicit snapshot choice, or null to follow PostgreSQL's transaction state.</param>
     /// <param name="limit">The row limit, or zero for no limit.</param>
     /// <param name="session">The optional active SPI session.</param>
     /// <param name="resultMode">The columns and rows to capture without changing execution limits.</param>
     /// <returns>The disposable native result.</returns>
-    internal static SpiRawResult RunRaw(string commandText, ReadOnlySpan<SpiParameter> parameters, bool readOnly,
+    internal static SpiRawResult RunRaw(string commandText, ReadOnlySpan<SpiParameter> parameters, bool? readOnly,
         int limit, SpiSession? session = null, SpiResultMode resultMode = SpiResultMode.All)
     {
         CheckAccess();
@@ -143,7 +143,7 @@ public static unsafe partial class NativeBackend
             {
                 _command = text,
                 _commandLength = sql.Length - 1,
-                _readOnly = readOnly ? (byte)1 : (byte)0,
+                _readOnly = NativeSpiRequest.GetReadMode(readOnly),
                 _limit = limit,
                 _resultMode = resultMode,
                 _sessionId = session?.Identity ?? 0,
@@ -157,18 +157,18 @@ public static unsafe partial class NativeBackend
     /// </summary>
     /// <param name="plan">The live native plan.</param>
     /// <param name="parameters">Bound values.</param>
-    /// <param name="readOnly">The SPI snapshot mode.</param>
+    /// <param name="readOnly">The explicit snapshot choice, or null to follow PostgreSQL's transaction state.</param>
     /// <param name="limit">The row limit.</param>
     /// <param name="session">The plan's optional owning session.</param>
     /// <param name="resultMode">The columns and rows to capture without changing execution limits.</param>
     /// <returns>The disposable native result.</returns>
-    internal static SpiRawResult RunRawPlan(nint plan, ReadOnlySpan<SpiParameter> parameters, bool readOnly,
+    internal static SpiRawResult RunRawPlan(nint plan, ReadOnlySpan<SpiParameter> parameters, bool? readOnly,
         int limit, SpiSession? session, SpiResultMode resultMode = SpiResultMode.All)
         => RunRawRequest(new NativeSpiRequest
         {
             _operation = SpiOperation.ExecutePlan,
             _plan = plan,
-            _readOnly = readOnly ? (byte)1 : (byte)0,
+            _readOnly = NativeSpiRequest.GetReadMode(readOnly),
             _limit = limit,
             _resultMode = resultMode,
             _sessionId = session?.Identity ?? 0,
@@ -232,7 +232,8 @@ public static unsafe partial class NativeBackend
     private static SpiRawResult RunRawRequest(NativeSpiRequest request, ReadOnlySpan<SpiParameter> parameters)
     {
         CheckAccess();
-        ArgumentOutOfRangeException.ThrowIfNegative(request._limit);
+        int limit = request._limit;
+        ArgumentOutOfRangeException.ThrowIfNegative(limit);
         // The callback context outlives SPI sessions and their internal subtransactions.
         PgMemoryContext context = PgMemoryContext.Create("Ankus raw SPI result", PgMemoryContext.Callback);
         NativeSpiResult result = default;
