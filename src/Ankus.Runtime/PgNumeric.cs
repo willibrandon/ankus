@@ -193,7 +193,7 @@ public readonly record struct PgNumeric : IComparable<PgNumeric>,
     /// </summary>
     /// <param name="value">The decimal, including its stored scale.</param>
     /// <returns>The exact numeric value.</returns>
-    public static PgNumeric FromDecimal(decimal value) => new(value.ToString(CultureInfo.InvariantCulture));
+    public static PgNumeric FromDecimal(decimal value) => new(PgNumericStorage.FromDecimal(value));
 
     /// <summary>
     /// Converts an arbitrary-precision integer within PostgreSQL's 131072-digit limit.

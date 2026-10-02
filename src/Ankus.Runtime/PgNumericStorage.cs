@@ -98,6 +98,52 @@ internal sealed class PgNumericStorage(byte[] buffer, int rawLength)
     }
 
     /// <summary>
+    /// Encodes a decimal's coefficient, sign and display scale directly into portable binary digits.
+    /// </summary>
+    /// <param name="value">The exact managed decimal.</param>
+    /// <returns>Owned binary storage without an intermediate decimal string.</returns>
+    internal static PgNumericStorage FromDecimal(decimal value)
+    {
+        Span<int> bits = stackalloc int[4];
+        decimal.GetBits(value, bits);
+        int scale = (bits[3] >> 16) & 0xFF;
+        UInt128 coefficient = unchecked((uint)bits[0]) | ((UInt128)unchecked((uint)bits[1]) << 32)
+            | ((UInt128)unchecked((uint)bits[2]) << 64);
+        int fractionalGroups = (scale + 3) / 4;
+        for (int padding = fractionalGroups * 4 - scale; padding > 0; padding--)
+        {
+            coefficient *= 10;
+        }
+
+        Span<ushort> groups = stackalloc ushort[8];
+        int count = 0;
+        while (coefficient != 0)
+        {
+            groups[count++] = (ushort)(coefficient % 10000);
+            coefficient /= 10000;
+        }
+
+        int first = 0;
+        while (first < count && groups[first] == 0)
+        {
+            first++;
+        }
+
+        int length = count - first;
+        byte[] wire = new byte[8 + length * 2];
+        BinaryPrimitives.WriteUInt16BigEndian(wire, checked((ushort)length));
+        BinaryPrimitives.WriteInt16BigEndian(wire.AsSpan(2), length == 0 ? (short)0 : checked((short)(count - fractionalGroups - 1)));
+        BinaryPrimitives.WriteUInt16BigEndian(wire.AsSpan(4), bits[3] < 0 && length != 0 ? (ushort)0x4000 : (ushort)0);
+        BinaryPrimitives.WriteUInt16BigEndian(wire.AsSpan(6), checked((ushort)scale));
+        for (int index = 0; index < length; index++)
+        {
+            BinaryPrimitives.WriteUInt16BigEndian(wire.AsSpan(8 + index * 2), groups[count - index - 1]);
+        }
+
+        return new(wire, 0);
+    }
+
+    /// <summary>
     /// Encodes canonical finite or special numeric text into the public binary format.
     /// This is used only for values created without a PostgreSQL backend.
     /// </summary>

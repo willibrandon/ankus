@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Globalization;
 
 namespace Ankus.Runtime.Tests;
 
@@ -8,6 +9,96 @@ namespace Ankus.Runtime.Tests;
 [TestClass]
 public sealed class PgNumericStorageTests
 {
+    /// <summary>
+    /// Compares direct decimal construction with independent portable protocol vectors.
+    /// </summary>
+    /// <param name="text">The exact decimal including its stored scale.</param>
+    /// <param name="hex">The independently specified portable numeric bytes.</param>
+    [TestMethod]
+    [DataRow("0", "0000000000000000")]
+    [DataRow("0.0000", "0000000000000004")]
+    [DataRow("1", "00010000000000000001")]
+    [DataRow("-42", "0001000040000000002A")]
+    [DataRow("9999", "0001000000000000270F")]
+    [DataRow("10000", "00010001000000000001")]
+    [DataRow("100000000", "00010002000000000001")]
+    [DataRow("123.4500", "0002000000000004007B1194")]
+    [DataRow("-123.4500", "0002000040000004007B1194")]
+    [DataRow("12345.67890", "0003000100000005000109291A85")]
+    [DataRow("1.00001", "00030000000000050001000003E8")]
+    [DataRow("0.1", "0001FFFF0000000103E8")]
+    [DataRow("0.00001", "0001FFFE0000000503E8")]
+    [DataRow("0.0000000000000000000000000001", "0001FFF90000001C0001")]
+    [DataRow("79228162514264337593543950335", "00080007000000000007240C0659059210F1172F112B014F")]
+    [DataRow("-79228162514264337593543950335", "00080007400000000007240C0659059210F1172F112B014F")]
+    [DataRow("7.9228162514264337593543950335", "000800000000001C0007240C0659059210F1172F112B014F")]
+    public void DecimalBitsMatchIndependentProtocolVectors(string text, string hex)
+    {
+        decimal value = decimal.Parse(text, CultureInfo.InvariantCulture);
+        PgNumeric numeric = PgNumeric.FromDecimal(value);
+        Assert.AreEqual(0, numeric.Storage.RawLength);
+        Assert.AreSequenceEqual(Convert.FromHexString(hex), numeric.Storage.Wire.ToArray());
+        Assert.AreEqual(text, numeric.Text);
+        Assert.AreEqual(value, numeric.ToDecimal());
+    }
+
+    /// <summary>
+    /// Exercises every decimal scale, both signs, signed zero and unsigned limbs across their full widths.
+    /// </summary>
+    /// <param name="scale">The decimal display scale.</param>
+    [TestMethod]
+    [DataRow(0)]
+    [DataRow(1)]
+    [DataRow(2)]
+    [DataRow(3)]
+    [DataRow(4)]
+    [DataRow(5)]
+    [DataRow(6)]
+    [DataRow(7)]
+    [DataRow(8)]
+    [DataRow(9)]
+    [DataRow(10)]
+    [DataRow(11)]
+    [DataRow(12)]
+    [DataRow(13)]
+    [DataRow(14)]
+    [DataRow(15)]
+    [DataRow(16)]
+    [DataRow(17)]
+    [DataRow(18)]
+    [DataRow(19)]
+    [DataRow(20)]
+    [DataRow(21)]
+    [DataRow(22)]
+    [DataRow(23)]
+    [DataRow(24)]
+    [DataRow(25)]
+    [DataRow(26)]
+    [DataRow(27)]
+    [DataRow(28)]
+    public void DecimalBitsPreserveEveryScaleAndUnsignedLimb(int scale)
+    {
+        (int Low, int Middle, int High)[] coefficients =
+        [
+            (0, 0, 0), (1, 0, 0), (-1, 0, 0), (0, -1, 0), (0, 0, -1), (-1, -1, -1),
+            (int.MaxValue, int.MinValue, -123456789), (10000, 0, 0),
+        ];
+        foreach ((int low, int middle, int high) in coefficients)
+        {
+            foreach (bool negative in new[] { false, true })
+            {
+                decimal value = new(low, middle, high, negative, checked((byte)scale));
+                string text = value.ToString(CultureInfo.InvariantCulture);
+                PgNumeric numeric = PgNumeric.FromDecimal(value);
+                Assert.AreSequenceEqual(PgNumericStorage.FromCanonicalText(text).Wire.ToArray(), numeric.Storage.Wire.ToArray());
+                Assert.AreEqual(text, numeric.Text);
+                Assert.AreEqual(scale, numeric.Scale);
+                Assert.AreEqual(decimal.Sign(value), numeric.Sign);
+                Assert.AreEqual(value, numeric.ToDecimal());
+            }
+        }
+    }
+
     /// <summary>
     /// Compares base-10000 encoding and formatting with independently specified PostgreSQL binary vectors.
     /// </summary>

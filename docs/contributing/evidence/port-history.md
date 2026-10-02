@@ -1,5 +1,52 @@
 # Historical port evidence
 
+## Direct decimal encoding: complete acceptance and controlled comparison
+
+The **ac01b4b** composition replaces decimal-to-text parsing with direct encoding
+of its unsigned 96-bit coefficient, sign and scale into public numeric binary
+groups. Native guards, subtransactions and ownership remain unchanged. Wide
+unsigned arithmetic preserves fractional padding, signed zero and decimal scale.
+
+`DecimalBitsMatchIndependentProtocolVectors` proves 17 independent byte vectors
+and full decimal endpoints. `DecimalBitsPreserveEveryScaleAndUnsignedLimb`
+covers every scale with eight coefficient patterns and both signs. The complete
+managed numeric scope passes **136/136, zero skips, 2.845s**. PostgreSQL
+**18.6/Linux x64** numeric/range/tuple checks pass **271/271, zero skips,
+2m30.659s**. The literal unfiltered `dotnet test` passes all six modules:
+**11,248 total; 11,234 passed; zero failed; 14 platform skips; 25m08.623s**.
+No report flags are added to that plain run; final counters and six terminal
+module summaries establish its outcome. All **293** frozen source identities
+and **26** accepted runtime files verify after terminal success. Only the three
+owned product/test paths are promoted, with **290** applicable identities matching
+the composed main source; progress/inventory documents are excluded explicitly.
+
+A preliminary library comparison uses different native compiler versions and is
+not the controlled acceptance measurement. The accepted ac01b4b baseline is then
+rebuilt with the candidate's **SDK 10.0.401, LLVM 23.1.2 and PostgreSQL 18.6/Linux
+x64**; 290 unchanged source identities and 26 runtime files match. An initial
+private launcher is absent and executes no publication; its corrected launch
+passes. Incomplete copy paths are corrected before measurement queries run.
+
+The controlled comparison uses identical queries, warm **ABBA** order, **20,000
+rows**, two warmups and **22 measured samples per variant**. All sums match
+independent PostgreSQL expressions; raw samples and library/app hashes remain
+retained. Managed decimal returns improve from **7.921ms to 5.720ms**, ratio
+**0.722**. Native SQL control medians are **3.072ms / 3.159ms**, ratio **1.028**.
+Small identity/addition ratios are **0.992 / 1.018**; 1,024-digit identity/addition
+ratios are **0.988 / 1.001**. These are query times, not isolated arithmetic,
+allocation or guard costs. Pure guard improvements and permanent benchmarks
+remain open. Final composed Release passes with **zero warnings/errors,
+1m22.56s**. API freshness verifies **238 pages / 2,756 members**; site build/check
+passes with **286 pages in 3.27s**, zero errors/warnings/hints. All 290 applicable
+promoted identities match. Fresh platform CI remains required after publishing.
+
+The preceding binary-storage commit **ac01b4b** has terminal passing primary CI
+**37024581268** and Docs **37024581449**. Six completed TRX modules per platform
+report **11,202 total**, zero failures, and **11,188 / 11,176 / 11,177 passed** on
+Linux x64/PG18, macOS ARM64/PG18 and Windows x64/PG17. Platform skips are
+**14 / 26 / 25**; job durations are **26m50s / 20m18s / 26m59s**. The earlier Intel
+macOS timeout remains unresolved; no unfinished platform run counts as acceptance.
+
 ## Owned binary numeric: complete local acceptance and measured tradeoffs
 
 The composition based on **c3db5ed** owns an opaque detoasted numeric datum together
