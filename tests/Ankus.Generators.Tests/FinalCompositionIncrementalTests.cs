@@ -12,6 +12,82 @@ namespace Ankus.Generators.Tests;
 public sealed partial class PgFunctionGeneratorTests
 {
     /// <summary>
+    /// A longer first body does not invalidate later declarations or final output in the same source file.
+    /// </summary>
+    /// <param name="multiline">Whether declarations occupy different physical lines.</param>
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void FinalCompositionCachesSeveralDeclarationsAfterBodyLengthChanges(bool multiline)
+    {
+        string source = "public static class Functions { [Ankus.PgFunction] public static int First() => 41;"
+            + (multiline ? "\n" : " ") + "[Ankus.PgFunction] public static int Answer() => First() + 1; }";
+        CSharpCompilation initial = ModuleCompilation(source);
+        GeneratorDriver driver = RunModule(ModuleDriver(), initial, out Compilation first);
+        driver = RunModule(driver, initial.ReplaceSyntaxTree(initial.SyntaxTrees.Single(), CSharpSyntaxTree.ParseText(
+            source.Replace("=> 41;", "=> 42 + 0;", StringComparison.Ordinal), path: "Module.cs",
+            cancellationToken: context.CancellationToken)), out Compilation second);
+
+        Assert.AreEqual(42, InvokeSqlReferenceAnswer(first));
+        Assert.AreEqual(43, InvokeSqlReferenceAnswer(second));
+        Assert.AreEqual(IncrementalStepRunReason.Cached, ModuleStep(driver, "ExtensionComposition"));
+        AssertFinalRenderingCached(driver);
+        Assert.AreEqual(ManifestValue(first, "Ankus.NativeSource"), ManifestValue(second, "Ankus.NativeSource"));
+        Assert.AreEqual(ManifestValue(first, "Ankus.SqlGraph"), ManifestValue(second, "Ankus.SqlGraph"));
+    }
+
+    /// <summary>
+    /// Inserting an unrelated tree before extension declarations does not change their source identity.
+    /// </summary>
+    [TestMethod]
+    public void FinalCompositionCachesAfterEarlierTreeInsertion()
+    {
+        CSharpCompilation initial = ModuleCompilation("public static class Functions { [Ankus.PgFunction] public static int Answer() => 42; }");
+        GeneratorDriver driver = RunModule(ModuleDriver(), initial, out Compilation first);
+        SyntaxTree earlier = CSharpSyntaxTree.ParseText("internal static class Earlier { internal const int Value = 1; }",
+            path: "Earlier.cs", cancellationToken: context.CancellationToken);
+        CSharpCompilation edited = initial.RemoveAllSyntaxTrees().AddSyntaxTrees([earlier, .. initial.SyntaxTrees]);
+        driver = RunModule(driver, edited, out Compilation second);
+
+        Assert.AreEqual(42, InvokeSqlReferenceAnswer(second));
+        Assert.AreEqual(IncrementalStepRunReason.Cached, ModuleStep(driver, "ExtensionComposition"));
+        AssertFinalRenderingCached(driver);
+        Assert.AreEqual(ManifestValue(first, "Ankus.SqlGraph"), ManifestValue(second, "Ankus.SqlGraph"));
+    }
+
+    /// <summary>
+    /// Cached later diagnostics resolve exact current spans after an earlier body grows and a tree is inserted.
+    /// </summary>
+    [TestMethod]
+    public void FinalCompositionCachedDiagnosticsFollowLaterDeclarations()
+    {
+        const string Source = "#line 91 \"Mapped.cs\"\npublic static class Functions { [Ankus.PgFunction] public static int First() => 41; "
+            + "[Ankus.PgFunction] public static Missing Answer() => default!; }";
+        CSharpCompilation initial = ModuleCompilation(Source);
+        GeneratorDriver driver = ModuleDriver().RunGeneratorsAndUpdateCompilation(initial, out _, out ImmutableArray<Diagnostic> first,
+            context.CancellationToken);
+        Diagnostic previous = Assert.ContainsSingle(first);
+        Assert.AreEqual("ANKUS039", previous.Id);
+        string replacement = Source.Replace("=> 41;", "=> 42 + 0;", StringComparison.Ordinal);
+        SyntaxTree current = CSharpSyntaxTree.ParseText(replacement, path: "Module.cs", cancellationToken: context.CancellationToken);
+        SyntaxTree earlier = CSharpSyntaxTree.ParseText("internal static class Earlier { }", path: "Earlier.cs",
+            cancellationToken: context.CancellationToken);
+        CSharpCompilation edited = initial.RemoveAllSyntaxTrees().AddSyntaxTrees(earlier, current);
+        driver = driver.RunGeneratorsAndUpdateCompilation(edited, out _, out ImmutableArray<Diagnostic> errors, context.CancellationToken);
+        Diagnostic error = Assert.ContainsSingle(errors);
+
+        Assert.AreEqual(IncrementalStepRunReason.Cached, ModuleStep(driver, "ExtensionComposition"));
+        Assert.AreEqual(IncrementalStepRunReason.Cached, ModuleStep(driver, "ExtensionProblems"));
+        Assert.AreEqual(previous.Id, error.Id);
+        Assert.AreSame(current, error.Location.SourceTree);
+        Assert.AreNotEqual(previous.Location.SourceSpan.Start, error.Location.SourceSpan.Start);
+        Assert.AreEqual("Missing", current.GetText(context.CancellationToken).ToString(error.Location.SourceSpan));
+        Assert.AreEqual(replacement.IndexOf("Missing", StringComparison.Ordinal), error.Location.SourceSpan.Start);
+        Assert.AreEqual("Mapped.cs", error.Location.GetMappedLineSpan().Path);
+        Assert.AreEqual(90, error.Location.GetMappedLineSpan().StartLinePosition.Line);
+    }
+
+    /// <summary>
     /// Body edits preserve final source plans and execute the current managed implementation.
     /// </summary>
     /// <param name="longer">Whether the edit changes the method's source span length.</param>
@@ -185,8 +261,9 @@ public sealed partial class PgFunctionGeneratorTests
         CSharpCompilation compilation = ModuleCompilation(Source).AddSyntaxTrees(CSharpSyntaxTree.ParseText(Source,
             path: "Module.cs", cancellationToken: context.CancellationToken));
         var span = new TextSpan(Source.IndexOf("Answer", StringComparison.Ordinal), "Answer".Length);
-        var first = new GeneratorLocation(0, span);
-        var second = new GeneratorLocation(1, span);
+        SyntaxTree[] trees = [.. compilation.SyntaxTrees];
+        GeneratorLocation first = GeneratorLocation.Create(Location.Create(trees[0], span), compilation)!.Value;
+        GeneratorLocation second = GeneratorLocation.Create(Location.Create(trees[1], span), compilation)!.Value;
         GeneratorSourceMap map = GeneratorSourceMap.Create([second, first, null, first], compilation, context.CancellationToken);
         Assert.AreSequenceEqual([first, second], map.Entries.Select(static entry => entry.Coordinates));
         Assert.AreEqual("Module.cs", map.Entries[0].Physical.Path);
@@ -228,17 +305,23 @@ public sealed partial class PgFunctionGeneratorTests
     /// <param name="manifest">Whether installation metadata must also remain cached.</param>
     private static void AssertFinalRenderingCached(GeneratorDriver driver, bool manifest = true)
     {
-        foreach (string stage in new[] { "ExtensionNativeEmission", "ExtensionExportEmission", "ExtensionArtifactEmission" })
+        string[] stages = manifest
+            ? ["ExtensionNativeEmission", "ExtensionExportEmission", "ExtensionArtifactEmission", "ExtensionManifestEmission",
+                "ExtensionSqlComponentEmission", "ExtensionInstallationEmission", "ExtensionGraphEmission"]
+            : ["ExtensionNativeEmission", "ExtensionExportEmission", "ExtensionArtifactEmission"];
+        GeneratorRunResult result = Assert.ContainsSingle(driver.GetRunResult().Results);
+        foreach (string stage in stages)
         {
-            Assert.AreEqual(IncrementalStepRunReason.Cached, ModuleStep(driver, stage), stage);
-        }
-
-        if (manifest)
-        {
-            Assert.AreEqual(IncrementalStepRunReason.Cached, ModuleStep(driver, "ExtensionManifestEmission"));
-            Assert.AreEqual(IncrementalStepRunReason.Cached, ModuleStep(driver, "ExtensionSqlComponentEmission"));
-            Assert.AreEqual(IncrementalStepRunReason.Cached, ModuleStep(driver, "ExtensionInstallationEmission"));
-            Assert.AreEqual(IncrementalStepRunReason.Cached, ModuleStep(driver, "ExtensionGraphEmission"));
+            ImmutableArray<IncrementalGeneratorRunStep> steps = result.TrackedSteps[stage];
+            Assert.IsNotEmpty(steps, stage);
+            foreach (IncrementalGeneratorRunStep step in steps)
+            {
+                Assert.IsNotEmpty(step.Outputs, stage);
+                foreach ((object _, IncrementalStepRunReason reason) in step.Outputs)
+                {
+                    Assert.AreEqual(IncrementalStepRunReason.Cached, reason, stage);
+                }
+            }
         }
     }
 }

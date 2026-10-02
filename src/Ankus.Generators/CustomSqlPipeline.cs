@@ -12,11 +12,9 @@ internal static class CustomSqlPipeline
     /// Registers value-comparable inputs and per-block content resolution without retaining compiler objects.
     /// </summary>
     /// <param name="context">The generator registration context.</param>
-    /// <param name="files">The tracked additional file paths and contents.</param>
     /// <param name="projectDirectory">The independently evaluated project directory.</param>
     /// <returns>The resolved blocks with current graph options and diagnostic coordinates.</returns>
     internal static IncrementalValueProvider<EquatableArray<Output>> Register(IncrementalGeneratorInitializationContext context,
-        IncrementalValueProvider<ImmutableArray<(string Path, string? Text)>> files,
         IncrementalValueProvider<string> projectDirectory)
     {
         IncrementalValuesProvider<Analysis> analysis = context.CompilationProvider
@@ -24,10 +22,21 @@ internal static class CustomSqlPipeline
             .SelectMany(static (values, _) => values).WithTrackingName("CustomSqlAnalysis");
         IncrementalValuesProvider<Input> inputs = analysis.Select(static (value, _) => value.Input)
             .WithTrackingName("CustomSqlInput");
-        IncrementalValueProvider<EquatableArray<FileInput>> fileInputs = files.Select(static (values, _) =>
-            new EquatableArray<FileInput>(values.Select(static value => new FileInput(value.Path, value.Text))));
-        IncrementalValuesProvider<Selection> selection = inputs.Combine(fileInputs).Combine(projectDirectory)
-            .Select(static (value, _) => CustomSql.Select(value.Left.Left, value.Left.Right, value.Right))
+        IncrementalValueProvider<ImmutableArray<string>> paths = context.AdditionalTextsProvider.Select(static (file, _) => file.Path).Collect();
+        IncrementalValueProvider<EquatableArray<string>> selectedPaths = inputs.Collect()
+            .Combine(paths).Combine(projectDirectory)
+            .Select(static (value, _) => new EquatableArray<string>(value.Left.Left.Where(static input => input.File && input.ValidArguments)
+                .Select(input => CustomSql.SelectFilePath(input.Content, value.Left.Right, value.Right).Path)
+                .Where(static path => path is not null).Select(static path => path!)
+                .Distinct(StringComparer.Ordinal).OrderBy(static path => path, StringComparer.Ordinal)))
+            .WithTrackingName("CustomSqlSelectedPaths");
+        IncrementalValueProvider<EquatableArray<FileInput>> fileInputs = context.AdditionalTextsProvider.Combine(selectedPaths)
+            .Where(static value => value.Right.Contains(value.Left.Path, StringComparer.Ordinal))
+            .Select(static (value, _) => value.Left)
+            .Select(static (file, token) => new FileInput(file.Path, file.GetText(token)?.ToString()))
+            .Collect().Select(static (values, _) => new EquatableArray<FileInput>(values));
+        IncrementalValuesProvider<Selection> selection = inputs.Combine(fileInputs).Combine(projectDirectory).Combine(paths)
+            .Select(static (value, _) => CustomSql.Select(value.Left.Left.Left, value.Left.Left.Right, value.Left.Right, value.Right))
             .WithTrackingName("CustomSqlSelection");
         IncrementalValuesProvider<Resolution> resolution = selection.Select(static (value, _) => CustomSql.Resolve(value))
             .WithTrackingName("CustomSqlResolution");
@@ -72,6 +81,13 @@ internal static class CustomSqlPipeline
     /// <param name="Path">The exact additional input path.</param>
     /// <param name="Text">The tracked contents, or null for an unreadable input.</param>
     internal sealed record FileInput(string Path, string? Text);
+
+    /// <summary>
+    /// Retains a unique tracked path without reading its file contents.
+    /// </summary>
+    /// <param name="Path">The original selected compiler path, or null when selection fails.</param>
+    /// <param name="Error">The existing path-selection diagnostic.</param>
+    internal sealed record FileSelection(string? Path, string? Error);
 
     /// <summary>
     /// Contains only the selected SQL and diagnostics that affect text validation.

@@ -8,6 +8,11 @@ namespace Ankus.PgConfig;
 /// </summary>
 public sealed class PostgresProjectSettings
 {
+    /// <summary>
+    /// Describes an invalid selection without treating it as an absent project default.
+    /// </summary>
+    private const string ConflictMessage = "Selected or referenced projects select different PostgreSQL installations. Set AnkusPostgresMajor and AnkusPgConfigPath explicitly, or use --pg/--pg-config.";
+
     private PostgresProjectSettings(int postgresMajor, string? pgConfigPath)
     {
         PostgresMajor = postgresMajor;
@@ -55,7 +60,7 @@ public sealed class PostgresProjectSettings
         SelectionResult result = await EvaluateAsync(projectPath, configuration, postgresMajor, globalProperties, cancellationToken).ConfigureAwait(false);
         if (result.Conflict)
         {
-            throw new InvalidOperationException("Referenced projects select different PostgreSQL installations. Set AnkusPostgresMajor and AnkusPgConfigPath explicitly, or use ankus test --pg.");
+            throw new InvalidOperationException(ConflictMessage);
         }
 
         return result.Settings ?? new(18, null);
@@ -68,10 +73,11 @@ public sealed class PostgresProjectSettings
     /// <param name="configuration">The effective MSBuild configuration.</param>
     /// <param name="postgresMajor">An explicit global major, or null for declared defaults.</param>
     /// <param name="cancellationToken">Cancels evaluation and joins the query process.</param>
-    /// <returns>The selected installation, or null when no selection is declared or references disagree.</returns>
+    /// <returns>The selected installation, or null when no selection is declared.</returns>
+    /// <exception cref="InvalidOperationException">Referenced projects select conflicting PostgreSQL installations.</exception>
     /// <remarks>
-    /// Invalid property values, broken imports and circular references remain errors.
-    /// A caller can use the absence of an unambiguous selection to apply its documented default.
+    /// Invalid property values, conflicting selections, broken imports and circular references remain errors.
+    /// A caller can use an absent declaration to apply its documented default.
     /// </remarks>
     public static Task<PostgresProjectSettings?> TryReadAsync(string projectPath, string configuration,
         int? postgresMajor = null, CancellationToken cancellationToken = default)
@@ -86,12 +92,18 @@ public sealed class PostgresProjectSettings
     /// <param name="postgresMajor">An explicit PostgreSQL major, or null for evaluated defaults.</param>
     /// <param name="cancellationToken">Cancels evaluation and joins the query processes.</param>
     /// <returns>The evaluated PostgreSQL selection.</returns>
+    /// <exception cref="InvalidOperationException">Referenced projects select conflicting PostgreSQL installations.</exception>
     public static async Task<PostgresProjectSettings?> TryReadAsync(string projectPath, string configuration,
         IReadOnlyDictionary<string, string> globalProperties, int? postgresMajor = null,
         CancellationToken cancellationToken = default)
     {
         SelectionResult result = await EvaluateAsync(projectPath, configuration, postgresMajor, globalProperties, cancellationToken).ConfigureAwait(false);
-        return result.Conflict ? null : result.Settings;
+        if (result.Conflict)
+        {
+            throw new InvalidOperationException(ConflictMessage);
+        }
+
+        return result.Settings;
     }
 
     /// <summary>
@@ -101,7 +113,8 @@ public sealed class PostgresProjectSettings
     /// <param name="configuration">The effective MSBuild configuration.</param>
     /// <param name="postgresMajor">An explicit global major, or null for declared defaults.</param>
     /// <param name="cancellationToken">Cancels evaluation and joins the query processes.</param>
-    /// <returns>The shared declared selection, or null for an empty, unrelated or ambiguous group.</returns>
+    /// <returns>The shared declared selection, or null for an empty or unrelated group.</returns>
+    /// <exception cref="InvalidOperationException">Selected projects or their references select conflicting PostgreSQL installations.</exception>
     public static Task<PostgresProjectSettings?> TryReadAsync(IEnumerable<string> projectPaths, string configuration,
         int? postgresMajor = null, CancellationToken cancellationToken = default)
         => TryReadAsync(projectPaths, configuration, new Dictionary<string, string>(), postgresMajor, cancellationToken);
@@ -115,6 +128,7 @@ public sealed class PostgresProjectSettings
     /// <param name="postgresMajor">An explicit PostgreSQL major, or null for evaluated defaults.</param>
     /// <param name="cancellationToken">Cancels evaluation and joins the query processes.</param>
     /// <returns>The evaluated PostgreSQL selection.</returns>
+    /// <exception cref="InvalidOperationException">Selected projects or their references select conflicting PostgreSQL installations.</exception>
     public static async Task<PostgresProjectSettings?> TryReadAsync(IEnumerable<string> projectPaths, string configuration,
         IReadOnlyDictionary<string, string> globalProperties, int? postgresMajor = null,
         CancellationToken cancellationToken = default)
@@ -128,7 +142,7 @@ public sealed class PostgresProjectSettings
             SelectionResult result = await EvaluateAsync(project, configuration, postgresMajor, globalProperties, cancellationToken).ConfigureAwait(false);
             if (result.Conflict)
             {
-                return null;
+                throw new InvalidOperationException(ConflictMessage);
             }
 
             if (result.Settings is not { } current)
@@ -140,7 +154,7 @@ public sealed class PostgresProjectSettings
                 !string.Equals(selected.PgConfigPath, current.PgConfigPath, OperatingSystem.IsWindows()
                     ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal)))
             {
-                return null;
+                throw new InvalidOperationException(ConflictMessage);
             }
 
             selected = current;
@@ -262,7 +276,8 @@ public sealed class PostgresProjectSettings
             }
 
             if (inherited is not null && (inherited.PostgresMajor != selection.PostgresMajor ||
-                !string.Equals(inherited.PgConfigPath, selection.PgConfigPath, StringComparison.Ordinal)))
+                !string.Equals(inherited.PgConfigPath, selection.PgConfigPath, OperatingSystem.IsWindows()
+                    ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal)))
             {
                 visiting.Remove(project);
                 return new(null, true);

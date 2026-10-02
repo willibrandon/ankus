@@ -44,14 +44,14 @@ public sealed class SpiCommandCompilationTests(TestContext context)
     }
 
     /// <summary>
-    /// Existing string interpolation retains string semantics; only an explicit command selects the new overload.
+    /// C# resolves raw strings and explicit commands to distinct overloads; ANKUS044 separately rejects unsafe raw interpolation.
     /// </summary>
     /// <param name="expression">The old or new execution expression.</param>
     /// <param name="expectedType">The first parameter's resolved type.</param>
     [TestMethod]
     [DataRow("Spi.Execute($\"SELECT {value}\")", "String")]
     [DataRow("Spi.Execute(Spi.Sql($\"SELECT {value}\"))", "SpiCommand")]
-    public void CompilerPreservesExplicitOverloadChoice(string expression, string expectedType)
+    public void CompilerBindsRawStringsAndParameterizedCommands(string expression, string expectedType)
     {
         CSharpCompilation compilation = Compile(expression);
         Assert.IsEmpty(compilation.GetDiagnostics(context.CancellationToken));

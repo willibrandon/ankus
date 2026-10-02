@@ -17,6 +17,7 @@ repository root with `dotnet run --file`.
 | Command | Purpose |
 | --- | --- |
 | `metadata` | Validate and export the pinned runtime identity. |
+| `runtime-info` | Validate and print the checkout's runtime repository, commit and matching package/compiler versions locally. |
 | `release-metadata` | Validate a release tag and export release metadata. |
 | `quality` | Install PostgreSQL headers, build Ankus and validate generated API and site documentation. |
 | `runtime-build` | Build and stage one runtime for CI. |

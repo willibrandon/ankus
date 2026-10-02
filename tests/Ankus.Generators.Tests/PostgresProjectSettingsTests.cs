@@ -312,7 +312,9 @@ public sealed class PostgresProjectSettingsTests(TestContext context)
             InvalidOperationException error = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
                 PostgresProjectSettings.ReadAsync(project, "Shipping", cancellationToken: context.CancellationToken));
             Assert.Contains("different PostgreSQL installations", error.Message);
-            Assert.IsNull(await PostgresProjectSettings.TryReadAsync(project, "Shipping", cancellationToken: context.CancellationToken));
+            InvalidOperationException optional = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
+                PostgresProjectSettings.TryReadAsync(project, "Shipping", cancellationToken: context.CancellationToken));
+            Assert.AreEqual(error.Message, optional.Message);
             PostgresProjectSettings explicitSelection = await PostgresProjectSettings.ReadAsync(project, "Shipping", 19, context.CancellationToken);
             Assert.AreEqual(19, explicitSelection.PostgresMajor);
         }
@@ -381,9 +383,12 @@ public sealed class PostgresProjectSettingsTests(TestContext context)
             string project = await WriteProjectAsync(directory, "<ItemGroup>" + string.Concat(references.Select(static name =>
                 "<ProjectReference Include=\"" + name + "\" />")) + "</ItemGroup>");
 
-            Assert.IsNull(await PostgresProjectSettings.TryReadAsync(project, "Debug", cancellationToken: context.CancellationToken));
-            Assert.IsNull(await PostgresProjectSettings.TryReadAsync([Path.Combine(directory, "First.csproj"), project], "Debug", cancellationToken: context.CancellationToken));
-            Assert.IsNull(await PostgresProjectSettings.TryReadAsync([project, Path.Combine(directory, "First.csproj")], "Debug", cancellationToken: context.CancellationToken));
+            await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
+                PostgresProjectSettings.TryReadAsync(project, "Debug", cancellationToken: context.CancellationToken));
+            await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
+                PostgresProjectSettings.TryReadAsync([Path.Combine(directory, "First.csproj"), project], "Debug", cancellationToken: context.CancellationToken));
+            await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
+                PostgresProjectSettings.TryReadAsync([project, Path.Combine(directory, "First.csproj")], "Debug", cancellationToken: context.CancellationToken));
             await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => PostgresProjectSettings.ReadAsync(project, "Debug", cancellationToken: context.CancellationToken));
         }
         finally
@@ -455,6 +460,19 @@ public sealed class PostgresProjectSettingsTests(TestContext context)
                 "unrelated" => [library],
                 _ => [library, first, second],
             };
+            if (kind == "conflict")
+            {
+                InvalidOperationException error = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
+                    PostgresProjectSettings.TryReadAsync(projects, "Debug", cancellationToken: context.CancellationToken));
+                Assert.Contains("different PostgreSQL installations", error.Message);
+                PostgresProjectSettings? overridden = await PostgresProjectSettings.TryReadAsync(projects, "Debug",
+                    postgresMajor: 18, cancellationToken: context.CancellationToken);
+                Assert.IsNotNull(overridden);
+                Assert.AreEqual(18, overridden.PostgresMajor);
+                Assert.IsNull(overridden.PgConfigPath);
+                return;
+            }
+
             PostgresProjectSettings? selection = await PostgresProjectSettings.TryReadAsync(projects, "Debug", cancellationToken: context.CancellationToken);
             if (kind == "agreement")
             {
@@ -465,6 +483,46 @@ public sealed class PostgresProjectSettingsTests(TestContext context)
             else
             {
                 Assert.IsNull(selection);
+            }
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// Reference and solution groups agree on platform path casing without collapsing distinct Unix installations.
+    /// </summary>
+    /// <param name="group">Whether to evaluate a solution group instead of one referencing project.</param>
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task InstallationPathCaseUsesPlatformSemantics(bool group)
+    {
+        string directory = Directory.CreateTempSubdirectory("ankus-selection-").FullName;
+        try
+        {
+            string first = await WriteProjectAsync(directory,
+                "<PropertyGroup><AnkusPostgresMajor>17</AnkusPostgresMajor><AnkusPgConfigPath>SERVER/PG_CONFIG</AnkusPgConfigPath></PropertyGroup>", "First.csproj");
+            string second = await WriteProjectAsync(directory,
+                "<PropertyGroup><AnkusPostgresMajor>17</AnkusPostgresMajor><AnkusPgConfigPath>server/pg_config</AnkusPgConfigPath></PropertyGroup>", "Second.csproj");
+            string root = await WriteProjectAsync(directory,
+                "<ItemGroup><ProjectReference Include=\"First.csproj\" /><ProjectReference Include=\"Second.csproj\" /></ItemGroup>");
+            Task<PostgresProjectSettings?> Read() => group
+                ? PostgresProjectSettings.TryReadAsync([first, second], "Debug", cancellationToken: context.CancellationToken)
+                : PostgresProjectSettings.TryReadAsync(root, "Debug", cancellationToken: context.CancellationToken);
+            if (OperatingSystem.IsWindows())
+            {
+                PostgresProjectSettings? selection = await Read();
+                Assert.IsNotNull(selection);
+                Assert.AreEqual(17, selection.PostgresMajor);
+                Assert.AreEqual(Path.GetFullPath("SERVER/PG_CONFIG", directory), selection.PgConfigPath);
+            }
+            else
+            {
+                InvalidOperationException error = await Assert.ThrowsExactlyAsync<InvalidOperationException>(Read);
+                Assert.Contains("different PostgreSQL installations", error.Message);
             }
         }
         finally

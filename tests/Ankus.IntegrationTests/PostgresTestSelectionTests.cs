@@ -245,7 +245,6 @@ public sealed partial class ToolCommandTests
     [DataRow("empty")]
     [DataRow("unrelated")]
     [DataRow("projects")]
-    [DataRow("solution")]
     public async Task UnselectedProjectLayoutsRetainDefaultMajor(string layout)
     {
         string directory = CreateDirectory();
@@ -253,17 +252,12 @@ public sealed partial class ToolCommandTests
         {
             await File.WriteAllTextAsync(Path.Combine(directory, "Library.csproj"), "<Project />", context.CancellationToken);
         }
-        else if (layout is "projects" or "solution")
+        else if (layout == "projects")
         {
             await File.WriteAllTextAsync(Path.Combine(directory, "First.csproj"),
                 "<Project><PropertyGroup><AnkusPostgresMajor>13</AnkusPostgresMajor></PropertyGroup></Project>", context.CancellationToken);
             await File.WriteAllTextAsync(Path.Combine(directory, "Second.csproj"),
                 "<Project><PropertyGroup><AnkusPostgresMajor>19</AnkusPostgresMajor></PropertyGroup></Project>", context.CancellationToken);
-            if (layout == "solution")
-            {
-                await File.WriteAllTextAsync(Path.Combine(directory, "Selection.slnx"),
-                    "<Solution><Project Path=\"First.csproj\" /><Project Path=\"Second.csproj\" /></Solution>", context.CancellationToken);
-            }
         }
 
         ProcessResult result = await ProcessRunner.RunAsync(s_tool, ["info", "--home", directory],
@@ -273,6 +267,51 @@ public sealed partial class ToolCommandTests
         Assert.Contains("PostgreSQL 18 is not registered", output);
         Assert.DoesNotContain("Specify --project or --solution", output);
         Assert.DoesNotContain("different PostgreSQL installations", output);
+    }
+
+    /// <summary>
+    /// Selected solutions cannot silently replace conflicting PostgreSQL versions with the default major.
+    /// </summary>
+    /// <param name="format">The ordinary .NET solution format.</param>
+    [TestMethod]
+    [DataRow("slnx")]
+    [DataRow("sln")]
+    public async Task ConflictingSolutionSelectionRequiresExplicitMajor(string format)
+    {
+        CancellationToken token = context.CancellationToken;
+        string directory = CreateDirectory();
+        await File.WriteAllTextAsync(Path.Combine(directory, "First.csproj"),
+            "<Project><PropertyGroup><AnkusPostgresMajor>17</AnkusPostgresMajor></PropertyGroup></Project>", token);
+        await File.WriteAllTextAsync(Path.Combine(directory, "Second.csproj"),
+            "<Project><PropertyGroup><AnkusPostgresMajor>16</AnkusPostgresMajor></PropertyGroup></Project>", token);
+        string solution = format == "slnx"
+            ? "<Solution><Project Path=\"First.csproj\" /><Project Path=\"Second.csproj\" /></Solution>"
+            : """
+                Microsoft Visual Studio Solution File, Format Version 12.00
+                Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "First", "First.csproj", "{E133CE62-9517-4A44-A61D-220E7F858891}"
+                EndProject
+                Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Second", "Second.csproj", "{D7D20E80-46BD-4826-9D23-AF28B7804D27}"
+                EndProject
+                Global
+                EndGlobal
+                """;
+        await File.WriteAllTextAsync(Path.Combine(directory, "Selection." + format), solution, token);
+        string[] commands = ["info", "test", "start", "stop", "status"];
+        foreach (string command in commands)
+        {
+            ProcessResult result = await ProcessRunner.RunAsync(s_tool, [command, "--home", directory],
+                SelectionEnvironment(), token, workingDirectory: directory);
+            Assert.AreNotEqual(0, result.ExitCode, command);
+            Assert.IsEmpty(result.StandardOutput, command);
+            Assert.Contains("different PostgreSQL installations", result.StandardError, command);
+            Assert.DoesNotContain("PostgreSQL 18 is not registered", result.StandardError, command);
+        }
+
+        ProcessResult explicitSelection = await ProcessRunner.RunAsync(s_tool,
+            ["info", "--home", s_home, "--pg", MajorText()], SelectionEnvironment(), token, workingDirectory: directory);
+        Assert.AreEqual(0, explicitSelection.ExitCode, explicitSelection.StandardError);
+        Assert.DoesNotContain("different PostgreSQL installations", explicitSelection.StandardError);
+        Assert.Contains(s_installation.Version.ToString(), explicitSelection.StandardOutput);
     }
 
     /// <summary>

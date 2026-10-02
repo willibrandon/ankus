@@ -26,7 +26,7 @@ public sealed partial class PgFunctionGeneratorTests
             replacement, path: "Module.cs", cancellationToken: context.CancellationToken));
         driver = RunModule(driver, edited, out Compilation second);
 
-        Assert.AreEqual(move ? IncrementalStepRunReason.Unchanged : IncrementalStepRunReason.Cached, TrackedFunctionDeclaration(driver, "value").Reason);
+        Assert.AreEqual(IncrementalStepRunReason.Cached, TrackedFunctionDeclaration(driver, "value").Reason);
         Assert.Contains("FUNCTION \"value\"(\"value\" integer DEFAULT ((-7)::integer))", InstallationBody(second));
         Assert.AreEqual(InstallationBody(first), InstallationBody(second));
     }
@@ -104,7 +104,8 @@ public sealed partial class PgFunctionGeneratorTests
         CSharpCompilation initial = ModuleCompilation(Source);
         GeneratorDriver driver = ModuleDriver().RunGeneratorsAndUpdateCompilation(initial, out _, out _, context.CancellationToken);
         string replacement = move ? "\n\n" + Source : Source.Replace("=> 1", "=> 2", StringComparison.Ordinal);
-        SyntaxTree current = CSharpSyntaxTree.ParseText(replacement, path: "Current.cs", cancellationToken: context.CancellationToken);
+        string path = move ? "Current.cs" : "Module.cs";
+        SyntaxTree current = CSharpSyntaxTree.ParseText(replacement, path: path, cancellationToken: context.CancellationToken);
         CSharpCompilation edited = initial.ReplaceSyntaxTree(initial.SyntaxTrees.Single(), current);
         driver = driver.RunGeneratorsAndUpdateCompilation(edited, out _, out ImmutableArray<Diagnostic> diagnostics, context.CancellationToken);
         Diagnostic diagnostic = Assert.ContainsSingle(diagnostics);
@@ -113,13 +114,13 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.AreEqual("ANKUS004", diagnostic.Id);
         Assert.Contains("Cost must be positive", diagnostic.GetMessage(CultureInfo.InvariantCulture));
         Assert.AreSame(current, diagnostic.Location.SourceTree);
-        Assert.AreEqual("Current.cs", diagnostic.Location.GetLineSpan().Path);
+        Assert.AreEqual(path, diagnostic.Location.GetLineSpan().Path);
         Assert.AreEqual(move ? 2 : 0, diagnostic.Location.GetLineSpan().StartLinePosition.Line);
         Assert.AreEqual("Value", current.GetText(context.CancellationToken).ToString(diagnostic.Location.SourceSpan));
         Assert.IsNull(Assert.ContainsSingle(driver.GetRunResult().Results).Exception);
 
         CSharpCompilation repaired = edited.ReplaceSyntaxTree(current, CSharpSyntaxTree.ParseText(
-            replacement.Replace("Cost = 0", "Cost = 2", StringComparison.Ordinal), path: "Current.cs", cancellationToken: context.CancellationToken));
+            replacement.Replace("Cost = 0", "Cost = 2", StringComparison.Ordinal), path: path, cancellationToken: context.CancellationToken));
         driver = RunModule(driver, repaired, out Compilation output);
         Assert.AreEqual(IncrementalStepRunReason.Modified, TrackedFunctionDeclaration(driver, "value").Reason);
         Assert.Contains("COST 2;", InstallationBody(output));

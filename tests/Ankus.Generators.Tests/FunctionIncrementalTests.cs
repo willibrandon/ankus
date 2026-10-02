@@ -24,7 +24,7 @@ public sealed partial class PgFunctionGeneratorTests
             CSharpSyntaxTree.ParseText(editedSource, path: "Module.cs", cancellationToken: context.CancellationToken));
         driver = RunModule(driver, edited, out Compilation second);
 
-        Assert.AreEqual(move ? IncrementalStepRunReason.Unchanged : IncrementalStepRunReason.Cached, ModuleStep(driver, "FunctionModel"));
+        Assert.AreEqual(IncrementalStepRunReason.Cached, ModuleStep(driver, "FunctionModel"));
         Assert.AreEqual(InstallationBody(first), InstallationBody(second));
         Assert.Contains("FUNCTION \"value\"(\"value\" integer DEFAULT ((7)::integer))", InstallationBody(second));
     }

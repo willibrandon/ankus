@@ -76,6 +76,49 @@ defaulting to `~/.ankus`. For a nonstandard path:
 
 ## Tests
 
+### Stage the patched Native AOT runtime
+
+A fresh checkout needs the patched runtime before building or running backend
+tests. It is not published to NuGet yet; without a staged payload, restore can
+fail with `NU1101` for `Ankus.NativeAot.Runtime.<rid>`.
+
+Read the checkout's runtime identity and find a successful CI run for the same
+Ankus revision:
+
+```console
+dotnet run --file eng/Ankus.Ci.cs -- runtime-info
+git rev-parse HEAD
+gh run list --workflow ci.yml --commit <ankus-commit> --status success
+```
+
+Download that run's matching platform artifact into the repository. For Linux
+x64:
+
+```console
+gh run download <run-id> --name nativeaot-linux-x64 --dir artifacts/nativeaot/linux-x64
+dotnet run --file eng/Ankus.Ci.cs -- runtime-pack linux-x64
+```
+
+Use `win-x64`, `osx-arm64` or `osx-x64` for the corresponding platform, replacing
+the artifact name, directory and command argument together. Primary CI produces
+the first three; the additional-platforms workflow produces `osx-x64`. Artifacts
+expire, so an older checkout may need a new workflow run. The staged directory
+must contain `aotsdk/System.Private.CoreLib.dll` and the runtime license files
+under `source/`. The repository SDK automatically selects this payload, and
+`runtime-pack` creates the matching runtime package in `artifacts/packages` for
+external package consumers.
+
+To build it locally instead, use a separate writable `runtime/` checkout of the
+repository and commit printed by `runtime-info`; reference clones stay read-only.
+Then run `dotnet run --file eng/Ankus.Ci.cs -- runtime-build linux x64 linux-x64`
+on Linux, `runtime-build osx arm64 osx-arm64` on Apple Silicon, or
+`runtime-build windows x64 win-x64` on Windows. See
+[engineering prerequisites](../../eng/README.md) for the native toolchain and
+runtime build commands. Keep the runtime payload and compiler versions matched
+to the selected Ankus revision.
+
+### Run the suite
+
 From the repository root:
 
 ```console

@@ -44,3 +44,4 @@ ANKUS040 | Ankus | Error | Unsupported PostgreSQL parameter type
 ANKUS041 | Ankus | Error | PostgreSQL variadic parameter must map to an array
 ANKUS042 | Ankus | Error | Too many PostgreSQL function arguments
 ANKUS043 | Ankus | Error | PostgreSQL function is in a file-local type
+ANKUS044 | Ankus | Error | Interpolated PostgreSQL commands must bind parameters

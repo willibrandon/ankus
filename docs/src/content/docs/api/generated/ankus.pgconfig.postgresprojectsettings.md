@@ -153,6 +153,10 @@ Returns: [Task&lt;PostgresProjectSettings&gt;](https://learn.microsoft.com/dotne
 
 The evaluated PostgreSQL selection.
 
+Exceptions:
+
+- [InvalidOperationException](https://learn.microsoft.com/dotnet/api/system.invalidoperationexception): Selected projects or their references select conflicting PostgreSQL installations.
+
 <a id="member-b6bc86c9f621b54e"></a>
 
 ### TryReadAsync(IEnumerable&lt;string&gt;, string, int?, CancellationToken)
@@ -183,7 +187,11 @@ Cancels evaluation and joins the query processes.
 
 Returns: [Task&lt;PostgresProjectSettings&gt;](https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1)
 
-The shared declared selection, or null for an empty, unrelated or ambiguous group.
+The shared declared selection, or null for an empty or unrelated group.
+
+Exceptions:
+
+- [InvalidOperationException](https://learn.microsoft.com/dotnet/api/system.invalidoperationexception): Selected projects or their references select conflicting PostgreSQL installations.
 
 <a id="member-25890442e52091e0"></a>
 
@@ -221,6 +229,10 @@ Returns: [Task&lt;PostgresProjectSettings&gt;](https://learn.microsoft.com/dotne
 
 The evaluated PostgreSQL selection.
 
+Exceptions:
+
+- [InvalidOperationException](https://learn.microsoft.com/dotnet/api/system.invalidoperationexception): Referenced projects select conflicting PostgreSQL installations.
+
 <a id="member-17b85366d9eb9437"></a>
 
 ### TryReadAsync(string, string, int?, CancellationToken)
@@ -251,7 +263,11 @@ Cancels evaluation and joins the query process.
 
 Returns: [Task&lt;PostgresProjectSettings&gt;](https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1)
 
-The selected installation, or null when no selection is declared or references disagree.
+The selected installation, or null when no selection is declared.
 
-Invalid property values, broken imports and circular references remain errors.
-A caller can use the absence of an unambiguous selection to apply its documented default.
+Exceptions:
+
+- [InvalidOperationException](https://learn.microsoft.com/dotnet/api/system.invalidoperationexception): Referenced projects select conflicting PostgreSQL installations.
+
+Invalid property values, conflicting selections, broken imports and circular references remain errors.
+A caller can use an absent declaration to apply its documented default.

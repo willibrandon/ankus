@@ -31,7 +31,7 @@ public sealed partial class PgFunctionGeneratorTests
         SqlProviderModel before = Assert.ContainsSingle(SqlProviders(driver));
         driver = RunModule(driver, initial.ReplaceSyntaxTree(initial.SyntaxTrees.Single(), CSharpSyntaxTree.ParseText(
             move ? "\n\n" + source : source.Replace("=> 42;", "=> 43;", StringComparison.Ordinal),
-            path: "Changed.cs", cancellationToken: context.CancellationToken)), out Compilation second);
+            path: move ? "Changed.cs" : "Module.cs", cancellationToken: context.CancellationToken)), out Compilation second);
         SqlProviderModel after = Assert.ContainsSingle(SqlProviders(driver));
 
         Assert.AreEqual(move ? IncrementalStepRunReason.Modified : IncrementalStepRunReason.Unchanged, ModuleStep(driver, "SqlProviderAnalysis"));

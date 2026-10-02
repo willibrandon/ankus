@@ -64,9 +64,16 @@ interpolation to retain an explicit composite, domain or raw datum identity.
 
 Do not quote interpolations or use them for object names or SQL fragments.
 Values are sent separately from SQL. Formatting and alignment specifiers are
-not supported; they would change a value's representation. Existing string
-overloads continue to take literal SQL, including ordinary string interpolation.
-Use the quoting APIs below when constructing dynamic identifiers.
+not supported; they would change a value's representation. String overloads take
+raw SQL text. Passing a nonconstant interpolated string directly to one of these
+overloads produces compiler error **ANKUS044**: wrap the interpolation in
+`Spi.Sql`, or use positional parameters with a literal command. Prepared
+statements use positional parameters and explicit parameter types.
+
+The compiler check also covers direct casts and string concatenation. It does
+not track the contents of string variables or helper results; callers remain
+responsible for safely constructing raw SQL. Use the quoting APIs below when
+constructing dynamic identifiers.
 
 `Spi.Sql` returns a `SpiCommand`, whose owned SQL text and binding vector can be
 reused. It supports `Select`, `Query`, `Execute`, scalar and raw results, `Explain`

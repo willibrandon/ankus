@@ -13,9 +13,9 @@ internal sealed class GeneratorSourceResolver(GeneratorSourceMap sources)
     private readonly Dictionary<Location, GeneratorLocation> _coordinates = new(LocationIdentityComparer.Instance);
 
     /// <summary>
-    /// Creates a tree-free location and retains its exact original ordinal for diagnostic transport.
+    /// Creates tree-free line attribution and retains the declaration anchor for exact diagnostic transport.
     /// </summary>
-    /// <param name="coordinates">The distinct tree ordinal and source span.</param>
+    /// <param name="coordinates">The distinct tree occurrence, declaration and relative span.</param>
     /// <returns>The transient location with physical source lines.</returns>
     internal Location Resolve(GeneratorLocation coordinates)
     {

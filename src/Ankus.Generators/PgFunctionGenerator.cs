@@ -94,8 +94,6 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                 "Ankus.PgRequiresAttribute" or "Ankus.PgBeforeAttribute").ToImmutableArray());
         IncrementalValueProvider<EquatableArray<SqlProviderModel>> providers = SqlProviderPipeline.Register(context, customSql);
         IncrementalValueProvider<GucPrefixPipeline.Output> prefixes = GucPrefixPipeline.Register(context);
-        IncrementalValueProvider<ImmutableArray<(string Path, string? Text)>> files = context.AdditionalTextsProvider
-            .Select(static (file, token) => (file.Path, file.GetText(token)?.ToString())).Collect();
         IncrementalValueProvider<(string Directory, bool IncludeTests, string? Version)> projectDirectory =
             context.AnalyzerConfigOptionsProvider.Select(static (options, _) =>
                 (BuildProperty(options.GlobalOptions, "MSBuildProjectDirectory") ?? string.Empty,
@@ -103,7 +101,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                     BuildProperty(options.GlobalOptions, "Version")));
         IncrementalValueProvider<NativeModuleMagic.ModuleOutput> module = NativeModuleMagic.Register(context,
             projectDirectory.Select(static (settings, _) => settings.Version));
-        IncrementalValueProvider<EquatableArray<CustomSqlPipeline.Output>> sqlBlocks = CustomSqlPipeline.Register(context, files,
+        IncrementalValueProvider<EquatableArray<CustomSqlPipeline.Output>> sqlBlocks = CustomSqlPipeline.Register(context,
             projectDirectory.Select(static (settings, _) => settings.Directory));
         IncrementalValueProvider<DatumPipeline.Output> mappings = DatumPipeline.Register(context, methods, datumTypes.Collect(), rangeTypes.Collect(),
             aggregates, customSql, derivedOperators.Collect(), projectDirectory.Select(static (settings, _) => settings.IncludeTests));

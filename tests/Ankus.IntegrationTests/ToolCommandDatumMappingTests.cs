@@ -323,11 +323,11 @@ public sealed partial class ToolCommandTests
                 string type = Spi.QuoteQualifiedIdentifier(schema, "package_key");
                 string function = Spi.QuoteQualifiedIdentifier(schema, "package_array_echo");
                 uint oid = Spi.ExecuteScalar<uint>("SELECT $1::regprocedure::oid", SpiParameter.Create($"{function}({type}[])"));
-                PgArray<OwnedKey?> queried = Spi.ExecuteScalar<PgArray<OwnedKey?>>($"SELECT '[0:2]={{42,NULL,0}}'::{type}[]");
+                PgArray<OwnedKey?> queried = Spi.ExecuteScalar<PgArray<OwnedKey?>>("SELECT '[0:2]={42,NULL,0}'::" + type + "[]");
                 PgArray<OwnedKey?> named = PgFunctions.Call<PgArray<OwnedKey?>>(function, PgFunctionArgument.Create(queried));
                 PgArray<OwnedKey?> identified = PgFunctions.Call<PgArray<OwnedKey?>>(oid, PgFunctionArgument.Create(queried));
                 ExternalKey[] external = Spi.ExecuteScalar<ExternalKey[]>("SELECT ARRAY[0,42]");
-                bool queryNull = Spi.ExecuteScalar<PgArray<OwnedKey?>?>($"SELECT NULL::{type}[]") is null;
+                bool queryNull = Spi.ExecuteScalar<PgArray<OwnedKey?>?>("SELECT NULL::" + type + "[]") is null;
                 bool callNull = PgFunctions.Call<PgArray<OwnedKey?>?>(function, PgFunctionArgument.Create<PgArray<OwnedKey?>?>(null)) is null;
                 return $"{FormatArray(queried)}|{FormatArray(named)}|{FormatArray(identified)}|{string.Join(',', external.Select(value => value.Number))}|{queryNull}|{callNull}";
             }
@@ -342,11 +342,11 @@ public sealed partial class ToolCommandTests
                 string type = Spi.QuoteQualifiedIdentifier(schema, "package_key");
                 string function = Spi.QuoteQualifiedIdentifier(schema, "package_echo");
                 uint oid = Spi.ExecuteScalar<uint>("SELECT $1::regprocedure::oid", SpiParameter.Create($"{function}({type})"));
-                OwnedKey queried = Spi.ExecuteScalar<OwnedKey>($"SELECT 42::{type}");
+                OwnedKey queried = Spi.ExecuteScalar<OwnedKey>("SELECT 42::" + type);
                 OwnedKey named = PgFunctions.Call<OwnedKey>(function, PgFunctionArgument.Create(new OwnedKey(1042)));
                 OwnedKey identified = PgFunctions.Call<OwnedKey>(oid, PgFunctionArgument.Create(new OwnedKey(1042)));
                 ExternalKey external = PgFunctions.Call<ExternalKey>("pg_catalog.abs", PgFunctionArgument.Create(-42));
-                bool queryNull = Spi.ExecuteScalar<OwnedKey?>($"SELECT NULL::{type}") is null;
+                bool queryNull = Spi.ExecuteScalar<OwnedKey?>("SELECT NULL::" + type) is null;
                 bool callNull = PgFunctions.Call<OwnedKey?>(function, PgFunctionArgument.Create<OwnedKey?>(null)) is null;
                 return FormattableString.Invariant($"{queried.Number}|{named.Number}|{identified.Number}|{external.Number}|{queryNull}|{callNull}");
             }

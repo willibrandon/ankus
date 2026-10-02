@@ -41,8 +41,8 @@ public sealed partial class PgFunctionGeneratorTests
             CSharpSyntaxTree.ParseText("\n\n" + Source, path: "Module.cs", cancellationToken: context.CancellationToken));
         driver = RunModule(driver, edited, out Compilation second);
 
-        Assert.AreEqual(IncrementalStepRunReason.Modified, ModuleStep(driver, "ModuleInput"));
-        Assert.AreEqual(IncrementalStepRunReason.Unchanged, ModuleStep(driver, "ModuleAnalysis"));
+        Assert.AreEqual(IncrementalStepRunReason.Unchanged, ModuleStep(driver, "ModuleInput"));
+        Assert.AreEqual(IncrementalStepRunReason.Cached, ModuleStep(driver, "ModuleAnalysis"));
         Assert.AreEqual(IncrementalStepRunReason.Cached, ModuleStep(driver, "ModuleMagic"));
         Assert.AreEqual(ModuleMagic(first), ModuleMagic(second));
     }

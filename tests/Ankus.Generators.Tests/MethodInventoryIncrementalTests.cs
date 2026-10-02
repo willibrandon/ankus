@@ -25,7 +25,7 @@ public sealed partial class PgFunctionGeneratorTests
         MethodInventoryModel before = Assert.ContainsSingle(MethodInventory(driver));
         driver = RunModule(driver, initial.ReplaceSyntaxTree(initial.SyntaxTrees.Single(), CSharpSyntaxTree.ParseText(
             move ? "\n\n" + Source : Source.Replace("=> 42;", "=> 43;", StringComparison.Ordinal),
-            path: "Changed.cs", cancellationToken: context.CancellationToken)), out Compilation second);
+            path: move ? "Changed.cs" : "Module.cs", cancellationToken: context.CancellationToken)), out Compilation second);
         MethodInventoryModel after = Assert.ContainsSingle(MethodInventory(driver));
 
         Assert.AreEqual(before with { Location = null }, after with { Location = null });

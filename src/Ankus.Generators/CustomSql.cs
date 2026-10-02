@@ -61,9 +61,10 @@ internal static class CustomSql
     /// <param name="input">The detached authored name, content and declaration kind.</param>
     /// <param name="files">The compiler's tracked file paths and content.</param>
     /// <param name="projectDirectory">The compiler-visible project directory.</param>
+    /// <param name="trackedPaths">All compiler-tracked paths, retaining ambiguity even when only selected contents were read.</param>
     /// <returns>The selected content or an owned diagnostic message.</returns>
     internal static CustomSqlPipeline.Selection Select(CustomSqlPipeline.Input input,
-        EquatableArray<CustomSqlPipeline.FileInput> files, string projectDirectory)
+        EquatableArray<CustomSqlPipeline.FileInput> files, string projectDirectory, IEnumerable<string>? trackedPaths = null)
     {
         if (!input.ValidArguments)
         {
@@ -80,32 +81,54 @@ internal static class CustomSql
             return new(input.Name, input.Content, null);
         }
 
-        string? fullPath = Normalize(input.Content, projectDirectory);
+        CustomSqlPipeline.FileSelection selection = SelectFilePath(input.Content, trackedPaths ?? files.Select(static file => file.Path), projectDirectory);
+        if (selection.Error is not null)
+        {
+            return new(input.Name, null, selection.Error);
+        }
+
+        CustomSqlPipeline.FileInput selected = files.Single(file => file.Path == selection.Path);
+        return selected.Text is null ? new(input.Name, null, FileError(input.Content)) : new(input.Name, selected.Text, null);
+    }
+
+    /// <summary>
+    /// Resolves a unique tracked path before reading contents, retaining exact-match precedence and relative suffix fallback.
+    /// </summary>
+    /// <param name="path">The authored SQL file path.</param>
+    /// <param name="files">The compiler's tracked paths without file contents.</param>
+    /// <param name="projectDirectory">The compiler-visible project directory.</param>
+    /// <returns>The unique original path or the existing path-selection diagnostic.</returns>
+    internal static CustomSqlPipeline.FileSelection SelectFilePath(string? path, IEnumerable<string> files, string projectDirectory)
+    {
+        string? fullPath = Normalize(path, projectDirectory);
         if (fullPath is null)
         {
-            return new(input.Name, null, "PgSqlFile requires a valid path and a compiler-visible MSBuildProjectDirectory for relative paths. Use Ankus.Sdk or expose that property with CompilerVisibleProperty.");
+            return new(null, "PgSqlFile requires a valid path and a compiler-visible MSBuildProjectDirectory for relative paths. Use Ankus.Sdk or expose that property with CompilerVisibleProperty.");
         }
 
         StringComparison comparison = Path.DirectorySeparatorChar == '\\' ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
-        CustomSqlPipeline.FileInput[] matches = [.. files.Where(file => string.Equals(Normalize(file.Path, projectDirectory), fullPath, comparison))];
-        string? relativePath = NormalizeRelative(input.Content, projectDirectory);
+        string[] matches = [.. files.Where(file => string.Equals(Normalize(file, projectDirectory), fullPath, comparison))];
+        string? relativePath = NormalizeRelative(path, projectDirectory);
         if (matches.Length == 0 && relativePath is not null)
         {
             string suffix = Path.DirectorySeparatorChar + relativePath;
             matches =
             [
-                .. files.Where(file => Normalize(file.Path, projectDirectory) is string candidate
+                .. files.Where(file => Normalize(file, projectDirectory) is string candidate
                     && candidate.EndsWith(suffix, comparison)),
             ];
         }
 
-        if (matches.Length != 1 || matches[0].Text is null)
-        {
-            return new(input.Name, null, $"SQL file '{input.Content}' must resolve to exactly one readable AdditionalFiles input. Include it with <AdditionalFiles Include=\"...\" />.");
-        }
-
-        return new(input.Name, matches[0].Text, null);
+        return matches.Length == 1 ? new(matches[0], null) : new(null, FileError(path));
     }
+
+    /// <summary>
+    /// Preserves the required unique/readable tracked-file diagnostic.
+    /// </summary>
+    /// <param name="path">The authored path.</param>
+    /// <returns>The diagnostic text for missing, ambiguous or unreadable input.</returns>
+    private static string FileError(string? path)
+        => $"SQL file '{path}' must resolve to exactly one readable AdditionalFiles input. Include it with <AdditionalFiles Include=\"...\" />.";
 
     /// <summary>
     /// Validates selected SQL text independently of graph options, source coordinates and other files.

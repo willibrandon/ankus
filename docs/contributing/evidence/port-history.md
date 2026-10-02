@@ -1,5 +1,86 @@
 # Historical port evidence
 
+## Declaration caches, SPI interpolation and explicit project conflicts
+
+This correction composes with the accepted **68fd2de** worker/interval behavior.
+`GeneratorLocation` now identifies a declaration by path, duplicate-path
+occurrence and declaration ordinal, and keeps diagnostic spans relative to it.
+Method/accessor/lambda bodies are excluded from declaration numbering. Cached
+diagnostics resolve against the current compilation; normalized SQL provenance
+remains separate from exact diagnostic offsets. Two same-file body-length cases
+prove the edited managed result changes from 42 to 43 while composition,
+dispatcher, native bridge and SQL renderers remain Cached. Earlier unrelated
+file insertion also preserves these caches. The later diagnostic case combines
+both edits and verifies its current tree, exact Missing span and mapped line.
+
+`CustomSqlReadsOnlySelectedAdditionalFiles`,
+`CustomSqlReadsNewSelectionAfterDeclarationChanges` and
+`CustomSqlReadsPreserveTheCompletePathCatalog` count actual GetText calls. Inline
+SQL reads no files, unselected files are never read, changing the selection reads
+only the new content, and duplicate path ambiguity still uses the entire catalog.
+No declaration or reference-validation contract is discarded to obtain caching.
+
+ANKUS044 uses semantic SPI/SpiSession symbols and the string commandText argument
+to reject direct nonconstant interpolation, including conversions, parentheses
+and concatenation. It does not claim data-flow SQL-injection analysis. Constant
+commands, explicit raw commands with already quoted identifiers, typed positional
+parameters and Spi.Sql remain supported. Compiler/native consumers retain their
+original guard, transaction and recovery checks. The analyzer has an actionable
+message and public help link; existing string overloads are not removed.
+
+Project settings now distinguish no extension selection from conflicting
+extension settings. A solution cannot silently replace PostgreSQL 17 and 16 with
+18. Explicit major/configuration/property overrides remain valid; path comparison
+follows the platform's case rules. Focused settings pass **37/37** and installed
+solution selection passes **5/5**. The earlier isolated complete selection suite
+passes **11,251 total; 11,237 passed; zero failures; 14 skips; 37m45.394s**.
+
+Contributor prerequisites now explain staging the matching patched Native AOT
+artifact from a successful runtime job, packaging it into the local feed and
+checking its immutable identity. The read-only runtime-info command prints
+validated metadata without requiring a GitHub environment output file. An actual
+matching artifact download, local runtime pack and identity check succeed.
+Nothing is published to NuGet.
+
+The first complete combined run finishes **11,298 total; 11,283 passed; one
+failure; 14 skips; 25m40.447s**. Its only failure is four new ANKUS044 errors in an
+installed datum-mapping fixture that interpolates already-quoted type identifiers.
+The correction constructs those raw type-bearing commands explicitly; SQL type
+identifiers cannot be bound as values. Every catalog/type/native/recovery assertion
+is retained, and a positive analyzer case protects the supported construction.
+The corrected actual installed mapping case passes **1/1, 5m42.759s**.
+
+The final selected-file-filter composition passes the generator module
+**3,083/3,083, zero skips, 44.793s**. Literal unfiltered `dotnet test` passes all
+six modules against PostgreSQL **18.6/Linux x64**: **11,303 total; 11,289 passed;
+zero failures; 14 platform skips; 30m14.890s**. All **307** frozen source and
+**26** accepted runtime hashes verify after terminal completion. One pipeline
+file was omitted from that manifest; its local and validated bytes match the
+unchanged pre-run transfer archive exactly. Promotion uses the expanded manifest
+and copies only 29 changed owned paths; the accepted worker files already match.
+Release passes with zero warnings/errors (**2m02.43s**), API freshness verifies
+**238 pages / 2,756 members**, and the site builds **286 pages in 10.43s**, with
+zero check errors, warnings or hints. These timings share validation resources
+and are acceptance evidence, not performance comparisons. Final main-composition
+gates and fresh primary-platform CI remain required.
+
+The preceding **68fd2de** passes
+[CI 37041069194](https://github.com/willibrandon/ankus/actions/runs/37041069194) and
+[Docs 37041069249](https://github.com/willibrandon/ankus/actions/runs/37041069249).
+Six completed downloaded TRX modules per platform establish **11,250 total**,
+zero failures: Linux x64/PostgreSQL 18 has **11,236 passed / 14 skips**, **27m00s**
+job time; macOS ARM64/18 **11,224 passed / 26 skips**, **20m14s**; Windows x64/17
+**11,225 passed / 25 skips**, **25m39s**. Intel macOS and the complete supported
+major/platform matrix remain open.
+
+Final verification after promotion passes Release with zero warnings/errors
+(**1m46.50s**), API freshness (**238 pages / 2,756 members**), site build
+(**286 pages, 4.18s**) and zero check diagnostics. All **306** applicable frozen
+source identities match; only the progress/history documents are excluded.
+Previous primary, Docs and version outcomes are checked immediately before
+commit: accepted replacements pass, no runs are active, and the old Intel
+timeout remains recorded. Fresh CI follows publishing this milestone.
+
 ## Idle worker cancellation and PostgreSQL interval equality
 
 The worker's lifetime frame retained cancellation from `Wait` outside any

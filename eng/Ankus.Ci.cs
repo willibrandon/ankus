@@ -32,6 +32,15 @@ try
             WriteRuntimeOutputs();
             break;
 
+        case "runtime-info":
+            ValidateRuntimeIdentity(repositoryRoot);
+            Console.WriteLine($"repository={RuntimeRepository}");
+            Console.WriteLine($"base={RuntimeBase}");
+            Console.WriteLine($"commit={RuntimeCommit}");
+            Console.WriteLine($"runtime_version={RuntimeVersion}");
+            Console.WriteLine($"compiler_version={RuntimeCompilerVersion}");
+            break;
+
         case "release-metadata":
             ValidateRuntimeIdentity(repositoryRoot);
             WriteOutput("version", GetReleaseVersion());

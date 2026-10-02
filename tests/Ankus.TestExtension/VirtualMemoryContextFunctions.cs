@@ -172,7 +172,7 @@ public static unsafe class VirtualMemoryContextFunctions
             {
                 try
                 {
-                    outcome = Spi.ExecuteScalar<bool>($"SELECT virtual_memory.vm_inner({(failure == 3 ? 0 : failure)})").ToString();
+                    outcome = Spi.ExecuteScalar<bool>(Spi.Sql($"SELECT virtual_memory.vm_inner({(failure == 3 ? 0 : failure)})")).ToString();
                 }
                 catch (PgException error)
                 {

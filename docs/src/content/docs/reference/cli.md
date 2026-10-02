@@ -70,11 +70,12 @@ Without an explicit selection, project commands evaluate `AnkusPostgresMajor`
 and `AnkusPgConfigPath` with the selected configuration. `ankus test` also uses
 the project or `.sln`/`.slnx` selected by forwarded runner arguments. A test project
 without its own selection inherits one from its referenced extension projects.
-An empty or ambiguous project selection falls back to PostgreSQL 18; use an
-explicit selector to choose another version. Invalid properties and broken imports
-remain errors. `start`, `stop`, `status` and `info` use the current project's
-selection when it is unambiguous, otherwise PostgreSQL 18. Installing or
-packaging with `--from` uses the existing publication's major by default.
+An empty selection falls back to PostgreSQL 18. Conflicting PostgreSQL majors or
+installation paths in a selected solution or its project references are errors;
+choose `--pg` or `--pg-config` explicitly to override them. Invalid properties and
+broken imports also remain errors. `start`, `stop`, `status` and `info` follow the
+same selection rules. Installing or packaging with `--from` uses the existing
+publication's major by default.
 
 `--all` runs each registered version in order. Every registration is checked
 before tests start. A missing or broken installation fails the command. Test
