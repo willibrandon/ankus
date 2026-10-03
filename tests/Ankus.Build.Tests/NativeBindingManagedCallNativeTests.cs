@@ -34,15 +34,15 @@ public sealed partial class NativeBindingNativeTests
         const string Harness = """
             public static class BindingAssertions
             {
-                public static long[] Run()
+                public static unsafe long[] Run()
                 {
                     using NativeCallTestBridge.Scope scope = new();
                     Record original = default;
                     original.count = -9223372036854775797L;
                     original.choice = Choice.Low;
-                    Record result = NativeMethods.process(original, ulong.MaxValue, true, -17);
+                    Record result = NativeMethods.process(original, ulong.MaxValue, true, (void*)(-17));
                     bool extended = NativeMethods.exact_extended(NativeMethods.make_extended());
-                    return [result.count, unchecked((long)result.wide), result.address, (long)result.choice,
+                    return [result.count, unchecked((long)result.wide), (nint)result.address, (long)result.choice,
                         result.enabled ? 1 : 0, original.count, (long)original.choice, extended ? 1 : 0,
                         scope.Validations, scope.Invocations, NativeCallTestBridge.Accessors, NativeCallTestBridge.Allocator.Live];
                 }
@@ -229,7 +229,8 @@ public sealed partial class NativeBindingNativeTests
     /// <summary>
     /// Compiles actual C bodies, substitutes only counting allocation and pure lookup collaborators, and executes emitted C#.
     /// </summary>
-    private async Task<long[]> ExecuteManagedCallsAsync(string headers, string[] names, string harness, bool nativeCompiler = true, string[]? globalNames = null)
+    private async Task<long[]> ExecuteManagedCallsAsync(string headers, string[] names, string harness, bool nativeCompiler = true,
+        string[]? globalNames = null, bool checkOverflow = false)
     {
         string directory = Path.Combine(Path.GetTempPath(), $"ankus-managed-native-call-{Guid.NewGuid():N}");
         Directory.CreateDirectory(directory);
@@ -323,7 +324,7 @@ public sealed partial class NativeBindingNativeTests
                     Source = binding.Source.Replace("global::System.Runtime.InteropServices.NativeMemory",
                     "global::NativeCallTestBridge.Allocator", StringComparison.Ordinal)
                 };
-                return GeneratedBindingCompilation.Run(observed, managed.ToString(), context.CancellationToken);
+                return GeneratedBindingCompilation.Run(observed, managed.ToString(), context.CancellationToken, checkOverflow);
             }
             finally
             {

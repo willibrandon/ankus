@@ -17,15 +17,15 @@ internal static partial class NativeBindingRecordCSharp
                 Line("/// <remarks>This value does not own its target or register, guard or root a managed callback.</remarks>");
                 Line($"[global::Ankus.CompilerServices.NativeFunctionPointer({Number(call.FunctionType)})]");
                 Line("[global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]");
-                Line($"public readonly partial struct @{name}(nint address) : global::Ankus.IPgNativeType\n{{");
+                Line($"public readonly unsafe partial struct @{name}(void* address) : global::Ankus.IPgNativeType\n{{");
                 NativeRecordType storage = graph.Types[call.PointerType];
                 Identity(Size(storage.Size), storage.Alignment!.Value);
                 Summary("Retains the original borrowed native function address.", "    ");
-                Line("    private readonly nint _address = address;\n");
+                Line("    private readonly nint _address = unchecked((nint)address);\n");
                 Summary("Reports whether this value contains no native target.", "    ");
                 Line("    public bool IsNull => _address == 0;\n");
                 Summary("Returns the borrowed address without establishing native ownership or callback lifetime.", "    ");
-                Line("    public nint DangerousGetAddress() => _address;\n");
+                Line("    public void* DangerousGetAddress() => unchecked((void*)_address);\n");
                 if (headers is not null && call.CanInvoke)
                 {
                     (string Name, int Type)[] parameters = [("target", call.PointerType),

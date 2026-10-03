@@ -20,15 +20,12 @@ internal static class GeneratedBindingCompilation
     /// <param name="binding">The complete generated declarations.</param>
     /// <param name="harness">A BindingAssertions.Run method returning observed values.</param>
     /// <param name="cancellationToken">Cancels parsing and compilation.</param>
+    /// <param name="checkOverflow">Whether consumer arithmetic is checked by default.</param>
     /// <returns>The actual values read from the compiled unmanaged representations.</returns>
-    internal static long[] Run(NativeBindingSource binding, string harness, CancellationToken cancellationToken)
+    internal static long[] Run(NativeBindingSource binding, string harness, CancellationToken cancellationToken, bool checkOverflow = false)
     {
-        CSharpCompilation compilation = CSharpCompilation.Create(binding.AssemblyName,
-            [CSharpSyntaxTree.ParseText(binding.Source, cancellationToken: cancellationToken),
-                CSharpSyntaxTree.ParseText(harness, cancellationToken: cancellationToken)],
-            s_references, new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary,
-                allowUnsafe: true, nullableContextOptions: NullableContextOptions.Enable,
-                generalDiagnosticOption: ReportDiagnostic.Error));
+        CSharpCompilation compilation = Create(binding, harness, cancellationToken);
+        compilation = compilation.WithOptions(compilation.Options.WithOverflowChecks(checkOverflow));
         using var output = new MemoryStream();
         EmitResult result = compilation.Emit(output, cancellationToken: cancellationToken);
         Assert.IsTrue(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
@@ -48,6 +45,23 @@ internal static class GeneratedBindingCompilation
             loader.Unload();
         }
     }
+
+    /// <summary>
+    /// Gets actual compiler diagnostics for consumers that intentionally violate the emitted type contract.
+    /// </summary>
+    internal static ImmutableArray<Diagnostic> Diagnostics(NativeBindingSource binding, string harness, CancellationToken cancellationToken)
+        => Create(binding, harness, cancellationToken).GetDiagnostics(cancellationToken);
+
+    /// <summary>
+    /// Builds both positive and negative consumers against the same compiler and runtime references.
+    /// </summary>
+    private static CSharpCompilation Create(NativeBindingSource binding, string harness, CancellationToken cancellationToken)
+        => CSharpCompilation.Create(binding.AssemblyName,
+            [CSharpSyntaxTree.ParseText(binding.Source, cancellationToken: cancellationToken),
+                CSharpSyntaxTree.ParseText(harness, path: "Consumer.cs", cancellationToken: cancellationToken)],
+            s_references, new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary,
+                allowUnsafe: true, nullableContextOptions: NullableContextOptions.Enable,
+                generalDiagnosticOption: ReportDiagnostic.Error));
 
     private static ImmutableArray<MetadataReference> GetReferences()
     {

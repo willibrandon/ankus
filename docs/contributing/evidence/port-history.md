@@ -24123,3 +24123,80 @@ installed prerequisites or an unfinished suite do not replace successful results
 Primary jobs retain the requested **60-minute** limit; Intel macOS jobs now use
 the subsequently approved **360-minute** limit. Record measured durations and
 timeouts; do not shard the complete suite or cancel runs automatically.
+
+## Checked raw pointer contracts and Windows service diagnostics
+
+The raw native draft retains C# data-pointee types through fixed functions,
+globals, canonical and named callbacks, record fields and pointer arrays.
+Incomplete native declarations expose pointer identities without an allocation
+contract. Typed readonly carriers preserve pointer stride in generic containers;
+their address conversions do not acquire ownership. `ANKUS129` requires an
+explicit unsafe context for raw scalar operations and method-group conversions,
+while ordinary checked APIs remain usable in safe code. Native error guards,
+owned diagnostic transport and rollback requirements remain unchanged.
+
+Checked consumers exposed a real transport defect: pointer/nint conversions
+rejected unchanged high address bits. The corrected transport uses explicit
+bit-preserving conversions; frame-size and offset arithmetic retain their checks.
+All three checked callback shapes and a checked binding consumer fail before
+the correction. Afterward, all sixteen callback shapes and both binding cases
+pass. An earlier full run also found a stale expected compiler-helper list;
+its namespace and editor-visibility assertion now includes the new unsafe
+contract attribute. The original failures remain retained.
+
+[Windows 13 job 111227003190](https://github.com/willibrandon/ankus/actions/runs/37131055805/job/111227003190)
+on **04f0a8a / ankus.4** reports **11,568 total / 11,463 passed / 80 failures /
+25 skips**, **34m23s job**, with all 125 retained server logs empty. PostgreSQL
+13's service-token path sends stderr diagnostics to Windows Application events;
+the corresponding events contain the missing messages. The file-only fixture
+therefore loses error evidence, worker markers and collision detection.
+
+The fixture now selects a unique event source before reading server configuration
+and combines only that cluster's original event insertion strings with stderr.
+It consumes new record identities once, serializes concurrent reads, and retains
+shutdown messages outside owned data. It registers no sources and collects no
+unrelated events. Windows callers refresh the combined file with `ReadServerLog`;
+disposal also refreshes it. The public testing guide documents Application-log
+read access. The dependency is Microsoft's `System.Diagnostics.EventLog`.
+
+Two real PostgreSQL 13.23 event-only regressions pass, including Unicode
+primary/detail/hint fields, two simultaneous clusters, concurrent and later
+reads, retained shutdown, failed startup and owned-data cleanup. The isolation
+regression fails before the collector; the startup-failure case already passes
+through the original early stderr route. The first complete interactive rerun
+finishes **11,570 total / 11,516 passed / 29 failures / 25 skips**, **31m26.214s**:
+78 of the original 80 failures pass. The remaining two stop before discovery
+because generated projects lack a nonstandard selected PostgreSQL path.
+The fixture now passes its resolved installation to child builds.
+The private launcher's longer temporary root also produces SourceLink filenames
+of 260/262 characters that the Microsoft linker cannot open. Correcting that
+owned root keeps the same compiler options and warning enforcement. All 29
+failed rows, three additional authored-directory partitions and both event
+regressions subsequently pass: **34/34, zero failures/skips, 14m36.093s**.
+The nested-parent directory assertion also passes without a production staging
+change. The original six reports and complete log remain retained.
+
+The final frozen composition contains 64 source identities: the 54-file pointer
+draft plus the diagnostic collector, selected-installation fixture, Apple object
+fixture and related documentation. Freestanding Apple object probes now use an
+explicit empty sysroot, preventing Clang 23 from selecting an incompatible host
+SDK for older targets. All twelve object cases pass. A prior private macOS launch
+also used an invalid inherited locale; corrected execution uses a valid UTF-8
+locale without changing PostgreSQL or runtime code.
+
+| Complete composition, runtime/compiler ankus.4 | Result | Test duration | Release |
+| --- | --- | --- | --- |
+| Linux x64 / PostgreSQL 18.6 | 11,609 total / 11,592 passed / 17 skips / zero failures | 29m25.565s | 45.42s; zero warnings/errors |
+| macOS ARM64 / PostgreSQL 18.6 | 11,609 total / 11,580 passed / 29 skips / zero failures | 22m29.195s | 38.36s; zero warnings/errors |
+| Windows x64 / PostgreSQL 13.23 | 11,609 total / 11,584 passed / 25 skips / zero failures | 38m42.708s | 57.76s; zero warnings/errors |
+
+All eighteen reports were independently counted and all 64 source identities
+rechecked after completed gates. API freshness checks **238 pages / 2,757 members**;
+the site builds **286 pages (2.97s)** and checks with zero diagnostics.
+The preceding 54-file checked draft also passes the same seventy affected real
+backend cases on each of PostgreSQL **13.23, 14.24, 15.19, 16.15, 17.11 and
+19 beta 4**. Those focused checks are not complete version/platform evidence.
+The final complete Windows 13.23 composition also passes all 80 originally failed
+cases. Its native test command and Release command both exit zero. This is
+interactive evidence; replacement service-context CI and remaining supported
+version/platform acceptance are still required.

@@ -57,7 +57,8 @@ internal sealed record NativeCallbackModel(string Namespace, EquatableArray<stri
     /// <summary>
     /// Captures the name and native aggregate transport distinction of one validated value.
     /// </summary>
-    private static ValueContract Value(ITypeSymbol type) => new(NameOf(type), NativeCallbackDeclaration.IsNativeValue(type));
+    private static ValueContract Value(ITypeSymbol type)
+        => new(NameOf(type), NativeCallbackDeclaration.IsNativeValue(type), type.TypeKind == TypeKind.Pointer);
 
     /// <summary>
     /// Formats an exact escaped managed type while its compiler symbol remains transient.
@@ -69,8 +70,14 @@ internal sealed record NativeCallbackModel(string Namespace, EquatableArray<stri
     /// </summary>
     /// <param name="Name">The escaped fully qualified managed type.</param>
     /// <param name="Native">Whether transport uses selected-header native size and binding checks.</param>
-    internal sealed record ValueContract(string Name, bool Native)
+    /// <param name="Pointer">Whether the address uses pointer-sized transport instead of an illegal generic type argument.</param>
+    internal sealed record ValueContract(string Name, bool Native, bool Pointer)
     {
+        /// <summary>
+        /// Gets the generic-compatible type used inside the native transport frame.
+        /// </summary>
+        internal string Storage => Pointer ? "nint" : Name;
+
         /// <summary>
         /// Gets the checked native size expression or exact managed primitive storage size.
         /// </summary>

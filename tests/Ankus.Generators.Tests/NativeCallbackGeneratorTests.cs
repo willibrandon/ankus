@@ -11,8 +11,9 @@ public sealed partial class PgFunctionGeneratorTests
 {
     private const string CallbackTypeSource = """
         [Ankus.CompilerServices.NativeFunctionPointer(7)]
-        public readonly record struct Hook(nint Address) : Ankus.IPgNativeType
+        public readonly unsafe struct Hook(void* address) : Ankus.IPgNativeType
         {
+            public nint Address => (nint)address;
             static int Ankus.IPgNativeType.PostgresMajor => 18;
             static string Ankus.IPgNativeType.AbiIdentity => new string('A', 64);
             static string Ankus.IPgNativeType.RuntimeIdentifier => System.Runtime.InteropServices.RuntimeInformation.RuntimeIdentifier;
@@ -80,18 +81,25 @@ public sealed partial class PgFunctionGeneratorTests
     /// <param name="result">The exact callback result type.</param>
     /// <param name="parameters">The exact callback parameters.</param>
     /// <param name="body">The statically selected handler body.</param>
+    /// <param name="checkOverflow">Whether consumer arithmetic is checked by default.</param>
     [TestMethod]
-    [DataRow("void", "", "return;")]
-    [DataRow("int", "", "return 731;")]
-    [DataRow("bool", "bool value", "return !value;")]
-    [DataRow("nint", "nint value", "return value;")]
-    [DataRow("nuint", "nuint value", "return value;")]
-    [DataRow("double", "double value", "return -value;")]
-    [DataRow("Mode", "Mode value", "return value;")]
-    [DataRow("Payload", "Payload value", "return value;")]
-    [DataRow("Empty", "Empty value", "return value;")]
-    [DataRow("Hook", "Hook value", "return value;")]
-    public void NativeCallbackPropertiesCompileAndDispatchNativeValueShapes(string result, string parameters, string body)
+    [DataRow("void", "", "return;", false)]
+    [DataRow("int", "", "return 731;", false)]
+    [DataRow("bool", "bool value", "return !value;", false)]
+    [DataRow("nint", "nint value", "return value;", false)]
+    [DataRow("nuint", "nuint value", "return value;", false)]
+    [DataRow("void*", "void* value", "return value;", false)]
+    [DataRow("int*", "int* value", "return value;", false)]
+    [DataRow("int**", "int** value", "return value;", false)]
+    [DataRow("double", "double value", "return -value;", false)]
+    [DataRow("Mode", "Mode value", "return value;", false)]
+    [DataRow("Payload", "Payload value", "return value;", false)]
+    [DataRow("Empty", "Empty value", "return value;", false)]
+    [DataRow("Hook", "Hook value", "return value;", false)]
+    [DataRow("void*", "void* value", "return value;", true)]
+    [DataRow("int*", "int* value", "return value;", true)]
+    [DataRow("int**", "int** value", "return value;", true)]
+    public void NativeCallbackPropertiesCompileAndDispatchNativeValueShapes(string result, string parameters, string body, bool checkOverflow)
     {
         string types = CallbackTypeSource.Replace("public long Invoke(int first, long second)",
             $"public {result} Invoke({parameters})", StringComparison.Ordinal);
@@ -113,7 +121,7 @@ public sealed partial class PgFunctionGeneratorTests
                 static int Ankus.IPgNativeType.NativeSize => 0;
                 static int Ankus.IPgNativeType.NativeAlignment => 1;
             }
-            public static partial class Functions
+            public static unsafe partial class Functions
             {
                 public static int Effects;
                 [Ankus.PgNativeCallback(nameof(Invoke))]
@@ -121,6 +129,7 @@ public sealed partial class PgFunctionGeneratorTests
                 private static {{result}} Invoke({{parameters}}) { Effects++; {{body}} }
             }
             """);
+        compilation = compilation.WithOptions(((CSharpCompilationOptions)compilation.Options).WithOverflowChecks(checkOverflow));
         Assert.IsEmpty(diagnostics);
         AssertCallbackCompiles(compilation);
         string argument = result switch
@@ -129,11 +138,12 @@ public sealed partial class PgFunctionGeneratorTests
             "bool" => "true",
             "nint" => "unchecked((nint)(long.MinValue + 0x123456789))",
             "nuint" => "unchecked((nuint)(ulong.MaxValue - 0x123456789))",
+            "void*" or "int*" or "int**" => "unchecked((" + result + ")(nint)(long.MinValue + 0x123456789))",
             "double" => "System.BitConverter.Int64BitsToDouble(long.MinValue)",
             "Mode" => "Mode.First",
             "Payload" => "new Payload(long.MinValue + 17, long.MaxValue - 29)",
             "Empty" => "default(Empty)",
-            _ => "new Hook(0x73117)",
+            _ => "new Hook((void*)0x73117)",
         };
         string size = result is "void" or "Empty" ? "0" : $"sizeof({result})";
         string frame = argument.Length == 0 ? "Ankus.CompilerServices.NativeCallArgument* arguments = null;" :
@@ -188,7 +198,7 @@ public sealed partial class PgFunctionGeneratorTests
                     "void" or "Empty" => [],
                     "int" => BitConverter.GetBytes(731),
                     "bool" => [0],
-                    "nint" => BitConverter.GetBytes(long.MinValue + 0x123456789),
+                    "nint" or "void*" or "int*" or "int**" => BitConverter.GetBytes(long.MinValue + 0x123456789),
                     "nuint" => BitConverter.GetBytes(ulong.MaxValue - 0x123456789),
                     "double" => new byte[8],
                     "Mode" => BitConverter.GetBytes(0xF0000001U),
@@ -294,8 +304,8 @@ public sealed partial class PgFunctionGeneratorTests
     [DataRow("[Ankus.CompilerServices.NativeFunctionPointer(7)]", "")]
     [DataRow("[Ankus.CompilerServices.NativeFunctionPointer(7)]", "[Ankus.CompilerServices.NativeFunctionPointer(-1)]")]
     [DataRow("[Ankus.CompilerServices.NativeFunctionPointer(7)]", "[Ankus.CompilerServices.NativeFunctionPointer(7), Ankus.CompilerServices.NativeFunctionPointer(8)]")]
-    [DataRow("Hook(nint Address)", "Hook(long Address)")]
-    [DataRow("Hook(nint Address)", "Hook(string Address)")]
+    [DataRow("Hook(void* address)", "Hook(nint address)")]
+    [DataRow("Hook(void* address)", "Hook(int* address)")]
     [DataRow("public long Invoke(int first, long second)", "private long Invoke(int first, long second)")]
     [DataRow("public long Invoke(int first, long second)", "public static long Invoke(int first, long second)")]
     [DataRow("public long Invoke(int first, long second)", "public long Invoke<T>(int first, long second)")]

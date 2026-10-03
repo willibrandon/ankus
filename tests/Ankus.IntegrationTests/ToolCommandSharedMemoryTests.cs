@@ -290,7 +290,10 @@ public sealed partial class ToolCommandTests
             {
                 if (!s_previousStartup.IsNull)
                 {
-                    s_previousStartup.Invoke();
+                    unsafe
+                    {
+                        s_previousStartup.Invoke();
+                    }
                 }
 
                 if (FailStartupHook)
@@ -310,8 +313,12 @@ public sealed partial class ToolCommandTests
             [PgModuleLoad]
             public static void Register()
             {
-                s_previousStartup = NativeGlobals.shmem_startup_hook;
-                NativeGlobals.shmem_startup_hook = StartupCallback;
+                unsafe
+                {
+                    s_previousStartup = NativeGlobals.shmem_startup_hook;
+                    NativeGlobals.shmem_startup_hook = StartupCallback;
+                }
+
                 PgSharedMemory.Initialize(State, () =>
                 {
                     if (!s_startupHookSeen)
@@ -392,7 +399,11 @@ public sealed partial class ToolCommandTests
                     RequireBlocked(static () => Spi.Execute("SELECT 1/0"));
                     RequireBlocked(static () => _ = PgMemoryContext.Current);
                     RequireBlocked(static () => _ = CheckedSetting);
-                    RequireBlocked(static () => _ = NativeGlobals.shmem_startup_hook);
+                    unsafe
+                    {
+                        RequireBlocked(static () => _ = NativeGlobals.shmem_startup_hook);
+                    }
+
                     RequireBlocked(static () => PgLog.Write(PgLogLevel.Notice, "blocked mutation log"));
                     RequireChildBlocked(in value.Counter);
                     if (parent.Value.Marker != marker)
@@ -495,7 +506,11 @@ public sealed partial class ToolCommandTests
                     RequireBlocked(static () => Spi.Execute("SELECT 1/0"));
                     RequireBlocked(static () => _ = PgMemoryContext.Current);
                     RequireBlocked(static () => _ = CheckedSetting);
-                    RequireBlocked(static () => _ = NativeGlobals.shmem_startup_hook);
+                    unsafe
+                    {
+                        RequireBlocked(static () => _ = NativeGlobals.shmem_startup_hook);
+                    }
+
                     RequireBlocked(static () => PgLog.Write(PgLogLevel.Notice, "must not enter native logging"));
                     if (order.Read(static (in int stored) => stored) != 2 || parent.Value.Marker != long.MinValue)
                     {

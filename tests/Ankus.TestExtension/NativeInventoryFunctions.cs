@@ -14,7 +14,13 @@ public static class NativeInventoryFunctions
     /// <param name="value">The integer bit pattern.</param>
     /// <returns>The hash in PostgreSQL's signed SQL representation.</returns>
     [PgFunction]
-    public static int Hash(int value) => unchecked((int)NativeMethods.hash_bytes_uint32((uint)value));
+    public static int Hash(int value)
+    {
+        unsafe
+        {
+            return unchecked((int)NativeMethods.hash_bytes_uint32((uint)value));
+        }
+    }
 
     /// <summary>
     /// Preserves all bits of the native seed and extended hash result.
@@ -24,7 +30,12 @@ public static class NativeInventoryFunctions
     /// <returns>The extended hash in PostgreSQL's signed SQL representation.</returns>
     [PgFunction]
     public static long ExtendedHash(int value, long seed)
-        => unchecked((long)NativeMethods.hash_bytes_uint32_extended((uint)value, (ulong)seed));
+    {
+        unsafe
+        {
+            return unchecked((long)NativeMethods.hash_bytes_uint32_extended((uint)value, (ulong)seed));
+        }
+    }
 
     /// <summary>
     /// Calls the installed headers' inline overflow helper with real writable result storage.
@@ -36,6 +47,6 @@ public static class NativeInventoryFunctions
     public static unsafe int? Add(int left, int right)
     {
         int result;
-        return NativeMethods.pg_add_s32_overflow(left, right, (nint)(&result)) ? null : result;
+        return NativeMethods.pg_add_s32_overflow(left, right, &result) ? null : result;
     }
 }

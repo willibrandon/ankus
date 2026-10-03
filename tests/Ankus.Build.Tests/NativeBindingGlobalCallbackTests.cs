@@ -21,7 +21,7 @@ public sealed partial class NativeBindingNativeTests
         const string Harness = """
             public static class BindingAssertions
             {
-                public static long[] Run()
+                public static unsafe long[] Run()
                 {
                     using NativeCallTestBridge.Scope scope = new();
                     NativeGlobals_currentCallback callback = NativeGlobals.current;
@@ -74,7 +74,7 @@ public sealed partial class NativeBindingNativeTests
         const string Harness = """
             public static class BindingAssertions
             {
-                public static long[] Run()
+                public static unsafe long[] Run()
                 {
                     using NativeCallTestBridge.Scope scope = new();
                     NativeGlobals_currentCallback first = NativeGlobals.current;
@@ -89,13 +89,13 @@ public sealed partial class NativeBindingNativeTests
                     NativeGlobals.observed = first;
                     Arithmetic canonical = first;
                     NativeGlobals_currentCallback recovered = canonical;
-                    NativeGlobals_currentCallback bits = new(unchecked((nint)(long.MinValue + 0x123456789)));
+                    NativeGlobals_currentCallback bits = new((void*)unchecked((nint)(long.MinValue + 0x123456789)));
                     Arithmetic exact = bits;
                     NativeGlobals_currentCallback copied = exact;
                     return [first.Invoke(25), second.Invoke(25), constant.Invoke(7), observed.Invoke(7),
                         NativeMethods.inspect(20), NativeGlobals.observed.Invoke(1),
                         recovered.DangerousGetAddress() == first.DangerousGetAddress() ? 1 : 0,
-                        copied.DangerousGetAddress(), default(NativeGlobals_currentCallback).IsNull ? 1 : 0,
+                        (nint)copied.DangerousGetAddress(), default(NativeGlobals_currentCallback).IsNull ? 1 : 0,
                         first.IsNull ? 1 : 0, Unsafe.SizeOf<NativeGlobals_currentCallback>(),
                         typeof(NativeGlobals).GetProperty("constant")!.SetMethod is null ? 1 : 0];
                 }
@@ -120,17 +120,17 @@ public sealed partial class NativeBindingNativeTests
         const string Harness = """
             public static class BindingAssertions
             {
-                public static long[] Run()
+                public static unsafe long[] Run()
                 {
                     using NativeCallTestBridge.Scope scope = new();
                     int empty = NativeGlobals.variadic.IsNull && NativeGlobals.unprototyped.IsNull && NativeGlobals.incomplete.IsNull ? 1 : 0;
-                    NativeGlobals.variadic = new NativeGlobals_variadicCallback(123);
-                    NativeGlobals.unprototyped = new NativeGlobals_unprototypedCallback(456);
-                    NativeGlobals.incomplete = new NativeGlobals_incompleteCallback(789);
+                    NativeGlobals.variadic = new NativeGlobals_variadicCallback((void*)123);
+                    NativeGlobals.unprototyped = new NativeGlobals_unprototypedCallback((void*)456);
+                    NativeGlobals.incomplete = new NativeGlobals_incompleteCallback((void*)789);
                     NativeGlobals_variadicCallback variadic = NativeGlobals.variadic;
                     NativeGlobals_unprototypedCallback legacy = NativeGlobals.unprototyped;
                     NativeGlobals_incompleteCallback incomplete = NativeGlobals.incomplete;
-                    return [empty, variadic.DangerousGetAddress(), legacy.DangerousGetAddress(), incomplete.DangerousGetAddress(),
+                    return [empty, (nint)variadic.DangerousGetAddress(), (nint)legacy.DangerousGetAddress(), (nint)incomplete.DangerousGetAddress(),
                         typeof(NativeGlobals_variadicCallback).GetMethod("Invoke") is null ? 1 : 0,
                         typeof(NativeGlobals_unprototypedCallback).GetMethod("Invoke") is null ? 1 : 0,
                         typeof(NativeGlobals_incompleteCallback).GetMethod("Invoke") is null ? 1 : 0];

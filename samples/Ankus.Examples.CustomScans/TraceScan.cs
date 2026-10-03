@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using Ankus.Postgres;
+using NativeList = Ankus.Postgres.List;
 
 namespace Ankus.Examples.CustomScans;
 
@@ -9,9 +10,9 @@ namespace Ankus.Examples.CustomScans;
 public static unsafe partial class TraceScan
 {
     private static set_rel_pathlist_hook_type s_previous;
-    private static nint s_pathMethods;
-    private static nint s_scanMethods;
-    private static nint s_execMethods;
+    private static CustomPathMethods* s_pathMethods;
+    private static CustomScanMethods* s_scanMethods;
+    private static CustomExecMethods* s_execMethods;
     private static bool s_installed;
     private static readonly long[] s_counts = new long[8];
 
@@ -92,26 +93,26 @@ public static unsafe partial class TraceScan
             return;
         }
 
-        if (s_scanMethods == 0)
+        if (s_scanMethods == null)
         {
             PgMemoryContext owner = PgMemoryContext.Create("Ankus Trace methods", PgMemoryContext.Get(PgMemoryContextKind.Top)!);
             try
             {
                 owner.Run(() =>
                 {
-                    nint name;
+                    sbyte* name;
                     fixed (byte* text = "Ankus Trace\0"u8)
                     {
-                        name = NativeMethods.pstrdup((nint)text);
+                        name = NativeMethods.pstrdup((sbyte*)text);
                     }
 
-                    nint paths = Allocate(new CustomPathMethods
+                    CustomPathMethods* paths = Allocate(new CustomPathMethods
                     {
                         CustomName = name,
                         PlanCustomPath = Planner,
                         ReparameterizeCustomPathByChild = ParameterMapper,
                     });
-                    nint executor = Allocate(new CustomExecMethods
+                    CustomExecMethods* executor = Allocate(new CustomExecMethods
                     {
                         CustomName = name,
                         BeginCustomScan = Starter,
@@ -127,7 +128,7 @@ public static unsafe partial class TraceScan
                         InitializeWorkerCustomScan = WorkerInitializer,
                         ShutdownCustomScan = ShutdownHandler,
                     });
-                    nint scans = Allocate(new CustomScanMethods { CustomName = name, CreateCustomScanState = Factory });
+                    CustomScanMethods* scans = Allocate(new CustomScanMethods { CustomName = name, CreateCustomScanState = Factory });
                     NativeMethods.RegisterCustomScanMethods(scans);
                     s_pathMethods = paths;
                     s_execMethods = executor;
@@ -136,7 +137,7 @@ public static unsafe partial class TraceScan
             }
             catch
             {
-                if (s_scanMethods == 0)
+                if (s_scanMethods == null)
                 {
                     owner.Dispose();
                 }
@@ -166,7 +167,7 @@ public static unsafe partial class TraceScan
     /// <summary>
     /// Preserves previous hooks and replaces each supported scan path with an equally costed tracing path.
     /// </summary>
-    private static void SetPaths(nint root, nint relation, uint index, nint entry)
+    private static void SetPaths(PlannerInfo* root, RelOptInfo* relation, uint index, RangeTblEntry* entry)
     {
         if (!s_previous.IsNull)
         {
@@ -178,115 +179,113 @@ public static unsafe partial class TraceScan
             return;
         }
 
-        var rel = (RelOptInfo*)relation;
-        WrapPaths(rel->pathlist);
-        WrapPaths(rel->partial_pathlist);
+        WrapPaths(relation->pathlist);
+        WrapPaths(relation->partial_pathlist);
     }
 
     /// <summary>
     /// Retains each original scan path as a child instead of changing its costs, order, parameters or qualifications.
     /// </summary>
-    private static void WrapPaths(nint paths)
+    private static void WrapPaths(NativeList* paths)
     {
         int count = NativeMethods.list_length(paths);
         for (int index = 0; index < count; index++)
         {
-            var cells = (ListCell*)((Ankus.Postgres.List*)paths)->elements;
-            nint child = cells[index].ptr_value;
-            var original = (Ankus.Postgres.Path*)child;
+            ListCell* cells = paths->elements;
+            var original = (Ankus.Postgres.Path*)cells[index].ptr_value;
             if (original->pathtype is not (NodeTag.T_SeqScan or NodeTag.T_IndexScan or NodeTag.T_IndexOnlyScan))
             {
                 continue;
             }
 
-            var path = (CustomPath*)Allocate(default(CustomPath));
+            CustomPath* path = Allocate(default(CustomPath));
             path->path = *original;
             path->path.type = NodeTag.T_CustomPath;
             path->path.pathtype = NodeTag.T_CustomScan;
-            path->flags = !original->parallel_aware && NativeMethods.ExecSupportsMarkRestore(child)
+            path->flags = !original->parallel_aware && NativeMethods.ExecSupportsMarkRestore(original)
                 ? 2U : 0U; // CUSTOMPATH_SUPPORT_MARK_RESTORE follows the actual child access method.
-            path->custom_paths = NativeMethods.lappend(0, child);
-            path->custom_private = CaptureParameters(child);
+            path->custom_paths = NativeMethods.lappend(null, original);
+            path->custom_private = CaptureParameters(original);
             path->methods = s_pathMethods;
-            cells[index].ptr_value = (nint)path;
+            cells[index].ptr_value = path;
         }
     }
 
     /// <summary>
     /// Builds one exact CustomScan, leaving qualifications in its real child and copying the child's output shape.
     /// </summary>
-    private static nint Plan(nint root, nint relation, nint path, nint targetList, nint clauses, nint children)
+    private static Ankus.Postgres.Plan* Plan(PlannerInfo* root, RelOptInfo* relation, CustomPath* path,
+        NativeList* targetList, NativeList* clauses, NativeList* children)
     {
         _ = root;
         _ = relation;
         _ = clauses;
         s_counts[0]++;
         var child = (Ankus.Postgres.Plan*)NativeMethods.list_nth(children, 0);
-        var plan = (CustomScan*)Allocate(default(CustomScan));
+        CustomScan* plan = Allocate(default(CustomScan));
         plan->scan.plan.type = NodeTag.T_CustomScan;
         plan->scan.plan.targetlist = targetList;
-        plan->custom_scan_tlist = NativeMethods.copyObjectImpl(child->targetlist);
+        plan->custom_scan_tlist = (NativeList*)NativeMethods.copyObjectImpl(child->targetlist);
         plan->custom_plans = children;
-        nint parameters = ((CustomPath*)path)->custom_private;
-        if (parameters != 0)
+        NativeList* parameters = path->custom_private;
+        if (parameters != null)
         {
-            plan->custom_exprs = NativeMethods.copyObjectImpl(NativeMethods.list_nth(parameters, 0));
-            plan->custom_private = NativeMethods.lappend(0, NativeMethods.copyObjectImpl(NativeMethods.list_nth(parameters, 1)));
+            plan->custom_exprs = (NativeList*)NativeMethods.copyObjectImpl(NativeMethods.list_nth(parameters, 0));
+            plan->custom_private = NativeMethods.lappend(null, NativeMethods.copyObjectImpl(NativeMethods.list_nth(parameters, 1)));
         }
 
-        plan->flags = ((CustomPath*)path)->flags;
-        if (NativeMethods.ExecSupportsBackwardScan((nint)child))
+        plan->flags = path->flags;
+        if (NativeMethods.ExecSupportsBackwardScan(child))
         {
             plan->flags |= 1; // CUSTOMPATH_SUPPORT_BACKWARD_SCAN is a property of the finished child plan.
         }
 
         plan->methods = s_scanMethods;
-        return (nint)plan;
+        return &plan->scan.plan;
     }
 
     /// <summary>
     /// Allocates a zeroed extended state with the required tag and executor table and observes its native owner cleanup.
     /// </summary>
-    private static nint Create(nint plan)
+    private static Node* Create(CustomScan* plan)
     {
         _ = plan;
         s_counts[1]++;
-        var state = (State*)Allocate(default(State));
+        State* state = Allocate(default(State));
         state->_scan.ss.ps.type = NodeTag.T_CustomScanState;
         state->_scan.methods = s_execMethods;
         _ = PgMemoryContext.Current.RegisterResetCallback(static () => s_counts[7]++);
-        return (nint)state;
+        return (Node*)state;
     }
 
     /// <summary>
     /// Initializes the child and makes it visible to the executor's normal child-plan traversal.
     /// </summary>
-    private static void Begin(nint address, nint estate, int flags)
+    private static void Begin(CustomScanState* address, EState* estate, int flags)
     {
         s_counts[2]++;
         var state = (State*)address;
         var plan = (CustomScan*)state->_scan.ss.ps.plan;
-        nint child = NativeMethods.ExecInitNode(NativeMethods.list_nth(plan->custom_plans, 0), estate, flags);
-        state->_scan.custom_ps = NativeMethods.lappend(0, child);
+        PlanState* child = NativeMethods.ExecInitNode((Ankus.Postgres.Plan*)NativeMethods.list_nth(plan->custom_plans, 0), estate, flags);
+        state->_scan.custom_ps = NativeMethods.lappend(null, child);
     }
 
     /// <summary>
     /// Applies the native scan projection and always records managed unwind, including when a child raises ERROR.
     /// </summary>
-    private static nint Execute(nint address)
+    private static TupleTableSlot* Execute(CustomScanState* address)
     {
         s_counts[3]++;
         var state = (State*)address;
         state->_calls++;
         try
         {
-            if (state->_shared != 0)
+            if (state->_shared != null)
             {
-                var shared = (SharedState*)state->_shared;
-                _ = NativeMethods.pg_atomic_fetch_add_u64((nint)(&shared->_calls), 1);
+                _ = NativeMethods.pg_atomic_fetch_add_u64(&state->_shared->_calls, 1);
             }
 
-            return NativeMethods.ExecScan(address, Reader, Rechecker);
+            return NativeMethods.ExecScan(&address->ss, Reader, Rechecker);
         }
         finally
         {
@@ -297,21 +296,20 @@ public static unsafe partial class TraceScan
     /// <summary>
     /// Reads the child in the executor's current direction and records nonempty tuples.
     /// </summary>
-    private static nint Access(nint address)
+    private static TupleTableSlot* Access(ScanState* address)
     {
         var state = (State*)address;
-        nint slot = NativeMethods.ExecProcNode(NativeMethods.list_nth(state->_scan.custom_ps, 0));
-        nint destination = state->_scan.ss.ss_ScanTupleSlot;
-        if (slot == 0 || (((TupleTableSlot*)slot)->tts_flags & 2) != 0) // TTS_FLAG_EMPTY
+        TupleTableSlot* slot = NativeMethods.ExecProcNode((PlanState*)NativeMethods.list_nth(state->_scan.custom_ps, 0));
+        TupleTableSlot* destination = state->_scan.ss.ss_ScanTupleSlot;
+        if (slot == null || (slot->tts_flags & 2) != 0) // TTS_FLAG_EMPTY
         {
             return NativeMethods.ExecClearTuple(destination);
         }
 
         state->_rows++;
-        if (state->_shared != 0)
+        if (state->_shared != null)
         {
-            var shared = (SharedState*)state->_shared;
-            _ = NativeMethods.pg_atomic_fetch_add_u64((nint)(&shared->_rows), 1);
+            _ = NativeMethods.pg_atomic_fetch_add_u64(&state->_shared->_rows, 1);
         }
 
         return NativeMethods.ExecCopySlot(destination, slot);
@@ -320,40 +318,40 @@ public static unsafe partial class TraceScan
     /// <summary>
     /// Fetches the child's EvalPlanQual replacement into the provider's own slot.
     /// </summary>
-    private static bool Recheck(nint address, nint slot)
+    private static bool Recheck(ScanState* address, TupleTableSlot* slot)
     {
         _ = slot;
-        nint replacement = Access(address);
-        return (((TupleTableSlot*)replacement)->tts_flags & 2) == 0;
+        TupleTableSlot* replacement = Access(address);
+        return (replacement->tts_flags & 2) == 0;
     }
 
     /// <summary>
     /// Propagates rescans to the child after the executor has updated its parameters.
     /// </summary>
-    private static void Rescan(nint address)
+    private static void Rescan(CustomScanState* address)
     {
         s_counts[5]++;
         var state = (State*)address;
         state->_rescans++;
-        NativeMethods.ExecScanReScan(address);
-        NativeMethods.ExecReScan(NativeMethods.list_nth(state->_scan.custom_ps, 0));
+        NativeMethods.ExecScanReScan(&address->ss);
+        NativeMethods.ExecReScan((PlanState*)NativeMethods.list_nth(state->_scan.custom_ps, 0));
     }
 
     /// <summary>
     /// Ends child resources through PostgreSQL's ordinary executor cleanup.
     /// </summary>
-    private static void End(nint address)
+    private static void End(CustomScanState* address)
     {
         s_counts[4]++;
         var state = (State*)address;
         Shutdown(address);
-        NativeMethods.ExecEndNode(NativeMethods.list_nth(state->_scan.custom_ps, 0));
+        NativeMethods.ExecEndNode((PlanState*)NativeMethods.list_nth(state->_scan.custom_ps, 0));
     }
 
     /// <summary>
     /// Emits counters before executor teardown, including zeros for EXPLAIN without ANALYZE.
     /// </summary>
-    private static void Explain(nint address, nint ancestors, nint output)
+    private static void Explain(CustomScanState* address, NativeList* ancestors, ExplainState* output)
     {
         var state = (State*)address;
         ExplainParameters(address, ancestors, output);
@@ -375,22 +373,22 @@ public static unsafe partial class TraceScan
     /// <summary>
     /// Copies a numeric observation through the selected-header EXPLAIN contract.
     /// </summary>
-    private static void Property(ReadOnlySpan<byte> name, long value, nint output)
+    private static void Property(ReadOnlySpan<byte> name, long value, ExplainState* output)
     {
         fixed (byte* label = name)
         {
-            NativeMethods.ExplainPropertyInteger((nint)label, 0, value, output);
+            NativeMethods.ExplainPropertyInteger((sbyte*)label, null, value, output);
         }
     }
 
     /// <summary>
     /// Allocates zeroed native storage in the current PostgreSQL context and transfers it to that context.
     /// </summary>
-    private static nint Allocate<T>(T value) where T : unmanaged
+    private static T* Allocate<T>(T value) where T : unmanaged
     {
         var address = (T*)NativeMethods.palloc0((ulong)sizeof(T));
         *address = value;
-        return (nint)address;
+        return address;
     }
 
     /// <summary>
@@ -432,7 +430,7 @@ public static unsafe partial class TraceScan
         /// <summary>
         /// Borrows the current parallel segment only until provider shutdown.
         /// </summary>
-        internal nint _shared;
+        internal SharedState* _shared;
 
         /// <summary>
         /// Distinguishes a worker attachment from the leader's initialized state.

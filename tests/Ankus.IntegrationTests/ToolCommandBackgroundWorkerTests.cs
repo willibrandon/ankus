@@ -281,184 +281,187 @@ public sealed partial class ToolCommandTests
             [PgBackgroundWorker]
             public static void ReportWorker(nuint argument)
             {
-                try
+                unsafe
                 {
-                    if (PgBackgroundWorker.Name != "Ankus worker" || PgBackgroundWorker.Type != "Ankus reporting" ||
-                        !PgBackgroundWorker.Extra.StartsWith("payload café 🐘|", StringComparison.Ordinal))
-                    {
-                        throw new InvalidOperationException("Dynamic worker identity changed.");
-                    }
-
-                    Argument.Exchange((ulong)argument);
-                    string database = PgBackgroundWorker.Extra.Split('|')[1];
-                    int errors = 0;
                     try
                     {
-                        Spi.Execute("SELECT 42");
-                    }
-                    catch (InvalidOperationException)
-                    {
-                        errors |= 8;
-                    }
-
-                    if (argument == nuint.MaxValue)
-                    {
-                        PgBackgroundWorker.Connect(database);
-                    }
-                    else
-                    {
-                        PgBackgroundWorker.Connect((uint)argument);
-                    }
-
-                    PgBackgroundWorker.AttachSignalHandlers(PgBackgroundWorkerSignals.Interrupt | PgBackgroundWorkerSignals.Child);
-                    try
-                    {
-                        PgBackgroundWorker.Connect(database);
-                    }
-                    catch (PgException exception) when (exception.SqlState == "55000")
-                    {
-                        errors |= 16;
-                    }
-
-                    PgBackgroundWorker.RunTransaction(() =>
-                    {
-                        if (Spi.ExecuteScalar<string>("SELECT current_database()::text") != database)
+                        if (PgBackgroundWorker.Name != "Ankus worker" || PgBackgroundWorker.Type != "Ankus reporting" ||
+                            !PgBackgroundWorker.Extra.StartsWith("payload café 🐘|", StringComparison.Ordinal))
                         {
-                            throw new InvalidOperationException("Worker selected another database.");
+                            throw new InvalidOperationException("Dynamic worker identity changed.");
                         }
 
-                        Spi.Execute("INSERT INTO worker_values VALUES (11)");
-                    });
-                    var managed = new FormatException("worker transaction failure");
-                    try
-                    {
+                        Argument.Exchange((ulong)argument);
+                        string database = PgBackgroundWorker.Extra.Split('|')[1];
+                        int errors = 0;
+                        try
+                        {
+                            Spi.Execute("SELECT 42");
+                        }
+                        catch (InvalidOperationException)
+                        {
+                            errors |= 8;
+                        }
+
+                        if (argument == nuint.MaxValue)
+                        {
+                            PgBackgroundWorker.Connect(database);
+                        }
+                        else
+                        {
+                            PgBackgroundWorker.Connect((uint)argument);
+                        }
+
+                        PgBackgroundWorker.AttachSignalHandlers(PgBackgroundWorkerSignals.Interrupt | PgBackgroundWorkerSignals.Child);
+                        try
+                        {
+                            PgBackgroundWorker.Connect(database);
+                        }
+                        catch (PgException exception) when (exception.SqlState == "55000")
+                        {
+                            errors |= 16;
+                        }
+
                         PgBackgroundWorker.RunTransaction(() =>
                         {
-                            Spi.Execute("INSERT INTO worker_values VALUES (13)");
-                            throw managed;
-                        });
-                    }
-                    catch (FormatException exception) when (ReferenceEquals(exception, managed))
-                    {
-                        errors |= 1;
-                    }
-
-                    try
-                    {
-                        PgBackgroundWorker.RunTransaction(() => Spi.Execute("SELECT 1 / 0"));
-                    }
-                    catch (PgException exception) when (exception.SqlState == "22012")
-                    {
-                        errors |= 2;
-                    }
-
-                    bool olderParallel = PgBackgroundWorker.RunTransaction(() =>
-                        Spi.ExecuteScalar<int>("SELECT current_setting('server_version_num')::integer") < 170000);
-                    try
-                    {
-                        PgBackgroundWorker.RunTransaction(() =>
-                        {
-                            NativeMethods.EnterParallelMode();
-                            try
+                            if (Spi.ExecuteScalar<string>("SELECT current_database()::text") != database)
                             {
-                                Spi.Query("SELECT 1 / 0", readOnly: true, limit: 1);
+                                throw new InvalidOperationException("Worker selected another database.");
                             }
-                            catch (PgException exception) when (exception.SqlState == "22012")
+
+                            Spi.Execute("INSERT INTO worker_values VALUES (11)");
+                        });
+                        var managed = new FormatException("worker transaction failure");
+                        try
+                        {
+                            PgBackgroundWorker.RunTransaction(() =>
                             {
-                                if (!olderParallel)
+                                Spi.Execute("INSERT INTO worker_values VALUES (13)");
+                                throw managed;
+                            });
+                        }
+                        catch (FormatException exception) when (ReferenceEquals(exception, managed))
+                        {
+                            errors |= 1;
+                        }
+
+                        try
+                        {
+                            PgBackgroundWorker.RunTransaction(() => Spi.Execute("SELECT 1 / 0"));
+                        }
+                        catch (PgException exception) when (exception.SqlState == "22012")
+                        {
+                            errors |= 2;
+                        }
+
+                        bool olderParallel = PgBackgroundWorker.RunTransaction(() =>
+                            Spi.ExecuteScalar<int>("SELECT current_setting('server_version_num')::integer") < 170000);
+                        try
+                        {
+                            PgBackgroundWorker.RunTransaction(() =>
+                            {
+                                NativeMethods.EnterParallelMode();
+                                try
                                 {
-                                    NativeMethods.ExitParallelMode();
+                                    Spi.Query("SELECT 1 / 0", readOnly: true, limit: 1);
                                 }
+                                catch (PgException exception) when (exception.SqlState == "22012")
+                                {
+                                    if (!olderParallel)
+                                    {
+                                        NativeMethods.ExitParallelMode();
+                                    }
+                                }
+                            });
+                            if (!olderParallel)
+                            {
+                                errors |= 256;
                             }
-                        });
-                        if (!olderParallel)
+                        }
+                        catch (PgException exception) when (olderParallel && exception.SqlState == "22012")
                         {
                             errors |= 256;
                         }
-                    }
-                    catch (PgException exception) when (olderParallel && exception.SqlState == "22012")
-                    {
-                        errors |= 256;
-                    }
 
-                    try
-                    {
-                        PgBackgroundWorker.RunTransaction(() => Spi.Execute("INSERT INTO worker_values VALUES (11)"));
-                    }
-                    catch (PgException exception) when (exception.SqlState == "23505")
-                    {
-                        errors |= 4;
-                    }
-
-                    long sum = PgBackgroundWorker.RunTransaction(() =>
-                    {
-                        if (NativeMethods.IsInParallelMode())
+                        try
                         {
-                            throw new InvalidOperationException("Worker transaction retained a failed parallel scope.");
+                            PgBackgroundWorker.RunTransaction(() => Spi.Execute("INSERT INTO worker_values VALUES (11)"));
+                        }
+                        catch (PgException exception) when (exception.SqlState == "23505")
+                        {
+                            errors |= 4;
                         }
 
-                        Spi.Execute("INSERT INTO worker_values VALUES (17)");
-                        return Spi.ExecuteScalar<long>("SELECT sum(value) FROM worker_values");
-                    });
-                    Errors.Exchange(errors);
-                    Sum.Exchange(sum);
-                    if (!PgBackgroundWorker.CanContinue)
-                    {
-                        throw new InvalidOperationException("Worker lost its live postmaster before reporting readiness.");
-                    }
-
-                    Ready.Exchange(Environment.ProcessId);
-                    while (PgBackgroundWorker.Wait())
-                    {
-                        PgBackgroundWorkerSignals signals = PgBackgroundWorker.ConsumeSignals(
-                            PgBackgroundWorkerSignals.Reload | PgBackgroundWorkerSignals.Interrupt);
-                        if ((signals & PgBackgroundWorkerSignals.Reload) != 0)
+                        long sum = PgBackgroundWorker.RunTransaction(() =>
                         {
-                            if (NativeGlobals.ConfigReloadPending == 0)
+                            if (NativeMethods.IsInParallelMode())
                             {
-                                throw new InvalidOperationException("PostgreSQL did not observe the reload signal.");
+                                throw new InvalidOperationException("Worker transaction retained a failed parallel scope.");
                             }
 
-                            PgBackgroundWorker.ReloadConfiguration();
-                            if (NativeGlobals.ConfigReloadPending != 0)
+                            Spi.Execute("INSERT INTO worker_values VALUES (17)");
+                            return Spi.ExecuteScalar<long>("SELECT sum(value) FROM worker_values");
+                        });
+                        Errors.Exchange(errors);
+                        Sum.Exchange(sum);
+                        if (!PgBackgroundWorker.CanContinue)
+                        {
+                            throw new InvalidOperationException("Worker lost its live postmaster before reporting readiness.");
+                        }
+
+                        Ready.Exchange(Environment.ProcessId);
+                        while (PgBackgroundWorker.Wait())
+                        {
+                            PgBackgroundWorkerSignals signals = PgBackgroundWorker.ConsumeSignals(
+                                PgBackgroundWorkerSignals.Reload | PgBackgroundWorkerSignals.Interrupt);
+                            if ((signals & PgBackgroundWorkerSignals.Reload) != 0)
                             {
-                                throw new InvalidOperationException("Completed configuration reload remained pending.");
+                                if (NativeGlobals.ConfigReloadPending == 0)
+                                {
+                                    throw new InvalidOperationException("PostgreSQL did not observe the reload signal.");
+                                }
+
+                                PgBackgroundWorker.ReloadConfiguration();
+                                if (NativeGlobals.ConfigReloadPending != 0)
+                                {
+                                    throw new InvalidOperationException("Completed configuration reload remained pending.");
+                                }
+
+                                errors |= 32;
                             }
 
-                            errors |= 32;
-                        }
+                            if ((signals & PgBackgroundWorkerSignals.Interrupt) != 0)
+                            {
+                                errors |= 64;
+                            }
 
-                        if ((signals & PgBackgroundWorkerSignals.Interrupt) != 0)
-                        {
-                            errors |= 64;
-                        }
-
-                        if (PgBackgroundWorker.ConsumeSignals(PgBackgroundWorkerSignals.Child) != PgBackgroundWorkerSignals.None)
-                        {
                             if (PgBackgroundWorker.ConsumeSignals(PgBackgroundWorkerSignals.Child) != PgBackgroundWorkerSignals.None)
                             {
-                                throw new InvalidOperationException("Child signal remained set after consumption.");
+                                if (PgBackgroundWorker.ConsumeSignals(PgBackgroundWorkerSignals.Child) != PgBackgroundWorkerSignals.None)
+                                {
+                                    throw new InvalidOperationException("Child signal remained set after consumption.");
+                                }
+
+                                errors |= 128;
+                                ChildSignals.Add(1);
                             }
 
-                            errors |= 128;
-                            ChildSignals.Add(1);
+                            Errors.Exchange(errors);
                         }
 
-                        Errors.Exchange(errors);
-                    }
+                        if (NativeGlobals.ShutdownRequestPending == 0 || PgBackgroundWorker.CanContinue ||
+                            PgBackgroundWorker.ConsumeSignals(PgBackgroundWorkerSignals.Terminate) != PgBackgroundWorkerSignals.None ||
+                            PgBackgroundWorker.Wait(TimeSpan.Zero))
+                        {
+                            throw new InvalidOperationException("Consuming a termination observation must not undo the shutdown request.");
+                        }
 
-                    if (NativeGlobals.ShutdownRequestPending == 0 || PgBackgroundWorker.CanContinue ||
-                        PgBackgroundWorker.ConsumeSignals(PgBackgroundWorkerSignals.Terminate) != PgBackgroundWorkerSignals.None ||
-                        PgBackgroundWorker.Wait(TimeSpan.Zero))
+                        Errors.Exchange(errors | 512);
+                    }
+                    finally
                     {
-                        throw new InvalidOperationException("Consuming a termination observation must not undo the shutdown request.");
+                        Stopped.Exchange(1);
                     }
-
-                    Errors.Exchange(errors | 512);
-                }
-                finally
-                {
-                    Stopped.Exchange(1);
                 }
             }
 

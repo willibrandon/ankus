@@ -52,12 +52,12 @@ public sealed partial class NativeBindingNativeTests
                     value.payload.halves[0] = 11;
                     value.payload.halves[1] = 22;
                     value.grid[1][2] = 65530;
-                    value.next = 0x1020;
+                    value.next = (Record*)0x1020;
                     value.flag = true;
                     return [sizeof(Record), sizeof(Payload),
                         (byte*)&value.payload - (byte*)&value, (byte*)&value.grid - (byte*)&value,
                         (byte*)&value.next - (byte*)&value, (byte*)&value.flag - (byte*)&value,
-                        value.payload.bits, value.grid[1][2], value.next, value.flag ? 1 : 0,
+                        value.payload.bits, value.grid[1][2], (nint)value.next, value.flag ? 1 : 0,
                         NativeSize<Record>(), NativeAlignment<Record>()];
                 }
                 private static int NativeSize<T>() where T : unmanaged, IPgNativeType => T.NativeSize;
@@ -321,22 +321,22 @@ public sealed partial class NativeBindingNativeTests
             {
                 public static unsafe long[] Run()
                 {
-                    if (!typeof(Opaque).IsAbstract || !typeof(Opaque).IsSealed || Opaque.IsComplete || Opaque.NativeSize != -1)
+                    if (!typeof(Opaque).IsValueType || typeof(Ankus.IPgNativeType).IsAssignableFrom(typeof(Opaque)) || Opaque.IsComplete || Opaque.NativeSize != -1)
                         throw new InvalidOperationException("An opaque native declaration became allocatable.");
                     byte* address = stackalloc byte[sizeof(Tail) + 3];
                     new Span<byte>(address, sizeof(Tail) + 3).Clear();
-                    Span<byte> data = Tail.Dangerous_data((nint)address, 3);
+                    Span<byte> data = Tail.Dangerous_data((Tail*)address, 3);
                     data[0] = 91; data[2] = 93;
                     int rejected = 0;
-                    try { Tail.Dangerous_data(0, 0); } catch (ArgumentOutOfRangeException error) when (error.ParamName == "address") { rejected++; }
-                    try { Tail.Dangerous_data((nint)address, -1); } catch (ArgumentOutOfRangeException error) when (error.ParamName == "length") { rejected++; }
-                    try { Tail.Dangerous_data(-1, 1); } catch (OverflowException) { rejected++; }
-                    if (rejected != 3 || Tail.Dangerous_data((nint)address, 0).Length != 0)
+                    try { Tail.Dangerous_data(null, 0); } catch (ArgumentNullException error) when (error.ParamName == "address") { rejected++; }
+                    try { Tail.Dangerous_data((Tail*)address, -1); } catch (ArgumentOutOfRangeException error) when (error.ParamName == "length") { rejected++; }
+                    try { Tail.Dangerous_data((Tail*)(-1), 1); } catch (OverflowException) { rejected++; }
+                    if (rejected != 3 || Tail.Dangerous_data((Tail*)address, 0).Length != 0)
                         throw new InvalidOperationException("A native tail accepted an invalid extent.");
                     fixed (byte* start = data)
                     {
                         nuint high = (nuint)1 << (IntPtr.Size * 8 - 1);
-                        Span<byte> empty = Tail.Dangerous_data(unchecked((nint)high), 0);
+                        Span<byte> empty = Tail.Dangerous_data((Tail*)high, 0);
                         nuint location = (nuint)System.Runtime.CompilerServices.Unsafe.AsPointer(ref System.Runtime.InteropServices.MemoryMarshal.GetReference(empty));
                         if (location != high + (nuint)(start - address)) throw new InvalidOperationException("Native address bits were lost.");
                         return [sizeof(Tail), start - address, data[0], data[2]];
@@ -409,7 +409,7 @@ public sealed partial class NativeBindingNativeTests
                     value->Native_Collision_1 = 7; value->Native_Collision = 9; value->ToString = 11;
                     value->limit = Limits.Native_Limits_1; value->low = 5; value->high = -13;
                     value->count = 3;
-                    Span<byte> data = Collision.Dangerous_data((nint)value, 3);
+                    Span<byte> data = Collision.Dangerous_data(value, 3);
                     data[2] = 99;
                     fixed (byte* start = data)
                         return [sizeof(Collision), value->Native_Collision_1, value->Native_Collision, value->ToString,

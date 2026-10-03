@@ -69,10 +69,10 @@ public sealed partial class NativeBindingNativeTests
                         Leaf leaf = default;
                         leaf.state = State.STATE_NEGATIVE;
                         leaf.flags = Flags.FLAGS_HIGH;
-                        leaf.borrowed = unchecked((nint)0xFEDCBA9876543210UL);
+                        leaf.borrowed = (void*)unchecked((nint)0xFEDCBA9876543210UL);
                         return [sizeof(Leaf), (byte*)&leaf.state - (byte*)&leaf,
                             (byte*)&leaf.flags - (byte*)&leaf, (byte*)&leaf.borrowed - (byte*)&leaf,
-                            (int)leaf.state, unchecked((uint)leaf.flags), leaf.borrowed,
+                            (int)leaf.state, unchecked((uint)leaf.flags), (nint)leaf.borrowed,
                             typeof(State).GetEnumUnderlyingType() == typeof(int) ? 1 : 0,
                             typeof(Flags).GetEnumUnderlyingType() == typeof(uint) ? 1 : 0];
                     }

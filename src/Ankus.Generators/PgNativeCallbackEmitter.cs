@@ -40,13 +40,13 @@ internal static class PgNativeCallbackEmitter
                 get
                 {
                     global::Ankus.CompilerServices.NativeRawCallback.ValidateBinding<{{managedType}}>();
-                    nint address = {{accessor}}((nint)(delegate* unmanaged[Cdecl]<global::Ankus.CompilerServices.NativeCallArgument*, nuint, nint, nuint, global::Ankus.CompilerServices.NativeCallbackContext*, int>)&{{dispatcher}}.Invoke);
+                    nint address = {{accessor}}(unchecked((nint)(delegate* unmanaged[Cdecl]<global::Ankus.CompilerServices.NativeCallArgument*, nuint, nint, nuint, global::Ankus.CompilerServices.NativeCallbackContext*, int>)&{{dispatcher}}.Invoke));
                     if (address == 0)
                     {
                         throw new global::System.InvalidOperationException("The native callback registration conflicts with an existing handler.");
                     }
 
-                    return new {{managedType}}(address);
+                    return new {{managedType}}(unchecked((void*)address));
                 }
             }
 
@@ -85,7 +85,13 @@ internal static class PgNativeCallbackEmitter
             string number = index.ToString(CultureInfo.InvariantCulture);
             string argument = "argument" + number;
             string reader = type.Native ? "ReadNative" : "Read";
-            source.AppendLine($"        {type.Name} {argument} = global::Ankus.CompilerServices.NativeRawCallback.{reader}<{type.Name}>(arguments[{number}]);");
+            string read = $"global::Ankus.CompilerServices.NativeRawCallback.{reader}<{type.Storage}>(arguments[{number}])";
+            if (type.Pointer)
+            {
+                read = $"unchecked(({type.Name}){read})";
+            }
+
+            source.AppendLine($"        {type.Name} {argument} = {read};");
             arguments.Add(argument);
         }
 
@@ -99,7 +105,8 @@ internal static class PgNativeCallbackEmitter
             NativeCallbackModel.ValueContract resultType = declaration.Result;
             string writer = resultType.Native ? "WriteNative" : "Write";
             source.AppendLine($"        {resultType.Name} value = {invocation};");
-            source.AppendLine($"        global::Ankus.CompilerServices.NativeRawCallback.{writer}(result, resultSize, value);");
+            string value = resultType.Pointer ? "unchecked((nint)value)" : "value";
+            source.AppendLine($"        global::Ankus.CompilerServices.NativeRawCallback.{writer}(result, resultSize, {value});");
         }
 
         source.AppendLine("""

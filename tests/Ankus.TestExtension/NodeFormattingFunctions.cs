@@ -107,7 +107,7 @@ public static unsafe partial class NodeFunctions
         using PgNativeBox<RangeTblRef> child = owner.CreateBox(new RangeTblRef { type = NodeTag.T_RangeTblRef, rtindex = 9 });
         using PgNativeBox<CollateExpr> parent = PgNodes.DangerousAllocate<CollateExpr>((uint)NodeTag.T_CollateExpr, owner);
         CollateExpr value = parent.Value;
-        value.arg = cycle ? (nint)parent.DangerousGetPointer() : (nint)child.DangerousGetPointer();
+        value.arg = cycle ? (Expr*)parent.DangerousGetPointer() : (Expr*)child.DangerousGetPointer();
         value.collOid = 123;
         value.location = -1;
         parent.Value = value;
@@ -126,7 +126,7 @@ public static unsafe partial class NodeFunctions
         using PgAllocation? name = serverBytes is null ? null : owner.CopyFrom([.. serverBytes, (byte)0]);
         using PgNativeBox<Alias> alias = PgNodes.DangerousAllocate<Alias>((uint)NodeTag.T_Alias, owner);
         Alias value = alias.Value;
-        value.aliasname = name is null ? 0 : (nint)name.DangerousGetPointer();
+        value.aliasname = name is null ? null : (sbyte*)name.DangerousGetPointer();
         alias.Value = value;
         return PgNodes.Borrow(alias.Borrow()).DangerousToNativeString();
     }

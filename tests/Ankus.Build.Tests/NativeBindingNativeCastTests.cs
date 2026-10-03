@@ -63,7 +63,7 @@ public sealed partial class NativeBindingNativeTests
                         (uint)root->type, original, range.rtindex, (nint)roundtrip == (nint)(&range) ? 1 : 0,
                         Accepts<Expr>(root->type), Accepts<Var>(root->type)];
 
-                    AlternativeSubPlan plan = new() { xpr = new() { type = NodeTag.T_AlternativeSubPlan }, subplans = (nint)root };
+                    AlternativeSubPlan plan = new() { xpr = new() { type = NodeTag.T_AlternativeSubPlan }, subplans = root };
                     Node* planRoot = (Node*)&plan;
                     Expr* parent = (Expr*)planRoot;
                     AlternativeSubPlan* child = (AlternativeSubPlan*)parent;
@@ -71,7 +71,7 @@ public sealed partial class NativeBindingNativeTests
                     long[] inherited = [Accepts<Node>(planRoot->type), Accepts<Expr>(planRoot->type),
                         Accepts<AlternativeSubPlan>(parent->type), Accepts<Var>(planRoot->type),
                         Accepts<RangeTblRef>(parent->type), (uint)parent->type,
-                        child->subplans == (nint)root ? 1 : 0, range.rtindex,
+                        child->subplans == root ? 1 : 0, range.rtindex,
                         (nint)parent == (nint)(&plan) ? 1 : 0, (nint)child == (nint)(&plan) ? 1 : 0];
 
                     range.type = NodeTag.T_RangeAlias;
@@ -172,11 +172,11 @@ public sealed partial class NativeBindingNativeTests
                     for (int i = 0; i < tags.Length; i++)
                     {
                         value.type = tags[i];
-                        value.val.@str = (nint)text;
+                        value.val.@str = (sbyte*)text;
                         values[i * 4] = Accepts<Node>(node->type);
                         values[i * 4 + 1] = Accepts<Value>(node->type);
                         values[i * 4 + 2] = (uint)roundtrip->type;
-                        values[i * 4 + 3] = roundtrip->val.@str == (nint)text ? 1 : 0;
+                        values[i * 4 + 3] = roundtrip->val.@str == (sbyte*)text ? 1 : 0;
                     }
                     return [.. integers, .. values, Accepts<Value>(NodeTag.T_Invalid), Accepts<Value>((NodeTag)uint.MaxValue)];
                 }
@@ -192,14 +192,14 @@ public sealed partial class NativeBindingNativeTests
                 public static unsafe long[] Run()
                 {
                     byte* text = stackalloc byte[] { 115, 111, 109, 101, 116, 104, 105, 110, 103, 0 };
-                    ValUnion value = new() { sval = new() { type = NodeTag.T_String, sval = (nint)text } };
+                    ValUnion value = new() { sval = new() { type = NodeTag.T_String, sval = (sbyte*)text } };
                     Node* node = (Node*)&value;
                     Ankus.Postgres.String* member = (Ankus.Postgres.String*)node;
                     long[] strings = [Accepts<Node>(node->type), Accepts<Ankus.Postgres.String>(node->type),
                         Accepts<Integer>(node->type), Accepts<ValUnion>(node->type), (uint)member->type,
-                        member->sval == (nint)text ? 1 : 0, ((byte*)member->sval)[8]];
-                    member->sval = (nint)(text + 1);
-                    long mutated = value.sval.sval == (nint)(text + 1) ? 1 : 0;
+                        member->sval == (sbyte*)text ? 1 : 0, ((byte*)member->sval)[8]];
+                    member->sval = (sbyte*)(text + 1);
+                    long mutated = value.sval.sval == (sbyte*)(text + 1) ? 1 : 0;
                     value.ival = new() { type = NodeTag.T_Integer, ival = 42 };
                     Integer* integer = (Integer*)node;
                     int original = integer->ival;

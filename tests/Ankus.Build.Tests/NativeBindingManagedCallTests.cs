@@ -196,10 +196,10 @@ public sealed partial class NativeBindingNativeTests
             using Ankus.Postgres;
             public static class BindingAssertions
             {
-                public static long[] Run()
+                public static unsafe long[] Run()
                 {
                     int rejected = 0;
-                    try { NativeMethods.Native_NativeMethods(default, 37, true, 0); }
+                    try { NativeMethods.Native_NativeMethods(default, 37, true, null); }
                     catch (InvalidOperationException error) when (error.Message.Contains("active backend callback", StringComparison.Ordinal)) { rejected++; }
                     return [rejected, NativeMethods.Accessors];
                 }

@@ -259,6 +259,7 @@ internal static partial class NativeBindingRecordCSharp
 
             FunctionPointers();
             NamedCallbacks();
+            PointerValues();
 
             foreach (string name in _emptyValues.Values)
             {
@@ -345,7 +346,7 @@ internal static partial class NativeBindingRecordCSharp
             if (!declaration.IsComplete || declaration.Size == 0)
             {
                 Summary("Identifies native storage that has no allocatable CLR value representation.");
-                Line($"public static class @{name}\n{{");
+                Line($"public readonly struct @{name}\n{{");
                 Summary("Reports whether the selected headers define this native object.", "    ");
                 Line($"    public const bool IsComplete = {(declaration.IsComplete ? "true" : "false")};");
                 Summary("Reports the native byte size, or minus one when its layout is opaque.", "    ");
@@ -368,8 +369,10 @@ internal static partial class NativeBindingRecordCSharp
                 throw new FormatException("The existing node layout requires unsupported managed packing.");
             }
 
+            NativeRecordField[] fields = [.. _members.Get(index).Select(static member => member.Field)];
+            bool pointers = fields.Any(field => Canonical(field.Type).Kind == "pointer" && Map(field.Type).Pointer);
             Layout(size, pack);
-            Line($"public struct @{name} : global::Ankus.{(node?.IsNode == true ? "IPgNativeNode" : "IPgNativeType")}\n{{");
+            Line($"public {(pointers ? "unsafe " : "")}struct @{name} : global::Ankus.{(node?.IsNode == true ? "IPgNativeNode" : "IPgNativeType")}\n{{");
             Identity(size, declaration.Alignment!.Value);
             if (node?.IsNode == true)
             {
@@ -378,7 +381,6 @@ internal static partial class NativeBindingRecordCSharp
                 Line($"    static bool global::Ankus.IPgNativeNode.AcceptsTag(uint tag) => {predicate};");
             }
 
-            NativeRecordField[] fields = [.. _members.Get(index).Select(static member => member.Field)];
             var members = new HashSet<string>(fields.Select(static field => field.Name).Where(static value => value.Length != 0), StringComparer.Ordinal) { name };
             string bits = Unique(members, "_nativeBits");
             if (fields.Any(static field => field.BitWidth > 0 && field.Name.Length != 0))
@@ -398,7 +400,7 @@ internal static partial class NativeBindingRecordCSharp
                 NativeRecordType type = Canonical(field.Type);
                 if (type.Kind == "array" && type.Count is null or 0)
                 {
-                    Flexible(field, member, members, node is null ? null : name);
+                    Flexible(field, member, members, name);
                     continue;
                 }
 
@@ -422,20 +424,19 @@ internal static partial class NativeBindingRecordCSharp
             Line("}\n");
         }
 
-        private void Flexible(NativeRecordField field, string member, HashSet<string> members, string? owner = null)
+        private void Flexible(NativeRecordField field, string member, HashSet<string> members, string owner)
         {
             NativeRecordType type = Canonical(field.Type);
-            Value element = Map(type.Element!.Value);
+            Value element = ContainerValue(type.Element!.Value);
             string name = Unique(members, "Dangerous_" + member);
             Summary("Borrows trailing native elements from a live address and caller-guaranteed extent.", "    ");
             Line("    /// <param name=\"address\">The live native record with sufficient trailing storage.</param>");
             Line("    /// <param name=\"length\">The number of initialized elements to borrow.</param>");
             Line("    /// <returns>A view bounded by the caller's native storage lifetime.</returns>");
-            string address = owner is null ? "nint" : "@" + owner + "*";
+            string address = "@" + owner + "*";
             Line($"    public static unsafe global::System.Span<{element.Code}> @{name}({address} address, int length)\n    {{");
             Line("        global::System.ArgumentOutOfRangeException.ThrowIfNegative(length);");
-            Line(owner is null ? "        global::System.ArgumentOutOfRangeException.ThrowIfZero(address);"
-                : "        if (address is null) { throw new global::System.ArgumentNullException(nameof(address)); }");
+            Line("        if (address is null)\n        {\n            throw new global::System.ArgumentNullException(nameof(address));\n        }\n");
             Line($"        nuint start = checked(unchecked((nuint)address) + {Number(field.OffsetBits / 8)}U);");
             Line($"        _ = checked(start + (nuint)length * {Number(element.Size)}U);");
             Line($"        return new((void*)start, length);\n    }}");
@@ -530,13 +531,15 @@ internal static partial class NativeBindingRecordCSharp
             }
             else if (type.Kind == "pointer")
             {
-                string code = NativeBindingIndirectModel.FunctionType(graph, type.Element!.Value) is int signature
-                    ? "@" + _functionPointers[signature] : "nint";
-                value = new(code, size, null);
+                int? signature = NativeBindingIndirectModel.FunctionType(graph, type.Element!.Value);
+                string code = signature is int function
+                    ? "@" + _functionPointers[function]
+                    : PointerTarget(type.Element.Value) + "*";
+                value = new(code, size, null, Pointer: signature is null);
             }
             else if (type.Kind == "array")
             {
-                Value element = Map(type.Element!.Value);
+                Value element = ContainerValue(type.Element!.Value);
                 int count = Size(type.Count);
                 if ((long)count * element.Size != size)
                 {
@@ -677,6 +680,12 @@ internal static partial class NativeBindingRecordCSharp
             return result;
         }
 
-        private sealed record Value(string Code, int Size, bool? Signed);
+        private sealed record Value(string Code, int Size, bool? Signed, bool Pointer = false)
+        {
+            /// <summary>
+            /// Gets the generic-compatible representation used only for frame byte transport.
+            /// </summary>
+            internal string Storage => Pointer ? "nint" : Code;
+        }
     }
 }

@@ -37,10 +37,10 @@ public static unsafe partial class CustomScanRegistryFunctions
                 byte[] text = Encoding.UTF8.GetBytes(name + "\0");
                 fixed (byte* bytes = text)
                 {
-                    methods->CustomName = NativeMethods.pstrdup((nint)bytes);
+                    methods->CustomName = NativeMethods.pstrdup((sbyte*)bytes);
                 }
 
-                NativeMethods.RegisterCustomScanMethods((nint)methods);
+                NativeMethods.RegisterCustomScanMethods(methods);
                 return (long)methods;
             });
         }
@@ -63,7 +63,7 @@ public static unsafe partial class CustomScanRegistryFunctions
         byte[] text = Encoding.UTF8.GetBytes(name + "\0");
         fixed (byte* bytes = text)
         {
-            return NativeMethods.GetCustomScanMethods((nint)bytes, optional);
+            return (long)NativeMethods.GetCustomScanMethods((sbyte*)bytes, optional);
         }
     }
 
@@ -76,13 +76,13 @@ public static unsafe partial class CustomScanRegistryFunctions
     public static string CustomScanRegistryName(string name)
     {
         var methods = (CustomScanMethods*)CustomScanRegistryLookup(name, false);
-        return Marshal.PtrToStringUTF8(methods->CustomName)!;
+        return Marshal.PtrToStringUTF8((nint)methods->CustomName)!;
     }
 
     /// <summary>
     /// Rejects execution explicitly because the reserved-name witness does not create any paths or plans.
     /// </summary>
-    private static nint RejectPlan(nint plan)
+    private static Node* RejectPlan(CustomScan* plan)
     {
         _ = plan;
         throw new PgException("0A000", "registry witness does not supply plans");

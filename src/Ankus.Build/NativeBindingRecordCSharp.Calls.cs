@@ -69,6 +69,11 @@ internal static partial class NativeBindingRecordCSharp
             }
 
             Line("    /// <remarks>Requires the matching native binding and an active backend callback. Raw pointers and callback addresses remain the caller's responsibility.</remarks>");
+            if (visibility == "public")
+            {
+                Line("    [global::Ankus.CompilerServices.NativeUnsafeAccess]");
+            }
+
             string signature = string.Join(", ", parameters.Skip(indirect ? 1 : 0).Select(static parameter => parameter.Value.Code + " @" + parameter.Name));
             string unsafeModifier = frame.AllocationSize == 0 ? "" : "unsafe ";
             string hide = parameters.Count == 0 && method != "Equals" ? Hide(method) : "";
@@ -104,21 +109,27 @@ internal static partial class NativeBindingRecordCSharp
                 {
                     (string name, Value value) = parameters[index];
                     string address = "storage + " + NativeSize(frame.Arguments[index]);
-                    Line($"{indent}arguments[{Number(index)}] = new((nint)({address}), {NativeSize(value.Size)});");
+                    Line($"{indent}arguments[{Number(index)}] = new(unchecked((nint)checked({address})), {NativeSize(value.Size)});");
                     if (value.Size != 0)
                     {
-                        string argument = indirect && index == 0 ? "this" : "@" + name;
+                        string argument = indirect && index == 0 ? "this" : value.Pointer ? $"unchecked((nint)@{name})" : "@" + name;
                         Line($"{indent}global::System.Runtime.CompilerServices.Unsafe.WriteUnaligned((void*)({address}), {argument});");
                     }
                 }
             }
 
-            string resultAddress = result is null ? "0" : "(nint)(storage + " + NativeSize(frame.Result) + ")";
+            string resultAddress = result is null ? "0" : "unchecked((nint)checked(storage + " + NativeSize(frame.Result) + "))";
             Line($"{indent}global::Ankus.CompilerServices.NativeRawCall.Invoke(@{accessor}(), {(parameters.Count == 0 ? "[]" : "arguments")}, {resultAddress}, {NativeSize(result?.Size ?? 0)});");
             if (result is not null)
             {
+                string read = $"global::System.Runtime.CompilerServices.Unsafe.ReadUnaligned<{result.Storage}>((void*)checked(storage + {NativeSize(frame.Result)}))";
+                if (result.Pointer)
+                {
+                    read = $"unchecked(({result.Code}){read})";
+                }
+
                 Line(result.Size == 0 ? indent + "return default;"
-                    : $"{indent}return global::System.Runtime.CompilerServices.Unsafe.ReadUnaligned<{result.Code}>((void*)(storage + {NativeSize(frame.Result)}));");
+                    : $"{indent}return {read};");
             }
 
             if (heap)

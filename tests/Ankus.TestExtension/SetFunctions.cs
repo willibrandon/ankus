@@ -476,7 +476,7 @@ public static class SetFunctions
     {
         fixed (byte* name = "ankus_missing_iterator_cleanup\0"u8)
         {
-            _ = Ankus.Postgres.NativeMethods.GetCustomScanMethods((nint)name, false);
+            _ = Ankus.Postgres.NativeMethods.GetCustomScanMethods((sbyte*)name, false);
         }
     }
 

@@ -42,7 +42,7 @@ public static unsafe partial class NodeFunctions
         using PgNativeBox<AlternativeSubPlan> value = owner.CreateBox(new AlternativeSubPlan
         {
             xpr = new Expr { type = NodeTag.T_AlternativeSubPlan },
-            subplans = 0,
+            subplans = null,
         });
         PgNodeReference<AlternativeSubPlan> leaf = PgNodes.Borrow(value.Borrow());
         PgNodeReference<Expr> parent = leaf.TryCast<Expr>()!;
@@ -51,7 +51,7 @@ public static unsafe partial class NodeFunctions
         bool sameAddress = leaf.DangerousGetPointer() == parent.DangerousGetPointer() &&
             leaf.DangerousGetPointer() == root.DangerousGetPointer() && leaf.DangerousGetPointer() == roundtrip.DangerousGetPointer();
         bool tags = leaf.Tag == (uint)NodeTag.T_AlternativeSubPlan && parent.Tag == leaf.Tag && root.Tag == leaf.Tag && roundtrip.Tag == leaf.Tag;
-        return $"{sameAddress}|{tags}|{root.TryCast<Var>() is null}|{roundtrip.Value.subplans == 0}";
+        return $"{sameAddress}|{tags}|{root.TryCast<Var>() is null}|{roundtrip.Value.subplans == null}";
     }
 
     /// <summary>

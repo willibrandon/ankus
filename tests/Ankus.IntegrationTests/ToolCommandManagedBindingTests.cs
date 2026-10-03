@@ -110,12 +110,21 @@ public sealed partial class ToolCommandTests
                 [PgFunction]
                 public static string NativeRecordResult()
                 {
-                    FullTransactionId value = NativeMethods.FullTransactionIdFromU64(0xFEDCBA9876543210UL);
-                    return value.value.ToString("X16", System.Globalization.CultureInfo.InvariantCulture);
+                    unsafe
+                    {
+                        FullTransactionId value = NativeMethods.FullTransactionIdFromU64(0xFEDCBA9876543210UL);
+                        return value.value.ToString("X16", System.Globalization.CultureInfo.InvariantCulture);
+                    }
                 }
 
                 [PgFunction]
-                public static int NativeGlobalPid() => NativeGlobals.MyProcPid;
+                public static int NativeGlobalPid()
+                {
+                    unsafe
+                    {
+                        return NativeGlobals.MyProcPid;
+                    }
+                }
 
                 [PgFunction]
                 public static unsafe string NativeIndirectValues()
@@ -123,7 +132,7 @@ public sealed partial class ToolCommandTests
                     uint oid = Spi.ExecuteScalar<uint>("SELECT 'pg_catalog.int4div(integer,integer)'::regprocedure::oid");
                     using PgMemoryContext owner = PgMemoryContext.Create("native indirect calls");
                     using PgNativeBox<FmgrInfo> function = owner.AllocateZeroedBox<FmgrInfo>();
-                    nint info = (nint)function.DangerousGetPointer();
+                    FmgrInfo* info = (FmgrInfo*)function.DangerousGetPointer();
                     NativeMethods.fmgr_info_cxt(oid, info, NativeMethods.GetMemoryChunkContext(info));
                     using PgNativeBox<PGFunction> saved = owner.CreateBox(function.Value.fn_addr);
                     PGFunction target = saved.Value;
@@ -149,13 +158,12 @@ public sealed partial class ToolCommandTests
 
                 private static unsafe ulong InvokeIntegerDivision(PGFunction target, PgAllocation frame, int left, int right)
                 {
-                    nint address = (nint)frame.DangerousGetPointer();
-                    FunctionCallInfoBaseData* data = (FunctionCallInfoBaseData*)address;
+                    FunctionCallInfoBaseData* data = (FunctionCallInfoBaseData*)frame.DangerousGetPointer();
                     data->isnull = false;
-                    System.Span<NullableDatum> arguments = FunctionCallInfoBaseData.Dangerous_args(address, 2);
+                    System.Span<NullableDatum> arguments = FunctionCallInfoBaseData.Dangerous_args(data, 2);
                     arguments[0] = new() { value = unchecked((ulong)left) };
                     arguments[1] = new() { value = unchecked((ulong)right) };
-                    ulong result = target.Invoke(address);
+                    ulong result = target.Invoke(data);
                     if (data->isnull)
                     {
                         throw new System.InvalidOperationException("Unexpected native SQL NULL.");
@@ -168,7 +176,7 @@ public sealed partial class ToolCommandTests
                 public static unsafe string NativeGlobalValues()
                 {
                     int original = NativeGlobals.extra_float_digits;
-                    nint address = NativeGlobals.DangerousAddressOf_extra_float_digits();
+                    int* address = NativeGlobals.DangerousAddressOf_extra_float_digits();
                     int changed;
                     int sqlChanged;
                     int recovered;
@@ -176,17 +184,17 @@ public sealed partial class ToolCommandTests
                     try
                     {
                         NativeGlobals.extra_float_digits = -3;
-                        changed = *(int*)address;
+                        changed = *address;
                         sqlChanged = Spi.ExecuteScalar<int>("SELECT current_setting('extra_float_digits')::integer");
                         using PgMemoryContext owner = PgMemoryContext.Create("native globals");
                         using PgAllocation allocation = owner.AllocateZeroed(16);
-                        nint nativeOwner = NativeMethods.GetMemoryChunkContext((nint)allocation.DangerousGetPointer());
-                        nint previous = NativeGlobals.CurrentMemoryContext;
+                        MemoryContextData* nativeOwner = NativeMethods.GetMemoryChunkContext(allocation.DangerousGetPointer());
+                        MemoryContextData* previous = NativeGlobals.CurrentMemoryContext;
                         NativeGlobals.CurrentMemoryContext = nativeOwner;
                         try
                         {
                             context = PgMemoryContext.Current.Id == owner.Id &&
-                                *(nint*)NativeGlobals.DangerousAddressOf_CurrentMemoryContext() == nativeOwner;
+                                *NativeGlobals.DangerousAddressOf_CurrentMemoryContext() == nativeOwner;
                         }
                         finally
                         {
@@ -212,13 +220,13 @@ public sealed partial class ToolCommandTests
                 [PgFunction]
                 public static unsafe bool NativeLinkedProvider()
                 {
-                    OutputPluginCallbacks callbacks = new() { startup_cb = new(17), shutdown_cb = new(23) };
+                    OutputPluginCallbacks callbacks = new() { startup_cb = new((void*)17), shutdown_cb = new((void*)23) };
             #if ANKUS_PG13 || ANKUS_PG14 || ANKUS_PG15
-                    InitializeLinkedProvider((nint)(&callbacks));
+                    InitializeLinkedProvider(&callbacks);
             #else
-                    NativeMethods._PG_output_plugin_init((nint)(&callbacks));
+                    NativeMethods._PG_output_plugin_init(&callbacks);
             #endif
-                    return callbacks.startup_cb.IsNull && callbacks.shutdown_cb.DangerousGetAddress() == 23;
+                    return callbacks.startup_cb.IsNull && callbacks.shutdown_cb.DangerousGetAddress() == (void*)23;
                 }
 
             #if ANKUS_PG13 || ANKUS_PG14 || ANKUS_PG15
@@ -227,19 +235,23 @@ public sealed partial class ToolCommandTests
                 /// </summary>
                 [System.Runtime.InteropServices.LibraryImport("BindingProvider.Native", EntryPoint = "_PG_output_plugin_init")]
                 [System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = [typeof(System.Runtime.CompilerServices.CallConvCdecl)])]
-                private static partial void InitializeLinkedProvider(nint callbacks);
+                private static unsafe partial void InitializeLinkedProvider(OutputPluginCallbacks* callbacks);
             #endif
 
                 [PgFunction]
                 public static unsafe int NativeNodeCall(int input)
                 {
-                    nint address = NativeMethods.makeInteger(input);
+            #if ANKUS_PG13 || ANKUS_PG14
+                    Value* address = NativeMethods.makeInteger(input);
+            #else
+                    Integer* address = NativeMethods.makeInteger(input);
+            #endif
                     try
                     {
             #if ANKUS_PG13 || ANKUS_PG14
-                        Value value = *(Value*)address;
+                        Value value = *address;
             #else
-                        Integer value = *(Integer*)address;
+                        Integer value = *address;
             #endif
                         if (value.type != NodeTag.T_Integer)
                         {
@@ -263,11 +275,11 @@ public sealed partial class ToolCommandTests
                 {
                     using PgMemoryContext owner = PgMemoryContext.Create("header helpers");
                     using PgAllocation page = owner.AllocateZeroed(8192);
-                    nint address = (nint)page.DangerousGetPointer();
-                    nint nativeOwner = NativeMethods.GetMemoryChunkContext(address);
-                    bool ownership = nativeOwner != 0 && NativeMethods.MemoryContextIsValid(nativeOwner) && !NativeMethods.MemoryContextIsValid(0);
+                    sbyte* address = (sbyte*)page.DangerousGetPointer();
+                    MemoryContextData* nativeOwner = NativeMethods.GetMemoryChunkContext(address);
+                    bool ownership = nativeOwner != null && NativeMethods.MemoryContextIsValid(nativeOwner) && !NativeMethods.MemoryContextIsValid(null);
                     nint previousId = PgMemoryContext.Current.Id;
-                    nint previous = NativeMethods.MemoryContextSwitchTo(nativeOwner);
+                    MemoryContextData* previous = NativeMethods.MemoryContextSwitchTo(nativeOwner);
                     bool selected;
                     bool restored;
                     try
@@ -285,18 +297,17 @@ public sealed partial class ToolCommandTests
                     NativeMethods.PageValidateSpecialPointer(address);
                     bool pointers = NativeMethods.PageGetContents(address) == address + (nint)NativeMethods.MAXALIGN(NativeMethods.SizeOfPageHeaderData()) &&
                         NativeMethods.PageGetSpecialPointer(address) == address + 8176;
-                    bool pageState = NativeMethods.PageIsValid(address) && !NativeMethods.PageIsValid(0) &&
+                    bool pageState = NativeMethods.PageIsValid(address) && !NativeMethods.PageIsValid(null) &&
                         NativeMethods.PageIsEmpty(address) && !NativeMethods.PageIsNew(address) &&
                         NativeMethods.PageGetMaxOffsetNumber(address) == 0 && NativeMethods.PageGetPageSize(address) == 8192 &&
                         NativeMethods.PageSizeIsValid(8192) && !NativeMethods.PageSizeIsValid(8191) && !NativeMethods.PageSizeIsValid(8193);
-                    nint itemAddress = NativeMethods.PageGetItemId(address, 1);
-                    ItemIdData* item = (ItemIdData*)itemAddress;
+                    ItemIdData* item = NativeMethods.PageGetItemId(address, 1);
                     item->lp_off = 512;
                     item->lp_flags = 1;
                     item->lp_len = 3;
                     ((PageHeaderData*)address)->pd_lower = checked((ushort)(NativeMethods.SizeOfPageHeaderData() + (ulong)sizeof(ItemIdData)));
-                    bool itemState = NativeMethods.ItemIdGetOffset(itemAddress) == 512 &&
-                        NativeMethods.PageGetItem(address, itemAddress) == address + 512 && NativeMethods.PageGetMaxOffsetNumber(address) == 1;
+                    bool itemState = NativeMethods.ItemIdGetOffset(item) == 512 &&
+                        NativeMethods.PageGetItem(address, item) == address + 512 && NativeMethods.PageGetMaxOffsetNumber(address) == 1;
                     byte version = NativeMethods.PageGetPageLayoutVersion(address);
                     ushort special = NativeMethods.PageGetSpecialSize(address);
                     bool ids = !NativeMethods.TransactionIdIsNormal(2) && NativeMethods.TransactionIdIsNormal(3) &&
@@ -305,28 +316,28 @@ public sealed partial class ToolCommandTests
                     bool categories = NativeMethods.BufferIsLocal(-1) && !NativeMethods.BufferIsLocal(0) &&
                         NativeMethods.type_is_array(1007) && !NativeMethods.type_is_array(23);
                     using PgAllocation name = owner.AllocateUtf8String("value");
-                    nint descriptor = NativeMethods.CreateTemplateTupleDesc(1);
+                    TupleDescData* descriptor = NativeMethods.CreateTemplateTupleDesc(1);
                     ulong value;
                     bool tupleState;
                     bool nullState;
                     bool recovered = false;
                     try
                     {
-                        NativeMethods.TupleDescInitEntry(descriptor, 1, (nint)name.DangerousGetPointer(), 23, -1, 0);
+                        NativeMethods.TupleDescInitEntry(descriptor, 1, (sbyte*)name.DangerousGetPointer(), 23, -1, 0);
             #if ANKUS_PG19
                         NativeMethods.TupleDescFinalize(descriptor);
             #endif
                         ulong datum = unchecked((ulong)-42L);
                         bool isNull = false;
-                        nint tuple = NativeMethods.heap_form_tuple(descriptor, (nint)(&datum), (nint)(&isNull));
+                        HeapTupleData* tuple = NativeMethods.heap_form_tuple(descriptor, &datum, &isNull);
                         try
                         {
-                            nint headerAddress = ((HeapTupleData*)tuple)->t_data;
-                            value = NativeMethods.heap_getattr(tuple, 1, descriptor, (nint)(&isNull));
+                            HeapTupleHeaderData* headerAddress = tuple->t_data;
+                            value = NativeMethods.heap_getattr(tuple, 1, descriptor, &isNull);
                             tupleState = !isNull && NativeMethods.HeapTupleNoNulls(tuple) &&
                                 NativeMethods.HeapTupleHeaderGetNatts(headerAddress) == 1 &&
-                                NativeMethods.GETSTRUCT(tuple) == headerAddress + ((HeapTupleHeaderData*)headerAddress)->t_hoff;
-                            nint nullAddress = (nint)(&isNull);
+                                NativeMethods.GETSTRUCT(tuple) == (sbyte*)headerAddress + headerAddress->t_hoff;
+                            bool* nullAddress = &isNull;
                             try
                             {
                                 PgTransaction.RunInSubtransaction(() => NativeMethods.heap_getattr(tuple, 0, descriptor, nullAddress));
@@ -343,11 +354,11 @@ public sealed partial class ToolCommandTests
                         }
 
                         isNull = true;
-                        tuple = NativeMethods.heap_form_tuple(descriptor, (nint)(&datum), (nint)(&isNull));
+                        tuple = NativeMethods.heap_form_tuple(descriptor, &datum, &isNull);
                         try
                         {
                             isNull = false;
-                            ulong nullDatum = NativeMethods.heap_getattr(tuple, 1, descriptor, (nint)(&isNull));
+                            ulong nullDatum = NativeMethods.heap_getattr(tuple, 1, descriptor, &isNull);
                             nullState = isNull && nullDatum == 0 && !NativeMethods.HeapTupleNoNulls(tuple);
                         }
                         finally
@@ -379,59 +390,62 @@ public sealed partial class ToolCommandTests
                 [PgFunction]
                 public static string NativeTypedError(uint functionOid, bool swallow)
                 {
-                    PgMemoryContext owner = PgMemoryContext.Current;
-                    PgMemoryContext? failedContext = null;
-                    PgException failure;
-                    try
+                    unsafe
                     {
-                        PgTransaction.RunInSubtransaction(() =>
+                        PgMemoryContext owner = PgMemoryContext.Current;
+                        PgMemoryContext? failedContext = null;
+                        PgException failure;
+                        try
                         {
-                            failedContext = PgMemoryContext.Current;
-                            if (swallow)
+                            PgTransaction.RunInSubtransaction(() =>
                             {
-                                Spi.Connect(session =>
+                                failedContext = PgMemoryContext.Current;
+                                if (swallow)
                                 {
-                                    session.Execute("INSERT INTO native_typed_effects VALUES (1)");
-                                    try { NativeMethods.OidFunctionCall1Coll(functionOid, 0, 0); }
-                                    catch (PgException) { }
-                                });
-                            }
-                            else
-                            {
-                                Spi.Execute("INSERT INTO native_typed_effects VALUES (1)");
-                                NativeMethods.OidFunctionCall1Coll(functionOid, 0, 0);
-                            }
-                        });
-                        throw new System.InvalidOperationException("The deliberate native error did not occur.");
-                    }
-                    catch (PgException exception) { failure = exception; }
-                    bool restored = owner.Id == PgMemoryContext.Current.Id;
-                    bool expired = failedContext is not null && !failedContext.IsAlive;
-                    bool nestedEntered = false;
-                    ulong recovered = Spi.Connect(session =>
-                    {
-                        ulong value = PgTransaction.RunInSubtransaction(() =>
-                        {
-                            Spi.Execute("INSERT INTO native_typed_effects VALUES (2)");
-                            try
-                            {
-                                PgTransaction.RunInSubtransaction(() =>
+                                    Spi.Connect(session =>
+                                    {
+                                        session.Execute("INSERT INTO native_typed_effects VALUES (1)");
+                                        try { NativeMethods.OidFunctionCall1Coll(functionOid, 0, 0); }
+                                        catch (PgException) { }
+                                    });
+                                }
+                                else
                                 {
-                                    Spi.Execute("INSERT INTO native_typed_effects VALUES (3)");
-                                    nestedEntered = true;
+                                    Spi.Execute("INSERT INTO native_typed_effects VALUES (1)");
                                     NativeMethods.OidFunctionCall1Coll(functionOid, 0, 0);
-                                });
-                            }
-                            catch (PgException) { }
-                            return NativeMethods.OidFunctionCall1Coll(functionOid, 0, 25);
-                        });
-                        if (session.ExecuteScalar<int>("SELECT sum(value)::integer FROM native_typed_effects") != 2)
-                        {
-                            throw new System.InvalidOperationException("The enclosing SPI session did not recover.");
+                                }
+                            });
+                            throw new System.InvalidOperationException("The deliberate native error did not occur.");
                         }
-                        return value;
-                    });
-                    return $"{failure.SqlState}|{failure.Message}|{failure.Detail}|{failure.Hint}|{restored}|{expired}|{nestedEntered}|{recovered}";
+                        catch (PgException exception) { failure = exception; }
+                        bool restored = owner.Id == PgMemoryContext.Current.Id;
+                        bool expired = failedContext is not null && !failedContext.IsAlive;
+                        bool nestedEntered = false;
+                        ulong recovered = Spi.Connect(session =>
+                        {
+                            ulong value = PgTransaction.RunInSubtransaction(() =>
+                            {
+                                Spi.Execute("INSERT INTO native_typed_effects VALUES (2)");
+                                try
+                                {
+                                    PgTransaction.RunInSubtransaction(() =>
+                                    {
+                                        Spi.Execute("INSERT INTO native_typed_effects VALUES (3)");
+                                        nestedEntered = true;
+                                        NativeMethods.OidFunctionCall1Coll(functionOid, 0, 0);
+                                    });
+                                }
+                                catch (PgException) { }
+                                return NativeMethods.OidFunctionCall1Coll(functionOid, 0, 25);
+                            });
+                            if (session.ExecuteScalar<int>("SELECT sum(value)::integer FROM native_typed_effects") != 2)
+                            {
+                                throw new System.InvalidOperationException("The enclosing SPI session did not recover.");
+                            }
+                            return value;
+                        });
+                        return $"{failure.SqlState}|{failure.Message}|{failure.Detail}|{failure.Hint}|{restored}|{expired}|{nestedEntered}|{recovered}";
+                    }
                 }
 
                 [PgFunction]
@@ -476,6 +490,27 @@ public sealed partial class ToolCommandTests
         await File.WriteAllTextAsync(Path.Combine(provider, "BindingCallbacks.cs"), ManagedNativeCallbackSource, token);
         await File.WriteAllTextAsync(Path.Combine(provider, "BindingHookCallbacks.cs"), NativeHookSource, token);
         await File.WriteAllTextAsync(Path.Combine(consumer, "CallbackExports.cs"), NativeCallbackExportSource, token);
+        string unsafeProbe = Path.Combine(consumer, "MissingUnsafe.cs");
+        await File.WriteAllTextAsync(unsafeProbe, """
+            using Ankus.Postgres;
+            public static class MissingUnsafe
+            {
+                public static int Read() => NativeGlobals.MyProcPid;
+                public static void Write() => NativeGlobals.extra_float_digits = 1;
+                public static ulong Call() => NativeMethods.TYPEALIGN(8, 13);
+                public static void Invoke(NativeGlobals_shmem_startup_hookCallback callback) => callback.Invoke();
+            }
+            """, token);
+        ProcessResult rejected = await RunDotnetAsync(["build", consumerProject, .. options], token);
+        Assert.AreNotEqual(0, rejected.ExitCode);
+        string diagnostics = rejected.StandardOutput + rejected.StandardError;
+        string[] operations = ["MyProcPid", "extra_float_digits", "TYPEALIGN", "Invoke"];
+        foreach (string operation in operations)
+        {
+            Assert.Contains("error ANKUS129: Use an unsafe block for '" + operation + "'", diagnostics);
+        }
+
+        File.Delete(unsafeProbe);
         string published = Path.Combine(root, "published");
         (await RunDotnetAsync(["publish", consumerProject, .. options, "-o", published], token))
             .EnsureSuccess("dotnet", ["publish"]);

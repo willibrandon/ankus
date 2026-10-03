@@ -34,8 +34,8 @@ extension's selected compiler, target framework or embedded runtime.
 
 The platform-fix milestone **bdb5d1c** selects embedded runtime and compiler host **10.0.12-ankus.4**,
 based on runtime fork commit `d23f4e7374cd3878dc5696fbc26ee6ecdddde1ca` and paired
-with the 10.0.12 Native AOT framework and compiler targets. Its full servicing
-validation is in progress; the complete primary CI below uses **ankus.3**.
+with the 10.0.12 Native AOT framework and compiler targets. Complete primary CI
+passes with **ankus.4**; additional-version and Intel acceptance is still in progress.
 Servicing requires
 immutable patched-runtime and compiler packages, matching compiler selection,
 complete backend validation and extension rebuild/redeployment. Check current
@@ -89,6 +89,15 @@ extensions. Counts supplement the backend, ownership and recovery assertions.
 
 | Source | Platform / PostgreSQL | Result | Duration |
 | --- | --- | --- | --- |
+| Frozen 64-file pointer/diagnostic/fixture composition / runtime **ankus.4** | Linux x64 / 18.6 | 11,609 total; 11,592 passed; 17 platform skips; zero failures | 29m25.565s tests |
+| Same frozen composition / runtime | macOS ARM64 / 18.6 | 11,609 total; 11,580 passed; 29 platform skips; zero failures | 22m29.195s tests |
+| Same frozen composition / runtime | Windows x64 / 13.23 | 11,609 total; 11,584 passed; 25 platform skips; zero failures | 38m42.708s tests |
+| [CI 37131029131](https://github.com/willibrandon/ankus/actions/runs/37131029131), 04f0a8a / runtime **ankus.4** | Linux x64 / 18 | 11,568 total; 11,553 passed; 15 platform skips; zero failures | 36m04s job |
+| Same CI / revision / runtime | macOS ARM64 / 18 | 11,568 total; 11,541 passed; 27 platform skips; zero failures | 26m50s job |
+| Same CI / revision / runtime | Windows x64 / 17 | 11,568 total; 11,543 passed; 25 platform skips; zero failures | 32m10s job |
+| [Version CI 37131055805](https://github.com/willibrandon/ankus/actions/runs/37131055805), 04f0a8a / runtime **ankus.4** | macOS ARM64 / 16 | 11,568 total; 11,541 passed; 27 platform skips; zero failures | 26m32s job |
+| Same version CI / revision / runtime | Windows x64 / 18 | 11,568 total; 11,543 passed; 25 platform skips; zero failures | 31m18s job |
+| Same version CI / revision / runtime | macOS ARM64 / 15 | 11,568 total; 11,541 passed; 27 platform skips; zero failures | 26m18s job |
 | [CI 37117515450](https://github.com/willibrandon/ankus/actions/runs/37117515450), 7f58d03 | Linux x64 / 18 | 11,528 total; 11,514 passed; 14 platform skips; zero failures | 36m09s job |
 | Same CI / revision | macOS ARM64 / 18 | 11,528 total; 11,502 passed; 26 platform skips; zero failures | 27m09s job |
 | Same CI / revision | Windows x64 / 17 | 11,528 total; 11,503 passed; 25 platform skips; zero failures | 32m02s job |
@@ -101,7 +110,8 @@ extensions. Counts supplement the backend, ownership and recovery assertions.
 | [Version CI 37016275325](https://github.com/willibrandon/ankus/actions/runs/37016275325), c3db5ed | Linux x64 / 19 beta 4 | 11,120 total; 11,106 passed; 14 platform skips; zero failures | 28m12s job |
 
 All six TRX reports were independently checked for each current primary
-platform and the editor composition. The latter also passes Release with zero
+platform, including the **04f0a8a / ankus.4** CI run, and the editor composition.
+The latter also passes Release with zero
 warnings/errors (**3m04.15s**), API freshness (**238 pages / 2,757 members**),
 site build (**286 pages, 3.97s**) and site checks with zero diagnostics. Its
 50 source identities match the tested draft, validator and promoted source.
@@ -118,6 +128,78 @@ passes.
 
 ## Active validation and work
 
+CI outcomes checked before every local milestone commit on **2026-10-03**:
+primary and docs runs on **04f0a8a** pass; the Windows 13 version failure
+is repaired locally, with all 80 failed cases passing in the completed suite,
+and awaits replacement service-context acceptance; Intel remains
+active. The complete outcome snapshot is retained with the validation evidence.
+
+- Repairs and validation evidence are pushed through **04f0a8a**. The verified
+  Apple object-fixture correction is committed locally as **7fb9700**, and the
+  Windows diagnostic/selected-installation correction as **7251034**. Their
+  single push follows the completed local Windows run. Replacement
+  [primary CI 37131029131](https://github.com/willibrandon/ankus/actions/runs/37131029131),
+  [docs 37131029115](https://github.com/willibrandon/ankus/actions/runs/37131029115),
+  [platform versions 37131055805](https://github.com/willibrandon/ankus/actions/runs/37131055805)
+  and [Intel macOS 37131051660](https://github.com/willibrandon/ankus/actions/runs/37131051660)
+  have passed docs, quality, all three primary runtime builds and all three
+  complete primary suites. Their 18 TRX reports are retained and independently
+  counted above. The additional macOS 15/16 and Windows 18 suites also pass; all
+  eighteen additional reports were independently counted. Windows 13 completes
+  with **11,568 total / 11,463 passed / 80 failures / 25 skips, 34m23s job**.
+  All 125 retained server logs are empty. The missing diagnostics are confirmed
+  in Windows Application events from the same CI window: PostgreSQL 13 routes
+  stderr to Event Log when it inherits a service token. That revision's harness
+  reads only its requested file, losing error evidence and port-collision
+  detection. Correct diagnostic collection and service-context acceptance are
+  required; the preceding interactive Windows 13 pass did not cover this route.
+  The diagnostic collector now isolates each cluster with its own event source
+  and retains original messages alongside stderr. A real event-only regression
+  fails before the fix and passes afterward; both new Windows 13.23 tests pass
+  (**2/2, 2m56.456s**, zero skips). They verify Unicode fields, cluster isolation,
+  incremental/concurrent reads, startup failure and shutdown retention. The
+  first complete interactive Windows run finishes with **11,570 total /
+  11,516 passed / 29 failures / 25 skips**. Of the original 80 CI failures,
+  78 pass; the other two stop before discovery because generated projects lack
+  the selected PostgreSQL path. Replacement service-context CI remains required.
+  No runtime change or test suppression is involved.
+  The local run exposes a consumer-fixture selection defect: generated
+  projects receive the selected major but not a nonstandard PostgreSQL path.
+  CI supplies the path globally, masking this local failure. The fixture now
+  passes its resolved installation through the child build environment; this
+  correction passes the affected installed-consumer scope. The private launcher's temporary root
+  also makes native SourceLink filenames reach 260/262 characters; the Microsoft
+  linker cannot open them. Its owned root is shortened without changing compiler
+  options or warnings. The failed directory-control assertion is also included
+  in the affected rerun. All six original reports and logs are retained; affected
+  cases and both event regressions now pass: **34/34, zero failures/skips,
+  14m36.093s**. This includes the previously failed nested-parent directory
+  assertion without a production staging change. The final complete interactive
+  Windows 13.23 composition passes **11,609 total / 11,584 passed / 25 skips /
+  zero failures, 38m42.708s**. All 80 originally failed cases pass. Release passes
+  with zero warnings/errors (**57.76s**); all six reports and all 64 frozen source
+  identities verify. Replacement service-context CI is still required.
+  Intel remains active and retains two
+  package-consumer slots and its approved six-hour limit. These remaining active
+  workflows are not acceptance results.
+- The frozen raw native API correction is applied locally. Data pointers retain
+  their C# pointee types; incomplete types have no allocation contract; typed
+  carriers preserve native stride in generic containers. `ANKUS129` requires an
+  explicit unsafe context for raw scalar operations and delegate assignments.
+  Transport preserves every address bit in checked consumers, while native guards,
+  owned diagnostics and rollback rules remain intact.
+  The final 64-file composition passes complete Linux x64, macOS ARM64 and Windows
+  x64 suites, Release and the documentation gates recorded above. All eighteen
+  TRX reports and all 64 source identities verify. Windows uses PostgreSQL 13.23;
+  Linux and macOS use 18.6. This is interactive Windows evidence; service-context
+  CI remains required.
+  The preceding checked draft passes all 70 affected backend cases on each of
+  PostgreSQL 13.23, 14.24, 15.19, 16.15, 17.11 and 19 beta 4. These focused checks
+  do not replace complete version/platform acceptance.
+  Original checked-address, helper-list and launcher/SDK failures, corrected
+  regressions and the Apple object-fixture repair are retained in the
+  [detailed evidence](docs/contributing/evidence/port-history.md#checked-raw-pointer-contracts-and-windows-service-diagnostics).
+  Replacement CI and remaining supported platform/version acceptance stay open.
 - Function/schema, operator/cast and aggregate declarations now have specific
   diagnostics, authored locations and correction links. Their accepted primary
   suites pass. The editor composition adds a semantic `ANKUS056` correction,
@@ -161,8 +243,9 @@ passes.
   Windows **18.6/ankus.3** writes all six reports: **11,568 total / 11,543 passed /
   25 skips / zero failures**. Its native test processes exit, but the outer
   interoperability launcher remains open without a captured command exit code.
-  This is complete passing test-report evidence, not confirmed launcher success;
-  replacement native Windows CI remains required.
+  This older run did not confirm launcher success. Replacement native Windows
+  **18 / ankus.4** CI now completes successfully in **31m18s**, with all six
+  reports verified above, closing that acceptance gap for **04f0a8a**.
   Linux **18.6/ankus.3** also passes **11,568 total / 11,553 passed / 15 skips /
   zero failures, 36m41.247s**. The new-runtime Linux suite also passes, as recorded above.
 - Indexed array lookup is committed as **46d0237**. It replaces repeated iterator scans with PostgreSQL's
@@ -182,7 +265,7 @@ passes.
   compositions also pass. Replacement runtime-servicing CI remains pending.
   Pure-operation guard work and
   permanent benchmarks are still required.
-- The accepted primary suites use compiler/runtime **10.0.12-ankus.3**, fork **a20021d**. Its
+- The preceding primary suites used compiler/runtime **10.0.12-ankus.3**, fork **a20021d**. Its
   universal-transition flag correction is verified in the rebuilt compiler's
   machine code; **128/128** retained-input compiles and complete primary suites
   pass. The original intermittent crash matches upstream evidence, but no local
@@ -196,8 +279,9 @@ passes.
   all shutdown/signal checks and matching package creation. Final Release passes
   with zero warnings/errors (**2m04.17s**); API freshness and site build/check also
   pass. The complete Linux x64/PostgreSQL 18.6 servicing suite also passes.
-  The platform fixes are committed as **bdb5d1c**. Replacement CI remains required,
-  including Windows servicing with the new **ankus.4** payload.
+  The platform fixes are committed as **bdb5d1c**. Replacement primary CI on
+  **04f0a8a** passes all three complete suites with the new **ankus.4** payload.
+  Corrected Intel and additional-version CI acceptance remain pending.
 
 ## Remaining work order
 

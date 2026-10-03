@@ -40,7 +40,7 @@ public sealed partial class NativeBindingNativeTests
         const string Harness = """
             public static class BindingAssertions
             {
-                public static long[] Run()
+                public static unsafe long[] Run()
                 {
                     using NativeCallTestBridge.Scope scope = new();
                     Methods methods = NativeMethods.get();
@@ -110,7 +110,7 @@ public sealed partial class NativeBindingNativeTests
         const string Harness = """
             public static class BindingAssertions
             {
-                public static long[] Run()
+                public static unsafe long[] Run()
                 {
                     using NativeCallTestBridge.Scope scope = new();
                     Methods value = NativeMethods.get();
@@ -124,13 +124,13 @@ public sealed partial class NativeBindingNativeTests
                     value.choice.selected = item;
                     Arithmetic canonical = first;
                     Methods_firstCallback recovered = canonical;
-                    Methods_firstCallback bits = new(unchecked((nint)(long.MinValue + 0x123456789)));
+                    Methods_firstCallback bits = new((void*)unchecked((nint)(long.MinValue + 0x123456789)));
                     Arithmetic exact = bits;
                     Methods_firstCallback copied = exact;
                     return [first.Invoke(25), second.Invoke(25), item.Invoke(7), choice.Invoke(7),
                         value.second.Invoke(1), value.items[0].Invoke(1), value.choice.selected.Invoke(1),
                         recovered.DangerousGetAddress() == first.DangerousGetAddress() ? 1 : 0,
-                        copied.DangerousGetAddress(), default(Methods_firstCallback).IsNull ? 1 : 0,
+                        (nint)copied.DangerousGetAddress(), default(Methods_firstCallback).IsNull ? 1 : 0,
                         first.IsNull ? 1 : 0, Unsafe.SizeOf<Methods_firstCallback>(), IntPtr.Size, anonymous.Invoke(7)];
                 }
             }
@@ -227,20 +227,20 @@ public sealed partial class NativeBindingNativeTests
         const string Harness = """
             public static class BindingAssertions
             {
-                public static long[] Run()
+                public static unsafe long[] Run()
                 {
                     using NativeCallTestBridge.Scope scope = new();
                     Methods value = NativeGlobals.state;
                     int empty = value.variadic.IsNull && value.unprototyped.IsNull && value.incomplete.IsNull ? 1 : 0;
-                    value.variadic = new Methods_variadicCallback(123);
-                    value.unprototyped = new Methods_unprototypedCallback(456);
-                    value.incomplete = new Methods_incompleteCallback(789);
+                    value.variadic = new Methods_variadicCallback((void*)123);
+                    value.unprototyped = new Methods_unprototypedCallback((void*)456);
+                    value.incomplete = new Methods_incompleteCallback((void*)789);
                     NativeGlobals.state = value;
                     Methods recovered = NativeGlobals.state;
                     Methods_variadicCallback variadic = recovered.variadic;
                     Methods_unprototypedCallback legacy = recovered.unprototyped;
                     Methods_incompleteCallback incomplete = recovered.incomplete;
-                    return [empty, variadic.DangerousGetAddress(), legacy.DangerousGetAddress(), incomplete.DangerousGetAddress(),
+                    return [empty, (nint)variadic.DangerousGetAddress(), (nint)legacy.DangerousGetAddress(), (nint)incomplete.DangerousGetAddress(),
                         typeof(Methods_variadicCallback).GetMethod("Invoke") is null ? 1 : 0,
                         typeof(Methods_unprototypedCallback).GetMethod("Invoke") is null ? 1 : 0,
                         typeof(Methods_incompleteCallback).GetMethod("Invoke") is null ? 1 : 0];
@@ -273,12 +273,12 @@ public sealed partial class NativeBindingNativeTests
             const string Harness = """
                 public static class BindingAssertions
                 {
-                    public static long[] Run()
+                    public static unsafe long[] Run()
                     {
-                        Ankus.Postgres.Methods_applyCallback callback = new(-731);
+                        Ankus.Postgres.Methods_applyCallback callback = new((void*)(-731));
                         Ankus.Postgres.Methods value = new() { apply = callback };
                         Ankus.Postgres.Methods_applyCallback recovered = value.apply;
-                        return [recovered.DangerousGetAddress(), recovered.IsNull ? 1 : 0,
+                        return [(nint)recovered.DangerousGetAddress(), recovered.IsNull ? 1 : 0,
                             typeof(Ankus.Postgres.Methods_applyCallback).GetMethod("Invoke") is null ? 1 : 0,
                             default(Ankus.Postgres.Methods_applyCallback).IsNull ? 1 : 0];
                     }

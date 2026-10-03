@@ -25,13 +25,15 @@ internal static partial class NativeBindingRecordCSharp
                     string? write = global.CanWrite ? Unique(members, "Write_" + global.Name) : null;
                     Summary("Reads" + (write is null ? "" : " or writes") + " the current native value of " + global.Symbol.NativeName + ".", "    ");
                     Line("    /// <remarks>Requires an active backend callback. Values are copies; referenced native addresses retain their original ownership and lifetime. Native synchronization remains the caller's responsibility.</remarks>");
+                    Line("    [global::Ankus.CompilerServices.NativeUnsafeAccess]");
+                    string pointerModifier = value.Pointer ? "unsafe " : "";
                     if (write is null)
                     {
-                        Line($"    public {hide}static {value.Code} @{member} => @{read}();\n");
+                        Line($"    public {hide}static {pointerModifier}{value.Code} @{member} => @{read}();\n");
                     }
                     else
                     {
-                        Line($"    public {hide}static {value.Code} @{member}\n    {{\n        get => @{read}();\n        set => @{write}(value);\n    }}\n");
+                        Line($"    public {hide}static {pointerModifier}{value.Code} @{member}\n    {{\n        get => @{read}();\n        set => @{write}(value);\n    }}\n");
                     }
 
                     Method(new(global.Name, global.Symbol, [], native), read, readAccessor, "private");
@@ -49,11 +51,13 @@ internal static partial class NativeBindingRecordCSharp
                 Summary("Obtains the original native address of " + global.Symbol.NativeName + ".", "    ");
                 Line("    /// <returns>The original object address, without extending its lifetime or supplying an unknown array extent.</returns>");
                 Line("    /// <remarks>Requires an active backend callback. The caller must preserve native const/volatile qualifications, bounds, synchronization and ownership. Thread-local addresses belong to the active backend thread.</remarks>");
-                Line($"    public static unsafe nint @{address}()\n    {{");
+                string addressType = PointerTarget(global.StorageType) + "*";
+                Line("    [global::Ankus.CompilerServices.NativeUnsafeAccess]");
+                Line($"    public static unsafe {addressType} @{address}()\n    {{");
                 Line($"        global::Ankus.CompilerServices.NativeRawCall.ValidateBinding(\"__ANKUS_RECORD_IDENTITY__\"u8, {Number(graph.Target.PostgresVersion / 10000)});");
                 Line("        nint address = 0;");
-                Line($"        global::Ankus.CompilerServices.NativeRawCall.Invoke(@{addressAccessor}(), [], (nint)(&address), (nuint)sizeof(nint));");
-                Line("        return address;\n    }\n");
+                Line($"        global::Ankus.CompilerServices.NativeRawCall.Invoke(@{addressAccessor}(), [], unchecked((nint)(&address)), (nuint)sizeof(nint));");
+                Line($"        return unchecked(({addressType})address);\n    }}\n");
                 GlobalImport(global.Name, NativeBindingGlobalOperation.Address, addressAccessor);
             }
 

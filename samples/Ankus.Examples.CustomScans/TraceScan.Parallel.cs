@@ -41,7 +41,7 @@ public static unsafe partial class TraceScan
     /// <summary>
     /// Reserves only native atomic storage; PostgreSQL supplies its alignment and lifetime.
     /// </summary>
-    private static ulong EstimateShared(nint address, nint context)
+    private static ulong EstimateShared(CustomScanState* address, ParallelContext* context)
     {
         _ = address;
         _ = context;
@@ -51,59 +51,59 @@ public static unsafe partial class TraceScan
     /// <summary>
     /// Constructs selected-header atomics before the leader publishes the coordinate block.
     /// </summary>
-    private static void InitializeShared(nint address, nint context, nint coordinate)
+    private static void InitializeShared(CustomScanState* address, ParallelContext* context, void* coordinate)
     {
         _ = context;
         var shared = (SharedState*)coordinate;
-        NativeMethods.pg_atomic_init_u64((nint)(&shared->_rows), 0);
-        NativeMethods.pg_atomic_init_u64((nint)(&shared->_calls), 0);
-        NativeMethods.pg_atomic_init_u64((nint)(&shared->_workers), 0);
-        NativeMethods.pg_atomic_init_u64((nint)(&shared->_shutdowns), 0);
-        NativeMethods.pg_atomic_init_u64((nint)(&shared->_generation), 1);
+        NativeMethods.pg_atomic_init_u64(&shared->_rows, 0);
+        NativeMethods.pg_atomic_init_u64(&shared->_calls, 0);
+        NativeMethods.pg_atomic_init_u64(&shared->_workers, 0);
+        NativeMethods.pg_atomic_init_u64(&shared->_shutdowns, 0);
+        NativeMethods.pg_atomic_init_u64(&shared->_generation, 1);
         var state = (State*)address;
-        state->_shared = coordinate;
+        state->_shared = shared;
         state->_snapshot = default;
     }
 
     /// <summary>
     /// Resets shared values independently of the local ReScan callback.
     /// </summary>
-    private static void ReinitializeShared(nint address, nint context, nint coordinate)
+    private static void ReinitializeShared(CustomScanState* address, ParallelContext* context, void* coordinate)
     {
         _ = context;
         var shared = (SharedState*)coordinate;
-        ulong generation = checked(NativeMethods.pg_atomic_read_u64((nint)(&shared->_generation)) + 1);
-        NativeMethods.pg_atomic_write_u64((nint)(&shared->_rows), 0);
-        NativeMethods.pg_atomic_write_u64((nint)(&shared->_calls), 0);
-        NativeMethods.pg_atomic_write_u64((nint)(&shared->_workers), 0);
-        NativeMethods.pg_atomic_write_u64((nint)(&shared->_shutdowns), 0);
-        NativeMethods.pg_atomic_write_u64((nint)(&shared->_generation), generation);
+        ulong generation = checked(NativeMethods.pg_atomic_read_u64(&shared->_generation) + 1);
+        NativeMethods.pg_atomic_write_u64(&shared->_rows, 0);
+        NativeMethods.pg_atomic_write_u64(&shared->_calls, 0);
+        NativeMethods.pg_atomic_write_u64(&shared->_workers, 0);
+        NativeMethods.pg_atomic_write_u64(&shared->_shutdowns, 0);
+        NativeMethods.pg_atomic_write_u64(&shared->_generation, generation);
         var state = (State*)address;
-        state->_shared = coordinate;
+        state->_shared = shared;
         state->_snapshot = default;
     }
 
     /// <summary>
     /// Attaches process-local execution state without storing its address in shared memory.
     /// </summary>
-    private static void InitializeWorker(nint address, nint table, nint coordinate)
+    private static void InitializeWorker(CustomScanState* address, shm_toc* table, void* coordinate)
     {
         _ = table;
         var state = (State*)address;
-        state->_shared = coordinate;
+        state->_shared = (SharedState*)coordinate;
         state->_worker = true;
         var shared = (SharedState*)coordinate;
-        _ = NativeMethods.pg_atomic_fetch_add_u64((nint)(&shared->_workers), 1);
+        _ = NativeMethods.pg_atomic_fetch_add_u64(&shared->_workers, 1);
     }
 
     /// <summary>
     /// Copies a shutdown snapshot without waiting on a parent's still-active tuple queues.
     /// </summary>
-    private static void Shutdown(nint address)
+    private static void Shutdown(CustomScanState* address)
     {
         var state = (State*)address;
-        var shared = (SharedState*)state->_shared;
-        state->_shared = 0;
+        SharedState* shared = state->_shared;
+        state->_shared = null;
         if (shared == null)
         {
             return;
@@ -111,16 +111,16 @@ public static unsafe partial class TraceScan
 
         if (state->_worker)
         {
-            _ = NativeMethods.pg_atomic_fetch_add_u64((nint)(&shared->_shutdowns), 1);
+            _ = NativeMethods.pg_atomic_fetch_add_u64(&shared->_shutdowns, 1);
         }
 
         state->_snapshot = new ParallelSnapshot
         {
-            _rows = NativeMethods.pg_atomic_read_u64((nint)(&shared->_rows)),
-            _calls = NativeMethods.pg_atomic_read_u64((nint)(&shared->_calls)),
-            _workers = NativeMethods.pg_atomic_read_u64((nint)(&shared->_workers)),
-            _shutdowns = NativeMethods.pg_atomic_read_u64((nint)(&shared->_shutdowns)),
-            _generation = NativeMethods.pg_atomic_read_u64((nint)(&shared->_generation)),
+            _rows = NativeMethods.pg_atomic_read_u64(&shared->_rows),
+            _calls = NativeMethods.pg_atomic_read_u64(&shared->_calls),
+            _workers = NativeMethods.pg_atomic_read_u64(&shared->_workers),
+            _shutdowns = NativeMethods.pg_atomic_read_u64(&shared->_shutdowns),
+            _generation = NativeMethods.pg_atomic_read_u64(&shared->_generation),
         };
     }
 

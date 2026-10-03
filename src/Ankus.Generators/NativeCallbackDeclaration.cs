@@ -102,7 +102,7 @@ internal sealed class NativeCallbackDeclaration(IPropertySymbol property, IMetho
             metadata[0].ConstructorArguments[0].Value is not int index || index < 0 || signatures.Length != 1 ||
             !value.InstanceConstructors.Any(static method => method.DeclaredAccessibility == Accessibility.Public &&
                 method.Parameters.Length == 1 && method.Parameters[0].RefKind == RefKind.None &&
-                method.Parameters[0].Type.SpecialType == SpecialType.System_IntPtr))
+                method.Parameters[0].Type is IPointerTypeSymbol { PointedAtType.SpecialType: SpecialType.System_Void }))
         {
             return Invalid("The property type must be a generated native function pointer with a complete fixed Invoke signature.");
         }
@@ -152,9 +152,9 @@ internal sealed class NativeCallbackDeclaration(IPropertySymbol property, IMetho
             method.Parameters.All(static parameter => parameter.RefKind == RefKind.None && IsValue(parameter.Type));
 
     private static bool IsValue(ITypeSymbol type)
-        => type.IsUnmanagedType && !type.IsRefLikeType && type.TypeKind is not (TypeKind.Pointer or TypeKind.FunctionPointer) &&
+        => type.IsUnmanagedType && !type.IsRefLikeType &&
             (type.SpecialType is SpecialType.System_Boolean or SpecialType.System_SByte or SpecialType.System_Byte or
                 SpecialType.System_Int16 or SpecialType.System_UInt16 or SpecialType.System_Int32 or SpecialType.System_UInt32 or
                 SpecialType.System_Int64 or SpecialType.System_UInt64 or SpecialType.System_IntPtr or SpecialType.System_UIntPtr or
-                SpecialType.System_Single or SpecialType.System_Double || type.TypeKind == TypeKind.Enum || IsNativeValue(type));
+                SpecialType.System_Single or SpecialType.System_Double || type.TypeKind is TypeKind.Enum or TypeKind.Pointer || IsNativeValue(type));
 }

@@ -81,7 +81,7 @@ public static unsafe class ParallelRecoveryFunctions
                     {
                         fixed (byte* name = "ankus_missing_parallel_provider\0"u8)
                         {
-                            _ = NativeMethods.GetCustomScanMethods((nint)name, false);
+                            _ = NativeMethods.GetCustomScanMethods((sbyte*)name, false);
                         }
                     }
                     else

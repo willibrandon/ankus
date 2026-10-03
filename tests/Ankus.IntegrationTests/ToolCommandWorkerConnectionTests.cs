@@ -148,42 +148,45 @@ public sealed partial class ToolCommandTests
             [PgBackgroundWorker]
             public static void Connect(nuint mode)
             {
-                string[] fields = PgBackgroundWorker.Extra.Split('|');
-                Process.Exchange(Environment.ProcessId);
-                if (mode == 1)
+                unsafe
                 {
-                    PgBackgroundWorker.Connect(fields[0] == "\u0001" ? null : fields[0], fields[1] == "\u0001" ? null : fields[1]);
-                }
-                else
-                {
-                    PgBackgroundWorker.Connect(uint.Parse(fields[2], CultureInfo.InvariantCulture), uint.Parse(fields[3], CultureInfo.InvariantCulture));
-                }
-
-                Connected.Exchange(1);
-                Database.Exchange(NativeGlobals.MyDatabaseId);
-                Role.Exchange(NativeMethods.GetUserId());
-                Superuser.Exchange(PgBackgroundWorker.RunTransaction(NativeMethods.superuser) ? 1 : 0);
-                if (Database.Value == 0)
-                {
-                    uint inside = PgBackgroundWorker.RunTransaction(NativeMethods.GetUserId);
-                    Recovered.Exchange(inside == Role.Value ? 47 : -1);
-                    return;
-                }
-
-                Value.Exchange(PgBackgroundWorker.RunTransaction(() => Spi.ExecuteScalar<int>("SELECT value FROM worker_visible")));
-                if (Superuser.Value == 0)
-                {
-                    try
+                    string[] fields = PgBackgroundWorker.Extra.Split('|');
+                    Process.Exchange(Environment.ProcessId);
+                    if (mode == 1)
                     {
-                        PgBackgroundWorker.RunTransaction(() => Spi.Execute("SELECT value FROM worker_secret"));
+                        PgBackgroundWorker.Connect(fields[0] == "\u0001" ? null : fields[0], fields[1] == "\u0001" ? null : fields[1]);
                     }
-                    catch (PgException exception) when (exception.SqlState == "42501")
+                    else
                     {
-                        Denied.Exchange(1);
+                        PgBackgroundWorker.Connect(uint.Parse(fields[2], CultureInfo.InvariantCulture), uint.Parse(fields[3], CultureInfo.InvariantCulture));
                     }
-                }
 
-                Recovered.Exchange(PgBackgroundWorker.RunTransaction(() => Spi.ExecuteScalar<int>("SELECT 47")));
+                    Connected.Exchange(1);
+                    Database.Exchange(NativeGlobals.MyDatabaseId);
+                    Role.Exchange(NativeMethods.GetUserId());
+                    Superuser.Exchange(PgBackgroundWorker.RunTransaction(NativeMethods.superuser) ? 1 : 0);
+                    if (Database.Value == 0)
+                    {
+                        uint inside = PgBackgroundWorker.RunTransaction(NativeMethods.GetUserId);
+                        Recovered.Exchange(inside == Role.Value ? 47 : -1);
+                        return;
+                    }
+
+                    Value.Exchange(PgBackgroundWorker.RunTransaction(() => Spi.ExecuteScalar<int>("SELECT value FROM worker_visible")));
+                    if (Superuser.Value == 0)
+                    {
+                        try
+                        {
+                            PgBackgroundWorker.RunTransaction(() => Spi.Execute("SELECT value FROM worker_secret"));
+                        }
+                        catch (PgException exception) when (exception.SqlState == "42501")
+                        {
+                            Denied.Exchange(1);
+                        }
+                    }
+
+                    Recovered.Exchange(PgBackgroundWorker.RunTransaction(() => Spi.ExecuteScalar<int>("SELECT 47")));
+                }
             }
 
             [PgFunction]

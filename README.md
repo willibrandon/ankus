@@ -414,7 +414,9 @@ boundary and returns owned text.
 `NativeMethods` exposes selected-header fixed functions and helpers for alignment,
 memory contexts, pages and tuples through the native error guard. `NativeGlobals`
 provides guarded value copies and explicit native addresses for selected-header
-globals.
+globals. Data pointers retain their C# pointee types. Raw calls and global accesses
+require an explicit unsafe context, including operations with scalar signatures;
+checked APIs remain available in safe code.
 
 Native function pointers have typed borrowed values whose `Invoke`
 methods use the same native error guard. Method-table fields expose callback

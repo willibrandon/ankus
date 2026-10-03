@@ -112,7 +112,9 @@ abort cleanup under the query context's lifetime. The sample uses a context
 reset callback to observe reclamation, including error exits.
 
 Use guarded `NativeMethods` calls and generated callback values for operations
-that can raise a PostgreSQL error. Native errors become `PgException` while
+that can raise a PostgreSQL error. These raw APIs require an unsafe context and
+preserve pointer types such as `CustomScanState*` and `TupleTableSlot*`.
+Native errors become `PgException` while
 managed frames unwind; PostgreSQL receives ERROR only after the managed frames
 have returned. A raw unmanaged call must not let longjmp cross managed code.
 

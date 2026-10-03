@@ -22,7 +22,7 @@ public sealed class CompilerContractNamespaceTests
         [
             "NativeAggregate", "NativeBackend", "NativeCallArgument", "NativeCallError", "NativeCallbackContext", "NativeError",
             "NativeEventTrigger", "NativeFunctionPointerAttribute", "NativeGuc", "NativeLog", "NativeMemoryContext",
-            "NativeRawCall", "NativeRawCallback", "NativeRelationScope", "NativeSet", "NativeValue",
+            "NativeRawCall", "NativeRawCallback", "NativeRelationScope", "NativeSet", "NativeUnsafeAccessAttribute", "NativeValue",
         ];
         Assert.AreSequenceEqual(expected, helpers.Select(static type => type.Name));
         foreach (Type helper in helpers)

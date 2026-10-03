@@ -85,8 +85,9 @@ background work or large caches.
 `pg_sys` calls correspond to generated `NativeMethods` and `NativeGlobals`, with
 the native names preserved. Ankus guards PostgreSQL errors in native code before
 they reach managed frames. The caller still owns native argument, layout,
-allocator and lifetime correctness, including calls whose C# signature does not
-require `unsafe`. See [native bindings](/raw-values/).
+allocator and lifetime correctness. Raw calls and global accesses require an
+unsafe context, including signatures containing only scalars. Data pointers
+retain their C# pointee types. See [native bindings](/raw-values/).
 
 ## SPI, errors and cancellation
 

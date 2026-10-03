@@ -97,15 +97,14 @@ public static unsafe partial class CustomScanHookFunctions
     /// <summary>
     /// Observes real PostgreSQL planner state and preserves the previously installed hook and error boundary.
     /// </summary>
-    private static void SetPaths(nint root, nint relation, uint index, nint entry)
+    private static void SetPaths(PlannerInfo* root, RelOptInfo* relation, uint index, RangeTblEntry* entry)
     {
         if (!s_previous.IsNull)
         {
             s_previous.Invoke(root, relation, index, entry);
         }
 
-        var range = (RangeTblEntry*)entry;
-        if (range->rtekind != RTEKind.RTE_RELATION || range->relid != s_relation)
+        if (entry->rtekind != RTEKind.RTE_RELATION || entry->relid != s_relation)
         {
             return;
         }
@@ -113,16 +112,14 @@ public static unsafe partial class CustomScanHookFunctions
         s_counts[0]++;
         try
         {
-            var planner = (PlannerInfo*)root;
-            var target = (RelOptInfo*)relation;
             s_index = index;
-            s_arguments &= index > 0 && index < planner->simple_rel_array_size && target->relid == index &&
-                ((nint*)planner->simple_rel_array)[index] == relation && ((nint*)planner->simple_rte_array)[index] == entry;
-            int count = NativeMethods.list_length(target->pathlist);
+            s_arguments &= index > 0 && index < root->simple_rel_array_size && relation->relid == index &&
+                root->simple_rel_array[index] == relation && root->simple_rte_array[index] == entry;
+            int count = NativeMethods.list_length(relation->pathlist);
             s_unwrapped &= count > 0;
             for (int offset = 0; offset < count; offset++)
             {
-                var path = (Ankus.Postgres.Path*)NativeMethods.list_nth(target->pathlist, offset);
+                var path = (Ankus.Postgres.Path*)NativeMethods.list_nth(relation->pathlist, offset);
                 s_unwrapped &= path->pathtype == NodeTag.T_SeqScan;
             }
 
@@ -137,7 +134,7 @@ public static unsafe partial class CustomScanHookFunctions
             {
                 fixed (byte* name = "Ankus missing predecessor\0"u8)
                 {
-                    _ = NativeMethods.GetCustomScanMethods((nint)name, false);
+                    _ = NativeMethods.GetCustomScanMethods((sbyte*)name, false);
                 }
             }
         }

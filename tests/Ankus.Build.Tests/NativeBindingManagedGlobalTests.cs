@@ -104,7 +104,7 @@ public sealed partial class NativeBindingNativeTests
         const string Harness = """
             public static class BindingAssertions
             {
-                public static long[] Run()
+                public static unsafe long[] Run()
                 {
                     using NativeCallTestBridge.Scope scope = new();
                     NativeGlobals.empty = NativeGlobals.empty;
@@ -112,7 +112,7 @@ public sealed partial class NativeBindingNativeTests
                     NativeGlobals.empty = NativeGlobals.constant_empty;
                     NativeGlobals.bytes = NativeGlobals.observed_bytes;
                     NativeGlobals.writable = NativeGlobals.readonly_value;
-                    return [NativeGlobals.DangerousAddressOf_empty() != 0 ? 1 : 0, NativeGlobals.DangerousAddressOf_bytes() != 0 ? 1 : 0,
+                    return [NativeGlobals.DangerousAddressOf_empty() != null ? 1 : 0, NativeGlobals.DangerousAddressOf_bytes() != null ? 1 : 0,
                         typeof(NativeGlobals).GetProperty("empty")!.PropertyType != typeof(NativeGlobals).GetProperty("bytes")!.PropertyType ? 1 : 0,
                         scope.Invocations];
                 }
@@ -131,15 +131,15 @@ public sealed partial class NativeBindingNativeTests
         const string Harness = """
             public static class BindingAssertions
             {
-                public static long[] Run()
+                public static unsafe long[] Run()
                 {
                     using NativeCallTestBridge.Scope scope = new();
                     int before = NativeGlobals.current;
                     NativeGlobals.current = 41;
-                    nint outerAddress = NativeGlobals.DangerousAddressOf_current();
+                    int* outerAddress = NativeGlobals.DangerousAddressOf_current();
                     int childBefore = 0;
                     int childAfter = 0;
-                    nint childAddress = 0;
+                    int* childAddress = null;
                     Exception? failure = null;
                     System.Threading.Thread thread = new(() =>
                     {
@@ -156,7 +156,7 @@ public sealed partial class NativeBindingNativeTests
                     thread.Start();
                     thread.Join();
                     if (failure is not null) { throw failure; }
-                    return [before, childBefore, childAfter, NativeGlobals.current, childAddress != 0 && childAddress != outerAddress ? 1 : 0,
+                    return [before, childBefore, childAfter, NativeGlobals.current, childAddress != null && childAddress != outerAddress ? 1 : 0,
                         NativeGlobals.DangerousAddressOf_current() == outerAddress ? 1 : 0];
                 }
             }
@@ -186,7 +186,7 @@ public sealed partial class NativeBindingNativeTests
         const string Harness = """
             public static class BindingAssertions
             {
-                public static long[] Run()
+                public static unsafe long[] Run()
                 {
                     using NativeCallTestBridge.Scope scope = new();
                     int before = NativeGlobals.current;
@@ -195,7 +195,7 @@ public sealed partial class NativeBindingNativeTests
                     int changed = NativeGlobals.current;
                     ulong secondObserved = NativeGlobals.observed;
                     NativeGlobals.current = -19;
-                    nint originalAddress = NativeMethods.current_address();
+                    int* originalAddress = (int*)NativeMethods.current_address();
                     bool identity = NativeGlobals.DangerousAddressOf_current() == originalAddress && NativeGlobals.fixed_address == originalAddress;
                     NativeGlobals.address = originalAddress;
                     State state = NativeGlobals.state;
@@ -236,7 +236,7 @@ public sealed partial class NativeBindingNativeTests
         const string Harness = """
             public static class BindingAssertions
             {
-                public static long[] Run()
+                public static unsafe long[] Run()
                 {
                     int absent = 0;
                     try { _ = NativeGlobals.current; }

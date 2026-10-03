@@ -239,7 +239,7 @@ public sealed partial class ToolCommandTests
     private const string NativeHookSource = """
         using Ankus;
         using Ankus.Postgres;
-        public static partial class BindingHookCallbacks
+        public static unsafe partial class BindingHookCallbacks
         {
             private static ExecutorStart_hook_type s_previous;
             private static ExecutorStart_hook_type s_inner;
@@ -254,7 +254,7 @@ public sealed partial class ToolCommandTests
             [PgNativeCallback(nameof(InnerStart))]
             private static partial ExecutorStart_hook_type Inner { get; }
 
-            private static void OuterStart(nint query, int flags)
+            private static void OuterStart(QueryDesc* query, int flags)
             {
                 s_calls++;
                 s_order.Clear();
@@ -263,7 +263,7 @@ public sealed partial class ToolCommandTests
                 s_order.Add(4);
             }
 
-            private static void InnerStart(nint query, int flags)
+            private static void InnerStart(QueryDesc* query, int flags)
             {
                 s_order.Add(2);
                 if (s_reject)
@@ -352,8 +352,9 @@ public sealed partial class ToolCommandTests
                 {
                     s_initializerPid = System.Environment.ProcessId;
                     s_loadSql = TrySql();
-                    ulong value = 0xFEDCBA9876543210UL;
-                    s_initializedValue = Second.Invoke((nint)(&value));
+                    byte* storage = stackalloc byte[sizeof(FunctionCallInfoBaseData) + sizeof(NullableDatum)];
+                    FunctionCallInfoBaseData* frame = InitializeFrame(storage, 0xFEDCBA9876543210UL);
+                    s_initializedValue = Second.Invoke(frame);
                     if (fail)
                     {
                         throw new PgException("22023", "module registration failure", "owned registration detail", "retry registration");
@@ -401,8 +402,9 @@ public sealed partial class ToolCommandTests
 
             public static string[] NativeCallbackLifecycle(int input)
             {
-                ulong value = (ulong)input;
-                ulong result = Second.Invoke((nint)(&value));
+                byte* storage = stackalloc byte[sizeof(FunctionCallInfoBaseData) + sizeof(NullableDatum)];
+                FunctionCallInfoBaseData* frame = InitializeFrame(storage, (ulong)input);
+                ulong result = Second.Invoke(frame);
                 return [System.Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture),
                     s_initializerPid.ToString(System.Globalization.CultureInfo.InvariantCulture),
                     s_initializations.ToString(System.Globalization.CultureInfo.InvariantCulture),
@@ -428,14 +430,26 @@ public sealed partial class ToolCommandTests
             private static partial PGFunction Unused { get; }
 
             [System.Runtime.InteropServices.LibraryImport("Ankus.NativeBodies", EntryPoint = "ankus_callback_must_be_trimmed")]
-            private static partial ulong Missing(nint address);
+            private static partial ulong Missing(FunctionCallInfoBaseData* address);
 
-            private static ulong HandleUnused(nint address) => Missing(address);
+            private static ulong HandleUnused(FunctionCallInfoBaseData* address) => Missing(address);
 
-            private static ulong HandleFirst(nint address)
+            private static FunctionCallInfoBaseData* InitializeFrame(void* storage, ulong value)
+            {
+                var frame = (FunctionCallInfoBaseData*)storage;
+                *frame = new() { nargs = 1 };
+                FunctionCallInfoBaseData.Dangerous_args(frame, 1)[0] = new() { value = value };
+                return frame;
+            }
+
+            private static ulong HandleFirst(FunctionCallInfoBaseData* address)
             {
                 s_calls++;
-                s_borrow = PgMemoryContext.Current.DangerousBorrow<ulong>((void*)address)!;
+                fixed (NullableDatum* argument = FunctionCallInfoBaseData.Dangerous_args(address, address->nargs))
+                {
+                    s_borrow = PgMemoryContext.Current.DangerousBorrow<ulong>(&argument->value)!;
+                }
+
                 ulong value = s_borrow.Value;
                 if (value == 0)
                 {
@@ -450,14 +464,14 @@ public sealed partial class ToolCommandTests
                 return value ^ 0x1000000000000000UL;
             }
 
-            private static ulong HandleSecond(nint address)
+            private static ulong HandleSecond(FunctionCallInfoBaseData* address)
             {
                 if (s_loading)
                 {
                     s_nestedLoadSql = TrySql();
                 }
 
-                return *(ulong*)address ^ 0x0100000000000000UL;
+                return FunctionCallInfoBaseData.Dangerous_args(address, address->nargs)[0].value ^ 0x0100000000000000UL;
             }
 
             private static string TrySql()
@@ -476,8 +490,8 @@ public sealed partial class ToolCommandTests
             {
                 s_calls = 0;
                 using PgMemoryContext owner = PgMemoryContext.Create("managed native callbacks");
-                using PgNativeBox<ulong> input = owner.CreateBox(0xFEDCBA9876543210UL);
-                nint address = (nint)input.DangerousGetPointer();
+                using PgAllocation input = owner.AllocateZeroed((nuint)sizeof(FunctionCallInfoBaseData) + (nuint)sizeof(NullableDatum));
+                FunctionCallInfoBaseData* address = InitializeFrame(input.DangerousGetPointer(), 0xFEDCBA9876543210UL);
                 PGFunction first = First;
                 PGFunction second = Second;
                 ulong left = owner.Run(() => first.Invoke(address));
@@ -490,7 +504,7 @@ public sealed partial class ToolCommandTests
                     first.DangerousGetAddress() != second.DangerousGetAddress();
                 string managed = "missing";
                 string native = "missing";
-                input.Value = 0;
+                FunctionCallInfoBaseData.Dangerous_args(address, 1)[0] = new() { value = 0 };
                 try
                 {
                     PgTransaction.RunInSubtransaction(() => first.Invoke(address));
@@ -500,7 +514,7 @@ public sealed partial class ToolCommandTests
                     managed = $"{error.SqlState}|{error.Message}|{error.Detail}|{error.Hint}";
                 }
 
-                input.Value = 1;
+                FunctionCallInfoBaseData.Dangerous_args(address, 1)[0] = new() { value = 1 };
                 try
                 {
                     PgTransaction.RunInSubtransaction(() => first.Invoke(address));
@@ -510,7 +524,7 @@ public sealed partial class ToolCommandTests
                     native = $"{error.SqlState}|{error.Message}";
                 }
 
-                input.Value = 0xFEDCBA9876543210UL;
+                FunctionCallInfoBaseData.Dangerous_args(address, 1)[0] = new() { value = 0xFEDCBA9876543210UL };
                 ulong recovered = first.Invoke(address);
                 owner.Reset();
                 bool expired = false;

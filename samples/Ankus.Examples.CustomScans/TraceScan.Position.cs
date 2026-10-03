@@ -22,20 +22,20 @@ public static unsafe partial class TraceScan
     /// <summary>
     /// Lets the child own its mark rather than saving a tuple or a borrowed slot address.
     /// </summary>
-    private static void Mark(nint address)
+    private static void Mark(CustomScanState* address)
     {
         var state = (State*)address;
-        NativeMethods.ExecMarkPos(NativeMethods.list_nth(state->_scan.custom_ps, 0));
+        NativeMethods.ExecMarkPos((PlanState*)NativeMethods.list_nth(state->_scan.custom_ps, 0));
         state->_marks++;
     }
 
     /// <summary>
     /// Restores the native child through the error guard without assuming the old result slot is still valid.
     /// </summary>
-    private static void Restore(nint address)
+    private static void Restore(CustomScanState* address)
     {
         var state = (State*)address;
-        NativeMethods.ExecRestrPos(NativeMethods.list_nth(state->_scan.custom_ps, 0));
+        NativeMethods.ExecRestrPos((PlanState*)NativeMethods.list_nth(state->_scan.custom_ps, 0));
         state->_restores++;
     }
 }

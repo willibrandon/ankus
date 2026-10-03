@@ -38,14 +38,14 @@ public static unsafe partial class NativeFieldCallbackFunctions
             using PgNativeBox<TupleTableSlot> slot = owner.CreateBox<TupleTableSlot>(default);
             CustomScanState value = default;
             value.ss.ps.type = NodeTag.T_CustomScanState;
-            value.ss.ss_ScanTupleSlot = (nint)slot.DangerousGetPointer();
+            value.ss.ss_ScanTupleSlot = (TupleTableSlot*)slot.DangerousGetPointer();
             value.flags = 7;
             using PgNativeBox<CustomScanState> state = owner.CreateBox(value);
             using PgNativeBox<CustomExecMethods> methods = owner.CreateBox(new CustomExecMethods { ExecCustomScan = Execute });
             CustomExecMethods_ExecCustomScanCallback callback = methods.Value.ExecCustomScan;
-            nint first = callback.Invoke((nint)state.DangerousGetPointer());
-            nint second = methods.Value.ExecCustomScan.Invoke((nint)state.DangerousGetPointer());
-            return $"{state.Value.flags}|{first == (nint)slot.DangerousGetPointer()}|{second == first}|" +
+            TupleTableSlot* first = callback.Invoke((CustomScanState*)state.DangerousGetPointer());
+            TupleTableSlot* second = methods.Value.ExecCustomScan.Invoke((CustomScanState*)state.DangerousGetPointer());
+            return $"{state.Value.flags}|{first == slot.DangerousGetPointer()}|{second == first}|" +
                 $"{callback.DangerousGetAddress() == Execute.DangerousGetAddress()}";
         }
         finally
@@ -64,12 +64,11 @@ public static unsafe partial class NativeFieldCallbackFunctions
     /// <summary>
     /// Mutates original native bytes, returns the original slot address and supplies controlled managed and native errors.
     /// </summary>
-    private static nint ExecuteScan(nint address)
+    private static TupleTableSlot* ExecuteScan(CustomScanState* state)
     {
         s_calls++;
         try
         {
-            var state = (CustomScanState*)address;
             state->flags++;
             if (s_mode == 1)
             {

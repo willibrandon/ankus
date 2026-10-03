@@ -132,11 +132,14 @@ public static class SpiSelectionFunctions
     public static string SelectionPreservesChildIdentity(int mode)
         => PgTransaction.RunInSubtransaction(() =>
         {
-            bool outerAssigned = Ankus.Postgres.NativeMethods.GetTopTransactionIdIfAny() != 0;
-            bool before = Ankus.Postgres.NativeMethods.GetCurrentTransactionIdIfAny() != 0;
-            int value = SelectNumber("SELECT 42", mode);
-            bool after = Ankus.Postgres.NativeMethods.GetCurrentTransactionIdIfAny() != 0;
-            return $"{outerAssigned}|{before}|{value}|{after}";
+            unsafe
+            {
+                bool outerAssigned = Ankus.Postgres.NativeMethods.GetTopTransactionIdIfAny() != 0;
+                bool before = Ankus.Postgres.NativeMethods.GetCurrentTransactionIdIfAny() != 0;
+                int value = SelectNumber("SELECT 42", mode);
+                bool after = Ankus.Postgres.NativeMethods.GetCurrentTransactionIdIfAny() != 0;
+                return $"{outerAssigned}|{before}|{value}|{after}";
+            }
         });
 
     /// <summary>

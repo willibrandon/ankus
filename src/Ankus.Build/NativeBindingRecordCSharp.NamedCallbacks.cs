@@ -64,7 +64,7 @@ internal static partial class NativeBindingRecordCSharp
                 Line("/// <remarks>This value shares its canonical pointer's representation and does not own or extend the callback lifetime.</remarks>");
                 Line($"[global::Ankus.CompilerServices.NativeFunctionPointer({Number(call.FunctionType)})]");
                 Line("[global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]");
-                Line($"public readonly struct @{name}(nint address) : global::Ankus.IPgNativeType\n{{");
+                Line($"public readonly unsafe struct @{name}(void* address) : global::Ankus.IPgNativeType\n{{");
                 NativeRecordType storage = graph.Types[call.PointerType];
                 Identity(Size(storage.Size), storage.Alignment!.Value);
                 Summary("Retains the shared canonical callback value.", "    ");
@@ -72,7 +72,7 @@ internal static partial class NativeBindingRecordCSharp
                 Summary("Reports whether this value contains no native target.", "    ");
                 Line("    public bool IsNull => _value.IsNull;\n");
                 Summary("Returns the borrowed address without establishing native ownership or callback lifetime.", "    ");
-                Line("    public nint DangerousGetAddress() => _value.DangerousGetAddress();\n");
+                Line("    public void* DangerousGetAddress() => _value.DangerousGetAddress();\n");
                 Summary("Preserves the address when assigning this callback to its native storage.", "    ");
                 Line("    /// <param name=\"value\">The borrowed named callback.</param>");
                 Line("    /// <returns>The same address with its canonical native signature.</returns>");
@@ -98,6 +98,7 @@ internal static partial class NativeBindingRecordCSharp
                     }
 
                     Line("    /// <remarks>Requires the matching native binding and an active backend callback.</remarks>");
+                    Line("    [global::Ankus.CompilerServices.NativeUnsafeAccess]");
                     Line($"    public {result} Invoke({string.Join(", ", parameters)}) => _value.Invoke({string.Join(", ", arguments)});\n");
                 }
 

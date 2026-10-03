@@ -61,9 +61,9 @@ public sealed partial class NativeBindingNativeTests
                     int result = NativeMethods.checksum();
                     int original = NativeGlobals.observed;
                     NativeGlobals.observed = -41;
-                    nint address = NativeGlobals.DangerousAddressOf_observed();
+                    int* address = NativeGlobals.DangerousAddressOf_observed();
                     int indirect = NativeMethods.get_callback().Invoke(37);
-                    Console.WriteLine($"{rejected},{result},{payload.bytes[0]},{payload.bytes[8191]},{original},{*(int*)address},{NativeMethods.checksum()},{indirect},{scope.Validations},{scope.Invocations}");
+                    Console.WriteLine($"{rejected},{result},{payload.bytes[0]},{payload.bytes[8191]},{original},{*address},{NativeMethods.checksum()},{indirect},{scope.Validations},{scope.Invocations}");
                 }
             }
             """;

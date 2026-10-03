@@ -19,17 +19,17 @@ public sealed partial class NativeBindingNativeTests
         const string Harness = """
             public static class BindingAssertions
             {
-                public static long[] Run()
+                public static unsafe long[] Run()
                 {
                     using NativeCallTestBridge.Scope scope = new();
                     Carrier value = NativeGlobals.state;
                     int originallyNull = value.variable.IsNull && value.legacy.IsNull && value.opaque.IsNull ? 1 : 0;
-                    value.variable = new Variadic(123);
-                    value.legacy = new Unprototyped(456);
-                    value.opaque = new Incomplete(789);
+                    value.variable = new Variadic((void*)123);
+                    value.legacy = new Unprototyped((void*)456);
+                    value.opaque = new Incomplete((void*)789);
                     NativeGlobals.state = value;
                     Carrier recovered = NativeGlobals.state;
-                    return [originallyNull, recovered.variable.DangerousGetAddress(), recovered.legacy.DangerousGetAddress(), recovered.opaque.DangerousGetAddress(),
+                    return [originallyNull, (nint)recovered.variable.DangerousGetAddress(), (nint)recovered.legacy.DangerousGetAddress(), (nint)recovered.opaque.DangerousGetAddress(),
                         typeof(Variadic).GetMethod("Invoke") is null ? 1 : 0, typeof(Unprototyped).GetMethod("Invoke") is null ? 1 : 0,
                         typeof(Incomplete).GetMethod("Invoke") is null ? 1 : 0, scope.Validations, scope.Invocations];
                 }
@@ -84,7 +84,7 @@ public sealed partial class NativeBindingNativeTests
         const string Harness = """
             public static class BindingAssertions
             {
-                public static long[] Run()
+                public static unsafe long[] Run()
                 {
                     Operation operation;
                     using (NativeCallTestBridge.Scope factory = new())
@@ -300,7 +300,7 @@ public sealed partial class NativeBindingNativeTests
         const string Harness = """
             public static class BindingAssertions
             {
-                public static long[] Run()
+                public static unsafe long[] Run()
                 {
                     using NativeCallTestBridge.Scope scope = new();
                     Arithmetic first = NativeMethods.choose(0);

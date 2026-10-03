@@ -421,7 +421,7 @@ public static class AggregateFunctions
         {
             fixed (byte* name = "ankus_missing_aggregate_cleanup\0"u8)
             {
-                _ = Ankus.Postgres.NativeMethods.GetCustomScanMethods((nint)name, false);
+                _ = Ankus.Postgres.NativeMethods.GetCustomScanMethods((sbyte*)name, false);
             }
         }
         catch (Exception exception)

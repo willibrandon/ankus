@@ -41,13 +41,20 @@ pointers. Structs, unions, inline arrays and bitfields retain their measured
 storage; bitfield writes reject out-of-range values. Extended numeric and atomic
 representations expose bytes when no exact CLR value exists. Those bytes do not
 provide native arithmetic or atomic operations. Opaque declarations expose
-metadata and require an existing native address.
+pointer identities and metadata. They do not implement the native allocation
+contract; use an existing native pointer instead of allocating an incomplete type.
 
 Embedded structs, unions and fixed arrays can be edited in place. Unions share
 storage exactly as they do in C; only read the active representation. Flexible
-arrays expose `Dangerous_<field>` methods that require a live native address and
+arrays expose `Dangerous_<field>` methods that require a pointer to their owning record and
 the actual number of trailing elements. Their storage is outside the fixed
 managed value.
+
+Arrays of data pointers use generated readonly pointer values because C# does
+not allow pointer types as generic arguments. These values preserve the exact
+pointer type and native stride while supporting inline arrays and `Span<T>`.
+Their pointer conversions and `DangerousGetAddress()` require an unsafe context;
+copying a value or checking `IsNull` does not extend its native lifetime.
 
 Anonymous structs and unions promote their members directly onto the enclosing
 record, matching C access such as `transaction.commit_time`. Their fields retain
@@ -57,8 +64,10 @@ Unnamed containers do not acquire separate allocation types or synthetic
 Promoted function pointers use the enclosing record's callback name, such as
 `Methods_applyCallback` for `Methods.apply`.
 
-These are raw native representations. Data pointers hold `nint` addresses;
-function pointers use generated types with their native signatures. Neither
+These are raw native representations. Data pointers use C# pointer types such
+as `Node*`, `void*` and `Node**`; function pointers use generated values with
+their native signatures. Transport preserves every address bit even when the
+consumer project enables checked arithmetic. Neither
 owns or validates the pointed-to storage.
 Creating a managed struct does not allocate a PostgreSQL node, and setting its
 tag does not establish native ownership.
@@ -148,15 +157,26 @@ headers. Calls require an active PostgreSQL callback, including functions whose
 C implementation only computes a value:
 
 ```csharp
-FullTransactionId value = NativeMethods.FullTransactionIdFromU64(0xFEDCBA9876543210UL);
-ulong exactValue = value.value;
+unsafe
+{
+    FullTransactionId value = NativeMethods.FullTransactionIdFromU64(0xFEDCBA9876543210UL);
+    ulong exactValue = value.value;
+}
 ```
 
 Arguments and results preserve the native types and complete object bytes.
-Data pointers use `nint`; the caller must supply valid addresses, keep their owners
+Data pointers retain their pointee types; the caller must supply valid addresses, keep their owners
 alive, and follow the native function's allocation and lifetime rules. Prefer
 Ankus's checked APIs when they cover the operation you need. Publishing includes
 native bodies only for methods referenced by the extension.
+
+Raw calls, raw global accesses and native function-pointer invocations require
+an explicit unsafe context. Pointer signatures enforce this through the C#
+compiler; `ANKUS129` also checks operations whose signatures contain only
+scalars. Use an `unsafe` block for those calls. Assigning a raw method to a
+delegate requires the same acknowledgment. The native error guard still applies;
+`unsafe` acknowledges the caller's native storage and backend obligations.
+Checked APIs such as `PgNodes`, `PgFunctions` and `Spi` remain usable in safe code.
 
 The same class includes selected-header helpers for alignment, memory contexts,
 transaction IDs, buffers, pages, and heap tuples. Macros such as `TYPEALIGN`,
@@ -165,8 +185,11 @@ are evaluated once and their pointer and integer values retain PostgreSQL's
 semantics:
 
 ```csharp
-ulong alignedLength = NativeMethods.TYPEALIGN(8, 13); // 16
-ulong pageHeaderBytes = NativeMethods.SizeOfPageHeaderData();
+unsafe
+{
+    ulong alignedLength = NativeMethods.TYPEALIGN(8, 13); // 16
+    ulong pageHeaderBytes = NativeMethods.SizeOfPageHeaderData();
+}
 ```
 
 Signatures follow the selected PostgreSQL version, including native `const` and
@@ -202,8 +225,11 @@ native error guard. Every access requires an active backend callback and the
 matching native binding:
 
 ```csharp
-int backendProcessId = NativeGlobals.MyProcPid;
-nint currentContext = NativeGlobals.CurrentMemoryContext;
+unsafe
+{
+    int backendProcessId = NativeGlobals.MyProcPid;
+    MemoryContextData* currentContext = NativeGlobals.CurrentMemoryContext;
+}
 ```
 
 Values are copies. To change an array or record, read it into a local, modify
@@ -217,7 +243,7 @@ it an atomic snapshot. Follow PostgreSQL's synchronization and ownership rules.
 objects and arrays expose only this address; Ankus does not invent an unknown
 size or array bound. These addresses retain native const/volatile, ownership and
 lifetime requirements. A thread-local address belongs to the current backend
-thread. Data pointers use `nint`; function pointers use the typed borrowed values
+thread. Data pointers retain their pointee types; function pointers use the typed borrowed values
 described below. Assigning a function address does not register or root a managed
 callback.
 
@@ -240,9 +266,12 @@ the record and field rather than a collected type index. For example, given
 an initialized `CustomExecMethods` table and a valid `CustomScanState` address:
 
 ```csharp
-CustomExecMethods_ExecCustomScanCallback execute = methods.ExecCustomScan;
-methods.ExecCustomScan = execute;
-nint slot = execute.Invoke(scanStateAddress);
+unsafe
+{
+    CustomExecMethods_ExecCustomScanCallback execute = methods.ExecCustomScan;
+    methods.ExecCustomScan = execute;
+    TupleTableSlot* slot = execute.Invoke(scanStateAddress);
+}
 ```
 
 Conversions between the field-specific type and the field's canonical type
@@ -256,7 +285,10 @@ stable name even when an unrelated typedef becomes the canonical name for its
 signature in another PostgreSQL version:
 
 ```csharp
-NativeGlobals_shmem_startup_hookCallback previous = NativeGlobals.shmem_startup_hook;
+unsafe
+{
+    NativeGlobals_shmem_startup_hookCallback previous = NativeGlobals.shmem_startup_hook;
+}
 ```
 
 Use a field- or global-specific type with `[PgNativeCallback]` to declare a
@@ -271,8 +303,11 @@ initialized native `FmgrInfo` value and a valid, populated native function-call
 frame:
 
 ```csharp
-PGFunction target = functionInfo.fn_addr;
-ulong datum = target.Invoke(callInfoAddress);
+unsafe
+{
+    PGFunction target = functionInfo.fn_addr;
+    ulong datum = target.Invoke(callInfoAddress);
+}
 ```
 
 This low-level call preserves the native datum bits. The caller supplies the
@@ -286,8 +321,8 @@ or frame allocation. Native errors become `PgException`; use an explicit
 subtransaction when recovery needs rollback, as with fixed native functions.
 Publishing includes only the invocation bodies used by the extension.
 
-`IsNull` inspects the stored address. `DangerousGetAddress()` returns it, and the
-constructor accepts an address whose signature and lifetime the caller guarantees.
+`IsNull` inspects the stored address. `DangerousGetAddress()` returns `void*`, and
+the constructor accepts `void*` whose signature and lifetime the caller guarantees.
 Copying or storing a value does not extend its target's lifetime. Use
 `[PgNativeCallback]` to obtain a guarded native address for a static managed handler.
 
@@ -309,7 +344,7 @@ For example, install an executor hook and retain the previous hook explicitly:
 using Ankus;
 using Ankus.Postgres;
 
-public static partial class ExecutorHooks
+public static unsafe partial class ExecutorHooks
 {
     private static ExecutorStart_hook_type s_previous;
     private static bool s_installed;
@@ -330,7 +365,7 @@ public static partial class ExecutorHooks
         s_installed = true;
     }
 
-    private static void OnExecutorStart(nint query, int flags)
+    private static void OnExecutorStart(QueryDesc* query, int flags)
     {
         if (s_previous.IsNull)
         {

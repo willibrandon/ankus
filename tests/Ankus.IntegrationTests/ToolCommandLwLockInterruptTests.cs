@@ -98,8 +98,11 @@ public sealed partial class ToolCommandTests
                 Stage.Value = 1;
                 if (cancel)
                 {
-                    NativeGlobals.QueryCancelPending = 1;
-                    NativeGlobals.InterruptPending = 1;
+                    unsafe
+                    {
+                        NativeGlobals.QueryCancelPending = 1;
+                        NativeGlobals.InterruptPending = 1;
+                    }
                 }
 
                 PgInterrupts.Check();
@@ -110,7 +113,13 @@ public sealed partial class ToolCommandTests
             public static int LockedStage() => Stage.Value;
 
             [PgFunction]
-            public static int LockedHoldoff() => checked((int)NativeGlobals.InterruptHoldoffCount);
+            public static int LockedHoldoff()
+            {
+                unsafe
+                {
+                    return checked((int)NativeGlobals.InterruptHoldoffCount);
+                }
+            }
 
             [PgFunction]
             public static int LockedValue()

@@ -156,7 +156,7 @@ public sealed partial class NativeBindingNativeTests
                     value->left.count = 23;
                     value->right.count = 47;
                     value->count = 3;
-                    Span<byte> tail = Promoted.Dangerous_tail((nint)value, 3);
+                    Span<byte> tail = Promoted.Dangerous_tail(value, 3);
                     tail[2] = 201;
                     fixed (byte* start = tail)
                     {
@@ -205,7 +205,7 @@ public sealed partial class NativeBindingNativeTests
         const string Harness = """
             public static class BindingAssertions
             {
-                public static long[] Run()
+                public static unsafe long[] Run()
                 {
                     using NativeCallTestBridge.Scope scope = new();
                     Methods value = NativeMethods.get();

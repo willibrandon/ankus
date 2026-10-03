@@ -276,7 +276,7 @@ public sealed class NativeBindingManagedContractTests(TestContext context)
             public static class BindingAssertions
             {
                 public static long[] Run() => [Root.IsComplete ? 1 : 0, Root.NativeSize,
-                    typeof(Root).IsAbstract && typeof(Root).IsSealed ? 1 : 0];
+                    typeof(Root).IsValueType && !typeof(Ankus.IPgNativeType).IsAssignableFrom(typeof(Root)) ? 1 : 0];
             }
             """;
         Assert.AreSequenceEqual([1L, 0L, 1L], GeneratedBindingCompilation.Run(NativeBindingRecordCSharp.Generate(empty), Harness, context.CancellationToken));

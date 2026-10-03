@@ -24,7 +24,7 @@ public sealed partial class NativeBindingNativeTests
                 {
                     using NativeCallTestBridge.Scope scope = new();
                     int* values = stackalloc int[] { 17, -9, 11 };
-                    int result = NativeMethods.adjusted((nint)values, NativeMethods.operation());
+                    int result = NativeMethods.adjusted(values, NativeMethods.operation());
                     return [result, values[0], values[1], values[2], scope.Invocations];
                 }
             }
