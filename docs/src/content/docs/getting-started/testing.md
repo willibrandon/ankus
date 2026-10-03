@@ -240,6 +240,13 @@ Build logs and PostgreSQL logs remain under the extension project's
 on disposal. A failed build or extension load fails initialization and cleans up
 the resources it created.
 
+On Windows, the fixture also collects its server's Windows Event Log messages.
+Older PostgreSQL versions use that destination when the test host runs as a
+service. The test account needs read access to the Application event log;
+each cluster's diagnostics remain separate and are retained in its server log.
+Call `ReadServerLog()` to refresh that file while a Windows cluster is running.
+Disposing the cluster also collects its shutdown messages.
+
 If another process takes an automatically selected TCP port during startup, the fixture
 retries with a new isolated cluster and port. It allows up to three attempts
 within the original startup timeout, retaining each failed attempt's log and

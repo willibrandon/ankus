@@ -8,6 +8,7 @@
   <ItemGroup>
     <None Update="buildTransitive/Ankus.Testing.targets" Pack="true" PackagePath="buildTransitive/Ankus.Testing.targets" />
     <PackageReference Include="Npgsql" />
+    <PackageReference Include="System.Diagnostics.EventLog" />
     <ProjectReference Include="../Ankus.PgConfig/Ankus.PgConfig.csproj" />
     <ProjectReference Include="../Ankus.Runtime/Ankus.Runtime.csproj" />
   </ItemGroup>

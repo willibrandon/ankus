@@ -171,6 +171,10 @@ dotnet test --project tests/Ankus.IntegrationTests/Ankus.IntegrationTests.csproj
 Filtering still runs Native AOT publishing and cluster startup. Server logs are
 retained in `artifacts/test-logs`. A failure report includes the failing test's
 PostgreSQL session log.
+Windows fixtures retain their own Application-event messages in the same log,
+including PostgreSQL versions that route diagnostics there under a service
+token. The test account needs Application-log read access. Collection selects
+the cluster's unique event source; it does not collect unrelated machine events.
 The installed-tool Valgrind test also retains its final server log there before
 removing its development cluster, including when a native query fails.
 

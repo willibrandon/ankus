@@ -83,6 +83,9 @@ public sealed partial class ToolCommandTests(TestContext context)
         {
             ["NUGET_PACKAGES"] = Path.Combine(s_root, "NuGet packages"),
             ["MSBUILDDISABLENODEREUSE"] = "1",
+            // Generated projects use the selected installation even when it is outside standard discovery paths.
+            ["AnkusPostgresMajor"] = s_installation.Version.Major.ToString(CultureInfo.InvariantCulture),
+            ["AnkusPgConfigPath"] = s_installation.PgConfigPath,
             ["ANKUS_HOME"] = null,
             // Each consumer selects its SDK through global.json, independently of the test runner's SDK.
             ["MSBuildSDKsPath"] = null,

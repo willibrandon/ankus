@@ -13,6 +13,7 @@ public sealed class PostgresTestCluster : IAsyncDisposable
 {
     private readonly PostgresTestClusterOptions _options;
     private readonly IReadOnlyDictionary<string, string?> _environment;
+    private readonly PostgresTestLog _log;
     private readonly Lock _shutdownLock = new();
     private Task? _shutdownTask;
     private bool _startAttempted;
@@ -26,6 +27,7 @@ public sealed class PostgresTestCluster : IAsyncDisposable
         string? session = TestCommandContext.SessionDirectory;
         DataDirectory = Path.GetFullPath(Path.Combine(TestCommandContext.DataDirectory ?? options.DataDirectoryBase, invocation));
         LogFilePath = Path.GetFullPath(Path.Combine(options.LogDirectory, $"{invocation}.log"));
+        _log = new(LogFilePath);
         SocketDirectory = OperatingSystem.IsWindows()
             ? null
             : session is null
@@ -56,6 +58,10 @@ public sealed class PostgresTestCluster : IAsyncDisposable
     /// <summary>
     /// Gets the retained server log path.
     /// </summary>
+    /// <remarks>
+    /// On Windows, <see cref="ReadServerLog"/> refreshes this file with native file and Event Log messages.
+    /// Disposal also refreshes the file to retain shutdown diagnostics.
+    /// </remarks>
     public string LogFilePath { get; }
 
     /// <summary>
@@ -232,17 +238,7 @@ public sealed class PostgresTestCluster : IAsyncDisposable
     /// Reads the server log, including startup and shutdown diagnostics.
     /// </summary>
     /// <returns>The available log text.</returns>
-    public string ReadServerLog()
-    {
-        if (!File.Exists(LogFilePath))
-        {
-            return string.Empty;
-        }
-
-        using var stream = new FileStream(LogFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-        using var reader = new StreamReader(stream);
-        return reader.ReadToEnd();
-    }
+    public string ReadServerLog() => _log.Read();
 
     /// <summary>
     /// Stops PostgreSQL in fast mode and removes owned data and socket directories, retaining logs.
@@ -306,9 +302,20 @@ public sealed class PostgresTestCluster : IAsyncDisposable
         reservation?.Dispose();
         cancellationToken.ThrowIfCancellationRequested();
         _startAttempted = true;
+        string[] startupArguments =
+        [
+            "start", "-D", DataDirectory, "-l", _log.NativeFilePath, "-w", "-t", GetTimeoutSeconds(_options.StartupTimeout),
+        ];
+        if (OperatingSystem.IsWindows())
+        {
+            // Command-line configuration takes effect before loading configuration files,
+            // retaining startup errors as well as the service token's Event Log routing.
+            startupArguments = [.. startupArguments, "-o", "-c event_source=" + _log.EventSource];
+        }
+
         await ProcessRunner.RunCheckedAsync(
             Installation.PgCtlPath,
-            ["start", "-D", DataDirectory, "-l", LogFilePath, "-w", "-t", GetTimeoutSeconds(_options.StartupTimeout)],
+            startupArguments,
             _environment,
             cancellationToken,
             captureOutput: !OperatingSystem.IsWindows()).ConfigureAwait(false);
@@ -409,6 +416,7 @@ public sealed class PostgresTestCluster : IAsyncDisposable
             }
         }
 
+        _ = ReadServerLog();
         if (Directory.Exists(DataDirectory))
         {
             Directory.Delete(DataDirectory, recursive: true);

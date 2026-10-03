@@ -58,6 +58,9 @@ public string LogFilePath { get; }
 
 Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
 
+On Windows, [ReadServerLog()](/api/ankus.testing.postgrestestcluster/#member-2c0fe97e7f253997) refreshes this file with native file and Event Log messages.
+Disposal also refreshes the file to retain shutdown diagnostics.
+
 <a id="member-6d4577af6f62c281"></a>
 
 ### Port
