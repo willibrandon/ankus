@@ -176,6 +176,9 @@ compiler; `ANKUS129` also checks operations whose signatures contain only
 scalars. Use an `unsafe` block for those calls. Assigning a raw method to a
 delegate requires the same acknowledgment. The native error guard still applies;
 `unsafe` acknowledges the caller's native storage and backend obligations.
+For `ANKUS129`, the editor offers **Use an unsafe block** on supported block and
+expression bodies. The correction preserves the existing code and local scope;
+you still supply valid storage and follow PostgreSQL's ownership rules.
 Checked APIs such as `PgNodes`, `PgFunctions` and `Spi` remain usable in safe code.
 
 The same class includes selected-header helpers for alignment, memory contexts,

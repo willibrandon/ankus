@@ -35,7 +35,8 @@ extension's selected compiler, target framework or embedded runtime.
 The platform-fix milestone **bdb5d1c** selects embedded runtime and compiler host **10.0.12-ankus.4**,
 based on runtime fork commit `d23f4e7374cd3878dc5696fbc26ee6ecdddde1ca` and paired
 with the 10.0.12 Native AOT framework and compiler targets. Complete primary CI
-passes with **ankus.4**; additional-version and Intel acceptance is still in progress.
+passes with **ankus.4**; Intel acceptance also passes. Additional-version
+acceptance remains in progress.
 Servicing requires
 immutable patched-runtime and compiler packages, matching compiler selection,
 complete backend validation and extension rebuild/redeployment. Check current
@@ -52,8 +53,9 @@ and [maintenance/acceptance plan](docs/contributing/dotnet-support.md). Each
 declared .NET major must have actual evidence; SDK or package configuration is
 not runtime support proof.
 The .NET 11 plan also requires compiler memory-safety acceptance for raw calls,
-globals, callbacks and checked managed APIs. The current raw-pointer review
-remains open; changing pointer syntax alone does not establish that contract.
+globals, callbacks and checked managed APIs. Typed pointer contracts and explicit
+scalar-call unsafe contexts pass the current complete .NET 10 compositions;
+that evidence does not establish the future .NET 11 contract.
 
 ## Implementation status
 
@@ -69,8 +71,8 @@ defines the full scope; family-level implementation is not API-by-API completion
 | Generator caching | Detached equatable declaration/provider/reference models, declaration-relative locations and cached dispatcher/C/SQL artifacts across multi-declaration body edits and unrelated file insertion. Only selected SQL files are read, with the complete path catalog retained. | Broader precise diagnostics, useful semantic code fixes and final inventory audit remain required. |
 | Values and ownership | Documented scalar, array, composite, temporal, JSON, network, geometry, custom codec and raw datum contracts. Interval equality, hashing and ordering agree with PostgreSQL while retaining exact components; complete primary-platform CI passes. | Remaining mapped/container contracts, parsing/formatting ergonomics and complete source-case mapping remain required. |
 | Runtime performance | Owned binary PgNumeric, direct decimal coefficient encoding, native recovery/allocator tests and measured query comparisons. | Appropriately guarded pure operations, array costs and permanent benchmarks. Never weaken error recovery to reduce overhead. |
-| Native bindings | pgrx 0.19.3 inventories, matching PostgreSQL 19 beta 4 inputs and target-compiler ABI checks; focused binding checks cover all seven majors. | Full supported-major/platform tests, raw-call unsafe visibility and final inventory audit. |
-| Development CLI | Version/project selection, installation/registration, cluster lifecycle, run/connect, test/regress, property forwarding, environment selection, scriptable info and package prefixes. | Account/privilege selection, in-backend benchmarking and remaining inventoried CLI/platform contracts. |
+| Native bindings | pgrx 0.19.3 inventories, matching PostgreSQL 19 beta 4 inputs and target-compiler ABI checks; typed pointers and ANKUS129 make raw caller obligations explicit. Complete current primary-platform compositions pass, with focused binding checks on all seven majors. | Full supported-major/platform tests and final inventory audit. |
+| Development CLI | Version/project selection, installation/registration, cluster lifecycle, run/connect, test/regress, property forwarding, environment selection, scriptable info and package prefixes. | Persistent Windows diagnostic collection, account/privilege selection, in-backend benchmarking and remaining inventoried CLI/platform contracts. |
 | .NET templates | Version-matched ordinary extension and worker templates reuse the CLI assets and pin local tools. Optional xUnit/NUnit consumers exercise managed and named backend cases, ignore reasons, worker processes and cleanup alongside default MSTest consumers. Complete primary-platform CI passes. | Remaining discovery contracts and complete version/platform acceptance. |
 | API discoverability | Idiomatic attributed declarations, documented runtime APIs, named logging helpers and typed SPI interpolation. Compiler transport helpers are isolated in Ankus.CompilerServices and hidden from IntelliSense; complete primary-platform CI passes. | Remaining value/assertion helpers and final inventory audit. |
 | Packages and release | MIT license, Brandon Williams copyright, author/repository/project metadata and deliberate SDK/runtime boundaries. | Full release gates and supported-platform packages before publishing 0.1.0. |
@@ -92,6 +94,13 @@ extensions. Counts supplement the backend, ownership and recovery assertions.
 | Frozen 64-file pointer/diagnostic/fixture composition / runtime **ankus.4** | Linux x64 / 18.6 | 11,609 total; 11,592 passed; 17 platform skips; zero failures | 29m25.565s tests |
 | Same frozen composition / runtime | macOS ARM64 / 18.6 | 11,609 total; 11,580 passed; 29 platform skips; zero failures | 22m29.195s tests |
 | Same frozen composition / runtime | Windows x64 / 13.23 | 11,609 total; 11,584 passed; 25 platform skips; zero failures | 38m42.708s tests |
+| Frozen 66-file composition with ANKUS129 editor correction / runtime **ankus.4** | Linux x64 / 18.6 | 11,640 total; 11,623 passed; 17 platform skips; zero failures | 50m45.859s tests |
+| [CI 37145034638](https://github.com/willibrandon/ankus/actions/runs/37145034638), b9b7eb5 / runtime **ankus.4** | Linux x64 / 18 | 11,609 total; 11,592 passed; 17 platform skips; zero failures | 36m31s job |
+| Same CI / revision / runtime | macOS ARM64 / 18 | 11,609 total; 11,580 passed; 29 platform skips; zero failures | 26m35s job |
+| Same CI / revision / runtime | Windows x64 / 17 | 11,609 total; 11,584 passed; 25 platform skips; zero failures | 31m43s job |
+| [Version CI 37145038020](https://github.com/willibrandon/ankus/actions/runs/37145038020), b9b7eb5 / runtime **ankus.4** | macOS ARM64 / 16 | 11,609 total; 11,580 passed; 29 platform skips; zero failures | 26m32s job |
+| Same version CI / revision / runtime | Windows x64 / 13 | 11,609 total; 11,584 passed; 25 platform skips; zero failures | 33m51s job |
+| [Intel CI 37131051660](https://github.com/willibrandon/ankus/actions/runs/37131051660), 04f0a8a / runtime **ankus.4** | macOS x64 / 18.6 | 11,568 total; 11,541 passed; 27 platform skips; zero failures | 3h59m34s job |
 | [CI 37131029131](https://github.com/willibrandon/ankus/actions/runs/37131029131), 04f0a8a / runtime **ankus.4** | Linux x64 / 18 | 11,568 total; 11,553 passed; 15 platform skips; zero failures | 36m04s job |
 | Same CI / revision / runtime | macOS ARM64 / 18 | 11,568 total; 11,541 passed; 27 platform skips; zero failures | 26m50s job |
 | Same CI / revision / runtime | Windows x64 / 17 | 11,568 total; 11,543 passed; 25 platform skips; zero failures | 32m10s job |
@@ -130,14 +139,24 @@ passes.
 
 CI outcomes checked before every local milestone commit on **2026-10-03**:
 primary and docs runs on **04f0a8a** pass; the Windows 13 version failure
-is repaired locally, with all 80 failed cases passing in the completed suite,
-and awaits replacement service-context acceptance; Intel remains
-active. The complete outcome snapshot is retained with the validation evidence.
+is repaired, with all 80 failed cases passing in replacement service-context CI.
+Corrected Intel CI passes
+all six modules. The complete outcome snapshot is retained with the validation evidence.
 
-- Repairs and validation evidence are pushed through **04f0a8a**. The verified
-  Apple object-fixture correction is committed locally as **7fb9700**, and the
-  Windows diagnostic/selected-installation correction as **7251034**. Their
-  single push follows the completed local Windows run. Replacement
+- Repairs and validation evidence are pushed through **b9b7eb5**, including the
+  Apple object-fixture correction **7fb9700**, Windows diagnostic/selected-installation
+  correction **7251034**, and checked raw-pointer contracts **b9b7eb5**.
+  [Primary CI 37145034638](https://github.com/willibrandon/ankus/actions/runs/37145034638)
+  passes quality, all runtime jobs and all three complete suites. All eighteen
+  TRX reports were retained and independently counted above.
+  [Docs 37145034604](https://github.com/willibrandon/ankus/actions/runs/37145034604)
+  passes. [Platform versions 37145038020](https://github.com/willibrandon/ankus/actions/runs/37145038020)
+  passes both runtime jobs and the complete macOS 16 and Windows 13 suites;
+  their twelve reports were independently counted. Windows 13 passes in the
+  required service context: **11,609 total / 11,584 passed / 25 skips / zero
+  failures, 33m51s job**. All 80 original failed test names were matched to passing
+  outcomes. macOS 15 and Windows 18 suites remain active.
+  Earlier
   [primary CI 37131029131](https://github.com/willibrandon/ankus/actions/runs/37131029131),
   [docs 37131029115](https://github.com/willibrandon/ankus/actions/runs/37131029115),
   [platform versions 37131055805](https://github.com/willibrandon/ankus/actions/runs/37131055805)
@@ -178,11 +197,12 @@ active. The complete outcome snapshot is retained with the validation evidence.
   Windows 13.23 composition passes **11,609 total / 11,584 passed / 25 skips /
   zero failures, 38m42.708s**. All 80 originally failed cases pass. Release passes
   with zero warnings/errors (**57.76s**); all six reports and all 64 frozen source
-  identities verify. Replacement service-context CI is still required.
-  Intel remains active and retains two
-  package-consumer slots and its approved six-hour limit. These remaining active
-  workflows are not acceptance results.
-- The frozen raw native API correction is applied locally. Data pointers retain
+  identities verify. Replacement service-context CI now passes, as recorded above.
+  Intel now passes all six modules on **04f0a8a**, with **11,568 total /
+  11,541 passed / 27 skips / zero failures, 3h59m34s job**. All six reports were
+  retained and independently counted. It retains two package-consumer slots and
+  its approved six-hour limit. Active additional-version jobs are not acceptance results.
+- The frozen raw native API correction is pushed as **b9b7eb5**. Data pointers retain
   their C# pointee types; incomplete types have no allocation contract; typed
   carriers preserve native stride in generic containers. `ANKUS129` requires an
   explicit unsafe context for raw scalar operations and delegate assignments.
@@ -191,15 +211,16 @@ active. The complete outcome snapshot is retained with the validation evidence.
   The final 64-file composition passes complete Linux x64, macOS ARM64 and Windows
   x64 suites, Release and the documentation gates recorded above. All eighteen
   TRX reports and all 64 source identities verify. Windows uses PostgreSQL 13.23;
-  Linux and macOS use 18.6. This is interactive Windows evidence; service-context
-  CI remains required.
+  Linux and macOS use 18.6. This local Windows evidence is interactive; the
+  replacement service-context CI also passes independently.
   The preceding checked draft passes all 70 affected backend cases on each of
   PostgreSQL 13.23, 14.24, 15.19, 16.15, 17.11 and 19 beta 4. These focused checks
   do not replace complete version/platform acceptance.
   Original checked-address, helper-list and launcher/SDK failures, corrected
   regressions and the Apple object-fixture repair are retained in the
   [detailed evidence](docs/contributing/evidence/port-history.md#checked-raw-pointer-contracts-and-windows-service-diagnostics).
-  Replacement CI and remaining supported platform/version acceptance stay open.
+  Primary replacement CI and Windows 13 service-context acceptance pass;
+  remaining supported platform/version acceptance stays open.
 - Function/schema, operator/cast and aggregate declarations now have specific
   diagnostics, authored locations and correction links. Their accepted primary
   suites pass. The editor composition adds a semantic `ANKUS056` correction,
@@ -213,7 +234,23 @@ active. The complete outcome snapshot is retained with the validation evidence.
   the composed complete Linux suite and normal/no-build external package checks
   now pass. The correction is committed as **2de3069** and is included in the
   complete passing Linux, Windows 13 and Mac 15 compositions. The commit is
-  part of the platform-fix milestone; replacement runtime/platform CI remains required.
+  part of the platform-fix milestone; primary CI passes and remaining
+  version/platform acceptance stays open.
+  The current editor correction for **ANKUS129** offers an explicit unsafe block
+  for supported bodies. Runtime-owned symbol resolution rejects stale or foreign
+  targets; compilation checks reject invalid unsafe regions without hiding
+  unrelated compiler errors. Workspace tests execute original and corrected
+  consumers to prove evaluation, return/ref behavior, local scope and exceptions;
+  comments, cancellation, editor exports and real project-wide Fix All are also
+  checked. All **3,346 generator tests pass**. The final 66-file composition
+  passes complete Linux x64/PostgreSQL 18.6 acceptance: **11,640 total / 11,623
+  passed / 17 skips / zero failures, 50m45.859s**. Release passes with zero
+  warnings/errors (**1m53.210s**); API freshness checks **238 pages / 2,757 members**;
+  the site builds **286 pages** and checks with zero diagnostics. All six reports
+  and frozen source identities verify. A private site-gate launch omitted pnpm
+  from its parent PATH; resuming those gates with its installed absolute path
+  passes, without repeating the successful native suite. No runtime, analyzer
+  severity or warning suppression changes.
 - Intel macOS [37104402210](https://github.com/willibrandon/ankus/actions/runs/37104402210)
   retains its six-hour limit. Attempt one loses communication with its hosted
   runner after **2h00m14s**, without final integration reports. Attempt two
@@ -223,9 +260,10 @@ active. The complete outcome snapshot is retained with the validation evidence.
   **3h52m23.566s**; the slowest individual cases take about 29 minutes. All six
   failures involve temporary-path aliases: relative installation paths resolve
   incorrectly, and nested builds disagree about the physical project/home path.
-  The pending physical-root fixture repair addresses this mechanism and passes
-  the complete macOS ARM64/PostgreSQL 15 suite. Corrected Intel acceptance and
-  the first attempt's disconnect cause remain unresolved. All six Intel reports,
+  The committed physical-root fixture repair addresses this mechanism and passes
+  the complete macOS ARM64/PostgreSQL 15 suite. Corrected Intel acceptance on
+  **04f0a8a** now passes all six modules, as recorded above. The first attempt's
+  disconnect cause remains unresolved. All six reports from each Intel attempt,
   final logs and build timings are retained; no further timeout increase is needed
   to let this measured run finish.
 - [Platform-version CI 37117650497](https://github.com/willibrandon/ankus/actions/runs/37117650497)
@@ -281,15 +319,15 @@ active. The complete outcome snapshot is retained with the validation evidence.
   pass. The complete Linux x64/PostgreSQL 18.6 servicing suite also passes.
   The platform fixes are committed as **bdb5d1c**. Replacement primary CI on
   **04f0a8a** passes all three complete suites with the new **ankus.4** payload.
-  Corrected Intel and additional-version CI acceptance remain pending.
+  Corrected Intel acceptance passes; additional-version CI acceptance remains pending.
 
 ## Remaining work order
 
 The accepted declaration milestones have complete primary-platform CI evidence.
 The editor composition passes its full native suite and replacement primary CI.
-The Intel diagnostic retry completes with six path-related failures. Corrected
-Intel acceptance and an explanation of the earlier hosted-runner disconnect
-remain required.
+The Intel diagnostic retry exposed six path-related failures; the corrected
+complete Intel suite now passes. An explanation of the earlier hosted-runner
+disconnect and remaining version/platform acceptance are still required.
 
 1. Resolve discovered correctness and CI failures before accepting affected work.
 2. Finish the Intel timing milestone and complete supported-major/platform coverage, including Intel macOS and the macOS 15/16 library-suffix boundary.

@@ -24200,3 +24200,70 @@ The final complete Windows 13.23 composition also passes all 80 originally faile
 cases. Its native test command and Release command both exit zero. This is
 interactive evidence; replacement service-context CI and remaining supported
 version/platform acceptance are still required.
+
+### Replacement CI and Intel acceptance
+
+On **2026-10-03**, [primary CI 37145034638](https://github.com/willibrandon/ankus/actions/runs/37145034638)
+on **b9b7eb5 / ankus.4** passes quality, the runtime jobs and all six modules on
+each primary platform. All eighteen reports were retained and independently
+counted: Linux x64/PostgreSQL 18 has **11,592 passed / 17 platform skips**;
+macOS ARM64/PostgreSQL 18 has **11,580 passed / 29 skips**; Windows x64/PostgreSQL
+17 has **11,584 passed / 25 skips**. Each has **11,609 total and zero failures**.
+Job durations are **36m31s, 26m35s and 31m43s**, respectively. The matching docs
+run also passes.
+
+[Intel CI 37131051660](https://github.com/willibrandon/ankus/actions/runs/37131051660)
+on **04f0a8a / ankus.4 / PostgreSQL 18.6** now completes successfully:
+**11,568 total / 11,541 passed / 27 skips / zero failures**, **3h59m34s job**.
+All six reports were retained and independently counted. This confirms the
+physical-path repair for the six failures in the preceding complete attempt.
+It uses two package-consumer slots and the approved six-hour limit. This is
+acceptance of the recorded revision, not evidence for later changes. The first
+attempt's hosted-runner communication loss still has no established cause.
+
+[Version CI 37145038020](https://github.com/willibrandon/ankus/actions/runs/37145038020)
+on **b9b7eb5** also passes the complete macOS ARM64/PostgreSQL 16 suite:
+**11,609 total / 11,580 passed / 29 skips / zero failures**, **26m32s job**.
+Its six reports were independently counted. The replacement Windows 13 job
+also passes in the runner's actual service context: **11,609 total / 11,584
+passed / 25 skips / zero failures**, **33m51s job**. All six reports were counted,
+and every one of the original **80 failed test names** was matched to a passing
+outcome. This supplies the service-context evidence missing from the earlier
+interactive runs. macOS 15 and Windows 18 suites remain active; unfinished jobs
+do not establish acceptance.
+
+## Raw native editor correction
+
+The `ANKUS129` code fix resolves the actual runtime-owned attribute and offers
+an explicit unsafe block for compatible statement, expression and lambda
+bodies. It preserves original declarations and expressions, return/ref behavior,
+scope, ownership and comments. Compiler validation rejects incompatible regions
+while preserving unrelated errors. Roslyn's real BatchFixer handles project-wide
+edits without changing unrelated documents. No runtime guard, warning severity
+or consumer compiler option is changed.
+
+| Requirement | Executed regression evidence |
+| --- | --- |
+| Editor discovery | `NativeUnsafeFixIsExported` |
+| Evaluation, return/ref, local scope, lambdas and ownership | `NativeUnsafeFixPreservesManagedExecution` |
+| Original comments and exact exception | `NativeUnsafeFixPreservesCommentsAndThrow` |
+| Stale, foreign and incompatible contexts | `NativeUnsafeFixRejectsStaleOrInvalidContexts` |
+| Cancellation and disabled unsafe compilation | `NativeUnsafeFixHonorsCancellation`; `NativeUnsafeFixRequiresUnsafeCompilerSupport` |
+| Existing compiler errors remain available | `NativeUnsafeFixPreservesUnrelatedCompilerErrors` |
+| Real batch edits and unchanged unrelated documents | `NativeUnsafeFixAllPreservesOtherDocuments` |
+
+All **3,346 generator tests** pass. The exact final 66-file composition then
+passes plain unfiltered `dotnet test` on **Linux x64 / PostgreSQL 18.6 /
+runtime/compiler ankus.4**: **11,640 total / 11,623 passed / 17 platform skips /
+zero failures**, **50m45.859s**. All six reports were independently counted and
+all frozen identities verified. Release passes with zero warnings/errors
+(**1m53.210s**); API freshness checks **238 pages / 2,757 members**. Site build
+produces **286 pages** and site checking has zero errors, warnings or hints.
+The private launcher initially failed to resolve installed pnpm because its
+parent PATH omitted it. Only the site gates were resumed using the absolute
+tool path; restore, build and check then pass (**0.880s / 20.683s / 3.123s**).
+The successful native suite and Release/API gates were not repeated.
+
+Additional supported-platform acceptance remains required for this editor
+change. The separate persistent development-cluster diagnostic gap remains
+under development and is not included in this milestone.
