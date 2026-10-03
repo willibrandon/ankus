@@ -76,10 +76,14 @@ public sealed partial class NativeBindingNativeTests
             string output = Path.Combine(directory, "symbols.o");
             await File.WriteAllTextAsync(file, source, context.CancellationToken);
             string[] targetArguments = target is null ? [] : ["--target=" + target];
+            // These freestanding object fixtures use no platform headers. An explicit
+            // empty sysroot prevents a host macOS SDK from constraining other Apple targets.
+            string[] sysrootArguments = target?.Contains("-apple-", StringComparison.Ordinal) == true
+                ? ["-isysroot", directory] : [];
             string compiler = bigCoff ? "cl.exe" : OperatingSystem.IsWindows() ? "clang.exe" : "clang";
             string[] arguments = bigCoff
                 ? ["/nologo", "/W4", "/WX", "/O2", "/bigobj", "/c", "/Fo" + output, file]
-                : [.. targetArguments, "-ffreestanding", "-fcommon", "-O2", "-g", "-Wall", "-Wextra", "-Werror", "-c", file, "-o", output];
+                : [.. targetArguments, .. sysrootArguments, "-ffreestanding", "-fcommon", "-O2", "-g", "-Wall", "-Wextra", "-Werror", "-c", file, "-o", output];
             await RunAsync(compiler, arguments, directory);
             return await File.ReadAllBytesAsync(output, context.CancellationToken);
         }
