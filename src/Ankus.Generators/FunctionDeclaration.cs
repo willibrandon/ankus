@@ -275,11 +275,6 @@ internal sealed record FunctionDeclaration
                 return Invalid("SQL parameter names must be distinct identifiers of at most 63 UTF-8 bytes.");
             }
 
-            if (set?.Names?.Contains(parameterName, StringComparer.Ordinal) == true)
-            {
-                return Invalid("Input and TABLE output parameters must have distinct SQL names.");
-            }
-
             string? expression = parameterOptions?.Default;
             if (expression is not null && (string.IsNullOrWhiteSpace(expression) || !SqlText.IsText(expression)))
             {

@@ -1,5 +1,200 @@
 # Historical port evidence
 
+## Native AOT compiler failure: root-cause investigation
+
+The intermittent `GraphBuilder.WalkMethod` failure remains a required correction.
+Successful retries and complete later suites do not establish its cause or fix.
+The retained Microsoft Linux x64 compiler **10.0.12-servicing.26422.108** matches
+the independently restored compiler byte for byte. Microsoft symbols match its
+ELF build identity. The recorded `+0xc5f` return address follows the shared
+bounds-exception helper; its only incoming branches in this method are the
+method-signature parameter loop and the two inlined IL-opcode byte reads. The
+stack trace therefore does not establish a generic-parameter indexing race.
+
+An independent instruction decoder checks every method body in the exact
+retained publication inputs: **166,245 instruction streams in 179 assemblies**.
+There are no unknown/truncated instructions or invalid switch operand lengths.
+Each assembly identity is retained. This checks decoding boundaries, not full
+IL type safety or concurrent compiler state. The patched CoreLib remains
+identical to the accepted runtime payload.
+
+Targeted debugger instrumentation runs the unchanged compiler with its retained
+response file. It captures registers, thread stacks and a core immediately
+before the recorded exception helper, and otherwise stops at native code
+generation to isolate scanner reproduction. The first baseline and sixteen
+private GC-pressure observations complete scanning without the failure. These
+are diagnostic observations, not full compilations or a resolution. A bounded
+larger reproduction is in progress. Compiler flags, test assertions and CI retry
+policy remain unchanged.
+
+## SPI and SPI table examples: implementation draft
+
+The final composition, including the shared input/TABLE-name correction, passes
+the complete six-module plain `dotnet test` suite on **macOS ARM64/PostgreSQL
+18.6**: **11,359 total; 11,333 passed; zero failures; 26 platform skips;
+24m33.576s**. All **430** source and **24** runtime file identities verify
+after completion. The same composition also passes the complete **Linux
+x64/PostgreSQL 18.6** suite: **11,359 total; 11,345 passed; zero failures;
+14 platform skips; 42m26.793s**. All 430 source and 26 runtime identities verify
+after completion. **Windows x64/PostgreSQL 17.11** also passes all six modules:
+**11,359 total; 11,334 passed; zero failures; 25 platform skips; 42m38.142s**.
+Its 430 source and 52 runtime identities verify afterward. Timings include other
+validation activity and do not establish a performance improvement. The final
+production, test and public-guide files match the composition's Release,
+API-freshness and site gates below. Before committing, primary CI **37079091457**
+and Docs **37079091438** remain successful, with no active runs. The independent
+compiler investigation and complete Intel acceptance remain open.
+
+The sample ports pgrx's `spi` and `spi_srf` scenarios into one extension with
+fixed, extension-owned schemas. It preserves their seed values, nullable scalar
+and table results, bound lookups/inserts, catalog identities and detached cursor
+strings. Named C# tuples describe the returned tables. The random lookup uses
+volatile, parallel-unsafe declarations to preserve PostgreSQL semantics.
+
+Nine integration cases install the published sample and assert both insertion
+forms, hostile literal values, absent and nullable rows, empty/singleton data,
+exact mapped/filter results, overflow and adjacent valid arithmetic boundaries,
+constraint diagnostics, savepoint recovery, portal cleanup, SQL declarations
+and extension removal/reinstallation. Their completed native evidence is
+recorded below; complete composed acceptance remains required.
+
+The first sample build rejects a shared input/TABLE-output name and a redundant
+cast. The name rejection was subsequently confirmed to be an Ankus defect:
+PostgreSQL permits pure input and output parameters to share a name. The initial
+input rename concealed that defect and is replaced by the generator correction
+below. That initial rename and cast removal produce a
+Release build with zero warnings/errors, **9.91s**. The first integration build
+finds a collection-expression style diagnostic; after correction, test-project
+compilation passes with zero warnings/errors, **5.85s**. MTP discovery lists
+exactly the nine intended cases. These results do not establish native behavior.
+
+The SPI sample and author documentation are now composed with the pending
+compiler-helper namespace and compiled-companion cache changes for subsequent
+validation. Earlier isolated results remain scoped to their original sources;
+complete final acceptance and release/documentation checks are still required.
+
+The unchanged **429-file** composition passes all **nine** published-native SPI
+cases on **macOS ARM64/PostgreSQL 18.6**, zero failures/skips, **2m09.566s** test
+duration. This executes both pgrx example scenarios through the actual sample
+extension. The selected command, including compilation, takes **3m01.103s**.
+All 429 source identities and all **24** staged runtime files verify after the
+successful run; runtime hashes match the successful CI payload exactly.
+
+The same composition then passes all **five** `NativeBindingCompilationTests`,
+zero failures/skips, **12.479s**, including relocation of identical helper and
+runtime files and removal of their original producer. All 429 source and 24
+runtime identities verify again. These focused macOS checks supplement the
+earlier Linux cache evidence; they are not complete platform acceptance.
+
+The same source passes the complete macOS ARM64 Release build with zero
+warnings/errors, **37.10s**; all 429 source and 24 runtime identities verify
+again. API freshness verifies **238 pages / 2,757 members**. The site builds
+**286 pages in 10.33s**, and its check reports zero errors, warnings or hints.
+Documentation checks use Node **24.19.0** and pnpm **10.28.0**, with frozen
+dependency installation. All 429 identities in the updated evidence snapshot
+verify after these gates. Complete composed suites remain pending.
+
+The same earlier composition passes **nine** native SPI cases on **Windows
+x64/PostgreSQL 17.11**, zero failures/skips, **3m28.156s**. The five compiled-cache
+checks also pass, zero failures/skips, **16.605s**. All **429** source identities
+and **52** runtime files verify after both scopes. These runs precede the
+input/output-name correction and do not validate its final source.
+
+PostgreSQL's `interpret_function_parameter_list` treats IN/VARIADIC and OUT/TABLE
+names separately. Ankus incorrectly compared TABLE columns with input names;
+its existing negative tests enforced that extra restriction. Five corrected
+generator cases fail against the original rule, **2.784s**, covering normalized
+names, explicit aliases, different input/output types and variadic input. The
+correction removes only the cross-direction check. All **45** selected positive
+and negative generator cases then pass, zero failures/skips, **2.933s**; duplicate
+input names and duplicate output names remain invalid. The sample restores
+pgrx's `title` parameter; native assertions invoke `title => $1` and check actual
+catalog names and modes. The public TABLE guide now describes PostgreSQL's rule.
+Final native and complete composed validation remain required.
+
+The corrected sample passes all **nine** native cases on **Linux x64/PostgreSQL
+18.6**, zero failures/skips, **7m32.258s** test duration. This verifies the shared
+`title` name through both a named SQL invocation and PostgreSQL's own argument
+names/modes. All **430** source identities and **26** runtime files verify after
+completion. Full-suite acceptance of the final composition remains required.
+
+The first complete generator module executes **3,098** cases: **3,097 pass** and
+one fails, zero skips, **2m03.032s**. The remaining failure is another test that
+expects the same incorrect input/output restriction when memory contexts are
+injected. It now verifies successful compilation and the exact SQL signature
+for both distinct and matching names, preserving context erasure. The replacement
+complete generator suite passes **3,098/3,098**, zero failures/skips,
+**1m16.774s**. Release passes with zero warnings/errors, **2m06.66s**. API
+freshness verifies **238 pages / 2,757 members**; the site builds **286 pages in
+4.69s** and reports zero errors, warnings or hints. All **430** source identities
+and **26** runtime files verify after these gates. The only production/test
+difference from the successful native sample run is the corrected generator
+test expectation; the sample and generator implementation are unchanged.
+Complete final-suite acceptance remains pending.
+
+## Compiled-companion identity across package locations
+
+The real binding probe confirms three separate compilations/cache entries for
+identical generated source and runtime bytes when the runtime and generator
+move to other package directories. DLL, PDB and XML outputs remain identical.
+The new executable regression reproduces the runtime-location defect against
+unchanged production: one executed failure, zero skips, **12.156s**.
+
+The correction stages the explicit runtime reference beside the compiler's
+owned inputs, using the existing logical path mapping and content observation.
+Generator identity uses its content hash. Neither former producer location
+remains a persistent dependency. The current selected helper/runtime files are
+checked before lookup, before publishing produced artifacts and before copying
+reused artifacts; the staged reference must initially match its original hash.
+SDK, analyzer, package and configuration identities remain in the contract.
+Consumer restore and source-mapping checks still run before cache lookup.
+
+The regression then passes **1/1**, zero failures/skips, **19.013s**. It executes
+the compiled witness, compares all three delivered artifacts, verifies one
+immutable entry through runtime/helper relocation and original-producer removal,
+and requires a new entry after helper bytes change without a timestamp change.
+The complete Linux x64 build-tool module passes **1,204 total; 1,195 passed;
+zero failures; nine platform skips; 1m18.984s**. Existing source/runtime content
+invalidation, compiler-failure recovery and source-mapping rejection tests pass.
+All **337** frozen source identities verify afterward. The helper also builds
+in Release with zero warnings/errors (**12.00s**).
+
+The first real-probe preflight detects that a later Release build changed the
+runtime artifact relative to the retained baseline, and stops before building
+or probing. The corrected comparison uses the exact retained runtime and
+generated-source inputs from that baseline. This corrected real probe succeeds:
+one cold compilation/entry, then reuse through unchanged inputs, runtime
+relocation, helper relocation and removal of the original producer. Its runtime
+input and all three delivered artifact hashes match the baseline exactly. The
+original code created three compiled entries; the correction creates one.
+All 337 source identities verify again afterward. Full composed native
+acceptance, Windows/platform evidence and final documentation gates remain
+required. Concurrent-host timings are not isolated performance measurements;
+the Intel timeout is still unresolved.
+
+The follow-up draft includes the accepted compiler-helper namespace migration
+for combined validation. Earlier 337-file checks cover the isolated cache
+correction. The 429-file composition passes the five compiled-cache checks on
+macOS ARM64 (**12.479s**) and Windows x64 (**16.605s**), zero failures/skips.
+A complete Linux x64/PostgreSQL 18.6 suite is running against that composition.
+It predates the subsequently discovered input/TABLE-output name correction.
+The namespace-only Linux/Windows suites pass and are published as **71095c9**;
+their original intermittent Native AOT compiler exception remains unresolved.
+
+## Compiler namespace migration: primary CI acceptance
+
+Committed **71095c9** passes [primary CI 37079091457](https://github.com/willibrandon/ankus/actions/runs/37079091457):
+quality, all three runtime jobs and every complete platform suite. Six downloaded
+TRX modules per platform report **11,347 total** each: Linux x64/PostgreSQL 18
+has **11,333 passed / 14 platform skips**, macOS ARM64/PostgreSQL 18 has
+**11,321 passed / 26 skips**, and Windows x64/PostgreSQL 17 has
+**11,322 passed / 25 skips**. All have zero failures. Platform job durations are
+**35m58s**, **26m37s** and **30m51s**, respectively.
+[Docs 37079091438](https://github.com/willibrandon/ankus/actions/runs/37079091438)
+also passes. These results close the namespace migration's pending primary CI;
+they do not identify the root cause of the separately retained intermittent
+Native AOT compiler failure or establish Intel macOS acceptance.
+
 ## Compiler transport contracts in their own namespace
 
 The runtime's **53** compiler-helper types span **81** declarations in **69**

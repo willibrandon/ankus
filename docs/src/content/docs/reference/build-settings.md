@@ -236,10 +236,11 @@ signatures compile; select that source at compile time.
 
 Binding reuse checks file contents and current compiler inputs. Identical SDK
 generator files can share generated sources across package directories. Native
-layout and declaration checks still run against the selected installation. Each
-project receives its own companion files, so cleaning one project does not remove another
-project's outputs. The companion restore follows the consuming project's NuGet
-feeds, configuration, source mappings and package directory.
+layout and declaration checks still run against the selected installation.
+Compiled companions also reuse identical runtime references at different
+locations. Each project receives its own companion files, so cleaning one project
+does not remove another project's outputs. The companion restore follows the
+consuming project's NuGet feeds, configuration, source mappings and package directory.
 On Windows, choose a short cache path so MSVC can open its native objects.
 
 When a selected-header function is supplied by your own native code, include its

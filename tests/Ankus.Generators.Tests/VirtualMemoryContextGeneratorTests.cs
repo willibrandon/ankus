@@ -236,14 +236,13 @@ public sealed partial class PgFunctionGeneratorTests
     }
 
     /// <summary>
-    /// TABLE output names may match erased context names but must remain distinct from actual SQL input names.
+    /// TABLE output names remain independent of both injected contexts and actual SQL inputs.
     /// </summary>
     /// <param name="inputName">The SQL-visible input name.</param>
-    /// <param name="valid">Whether the real input avoids the TABLE output name.</param>
     [TestMethod]
-    [DataRow("seed", true)]
-    [DataRow("result", false)]
-    public void VirtualContextNamesDoNotOccupyTableOutputNamespace(string inputName, bool valid)
+    [DataRow("seed")]
+    [DataRow("result")]
+    public void TableOutputNamesCanMatchSqlAndInjectedInputs(string inputName)
     {
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate($$"""
             public static class Functions
@@ -254,14 +253,8 @@ public sealed partial class PgFunctionGeneratorTests
                     Ankus.PgMemoryContext Label) => new[] { (input, "value") };
             }
             """);
-        if (!valid)
-        {
-            AssertVirtualContextDiagnostic(diagnostics, "ANKUS004");
-            return;
-        }
-
         AssertMemoryCompilationSucceeds(compilation, diagnostics);
-        Assert.StartsWith("CREATE FUNCTION \"rows\"(\"seed\" integer) RETURNS TABLE (\"result\" integer, \"label\" text) AS ",
+        Assert.StartsWith($"CREATE FUNCTION \"rows\"(\"{inputName}\" integer) RETURNS TABLE (\"result\" integer, \"label\" text) AS ",
             Assert.ContainsSingle(OperatorCastStatements(compilation)));
     }
 

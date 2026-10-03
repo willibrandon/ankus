@@ -38,6 +38,7 @@ internal static class NativeBindingCompilationCommand
 
         string source = Path.GetFullPath(arguments[0]);
         string runtime = Path.GetFullPath(arguments[1]);
+        string generator = Path.GetFullPath(typeof(NativeBindingCompilationCommand).Assembly.Location);
         string sdk = Path.GetFullPath(arguments[5]);
         NativeBindingRestoreSettings restore = await NativeBindingRestoreSettings.ReadAsync(arguments[6], cancellationToken);
         string packages = restore.Packages;
@@ -58,7 +59,7 @@ internal static class NativeBindingCompilationCommand
         string[] installation = [.. Directory.GetFiles(sdk, "*", SearchOption.AllDirectories)
             .Concat(Directory.GetFiles(Path.Combine(hostDirectory, "host", "fxr"), "*", SearchOption.AllDirectories))
             .Concat(Directory.GetFiles(Path.Combine(hostDirectory, "shared", "Microsoft.NETCore.App"), "*", SearchOption.AllDirectories))
-            .Append(host).Append(typeof(NativeBindingCompilationCommand).Assembly.Location).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)];
+            .Append(host).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)];
         string[] explicitFiles = [Path.Combine(source, "native-binding.g.cs"), runtime];
         var start = new ProcessStartInfo(host) { UseShellExecute = false };
         // Generated companions have their own build contract. Do not inherit arbitrary
@@ -86,12 +87,22 @@ internal static class NativeBindingCompilationCommand
         try
         {
             NativeBindingCacheFile[] toolchain = await NativeBindingCache.SnapshotAsync(installation.Concat(restore.Configurations), cancellationToken);
+            NativeBindingCacheFile[] selected = await NativeBindingCache.SnapshotAsync([generator, runtime], cancellationToken);
+            // Give the explicit reference an owned logical location, just like generated source.
+            // Reusing a companion must not depend on a former consumer's package directory.
+            string runtimeReference = Path.Combine(Directory.CreateDirectory(Path.Combine(work, "runtime")).FullName, Path.GetFileName(runtime));
+            File.Copy(runtime, runtimeReference);
+            if (await NativeBindingCache.HashAsync(runtimeReference, cancellationToken) != selected[1].Hash)
+            {
+                throw new IOException("The binding runtime reference changed while it was being staged.");
+            }
+
             var project = XDocument.Parse(NativeBindingSourceCommand.CreateProject(work));
             XElement root = project.Root!;
             root.AddFirst(new XElement("PropertyGroup",
                 Property("AnkusBindingTargetFramework", arguments[2]),
                 Property("AnkusBindingAssemblyName", assembly),
-                Property("AnkusRuntimeAssembly", runtime),
+                Property("AnkusRuntimeAssembly", runtimeReference),
                 Property("Configuration", arguments[3]),
                 Property("UseSharedCompilation", "false"),
                 Property("AnkusSelectedSdkVersion", arguments[4]),
@@ -165,6 +176,7 @@ internal static class NativeBindingCompilationCommand
             string key = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new
             {
                 Inputs = identity,
+                Generator = selected[0].Hash,
                 Assembly = assembly,
                 Framework = arguments[2],
                 Configuration = arguments[3],
@@ -174,6 +186,7 @@ internal static class NativeBindingCompilationCommand
                 Environment = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(settings))),
             }))));
 
+            await VerifySelectedAsync(cancellationToken);
             bool compiled = false;
             await using NativeBindingCacheLease lease = await NativeBindingCache.GetAsync(cache, key, async (stage, token) =>
             {
@@ -186,6 +199,7 @@ internal static class NativeBindingCompilationCommand
                     throw new IOException("The binding compiler inputs changed after preparation.");
                 }
 
+                await VerifySelectedAsync(token);
                 string output = Path.Combine(work, "bin", arguments[3], arguments[2]);
                 foreach (string extension in s_artifactExtensions)
                 {
@@ -196,6 +210,7 @@ internal static class NativeBindingCompilationCommand
                 return [.. dependencies.Where(input => !input.Path.StartsWith(work + Path.DirectorySeparatorChar, StringComparison.Ordinal))];
             }, cancellationToken);
 
+            await VerifySelectedAsync(cancellationToken);
             string destination = Path.Combine(source, "compiled");
             Directory.CreateDirectory(destination);
             foreach (string extension in s_artifactExtensions)
@@ -217,6 +232,15 @@ internal static class NativeBindingCompilationCommand
             }
 
             Console.WriteLine($"Managed binding compilation: {(compiled ? "built" : "reused")} {assembly}");
+
+            async Task VerifySelectedAsync(CancellationToken token)
+            {
+                NativeBindingCacheFile[] current = await NativeBindingCache.SnapshotAsync(selected.Select(static input => input.Path), token);
+                if (!selected.SequenceEqual(current))
+                {
+                    throw new IOException("The binding generator or runtime reference changed during compilation.");
+                }
+            }
         }
         finally
         {

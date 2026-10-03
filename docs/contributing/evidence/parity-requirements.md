@@ -162,6 +162,10 @@ The `samples/Ankus.Examples.Hello`, `samples/Ankus.Examples.Enums`, `samples/Ank
 `samples/Ankus.Examples.Sets`, `samples/Ankus.Examples.Composites` and
 `samples/Ankus.Examples.Ranges` samples are validated. Full example parity is pending.
 
+The `samples/Ankus.Examples.Spi` draft combines `spi` and `spi_srf`. Nine
+published-native cases pass on macOS ARM64/PostgreSQL 18.6; complete composed
+acceptance remains pending.
+
 Required test-source inventory:
 
 - `pgrx-unit-tests/src/tests/`: datum/array/borrow/NULL/zero-datum tests; numeric/date/network/JSON/UUID/geometric/range

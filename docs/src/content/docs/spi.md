@@ -7,6 +7,11 @@ description: Query PostgreSQL from C# with typed parameters, sessions, plans, an
 Calls participate in the caller's transaction and use that connection's role,
 search path, and session settings.
 
+The [SPI sample](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.Spi)
+combines bound lookups and inserts, cursor results that outlive their session,
+and table functions returning named C# tuples. It ports pgrx's `spi` and
+`spi_srf` examples, including their seed data.
+
 ## Parameters and commands
 
 Bind values with positional placeholders and `SpiParameter.Create`:

@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>PostgreSQL SPI queries, bound parameters, detached cursor results and table functions.</Description>
+    <AnkusExtensionName>ankus_spi</AnkusExtensionName>
+  </PropertyGroup>
+
+  <Import Project="../../src/Ankus.Sdk/Ankus.Sdk.targets" />
+
+</Project>

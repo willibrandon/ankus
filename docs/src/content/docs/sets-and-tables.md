@@ -85,8 +85,9 @@ public static IEnumerable<int?> Values() => [1, null, 3];
 public static IEnumerable<(int, string?)> People() => [(1, "Ada"), (2, null)];
 ```
 
-Names must be distinct PostgreSQL identifiers and must not duplicate an input
-parameter name. Flat tuples support up to PostgreSQL's 1,664-field record limit;
+Output names must be distinct PostgreSQL identifiers. An output column may have
+the same name as an input parameter; PostgreSQL keeps the two roles separate.
+Flat tuples support up to PostgreSQL's 1,664-field record limit;
 nested tuples and nullable tuple rows are rejected. Make individual fields
 nullable to represent SQL NULL. `ValueTuple<T>` is supported with an explicit
 single column name.

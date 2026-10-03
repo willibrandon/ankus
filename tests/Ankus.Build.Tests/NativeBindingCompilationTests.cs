@@ -80,6 +80,87 @@ public sealed class NativeBindingCompilationTests(TestContext context)
     }
 
     /// <summary>
+    /// Identical runtime and helper copies reuse immutable companions after their original producer is removed.
+    /// </summary>
+    [TestMethod]
+    public async Task CompiledCompanionsReuseRelocatedRuntimeAndHelper()
+    {
+        string root = Directory.CreateTempSubdirectory("ankus-compiled-relocation-").FullName;
+        try
+        {
+            string[] settings = await SettingsAsync(root);
+            string originalRuntime = Path.Combine(root, "Ankus.Runtime.dll");
+            string relocatedRuntime = Path.Combine(Directory.CreateDirectory(Path.Combine(root, "moved runtime")).FullName, "Ankus.Runtime.dll");
+            File.Copy(originalRuntime, relocatedRuntime);
+            string originalHelper = Path.Combine(root, "first helper");
+            string relocatedHelper = Path.Combine(root, "second helper");
+            string tools = Path.GetDirectoryName(typeof(NativeBindingCompilationCommand).Assembly.Location)!;
+            foreach (string file in Directory.EnumerateFiles(tools, "*", SearchOption.AllDirectories))
+            {
+                string relative = Path.GetRelativePath(tools, file);
+                foreach (string directory in new[] { originalHelper, relocatedHelper })
+                {
+                    string destination = Path.Combine(directory, relative);
+                    Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+                    File.Copy(file, destination);
+                }
+            }
+
+            string first = await CompileAsync("initial consumer", originalHelper, originalRuntime, reused: false);
+            Dictionary<string, string> expected = await ArtifactHashesAsync(first);
+            Assert.HasCount(3, expected);
+            string cache = Path.Combine(root, "cache");
+            string entry = Assert.ContainsSingle(Directory.GetDirectories(cache));
+            string cachedAssembly = Path.Combine(entry, AssemblyName + ".dll");
+            File.SetLastWriteTimeUtc(cachedAssembly, DateTime.UtcNow.AddDays(-1));
+            DateTime timestamp = File.GetLastWriteTimeUtc(cachedAssembly);
+
+            await AssertReuseAsync("runtime relocation", originalHelper);
+            await AssertReuseAsync("helper relocation", relocatedHelper);
+            Directory.Delete(originalHelper, recursive: true);
+            File.Delete(originalRuntime);
+            Directory.Delete(first, recursive: true);
+            await AssertReuseAsync("producer removed", relocatedHelper);
+
+            string changedHelper = Path.Combine(relocatedHelper, "Ankus.Build.dll");
+            DateTime helperTimestamp = File.GetLastWriteTimeUtc(changedHelper);
+            await using (FileStream helper = new(changedHelper, FileMode.Append, FileAccess.Write))
+            {
+                await helper.WriteAsync(new byte[] { 0 }, context.CancellationToken);
+            }
+
+            File.SetLastWriteTimeUtc(changedHelper, helperTimestamp);
+            string changed = await CompileAsync("changed helper", relocatedHelper, relocatedRuntime, reused: false);
+            Assert.HasCount(2, Directory.GetDirectories(cache));
+            Assert.AreEqual(timestamp, File.GetLastWriteTimeUtc(cachedAssembly));
+            Assert.AreEquivalent(expected, await ArtifactHashesAsync(changed));
+
+            async Task AssertReuseAsync(string name, string helper)
+            {
+                string source = await CompileAsync(name, helper, relocatedRuntime, reused: true);
+                Assert.AreEqual(entry, Assert.ContainsSingle(Directory.GetDirectories(cache)));
+                Assert.AreEqual(timestamp, File.GetLastWriteTimeUtc(cachedAssembly));
+                Assert.AreEquivalent(expected, await ArtifactHashesAsync(source));
+            }
+
+            async Task<string> CompileAsync(string name, string helper, string runtime, bool reused)
+            {
+                string source = await SourceAsync(root, name);
+                string[] arguments = [source, runtime, "net10.0", "Release", .. settings, Path.Combine(root, "cache")];
+                string output = await NativeBindingLayoutCommand.RunProcessAsync("dotnet",
+                    [Path.Combine(helper, "Ankus.Build.dll"), "binding-compile", .. arguments], root, context.CancellationToken);
+                Assert.Contains(reused ? "Managed binding compilation: reused " : "Managed binding compilation: built ", output);
+                Assert.AreEqual(41, Execute(Artifact(source)));
+                return source;
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    /// <summary>
     /// Changed source and runtime bytes rebuild; compilation failure preserves the consumer's last usable result.
     /// </summary>
     [TestMethod]
@@ -239,6 +320,22 @@ public sealed class NativeBindingCompilationTests(TestContext context)
         => [source, Path.Combine(root, "Ankus.Runtime.dll"), "net10.0", "Release", .. settings, Path.Combine(root, "cache")];
 
     private static string Artifact(string source) => Path.Combine(source, "compiled", AssemblyName + ".dll");
+
+    /// <summary>
+    /// Observes every delivered assembly, symbol and documentation artifact by content.
+    /// </summary>
+    /// <param name="source">The consumer's generated source directory.</param>
+    /// <returns>Artifact names and exact content hashes.</returns>
+    private async Task<Dictionary<string, string>> ArtifactHashesAsync(string source)
+    {
+        var hashes = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (string file in Directory.EnumerateFiles(Path.Combine(source, "compiled")))
+        {
+            hashes.Add(Path.GetFileName(file), await NativeBindingCache.HashAsync(file, context.CancellationToken));
+        }
+
+        return hashes;
+    }
 
     private static int Execute(string artifact)
     {

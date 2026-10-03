@@ -169,6 +169,7 @@ internal static class IntegrationEnvironment
             ("samples", "Ankus.Examples.Composites"),
             ("samples", "Ankus.Examples.Operators"),
             ("samples", "Ankus.Examples.Sets"),
+            ("samples", "Ankus.Examples.Spi"),
             ("samples", "Ankus.Examples.Ranges"),
             ("samples", "Ankus.Examples.Triggers"),
             ("samples", "Ankus.Examples.EventTriggers"),

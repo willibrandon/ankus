@@ -27,6 +27,9 @@ See the [minimal sample](samples/Ankus.Examples.Hello/Hello.cs). Ankus generates
 PostgreSQL module magic, exports, argument conversion, SQL declarations, and the
 managed-to-native error boundary.
 
+The [SPI sample](samples/Ankus.Examples.Spi/) demonstrates parameterized queries,
+inserts, cursors, and table functions using named C# tuples.
+
 PostgreSQL 18 and later can report the library's name and version through
 `pg_get_loaded_modules()`. See [native module identity](docs/src/content/docs/reference/build-settings.md#native-module-identity)
 for project defaults and attribute overrides.

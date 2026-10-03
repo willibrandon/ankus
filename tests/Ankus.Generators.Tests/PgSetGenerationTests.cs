@@ -336,25 +336,30 @@ public sealed partial class PgFunctionGeneratorTests
     }
 
     /// <summary>
-    /// Output column names cannot collide with normalized input names, including explicit parameter-name overrides.
+    /// Input and TABLE output names are independent, including normalized, explicit and variadic names.
     /// </summary>
     /// <param name="parameters">The input parameter declarations.</param>
     /// <param name="attributes">Explicit output names when needed.</param>
     /// <param name="element">The table element shape.</param>
+    /// <param name="inputSql">The expected input declaration.</param>
+    /// <param name="outputSql">The expected TABLE column declarations.</param>
     [TestMethod]
-    [DataRow("int id", "", "(int Id, string Label)")]
-    [DataRow("int HTTPCode", "", "(int HttpCode, string Label)")]
-    [DataRow("[Ankus.PgParameter(Name = \"chosen\")] int source", "[return: Ankus.PgColumnNames(\"chosen\")]", "int")]
-    public void TableOutputNamesCannotDuplicateInputNames(string parameters, string attributes, string element)
+    [DataRow("int id", "", "(int Id, string Label)", "\"id\" integer", "\"id\" integer, \"label\" text")]
+    [DataRow("int HTTPCode", "", "(int HttpCode, string Label)", "\"http_code\" integer", "\"http_code\" integer, \"label\" text")]
+    [DataRow("[Ankus.PgParameter(Name = \"chosen\")] int source", "[return: Ankus.PgColumnNames(\"chosen\")]", "int", "\"chosen\" integer", "\"chosen\" integer")]
+    [DataRow("string value", "[return: Ankus.PgColumnNames(\"value\")]", "int", "\"value\" text", "\"value\" integer")]
+    [DataRow("params int[] values", "[return: Ankus.PgColumnNames(\"values\")]", "int", "VARIADIC \"values\" integer[]", "\"values\" integer")]
+    public void TableOutputNamesCanMatchInputNames(string parameters, string attributes, string element, string inputSql, string outputSql)
     {
-        (_, ImmutableArray<Diagnostic> diagnostics) = Generate($$"""
+        (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate($$"""
             public static class Functions
             {
                 [Ankus.PgFunction]{{attributes}}
                 public static System.Collections.Generic.IEnumerable<{{element}}> Rows({{parameters}}) => System.Array.Empty<{{element}}>();
             }
             """);
-        Assert.AreEqual("ANKUS004", Assert.ContainsSingle(diagnostics).Id);
+        AssertSetCompilationSucceeds(compilation, diagnostics);
+        Assert.StartsWith($"CREATE FUNCTION \"rows\"({inputSql}) RETURNS TABLE ({outputSql}) AS ", SetFunctionSql(compilation));
     }
 
     /// <summary>
