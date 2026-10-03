@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.Globalization;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Ankus.Generators;
 
@@ -43,7 +44,7 @@ internal static class AggregateContract
         if (interfaces.Count(static capability => capability.Name == "IPgAggregate") != 1 ||
             interfaces.GroupBy(static capability => capability.Name, StringComparer.Ordinal).Any(static group => group.Count() != 1))
         {
-            return Invalid(type, "Typed aggregates require exactly one IPgAggregate state/input contract and at most one of each optional capability.");
+            return Invalid(AggregateDiagnostics.CapabilityAmbiguity, type.Locations.FirstOrDefault());
         }
 
         var roles = new Dictionary<string, IMethodSymbol>(StringComparer.Ordinal);
@@ -56,9 +57,9 @@ internal static class AggregateContract
         {
             if (!roles.TryGetValue(role, out IMethodSymbol? contract))
             {
-                if (HasVisibleRole(type, role, compilation))
+                if (FindVisibleRole(type, role, compilation) is { } uncontracted)
                 {
-                    return Invalid(type, $"The {role} method requires its aggregate capability interface on a typed aggregate.");
+                    return Invalid(AggregateDiagnostics.UncontractedRole, uncontracted.Locations.FirstOrDefault(), role);
                 }
 
                 continue;
@@ -67,17 +68,34 @@ internal static class AggregateContract
             if (type.FindImplementationForInterfaceMember(contract) is not IMethodSymbol method || !method.IsStatic || method.IsAbstract ||
                 method.IsAsync || method.IsGenericMethod)
             {
-                return Invalid(type, $"Implement the static {role} member of {contract.ContainingType.ToDisplayString()} with a synchronous method.");
+                return Invalid(AggregateDiagnostics.Implementation, type.Locations.FirstOrDefault(), role, contract.ContainingType.ToDisplayString());
             }
 
-            if (method.Parameters.Any(static parameter => parameter.RefKind != RefKind.None || parameter.IsOptional) ||
-                method.Parameters[0].GetAttributes().Length != 0 || method.Parameters[0].IsParams ||
-                method.GetAttributes().Any(static attribute => attribute.AttributeClass?.ToDisplayString() is
-                    "Ankus.PgTriggerAttribute" or "Ankus.PgEventTriggerAttribute" or "Ankus.PgOperatorAttribute" or "Ankus.PgCastAttribute") ||
-                method.GetReturnTypeAttributes().Any(static attribute => attribute.AttributeClass?.ToDisplayString() == "Ankus.PgColumnNamesAttribute") ||
-                SetResult.IsSequence(contract.ReturnType))
+            if (method.Parameters.FirstOrDefault(static parameter => parameter.RefKind != RefKind.None || parameter.IsOptional) is { } invalidInput)
             {
-                return Invalid(method, "Aggregate capabilities require scalar results, required by-value inputs and an unannotated invocation context.");
+                return Invalid(AggregateDiagnostics.CallbackInput, invalidInput.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax(context.CancellationToken).GetLocation());
+            }
+
+            IParameterSymbol invocation = method.Parameters[0];
+            if (invocation.GetAttributes().Length != 0 || invocation.IsParams)
+            {
+                return Invalid(AggregateDiagnostics.ContextMetadata,
+                    invocation.GetAttributes().FirstOrDefault()?.ApplicationSyntaxReference?.GetSyntax(context.CancellationToken).GetLocation() ??
+                    invocation.Locations.FirstOrDefault());
+            }
+
+            AttributeData? conflict = method.GetAttributes().FirstOrDefault(static attribute => attribute.AttributeClass?.ToDisplayString() is
+                "Ankus.PgTriggerAttribute" or "Ankus.PgEventTriggerAttribute" or "Ankus.PgOperatorAttribute" or "Ankus.PgCastAttribute") ??
+                method.GetReturnTypeAttributes().FirstOrDefault(static attribute => attribute.AttributeClass?.ToDisplayString() == "Ankus.PgColumnNamesAttribute");
+            if (conflict is not null)
+            {
+                return Invalid(AggregateDiagnostics.ConflictingAttribute,
+                    conflict.ApplicationSyntaxReference?.GetSyntax(context.CancellationToken).GetLocation());
+            }
+
+            if (SetResult.IsSequence(contract.ReturnType))
+            {
+                return Invalid(AggregateDiagnostics.SetResult, FunctionDeclarationDiagnostics.Result(method, context.CancellationToken));
             }
 
             if (!AggregateContractNullability.Validate(contract, method, context) ||
@@ -91,27 +109,31 @@ internal static class AggregateContract
             AggregateType? result = AggregateType.Create(contract.ReturnType, method.GetReturnTypeAttributes());
             if (result is null)
             {
-                return Invalid(method, "The aggregate capability result must be a supported SQL value or a concrete PgAggregateState<T>.");
+                return Invalid(AggregateDiagnostics.ResultType, FunctionDeclarationDiagnostics.Result(method, context.CancellationToken));
             }
 
             var slots = new List<AggregateParameter>();
+            var slotLocations = new List<Location?>();
             var arguments = new List<AggregateArgument>();
             for (int index = 1; index < contract.Parameters.Length; index++)
             {
                 ITypeSymbol parameterType = contract.Parameters[index].Type;
                 IParameterSymbol parameter = method.Parameters[index];
                 bool group = index == 2 && role is "Transition" or "MovingTransition" or "MovingInverse" or "Final" or "MovingFinal";
-                bool tuple = group && parameterType is INamedTypeSymbol { IsTupleType: true };
                 bool empty = group && parameterType is INamedTypeSymbol { Name: "ValueTuple", Arity: 0, ContainingNamespace: { } ns } && ns.ToDisplayString() == "System";
+                bool tuple = group && !empty && parameterType is INamedTypeSymbol { IsTupleType: true };
                 int start = slots.Count;
                 if (tuple)
                 {
                     INamedTypeSymbol tupleType = (INamedTypeSymbol)parameterType;
                     ImmutableArray<AttributeData> metadata = [.. parameter.GetAttributes().Where(AggregateParameter.IsSqlMetadata)];
-                    if (parameter.IsParams || metadata.Any(attribute => AttributeValues.Get<string?>(attribute, "Element", null) is not { } element ||
-                        !tupleType.TupleElements.Any(field => field.Name == element)))
+                    AttributeData? invalidMetadata = metadata.FirstOrDefault(attribute => AttributeValues.Get<string?>(attribute, "Element", null) is not { } element ||
+                        !tupleType.TupleElements.Any(field => field.Name == element));
+                    if (parameter.IsParams || invalidMetadata is not null)
                     {
-                        return Invalid(parameter, "Tuple input metadata must select an existing C# tuple element by its exact Element name.");
+                        return Invalid(AggregateDiagnostics.TupleMetadata,
+                            FunctionDeclarationDiagnostics.Option(invalidMetadata, "Element", context.CancellationToken) ??
+                            invalidMetadata?.ApplicationSyntaxReference?.GetSyntax(context.CancellationToken).GetLocation() ?? Parameter(parameter));
                     }
 
                     foreach (IFieldSymbol element in tupleType.TupleElements)
@@ -127,7 +149,8 @@ internal static class AggregateContract
                 {
                     if (parameter.GetAttributes().Length != 0 || parameter.IsParams)
                     {
-                        return Invalid(parameter, "An empty argument group has no SQL values to annotate.");
+                        return Invalid(AggregateDiagnostics.EmptyMetadata,
+                            parameter.GetAttributes().FirstOrDefault()?.ApplicationSyntaxReference?.GetSyntax(context.CancellationToken).GetLocation() ?? Parameter(parameter));
                     }
                 }
                 else if (!AddSlot(parameterType, AggregateParameter.ReadName(parameter), parameter.IsParams || AggregateParameter.ReadVariadic(parameter.GetAttributes()),
@@ -154,17 +177,25 @@ internal static class AggregateContract
                     while (!names.Add(extraName));
 
                     slots.Add(new(input.Type.AsNullable(), extraName, false, input.Precision));
+                    slotLocations.Add(method.Locations.FirstOrDefault());
                 }
             }
 
-            if (slots.Count + (role == "Deserialize" ? 1 : 0) > 100 || slots.Select(static slot => slot.Name).Distinct(StringComparer.Ordinal).Count() != slots.Count)
+            if (slots.Count + (role == "Deserialize" ? 1 : 0) > 100)
             {
-                return Invalid(method, "Aggregate support functions require at most 100 SQL arguments with distinct names.");
+                return Invalid(AggregateDiagnostics.HelperCount, method.Locations.FirstOrDefault());
+            }
+
+            var argumentNames = new HashSet<string>(StringComparer.Ordinal);
+            int duplicate = slots.FindIndex(slot => !argumentNames.Add(slot.Name));
+            if (duplicate >= 0)
+            {
+                return Invalid(AggregateDiagnostics.HelperDuplicateName, slotLocations[duplicate]);
             }
 
             if (result.Datum?.IsSqlPolymorphic == true && !slots.Any(static slot => slot.Type.Datum?.IsSqlPolymorphic == true))
             {
-                return Invalid(method, "A polymorphic aggregate result requires a polymorphic input; use FinalExtra for an internal-state final callback.");
+                return Invalid(AggregateDiagnostics.PolymorphicResult, FunctionDeclarationDiagnostics.Result(method, context.CancellationToken));
             }
 
             AttributeData? function = method.GetAttributes().FirstOrDefault(static value => value.AttributeClass?.ToDisplayString() == "Ankus.PgFunctionAttribute");
@@ -176,7 +207,8 @@ internal static class AggregateContract
 
             if (!SqlText.IsIdentifier(helperName))
             {
-                return Invalid(method, "Aggregate support function names must be valid identifiers of at most 63 UTF-8 bytes.");
+                return Invalid(AggregateDiagnostics.HelperName,
+                    FunctionDeclarationDiagnostics.Option(function, "Name", context.CancellationToken) ?? method.Locations.FirstOrDefault());
             }
 
             FunctionDeclaration? declaration = FunctionDeclaration.Create(method, helperName, context, contextParameter: true,
@@ -199,23 +231,51 @@ internal static class AggregateContract
 
                 AggregateType? value = AggregateType.Create(valueType, attributes);
                 AttributeData[] naming = [.. attributes.Where(static attribute => attribute.AttributeClass?.ToDisplayString() == "Ankus.PgParameterAttribute")];
-                if (value is null || !SqlText.IsIdentifier(name) || naming.Length > 1 || naming.Any(attribute =>
-                    attribute.NamedArguments.Any(static argument => argument.Key == "Default") ||
-                    !grouped && AttributeValues.Get<string?>(attribute, "Element", null) is not null))
+                if (value is null)
                 {
-                    return Invalid(source, "Aggregate inputs require supported SQL types, valid names and no SQL defaults.");
+                    return Invalid(AggregateDiagnostics.InputType, Parameter(source));
+                }
+
+                if (!SqlText.IsIdentifier(name))
+                {
+                    return Invalid(AggregateDiagnostics.InputName,
+                        FunctionDeclarationDiagnostics.Option(naming.FirstOrDefault(), "Name", context.CancellationToken) ?? source.Locations.FirstOrDefault());
+                }
+
+                if (naming.Length > 1)
+                {
+                    return Invalid(AggregateDiagnostics.InputMetadata,
+                        naming[1].ApplicationSyntaxReference?.GetSyntax(context.CancellationToken).GetLocation());
+                }
+
+                if (naming.FirstOrDefault(attribute => attribute.NamedArguments.Any(static argument => argument.Key == "Default")) is { } defaulted)
+                {
+                    return Invalid(AggregateDiagnostics.InputDefault,
+                        FunctionDeclarationDiagnostics.Option(defaulted, "Default", context.CancellationToken));
+                }
+
+                if (!grouped && naming.FirstOrDefault(attribute => AttributeValues.Get<string?>(attribute, "Element", null) is not null) is { } selected)
+                {
+                    return Invalid(AggregateDiagnostics.ScalarElement,
+                        FunctionDeclarationDiagnostics.Option(selected, "Element", context.CancellationToken));
                 }
 
                 slots.Add(new(value, name, variadic, NumericConstraint.Read(attributes)));
+                slotLocations.Add(FunctionDeclarationDiagnostics.Option(naming.FirstOrDefault(), "Name", context.CancellationToken) ??
+                    source.Locations.FirstOrDefault());
                 return true;
             }
         }
 
         return true;
 
-        bool Invalid(ISymbol source, string message)
+        Location? Parameter(IParameterSymbol parameter)
+            => (parameter.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax(context.CancellationToken) as ParameterSyntax)?.Type?.GetLocation()
+                ?? parameter.Locations.FirstOrDefault();
+
+        bool Invalid(DiagnosticDescriptor descriptor, Location? location, params string[] arguments)
         {
-            AggregateDeclaration.ReportInvalid(source, type.Name, message, context);
+            context.Report(descriptor, location ?? type.Locations.FirstOrDefault(), arguments);
             return false;
         }
     }
@@ -226,18 +286,18 @@ internal static class AggregateContract
     /// <param name="type">The concrete aggregate container.</param>
     /// <param name="role">The optional support role.</param>
     /// <param name="compilation">The compiler context used for inherited accessibility.</param>
-    /// <returns>Whether a declared or visible inherited method has the reserved role name.</returns>
-    private static bool HasVisibleRole(INamedTypeSymbol type, string role, Compilation compilation)
+    /// <returns>The first declared or visible inherited method with the reserved role name, or null.</returns>
+    private static IMethodSymbol? FindVisibleRole(INamedTypeSymbol type, string role, Compilation compilation)
     {
         for (INamedTypeSymbol? owner = type; owner is not null; owner = owner.BaseType)
         {
-            if (owner.GetMembers(role).OfType<IMethodSymbol>().Any(method =>
-                SymbolEqualityComparer.Default.Equals(owner, type) || compilation.IsSymbolAccessibleWithin(method, type)))
+            if (owner.GetMembers(role).OfType<IMethodSymbol>().FirstOrDefault(method =>
+                SymbolEqualityComparer.Default.Equals(owner, type) || compilation.IsSymbolAccessibleWithin(method, type)) is { } method)
             {
-                return true;
+                return method;
             }
         }
 
-        return false;
+        return null;
     }
 }

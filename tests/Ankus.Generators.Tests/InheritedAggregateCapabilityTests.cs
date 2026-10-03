@@ -39,10 +39,10 @@ public sealed partial class PgFunctionGeneratorTests
             """);
 
         Diagnostic error = Assert.ContainsSingle(diagnostics);
-        Assert.AreEqual("ANKUS012", error.Id);
+        Assert.AreEqual("ANKUS111", error.Id);
         Assert.AreEqual(DiagnosticSeverity.Error, error.Severity);
         Assert.Contains("The " + role + " method requires its aggregate capability interface", error.GetMessage(CultureInfo.InvariantCulture));
-        Assert.AreEqual("Typed", error.Location.SourceTree!.GetText(context.CancellationToken).ToString(error.Location.SourceSpan));
+        Assert.AreEqual(role, error.Location.SourceTree!.GetText(context.CancellationToken).ToString(error.Location.SourceSpan));
         Assert.DoesNotContain("CREATE AGGREGATE", InstallationBody(compilation));
         Assert.IsEmpty(compilation.GetDiagnostics(context.CancellationToken).Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error));
     }

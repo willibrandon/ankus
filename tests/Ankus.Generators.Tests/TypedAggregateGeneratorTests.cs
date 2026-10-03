@@ -247,7 +247,7 @@ public sealed partial class PgFunctionGeneratorTests
     {
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(
             "[Ankus.PgAggregate(InitialCondition=\"0\")] public sealed class Broken : Ankus.IPgAggregate<long,int> { " + method + " }");
-        Assert.AreEqual("ANKUS012", Assert.ContainsSingle(diagnostics).Id);
+        Assert.AreEqual("ANKUS112", Assert.ContainsSingle(diagnostics).Id);
         ImmutableArray<Diagnostic> compilerDiagnostics = compilation.GetDiagnostics(context.CancellationToken);
         Assert.AreEqual("CS0535", Assert.ContainsSingle(compilerDiagnostics.Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)).Id);
     }
@@ -264,12 +264,13 @@ public sealed partial class PgFunctionGeneratorTests
                 public static long Transition(Ankus.PgAggregateContext context, long state, int input) => state + input;
                 public static int Combine(Ankus.PgAggregateContext context, int state, int other) => state + other;
             }
-            """, "ANKUS012");
+            """, "ANKUS100");
 
     /// <summary>
     /// Typed declarations reject ambiguous capability sets and conventional fallback rather than guessing a callback.
     /// </summary>
     /// <param name="source">A valid C# type with an invalid PostgreSQL aggregate contract.</param>
+    /// <param name="diagnostic">The specific PostgreSQL contract diagnostic.</param>
     [TestMethod]
     [DataRow("""
         [Ankus.PgAggregate(InitialCondition="0")] public sealed class Ambiguous : Ankus.IPgAggregate<int,int>,Ankus.IPgAggregate<long,int>
@@ -277,16 +278,16 @@ public sealed partial class PgFunctionGeneratorTests
             static int Ankus.IPgAggregate<int,int>.Transition(Ankus.PgAggregateContext context,int state,int arguments) => state;
             static long Ankus.IPgAggregate<long,int>.Transition(Ankus.PgAggregateContext context,long state,int arguments) => state;
         }
-        """)]
+        """, "ANKUS110")]
     [DataRow("""
         [Ankus.PgAggregate(InitialCondition="0")] public sealed class Uncontracted : Ankus.IPgAggregate<int,int>
         {
             public static int Transition(Ankus.PgAggregateContext context,int state,int arguments) => state;
             public static int Combine(int state,int other) => state + other;
         }
-        """)]
-    public void TypedAggregateRejectsAmbiguousOrUncontractedRoles(string source)
-        => AssertInvalidAggregate(source, "ANKUS012");
+        """, "ANKUS111")]
+    public void TypedAggregateRejectsAmbiguousOrUncontractedRoles(string source, string diagnostic)
+        => AssertInvalidAggregate(source, diagnostic);
 
     /// <summary>
     /// Grouped reference values require explicit SQL nullability just like ordinary function arguments.
@@ -413,15 +414,15 @@ public sealed partial class PgFunctionGeneratorTests
     /// <param name="attributes">The invalid metadata on a numeric input group.</param>
     /// <param name="diagnostic">The expected declaration diagnostic.</param>
     [TestMethod]
-    [DataRow("[Ankus.PgParameter(Name=\"cost\")]", "ANKUS012")]
-    [DataRow("[Ankus.PgParameter(Element=\"missing\",Name=\"cost\")]", "ANKUS012")]
-    [DataRow("[Ankus.PgParameter(Element=\"Amount\",Name=\"cost\"),Ankus.PgParameter(Element=\"Amount\",Name=\"price\")]", "ANKUS012")]
-    [DataRow("[Ankus.PgParameter(Element=\"Amount\",Default=\"0\")]", "ANKUS012")]
+    [DataRow("[Ankus.PgParameter(Name=\"cost\")]", "ANKUS118")]
+    [DataRow("[Ankus.PgParameter(Element=\"missing\",Name=\"cost\")]", "ANKUS118")]
+    [DataRow("[Ankus.PgParameter(Element=\"Amount\",Name=\"cost\"),Ankus.PgParameter(Element=\"Amount\",Name=\"price\")]", "ANKUS126")]
+    [DataRow("[Ankus.PgParameter(Element=\"Amount\",Default=\"0\")]", "ANKUS127")]
     [DataRow("[Ankus.PgNumericPrecision(5,2,Element=\"Amount\"),Ankus.PgNumericPrecision(6,3,Element=\"Amount\")]", "ANKUS003")]
     [DataRow("[Ankus.PgNumericPrecision(0,2,Element=\"Amount\")]", "ANKUS003")]
     [DataRow("[Ankus.PgNumericPrecision(5,2,Element=\"Count\")]", "ANKUS003")]
     [DataRow("[Ankus.PgSqlType(\"numeric\",Element=\"Amount\")]", "ANKUS016")]
-    [DataRow("[Ankus.PgParameter(Element=\"Amount\",Variadic=true)]", "ANKUS012")]
+    [DataRow("[Ankus.PgParameter(Element=\"Amount\",Variadic=true)]", "ANKUS103")]
     public void TypedAggregateTupleMetadataRejectsInvalidSelections(string attributes, string diagnostic)
         => AssertInvalidAggregate("[Ankus.PgAggregate(InitialCondition=\"0\")] public sealed class Invalid : Ankus.IPgAggregate<long,(decimal Amount,int Count)> { " +
             "public static long Transition(Ankus.PgAggregateContext context,long state," + attributes + "(decimal Amount,int Count) arguments) => state; }", diagnostic);

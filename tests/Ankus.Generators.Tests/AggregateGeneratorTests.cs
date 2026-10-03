@@ -241,25 +241,26 @@ public sealed partial class PgFunctionGeneratorTests
     /// <param name="method">The invalid transition method.</param>
     /// <param name="state">The declared interface state.</param>
     /// <param name="compilerError">The expected C# contract error, or null for a C#-valid SQL rejection.</param>
+    /// <param name="diagnostic">The specific PostgreSQL contract diagnostic.</param>
     [TestMethod]
-    [DataRow("public int Transition(Ankus.PgAggregateContext context, int state, int value) => state;", "int", "CS8928")]
-    [DataRow("private static int Transition(Ankus.PgAggregateContext context, int state, int value) => state;", "int", "CS0737")]
-    [DataRow("public static int Transition<T>(Ankus.PgAggregateContext context, int state, int value) => state;", "int", "CS0535")]
-    [DataRow("public static void Transition(Ankus.PgAggregateContext context, int state, int value) { }", "int", "CS0738")]
-    [DataRow("public static async System.Threading.Tasks.Task<int> Transition(Ankus.PgAggregateContext context, int state, int value) { await System.Threading.Tasks.Task.Yield(); return state; }", "int", "CS0738")]
-    [DataRow("public static int Transition() => 0;", "int", "CS0535")]
-    [DataRow("public static long Transition(Ankus.PgAggregateContext context, int state, int value) => state;", "int", "CS0738")]
-    [DataRow("public static int Transition(Ankus.PgAggregateContext context, ref int state, int value) => state;", "int", "CS0535")]
-    [DataRow("public static int Transition(Ankus.PgAggregateContext context, int state, int value = 0) => state;", "int", null)]
-    [DataRow("public static int Transition(Ankus.PgAggregateContext context, int state, [System.Runtime.InteropServices.Optional] int value) => state;", "int", null)]
-    [DataRow("public static int Transition(int state, Ankus.PgAggregateContext context, int value) => state;", "int", "CS0535")]
-    [DataRow("public static object Transition(Ankus.PgAggregateContext context, object state, int value) => state;", "object", null)]
+    [DataRow("public int Transition(Ankus.PgAggregateContext context, int state, int value) => state;", "int", "CS8928", "ANKUS112")]
+    [DataRow("private static int Transition(Ankus.PgAggregateContext context, int state, int value) => state;", "int", "CS0737", "ANKUS112")]
+    [DataRow("public static int Transition<T>(Ankus.PgAggregateContext context, int state, int value) => state;", "int", "CS0535", "ANKUS112")]
+    [DataRow("public static void Transition(Ankus.PgAggregateContext context, int state, int value) { }", "int", "CS0738", "ANKUS112")]
+    [DataRow("public static async System.Threading.Tasks.Task<int> Transition(Ankus.PgAggregateContext context, int state, int value) { await System.Threading.Tasks.Task.Yield(); return state; }", "int", "CS0738", "ANKUS112")]
+    [DataRow("public static int Transition() => 0;", "int", "CS0535", "ANKUS112")]
+    [DataRow("public static long Transition(Ankus.PgAggregateContext context, int state, int value) => state;", "int", "CS0738", "ANKUS112")]
+    [DataRow("public static int Transition(Ankus.PgAggregateContext context, ref int state, int value) => state;", "int", "CS0535", "ANKUS112")]
+    [DataRow("public static int Transition(Ankus.PgAggregateContext context, int state, int value = 0) => state;", "int", null, "ANKUS113")]
+    [DataRow("public static int Transition(Ankus.PgAggregateContext context, int state, [System.Runtime.InteropServices.Optional] int value) => state;", "int", null, "ANKUS113")]
+    [DataRow("public static int Transition(int state, Ankus.PgAggregateContext context, int value) => state;", "int", "CS0535", "ANKUS112")]
+    [DataRow("public static object Transition(Ankus.PgAggregateContext context, object state, int value) => state;", "object", null, "ANKUS117")]
     [DataRow("public static System.Collections.Generic.IEnumerable<int> Transition(Ankus.PgAggregateContext context, System.Collections.Generic.IEnumerable<int> state, int value) => System.Array.Empty<int>();",
-        "System.Collections.Generic.IEnumerable<int>", null)]
-    [DataRow("public static Ankus.PgHeapTuple? Transition(Ankus.PgAggregateContext context, Ankus.PgHeapTuple? state, int value) => state;", "Ankus.PgHeapTuple?", null)]
-    public void InvalidAggregateSupportSignaturesAreDiagnosed(string method, string state, string? compilerError)
+        "System.Collections.Generic.IEnumerable<int>", null, "ANKUS116")]
+    [DataRow("public static Ankus.PgHeapTuple? Transition(Ankus.PgAggregateContext context, Ankus.PgHeapTuple? state, int value) => state;", "Ankus.PgHeapTuple?", null, "ANKUS084")]
+    public void InvalidAggregateSupportSignaturesAreDiagnosed(string method, string state, string? compilerError, string diagnostic)
         => AssertAggregateContractRejected("[Ankus.PgAggregate(InitialCondition=\"0\")] public class Invalid : Ankus.IPgAggregate<" +
-            state + ",int> { " + method + " }", compilerError);
+            state + ",int> { " + method + " }", compilerError, diagnostic);
 
     /// <summary>
     /// A callback accepting nullable context still receives the required, non-SQL invocation context.
@@ -288,13 +289,13 @@ public sealed partial class PgFunctionGeneratorTests
     [DataRow("[Ankus.PgAggregate] public static class Missing { }", "ANKUS029")]
     [DataRow("[Ankus.PgAggregate] public class Ambiguous : Ankus.IPgAggregate<int,int>,Ankus.IPgAggregate<long,long> { " +
         "public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state; " +
-        "public static long Transition(Ankus.PgAggregateContext context,long state,long value)=>state; }", "ANKUS012")]
-    [DataRow("[Ankus.PgAggregate] public class Generic<T> : Ankus.IPgAggregate<int,int> { public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state; }", "ANKUS012")]
-    [DataRow("[Ankus.PgAggregate] file class Hidden : Ankus.IPgAggregate<int,int> { public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state; }", "ANKUS012")]
-    [DataRow("public class Outer { [Ankus.PgAggregate] private class Hidden : Ankus.IPgAggregate<int,int> { public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state; } }", "ANKUS012")]
-    [DataRow("[Ankus.PgAggregate] public class Conflict : Ankus.IPgAggregate<int,int> { [Ankus.PgOperator(\"+\")] public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state; }", "ANKUS012")]
-    [DataRow("[Ankus.PgAggregate] public class Conflict : Ankus.IPgAggregate<int,int> { [Ankus.PgTrigger] public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state; }", "ANKUS012")]
-    [DataRow("[Ankus.PgAggregate] public class Conflict : Ankus.IPgAggregate<int,int> { [Ankus.PgEventTrigger] public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state; }", "ANKUS012")]
+        "public static long Transition(Ankus.PgAggregateContext context,long state,long value)=>state; }", "ANKUS110")]
+    [DataRow("[Ankus.PgAggregate] public class Generic<T> : Ankus.IPgAggregate<int,int> { public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state; }", "ANKUS080")]
+    [DataRow("[Ankus.PgAggregate] file class Hidden : Ankus.IPgAggregate<int,int> { public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state; }", "ANKUS080")]
+    [DataRow("public class Outer { [Ankus.PgAggregate] private class Hidden : Ankus.IPgAggregate<int,int> { public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state; } }", "ANKUS080")]
+    [DataRow("[Ankus.PgAggregate] public class Conflict : Ankus.IPgAggregate<int,int> { [Ankus.PgOperator(\"+\")] public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state; }", "ANKUS115")]
+    [DataRow("[Ankus.PgAggregate] public class Conflict : Ankus.IPgAggregate<int,int> { [Ankus.PgTrigger] public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state; }", "ANKUS115")]
+    [DataRow("[Ankus.PgAggregate] public class Conflict : Ankus.IPgAggregate<int,int> { [Ankus.PgEventTrigger] public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state; }", "ANKUS115")]
     public void InvalidAggregateDiscoveryAndContainersAreDiagnosed(string source, string expected) => AssertInvalidAggregate(source, expected);
 
     /// <summary>
@@ -303,25 +304,26 @@ public sealed partial class PgFunctionGeneratorTests
     /// <param name="options">The invalid aggregate options.</param>
     /// <param name="contract">The transition's valid C# state and input contract.</param>
     /// <param name="method">The transition implementation.</param>
+    /// <param name="diagnostic">The specific PostgreSQL contract diagnostic.</param>
     [TestMethod]
-    [DataRow("Kind=(Ankus.PgAggregateKind)3", "int,int", "public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state;")]
-    [DataRow("ParallelSafety=(Ankus.PgParallelSafety)3", "int,int", "public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state;")]
-    [DataRow("FinalModify=(Ankus.PgAggregateFinalModify)4", "int,int", "public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state;")]
-    [DataRow("MovingFinalModify=(Ankus.PgAggregateFinalModify)4", "int,int", "public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state;")]
-    [DataRow("Name=\"\"", "int,int", "public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state;")]
-    [DataRow("Schema=\"\"", "int,int", "public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state;")]
-    [DataRow("InitialCondition=\"a\\0b\"", "int,int", "public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state;")]
-    [DataRow("SortOperator=\"schema.invalid\"", "int,int", "public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state;")]
-    [DataRow("SortOperator=\"pg_catalog.<\"", "int,(int left,int right)", "public static int Transition(Ankus.PgAggregateContext context,int state,(int left,int right) arguments)=>state;")]
-    [DataRow("MovingStateSize=16", "int,int", "public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state;")]
-    [DataRow("MovingInitialCondition=\"0\"", "int,int", "public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state;")]
-    [DataRow("", "int,System.ValueTuple", "public static int Transition(Ankus.PgAggregateContext context,int state,System.ValueTuple arguments)=>state;")]
-    [DataRow("", "long,int", "public static long Transition(Ankus.PgAggregateContext context,long state,int value)=>state;")]
-    [DataRow("Kind=Ankus.PgAggregateKind.OrderedSet,InitialCondition=\"0\"", "int,System.ValueTuple", "public static int Transition(Ankus.PgAggregateContext context,int state,System.ValueTuple arguments)=>state;")]
-    [DataRow("Kind=Ankus.PgAggregateKind.OrderedSet,InitialCondition=\"0\"", "int,int[]", "public static int Transition(Ankus.PgAggregateContext context,int state,params int[] values)=>state;")]
-    public void InvalidAggregateOptionsAndInitialContractsAreDiagnosed(string options, string contract, string method)
+    [DataRow("Kind=(Ankus.PgAggregateKind)3", "int,int", "public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state;", "ANKUS082")]
+    [DataRow("ParallelSafety=(Ankus.PgParallelSafety)3", "int,int", "public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state;", "ANKUS082")]
+    [DataRow("FinalModify=(Ankus.PgAggregateFinalModify)4", "int,int", "public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state;", "ANKUS082")]
+    [DataRow("MovingFinalModify=(Ankus.PgAggregateFinalModify)4", "int,int", "public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state;", "ANKUS082")]
+    [DataRow("Name=\"\"", "int,int", "public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state;", "ANKUS081")]
+    [DataRow("Schema=\"\"", "int,int", "public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state;", "ANKUS050")]
+    [DataRow("InitialCondition=\"a\\0b\"", "int,int", "public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state;", "ANKUS083")]
+    [DataRow("SortOperator=\"schema.invalid\"", "int,int", "public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state;", "ANKUS105")]
+    [DataRow("SortOperator=\"pg_catalog.<\"", "int,(int left,int right)", "public static int Transition(Ankus.PgAggregateContext context,int state,(int left,int right) arguments)=>state;", "ANKUS104")]
+    [DataRow("MovingStateSize=16", "int,int", "public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state;", "ANKUS094")]
+    [DataRow("MovingInitialCondition=\"0\"", "int,int", "public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state;", "ANKUS094")]
+    [DataRow("", "int,System.ValueTuple", "public static int Transition(Ankus.PgAggregateContext context,int state,System.ValueTuple arguments)=>state;", "ANKUS107")]
+    [DataRow("", "long,int", "public static long Transition(Ankus.PgAggregateContext context,long state,int value)=>state;", "ANKUS107")]
+    [DataRow("Kind=Ankus.PgAggregateKind.OrderedSet,InitialCondition=\"0\"", "int,System.ValueTuple", "public static int Transition(Ankus.PgAggregateContext context,int state,System.ValueTuple arguments)=>state;", "ANKUS087")]
+    [DataRow("Kind=Ankus.PgAggregateKind.OrderedSet,InitialCondition=\"0\"", "int,int[]", "public static int Transition(Ankus.PgAggregateContext context,int state,params int[] values)=>state;", "ANKUS103")]
+    public void InvalidAggregateOptionsAndInitialContractsAreDiagnosed(string options, string contract, string method, string diagnostic)
         => AssertInvalidAggregate("[Ankus.PgAggregate(" + options + ")] public sealed class Invalid : Ankus.IPgAggregate<" +
-            contract + "> { " + method + " }", "ANKUS012");
+            contract + "> { " + method + " }", diagnostic);
 
     /// <summary>
     /// Cross-callback type, extra-input, serialization and moving contracts fail as one aggregate declaration.
@@ -330,40 +332,41 @@ public sealed partial class PgFunctionGeneratorTests
     /// <param name="capabilities">The declared transition and optional capability interfaces.</param>
     /// <param name="helpers">The complete support method set.</param>
     /// <param name="compilerError">The specific C# contract error, or null for valid C# rejected by PostgreSQL rules.</param>
+    /// <param name="diagnostic">The specific PostgreSQL contract diagnostic.</param>
     [TestMethod]
     [DataRow("", "Ankus.IPgAggregate<int,int>,Ankus.IPgFinalizingAggregate<long,System.ValueTuple,int>",
-        "public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state; public static int Final(Ankus.PgAggregateContext context,long state,System.ValueTuple direct)=>0;", null)]
+        "public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state; public static int Final(Ankus.PgAggregateContext context,long state,System.ValueTuple direct)=>0;", null, "ANKUS085")]
     [DataRow("", "Ankus.IPgAggregate<int,int>,Ankus.IPgFinalizingAggregate<int,int,int>",
-        "public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state; public static int Final(Ankus.PgAggregateContext context,int state,int direct)=>0;", null)]
+        "public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state; public static int Final(Ankus.PgAggregateContext context,int state,int direct)=>0;", null, "ANKUS086")]
     [DataRow("FinalExtra=true", "Ankus.IPgAggregate<int,int>,Ankus.IPgFinalizingAggregate<int,System.ValueTuple,int>",
-        "public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state; [Ankus.PgFunction(NullInput=Ankus.PgNullInput.Strict)] public static int Final(Ankus.PgAggregateContext context,int state,System.ValueTuple direct)=>0;", null)]
+        "public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state; [Ankus.PgFunction(NullInput=Ankus.PgNullInput.Strict)] public static int Final(Ankus.PgAggregateContext context,int state,System.ValueTuple direct)=>0;", null, "ANKUS109")]
     [DataRow("FinalExtra=true", "Ankus.IPgAggregate<int,int>,Ankus.IPgFinalizingAggregate<int?,long?,int>",
-        "public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state; public static int Final(Ankus.PgAggregateContext context,int? state,long? extra)=>0;", null)]
+        "public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state; public static int Final(Ankus.PgAggregateContext context,int? state,long? extra)=>0;", null, "ANKUS086")]
     [DataRow("Kind=Ankus.PgAggregateKind.HypotheticalSet", "Ankus.IPgAggregate<int,int>,Ankus.IPgFinalizingAggregate<int,long,int>",
-        "public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state; public static int Final(Ankus.PgAggregateContext context,int state,long direct)=>0;", null)]
+        "public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state; public static int Final(Ankus.PgAggregateContext context,int state,long direct)=>0;", null, "ANKUS093")]
     [DataRow("", "Ankus.IPgAggregate<int,int>,Ankus.IPgCombinableAggregate<int>",
-        "public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state; public static int Combine(Ankus.PgAggregateContext context,int state)=>state;", "CS0535")]
+        "public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state; public static int Combine(Ankus.PgAggregateContext context,int state)=>state;", "CS0535", "ANKUS112")]
     [DataRow("", "Ankus.IPgAggregate<int,int>,Ankus.IPgCombinableAggregate<int>",
-        "public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state; public static long Combine(Ankus.PgAggregateContext context,int state,int other)=>state;", "CS0738")]
+        "public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state; public static long Combine(Ankus.PgAggregateContext context,int state,int other)=>state;", "CS0738", "ANKUS112")]
     [DataRow("", "Ankus.IPgAggregate<int,int>,Ankus.IPgSerializableAggregate<int>",
-        "public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state; public static byte[] Serialize(Ankus.PgAggregateContext context,int state)=>[];", "CS0535")]
+        "public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state; public static byte[] Serialize(Ankus.PgAggregateContext context,int state)=>[];", "CS0535", "ANKUS112")]
     [DataRow("", "Ankus.IPgAggregate<int,int>,Ankus.IPgSerializableAggregate<int>",
-        "public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state; public static byte[] Serialize(Ankus.PgAggregateContext context,int state)=>[]; public static int Deserialize(Ankus.PgAggregateContext context,byte[] bytes)=>0;", null)]
+        "public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state; public static byte[] Serialize(Ankus.PgAggregateContext context,int state)=>[]; public static int Deserialize(Ankus.PgAggregateContext context,byte[] bytes)=>0;", null, "ANKUS102")]
     [DataRow("", "Ankus.IPgAggregate<int,int>,Ankus.IPgMovingAggregate<int,int>",
-        "public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state; public static int MovingTransition(Ankus.PgAggregateContext context,int state,int value)=>state;", "CS0535")]
+        "public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state; public static int MovingTransition(Ankus.PgAggregateContext context,int state,int value)=>state;", "CS0535", "ANKUS112")]
     [DataRow("", "Ankus.IPgAggregate<int,int>,Ankus.IPgMovingAggregate<int,int>",
-        "public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state; public static int MovingInverse(Ankus.PgAggregateContext context,int state,int value)=>state;", "CS0535")]
+        "public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state; public static int MovingInverse(Ankus.PgAggregateContext context,int state,int value)=>state;", "CS0535", "ANKUS112")]
     [DataRow("", "Ankus.IPgAggregate<int,int>,Ankus.IPgMovingAggregate<int,int>",
-        "public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state; public static int MovingTransition(Ankus.PgAggregateContext context,int state,int value)=>state; public static int MovingInverse(Ankus.PgAggregateContext context,int? state,int? value)=>0;", "CS0535")]
+        "public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state; public static int MovingTransition(Ankus.PgAggregateContext context,int state,int value)=>state; public static int MovingInverse(Ankus.PgAggregateContext context,int? state,int? value)=>0;", "CS0535", "ANKUS112")]
     [DataRow("MovingInitialCondition=\"0\"", "Ankus.IPgAggregate<int,int>,Ankus.IPgMovingAggregate<long,int>",
-        "public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state; public static long MovingTransition(Ankus.PgAggregateContext context,long state,int value)=>state; public static long MovingInverse(Ankus.PgAggregateContext context,long state,int value)=>state;", null)]
+        "public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state; public static long MovingTransition(Ankus.PgAggregateContext context,long state,int value)=>state; public static long MovingInverse(Ankus.PgAggregateContext context,long state,int value)=>state;", null, "ANKUS099")]
     [DataRow("", "Ankus.IPgAggregate<Ankus.PgAggregateState<int>?,int>",
-        "public static Ankus.PgAggregateState<int>? Transition(Ankus.PgAggregateContext context,Ankus.PgAggregateState<int>? state,int value)=>state;", null)]
+        "public static Ankus.PgAggregateState<int>? Transition(Ankus.PgAggregateContext context,Ankus.PgAggregateState<int>? state,int value)=>state;", null, "ANKUS091")]
     [DataRow("", "Ankus.IPgAggregate<Ankus.PgAggregateState<int>?,int>,Ankus.IPgFinalizingAggregate<Ankus.PgAggregateState<int>?,System.ValueTuple,int>,Ankus.IPgCombinableAggregate<Ankus.PgAggregateState<int>>",
-        "public static Ankus.PgAggregateState<int>? Transition(Ankus.PgAggregateContext context,Ankus.PgAggregateState<int>? state,int value)=>state; public static int Final(Ankus.PgAggregateContext context,Ankus.PgAggregateState<int>? state,System.ValueTuple direct)=>0; public static Ankus.PgAggregateState<int> Combine(Ankus.PgAggregateContext context,Ankus.PgAggregateState<int> state,Ankus.PgAggregateState<int> other)=>state;", null)]
-    public void InvalidAggregateHelperRelationshipsAreDiagnosed(string options, string capabilities, string helpers, string? compilerError)
+        "public static Ankus.PgAggregateState<int>? Transition(Ankus.PgAggregateContext context,Ankus.PgAggregateState<int>? state,int value)=>state; public static int Final(Ankus.PgAggregateContext context,Ankus.PgAggregateState<int>? state,System.ValueTuple direct)=>0; public static Ankus.PgAggregateState<int> Combine(Ankus.PgAggregateContext context,Ankus.PgAggregateState<int> state,Ankus.PgAggregateState<int> other)=>state;", null, "ANKUS101")]
+    public void InvalidAggregateHelperRelationshipsAreDiagnosed(string options, string capabilities, string helpers, string? compilerError, string diagnostic)
         => AssertAggregateContractRejected("[Ankus.PgAggregate(" + options + ")] public sealed class Invalid : " +
-            capabilities + " { " + helpers + " }", compilerError);
+            capabilities + " { " + helpers + " }", compilerError, diagnostic);
 
     /// <summary>
     /// Common helper settings remain independent of aggregate planner metadata and quoted names preserve exact spelling.
@@ -527,7 +530,7 @@ public sealed partial class PgFunctionGeneratorTests
         => AssertInvalidAggregate("[Ankus.PgAggregate(Kind=Ankus.PgAggregateKind.OrderedSet)] public sealed class Unsafe : " +
             "Ankus.IPgAggregate<int," + input + ">, Ankus.IPgFinalizingAggregate<int," + direct + ",int> { " +
             "public static int Transition(Ankus.PgAggregateContext context,int state," + input + " value)=>state; " +
-            "public static int Final(Ankus.PgAggregateContext context,int state," + direct + " direct)=>state; }", "ANKUS012");
+            "public static int Final(Ankus.PgAggregateContext context,int state," + direct + " direct)=>state; }", "ANKUS107");
 
     /// <summary>
     /// A genuine matching ordered state supports catalog-compatible strict seeding and moving declarations.
@@ -573,7 +576,7 @@ public sealed partial class PgFunctionGeneratorTests
             "> { public static " + state + " Transition(Ankus.PgAggregateContext context," + state + " state," + input + " value)=>state; }";
         if (!valid)
         {
-            AssertInvalidAggregate(source, "ANKUS012");
+            AssertInvalidAggregate(source, "ANKUS107");
             return;
         }
 
@@ -641,7 +644,7 @@ public sealed partial class PgFunctionGeneratorTests
             "> { public static int Transition(Ankus.PgAggregateContext context,int state," + arguments + " arguments)=>state; }";
         if (!valid)
         {
-            AssertInvalidAggregate(source, "ANKUS012");
+            AssertInvalidAggregate(source, "ANKUS120");
             return;
         }
 
@@ -683,7 +686,7 @@ public sealed partial class PgFunctionGeneratorTests
             "public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state; }";
         if (extra.Length != 0)
         {
-            AssertInvalidAggregate(source, "ANKUS012");
+            AssertInvalidAggregate(source, option == "aggregate" ? "ANKUS081" : "ANKUS123");
             return;
         }
 
@@ -729,7 +732,7 @@ public sealed partial class PgFunctionGeneratorTests
                 public static Ankus.PgAggregateState<int>? Transition(Ankus.PgAggregateContext context,Ankus.PgAggregateState<int>? state,int value)=>null;
                 public static int Final(Ankus.PgAggregateContext context,Ankus.PgAggregateState<string>? state,System.ValueTuple direct)=>0;
             }
-            """, "ANKUS012");
+            """, "ANKUS085");
 
     /// <summary>
     /// Nested payload nullability survives generated state reads and variable declarations without nullable warnings.
@@ -771,7 +774,7 @@ public sealed partial class PgFunctionGeneratorTests
                 public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state;
                 public static int Final(Ankus.PgAggregateContext context,int state,int value)=>state;
             }
-            """, "ANKUS012");
+            """, "ANKUS090");
 
     /// <summary>
     /// Requires clean generator diagnostics, warning-free consumer compilation, and actual managed assembly emission.
@@ -799,11 +802,11 @@ public sealed partial class PgFunctionGeneratorTests
     /// <summary>
     /// Distinguishes compile-time capability failures from valid C# rejected for PostgreSQL semantics.
     /// </summary>
-    private void AssertAggregateContractRejected(string source, string? compilerError)
+    private void AssertAggregateContractRejected(string source, string? compilerError, string diagnostic)
     {
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source);
         Diagnostic error = Assert.ContainsSingle(diagnostics);
-        Assert.AreEqual("ANKUS012", error.Id);
+        Assert.AreEqual(diagnostic, error.Id);
         Assert.AreEqual(DiagnosticSeverity.Error, error.Severity);
         Diagnostic[] compilerErrors = [.. compilation.GetDiagnostics(context.CancellationToken)
             .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)];

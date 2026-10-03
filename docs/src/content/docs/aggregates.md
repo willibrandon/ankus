@@ -346,3 +346,67 @@ retain that aggregate owner; nested aggregates use their own.
 Throw `PgException` for a deliberate SQLSTATE and diagnostics. Native comparison,
 datum conversion, and backend calls use guarded boundaries so PostgreSQL ERROR
 does not cross managed frames. State cleanup still runs when a query fails.
+
+## Declaration diagnostics
+
+Aggregate errors identify the option, callback, or parameter that needs correction.
+An invalid aggregate does not emit its SQL or support functions; independent valid
+declarations still generate normally. These diagnostics replace the general
+`ANKUS012` error.
+
+| Diagnostic | Correction |
+|---|---|
+| `ANKUS080` | Use an accessible, non-generic class or struct inside accessible, non-generic containers. File-local containers are unsupported. |
+| `ANKUS081` | Choose a nonempty aggregate name of at most 63 UTF-8 bytes, with valid Unicode and no zero characters. |
+| `ANKUS082` | Select a defined member of the named execution-policy enum. |
+| `ANKUS083` | Remove zero characters or invalid Unicode from the initial condition. |
+| `ANKUS084` | Return the ordinary transition's state type. Composite state needs a named PostgreSQL type. |
+| `ANKUS085` | Give `Final` the same state type as `Transition`. |
+| `ANKUS086` | Use `ValueTuple` for a normal aggregate's direct argument group. |
+| `ANKUS087` | Supply at least one aggregated input for ordered-set or hypothetical aggregation. |
+| `ANKUS088` | Limit the combined direct and aggregated inputs to 99 SQL arguments. |
+| `ANKUS089` | Reserve `internal` for state; direct and aggregated inputs must be SQL values. |
+| `ANKUS090` | Give direct and aggregated inputs distinct SQL names. |
+| `ANKUS091` | Add a final capability that converts internal state to a supported SQL result. |
+| `ANKUS092` | Supply a polymorphic aggregate input to resolve a polymorphic state or result. |
+| `ANKUS093` | End the hypothetical direct inputs with the same types as the aggregated inputs. |
+| `ANKUS094` | Implement `IPgMovingAggregate` before using moving options or `MovingFinal`. |
+| `ANKUS095` | Return the moving transition's state type. Composite state needs a named PostgreSQL type. |
+| `ANKUS096` | Use the same aggregated input types for ordinary and moving transitions. |
+| `ANKUS097` | Match the inverse callback's state, inputs, and result to the moving transition. |
+| `ANKUS098` | Give moving transition and inverse callbacks the same `STRICT` policy. |
+| `ANKUS099` | Return the same SQL result type from ordinary and moving execution. |
+| `ANKUS100` | Combine two ordinary transition states and return that state type. |
+| `ANKUS101` | Accept two nullable internal states in `Combine` and use a non-strict NULL policy. |
+| `ANKUS102` | Serialize internal state to `byte[]` and deserialize it to the same state type. |
+| `ANKUS103` | Use one trailing variadic array on a normal aggregate. |
+| `ANKUS104` | Specify `SortOperator` only for an aggregate with one SQL input. |
+| `ANKUS105` | Use a valid PostgreSQL operator token, optionally qualified by one schema. |
+| `ANKUS106` | Initialize internal state in the transition callback instead of supplying textual initial state. |
+| `ANKUS107` | Supply an initial condition or make the first declared and aggregated inputs binary compatible with the strict transition's state. |
+| `ANKUS108` | Match the final callback's state and direct inputs to the corresponding aggregate contracts. |
+| `ANKUS109` | Use a non-strict final callback with `FinalExtra` or `MovingFinalExtra`; generated extra inputs are nullable. |
+| `ANKUS110` | Implement one transition contract and at most one of each optional capability. |
+| `ANKUS111` | Add the capability interface for the named callback, including visible inherited callbacks. |
+| `ANKUS112` | Implement the selected static interface callback with a synchronous, non-generic method. |
+| `ANKUS113` | Remove optional C# defaults and pass callback parameters by value. |
+| `ANKUS114` | Remove attributes and `params` from the invocation context parameter. |
+| `ANKUS115` | Remove trigger, event-trigger, operator, cast, or table-column attributes from the callback. |
+| `ANKUS116` | Return one state or SQL result instead of a sequence. |
+| `ANKUS117` | Use a supported SQL result type or concrete `PgAggregateState<T>`. |
+| `ANKUS118` | Select an existing tuple element by its exact `Element` name; do not mark the tuple group `params`. |
+| `ANKUS119` | Remove metadata from an empty `ValueTuple` group, which has no SQL inputs. |
+| `ANKUS120` | Limit a support function to 100 SQL arguments, including the deserializer's generated dummy argument. |
+| `ANKUS121` | Give every input within a support function a distinct SQL name. |
+| `ANKUS122` | Supply a polymorphic callback input; internal-state final callbacks can use `FinalExtra`. |
+| `ANKUS123` | Choose a valid support-function name of at most 63 UTF-8 bytes. |
+| `ANKUS124` | Use supported SQL input types or concrete managed state. |
+| `ANKUS125` | Choose a nonempty input name of at most 63 UTF-8 bytes, with valid Unicode and no zero characters. |
+| `ANKUS126` | Apply at most one `PgParameter` attribute to each SQL input. |
+| `ANKUS127` | Remove `PgParameter.Default`; aggregate inputs do not accept SQL defaults. |
+| `ANKUS128` | Use `PgParameter.Element` only for a tuple input group. |
+
+Ordinary support-function options also use the
+[function declaration diagnostics](/function-declarations/#declaration-diagnostics).
+`ANKUS028` checks implementation nullability, and `ANKUS029` requires the
+base aggregate interface.

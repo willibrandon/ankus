@@ -66,13 +66,14 @@ public sealed partial class PgFunctionGeneratorTests
     /// </summary>
     /// <param name="contracts">The compiler-checked aggregate capabilities.</param>
     /// <param name="body">The otherwise valid C# declaration.</param>
+    /// <param name="diagnostic">The specific PostgreSQL contract diagnostic.</param>
     [TestMethod]
     [DataRow("Ankus.IPgAggregate<Ankus.PgAnyElement?, int>",
-        "public static Ankus.PgAnyElement? Transition(Ankus.PgAggregateContext context,Ankus.PgAnyElement? state,int value)=>state;")]
+        "public static Ankus.PgAnyElement? Transition(Ankus.PgAggregateContext context,Ankus.PgAnyElement? state,int value)=>state;", "ANKUS092")]
     [DataRow("Ankus.IPgAggregate<Ankus.PgAggregateState<int>?, Ankus.PgAnyElement?>, Ankus.IPgFinalizingAggregate<Ankus.PgAggregateState<int>?, System.ValueTuple, Ankus.PgAnyElement?>",
-        "public static Ankus.PgAggregateState<int>? Transition(Ankus.PgAggregateContext context,Ankus.PgAggregateState<int>? state,Ankus.PgAnyElement? value)=>state; public static Ankus.PgAnyElement? Final(Ankus.PgAggregateContext context,Ankus.PgAggregateState<int>? state,System.ValueTuple arguments)=>null;")]
+        "public static Ankus.PgAggregateState<int>? Transition(Ankus.PgAggregateContext context,Ankus.PgAggregateState<int>? state,Ankus.PgAnyElement? value)=>state; public static Ankus.PgAnyElement? Final(Ankus.PgAggregateContext context,Ankus.PgAggregateState<int>? state,System.ValueTuple arguments)=>null;", "ANKUS122")]
     [DataRow("Ankus.IPgAggregate<int?, int>, Ankus.IPgMovingAggregate<Ankus.PgAnyArray?, int>, Ankus.IPgMovingFinalizingAggregate<Ankus.PgAnyArray?, System.ValueTuple, int?>",
-        "public static int? Transition(Ankus.PgAggregateContext context,int? state,int value)=>0; public static Ankus.PgAnyArray? MovingTransition(Ankus.PgAggregateContext context,Ankus.PgAnyArray? state,int value)=>state; public static Ankus.PgAnyArray? MovingInverse(Ankus.PgAggregateContext context,Ankus.PgAnyArray? state,int value)=>state; public static int? MovingFinal(Ankus.PgAggregateContext context,Ankus.PgAnyArray? state,System.ValueTuple arguments)=>0;")]
-    public void UnresolvedPolymorphicAggregateSignaturesAreDiagnosed(string contracts, string body)
-        => AssertInvalidAggregate("[Ankus.PgAggregate] public sealed class Invalid : " + contracts + " { " + body + " }", "ANKUS012");
+        "public static int? Transition(Ankus.PgAggregateContext context,int? state,int value)=>0; public static Ankus.PgAnyArray? MovingTransition(Ankus.PgAggregateContext context,Ankus.PgAnyArray? state,int value)=>state; public static Ankus.PgAnyArray? MovingInverse(Ankus.PgAggregateContext context,Ankus.PgAnyArray? state,int value)=>state; public static int? MovingFinal(Ankus.PgAggregateContext context,Ankus.PgAnyArray? state,System.ValueTuple arguments)=>0;", "ANKUS092")]
+    public void UnresolvedPolymorphicAggregateSignaturesAreDiagnosed(string contracts, string body, string diagnostic)
+        => AssertInvalidAggregate("[Ankus.PgAggregate] public sealed class Invalid : " + contracts + " { " + body + " }", diagnostic);
 }

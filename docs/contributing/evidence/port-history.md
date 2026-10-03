@@ -1,5 +1,58 @@
 # Historical port evidence
 
+## Editor correction for injected SQL metadata
+
+The isolated code-fix assembly offers an `ANKUS056` correction that removes
+`PgParameter` only from semantically resolved injected invocation contexts.
+Ordinary SQL arguments, unrelated attributes, nullable/default syntax, comments
+and method bodies are preserved. Roslyn's batch fixer supports project-wide
+corrections. Compiler-only workspace dependencies do not flow to consumers.
+
+Eight actual generator-error cases fail against a no-op provider. The first
+corrected run exposes two test expectations: the SQL puts `RETURNS` on a new
+line, and retained comment trivia may belong to the surrounding declaration.
+Correcting those expectations leaves production unchanged. The expanded scope
+passes **14/14**, zero failures/skips, in **6.258s**, including unrelated/stale
+targets, project-wide changes, cancellation and actual shared MEF discovery.
+The complete generator module passes **3,191/3,191**, zero failures/skips, in
+**1m08.382s**.
+
+Normal and `--no-build` package creation both pass an isolated fresh-cache
+consumer check. Each package contains the exact generator and editor DLLs under
+the analyzer path. Restored bytes match, compilation has zero warnings/errors,
+and neither Roslyn dependencies nor compiler DLLs are deployed as runtime
+dependencies. The no-build path leaves both assembly timestamps and sizes
+unchanged. The real packed-SDK Native AOT consumer test is strengthened but has
+not yet run for this draft.
+
+After composition with operator and aggregate diagnostics, all **32** changed
+source identities match the validator. The complete generator module passes
+**3,264/3,264**, zero failures/skips, in **1m33.789s**. Assertion review identifies
+one remaining discovery gap: resolving a MEF export alone would not detect an
+accidental non-C# export. The test now also checks the actual language and name
+metadata; that final test-only assertion passes **1/1**, zero failures/skips,
+in **2.273s**. Production is unchanged. The final Release build passes with
+zero warnings/errors in **2m21.71s**. API freshness verifies **238 pages /
+2,757 members**; the site builds **286 pages in 7.57s**, and its check reports
+zero errors, warnings or hints. All 32 final source identities verify afterward.
+Complete native acceptance, including the real packed-SDK consumer, remains
+required before accepting this milestone.
+
+Before complete native acceptance, the draft also fills the nineteen missing
+diagnostic help links: `ANKUS002`, `003`, `005`, `006`, `008`, `009`, `010`,
+`011`, and `013`–`023`. They link directly to the relevant extension-author
+guides. Function-name guidance and the error message now describe the existing
+first-character constraint; validation and generated SQL are unchanged. All
+**50** composed source identities verify on the validator. The complete generator
+module passes **3,264/3,264**, zero failures/skips, in **1m56.153s**. Release
+passes with zero warnings/errors in **3m04.15s**. API freshness verifies **238
+pages / 2,757 members**; the site builds **286 pages in 3.97s** and its check
+has zero errors, warnings or hints. All 25 distinct literal generator help
+destinations resolve to real rendered pages and anchors, including the nineteen
+added links. All 50 source identities verify afterward. Complete native
+acceptance remains pending. Earlier 32-file results are retained as evidence of
+that earlier revision, not substituted for the expanded composition.
+
 ## Precise function and schema diagnostics
 
 Function/schema validation previously combined unrelated contracts under
@@ -96,14 +149,32 @@ All **38** changed source/test/public-guide identities match the validator.
 The final combined generator run passes **3,250/3,250**, zero failures/skips,
 in **1m31.585s**. At that checkpoint, Release/API/site and ordinary native
 acceptance remained pending.
-This draft is not promoted or committed. Neither
+At that checkpoint the draft was not promoted or committed. Neither
 focused checks nor a generator-only run constitutes full platform evidence.
 
 The aggregate draft subsequently passes Release with zero warnings/errors in
 **4m05.21s**. API freshness verifies **238 pages / 2,757 members**; the site
 builds **286 pages in 6.12s**, with zero check errors, warnings or hints. All
 38 source identities still match afterward. Ordinary native acceptance starts
-after the operator/cast suite finishes and remains in progress.
+after the operator/cast suite finishes.
+
+That complete ordinary `dotnet test` run subsequently passes on **Linux x64 /
+PostgreSQL 18.6**: **11,514 total; 11,500 passed; zero failures; 14 platform
+skips; 40m01.535s**. All six completed TRX modules independently confirm the
+counters, including **3,250** generator passes and **4,536** integration passes
+with five Windows-only skips. All 38 tested source identities verify after the
+run and after promotion. The complete log and reports are retained. No filter,
+test sharding or processor cap is used for this acceptance run.
+
+Before accepting this milestone, previous primary **CI 37112627277**, commit
+**71c8fd6**, passes quality, all runtime jobs and all three full platform suites.
+Six downloaded reports per platform confirm **11,476 total**, zero failures:
+Linux **11,462 passed / 14 skips**, **36m10s** job; macOS ARM64 **11,450 / 26**,
+**26m51s**; Windows **11,451 / 25**, **31m51s**. **Docs 37112627292** passes.
+Intel **37104402210** attempt two remains in progress; its first-attempt runner
+disconnect is still unexplained. Fresh CI is checked again before commit and
+push. The editor/help-link composition has passed its non-native gates and starts
+its separate complete native suite after this aggregate run finishes.
 
 The preceding function/schema milestone is committed and pushed as **c981d16**.
 **CI 37110157303** passes quality, all runtime jobs and all three full suites.

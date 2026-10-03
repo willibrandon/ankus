@@ -178,14 +178,14 @@ public sealed partial class PgFunctionGeneratorTests
         CSharpCompilation initial = ModuleCompilation(Source);
         GeneratorDriver driver = ModuleDriver().RunGeneratorsAndUpdateCompilation(initial, out _, out ImmutableArray<Diagnostic> first,
             context.CancellationToken);
-        Assert.AreEqual("ANKUS012", Assert.ContainsSingle(first).Id);
+        Assert.AreEqual("ANKUS082", Assert.ContainsSingle(first).Id);
         SyntaxTree currentTree = CSharpSyntaxTree.ParseText("\n\n" + Source, path: "Current.cs", cancellationToken: context.CancellationToken);
         CSharpCompilation moved = initial.ReplaceSyntaxTree(initial.SyntaxTrees.Single(), currentTree);
         driver = driver.RunGeneratorsAndUpdateCompilation(moved, out _, out ImmutableArray<Diagnostic> current, context.CancellationToken);
         Diagnostic problem = Assert.ContainsSingle(current);
-        Assert.AreEqual("ANKUS012", problem.Id);
+        Assert.AreEqual("ANKUS082", problem.Id);
         Assert.AreSame(currentTree, problem.Location.SourceTree);
-        Assert.AreEqual(3, problem.Location.GetLineSpan().StartLinePosition.Line);
+        Assert.AreEqual(2, problem.Location.GetLineSpan().StartLinePosition.Line);
         Assert.AreEqual(IncrementalStepRunReason.Cached, ModuleStep(driver, "AggregateSqlEmission"));
         CSharpCompilation repaired = moved.ReplaceSyntaxTree(currentTree, CSharpSyntaxTree.ParseText(
             Source.Replace("(Ankus.PgParallelSafety)3", "Ankus.PgParallelSafety.Safe", StringComparison.Ordinal),

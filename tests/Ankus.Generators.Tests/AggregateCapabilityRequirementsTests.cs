@@ -134,7 +134,7 @@ public sealed partial class PgFunctionGeneratorTests
             """ + implementation + "}");
 
         Diagnostic error = Assert.ContainsSingle(diagnostics);
-        Assert.AreEqual("ANKUS012", error.Id);
+        Assert.AreEqual("ANKUS112", error.Id);
         string[] compilerErrors = [.. compilation.GetDiagnostics(context.CancellationToken)
             .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).Select(static diagnostic => diagnostic.Id)];
         Assert.Contains("CS0539", compilerErrors);
