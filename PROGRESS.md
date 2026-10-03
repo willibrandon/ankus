@@ -32,7 +32,7 @@ Repository `global.json` selects stable SDK **10.0.400** with
 target is **net10.0**. Installing another SDK does not silently change an
 extension's selected compiler, target framework or embedded runtime.
 
-The working tree selects embedded runtime and compiler host **10.0.12-ankus.4**,
+The platform-fix milestone **bdb5d1c** selects embedded runtime and compiler host **10.0.12-ankus.4**,
 based on runtime fork commit `d23f4e7374cd3878dc5696fbc26ee6ecdddde1ca` and paired
 with the 10.0.12 Native AOT framework and compiler targets. Its full servicing
 validation is in progress; the complete primary CI below uses **ankus.3**.
@@ -94,6 +94,7 @@ extensions. Counts supplement the backend, ownership and recovery assertions.
 | Same CI / revision | Windows x64 / 17 | 11,528 total; 11,503 passed; 25 platform skips; zero failures | 32m02s job |
 | Current compatibility, array/editor and runtime/compiler **ankus.4** changes | macOS ARM64 / 15.19 | 11,568 total; 11,541 passed; 27 platform skips; zero failures | 25m20.803s tests |
 | Same source and runtime/compiler **ankus.4** changes | macOS ARM64 / 16.15 | 11,568 total; 11,541 passed; 27 platform skips; zero failures | 25m53.580s tests |
+| Same source and runtime/compiler **ankus.4** changes | Linux x64 / 18.6 | 11,568 total; 11,553 passed; 15 platform skips; zero failures | 48m57.583s tests |
 | Current compatibility and array/editor changes, runtime/compiler **ankus.3** | Windows x64 / 13.23 | 11,568 total; 11,543 passed; 25 platform skips; zero failures | 41m49.962s tests |
 | 3a06bd9 with editor correction and diagnostic help links | Linux x64 / 18.6 | 11,528 total; 11,514 passed; 14 platform skips; zero failures | 36m50.035s tests |
 | [Version CI 36988634319](https://github.com/willibrandon/ankus/actions/runs/36988634319), 99660ea | Linux x64 / each of 13–17 | 10,984 total per major; 10,970 passed; 14 platform skips; zero failures | 26m15s–27m28s jobs |
@@ -130,7 +131,7 @@ passes.
   the composed complete Linux suite and normal/no-build external package checks
   now pass. The correction is committed as **2de3069** and is included in the
   complete passing Linux, Windows 13 and Mac 15 compositions. The commit is
-  not yet pushed; final runtime/platform acceptance remains in progress.
+  part of the platform-fix milestone; replacement runtime/platform CI remains required.
 - Intel macOS [37104402210](https://github.com/willibrandon/ankus/actions/runs/37104402210)
   retains its six-hour limit. Attempt one loses communication with its hosted
   runner after **2h00m14s**, without final integration reports. Attempt two
@@ -157,9 +158,13 @@ passes.
   remain in the [evidence archive](docs/contributing/evidence/port-history.md).
   Complete corrected **15.19 and 16.15/macOS ARM64** and **13.23/Windows x64** suites pass
   as shown above, with all six reports and frozen source identities verified.
-  Windows **18.6/ankus.3** full-suite validation is running.
+  Windows **18.6/ankus.3** writes all six reports: **11,568 total / 11,543 passed /
+  25 skips / zero failures**. Its native test processes exit, but the outer
+  interoperability launcher remains open without a captured command exit code.
+  This is complete passing test-report evidence, not confirmed launcher success;
+  replacement native Windows CI remains required.
   Linux **18.6/ankus.3** also passes **11,568 total / 11,553 passed / 15 skips /
-  zero failures, 36m41.247s**. The new-runtime Linux suite remains separate.
+  zero failures, 36m41.247s**. The new-runtime Linux suite also passes, as recorded above.
 - Indexed array lookup is committed as **46d0237**. It replaces repeated iterator scans with PostgreSQL's
   native indexed lookup, preserving the existing error guard. Thirteen more
   native storage-witness inputs cover element widths, NULL bitmap boundaries,
@@ -174,8 +179,8 @@ passes.
   and the seven array/API plus fifty accepted editor source identities verify.
   The subsequent 11,568-case Linux composition also passes with the platform
   fixture repairs and aggregate editor change. Complete Windows 13 and Mac 15
-  compositions also pass. The commit is not yet pushed; final runtime servicing
-  acceptance remains pending. Pure-operation guard work and
+  compositions also pass. Replacement runtime-servicing CI remains pending.
+  Pure-operation guard work and
   permanent benchmarks are still required.
 - The accepted primary suites use compiler/runtime **10.0.12-ankus.3**, fork **a20021d**. Its
   universal-transition flag correction is verified in the rebuilt compiler's
@@ -190,7 +195,9 @@ passes.
   Linux x64 also passes the actual runtime build, compiler publication,
   all shutdown/signal checks and matching package creation. Final Release passes
   with zero warnings/errors (**2m04.17s**); API freshness and site build/check also
-  pass. The complete Linux x64/PostgreSQL 18.6 servicing suite is running.
+  pass. The complete Linux x64/PostgreSQL 18.6 servicing suite also passes.
+  The platform fixes are committed as **bdb5d1c**. Replacement CI remains required,
+  including Windows servicing with the new **ankus.4** payload.
 
 ## Remaining work order
 

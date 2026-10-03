@@ -1,5 +1,41 @@
 # Historical port evidence
 
+Before the final validation-evidence commit at **14:49 UTC**, fresh GitHub checks
+still show primary **37117515450** and docs **37117515453** successful, with
+platform-version **37117650497** and Intel **37104402210** failed on their older
+sources. The locally committed repairs and exact completed/pending results are
+recorded below. Replacement workflows will validate the pushed composition.
+
+## Windows PostgreSQL 18 test reports — 2026-10-03
+
+The frozen compatibility/array/editor composition with runtime/compiler
+**10.0.12-ankus.3** writes all six completed PostgreSQL **18.6/Windows x64**
+TRX reports. Independent totals are **11,568 tests / 11,543 passed / zero failures /
+25 platform skips**. No reports count errors, timeouts or aborted cases. All 46
+frozen source identities verify. The integration module runs from
+**14:04:35.9852075 to 14:42:32.1838907 UTC**, or **37m56.199s**; this is not the
+overall command duration.
+
+Native test and .NET launcher processes subsequently disappear, but the outer
+Linux-to-Windows interoperability process remains open and the final command
+exit code is unavailable. The retained reports prove the test assertions passed;
+they do not establish successful launcher shutdown. This separate launch anomaly
+is not attributed to Ankus without further evidence. Replacement native Windows
+CI remains required, including **ankus.4** servicing. No test was cancelled or
+restarted to obtain these reports.
+
+## Linux runtime servicing acceptance — 2026-10-03
+
+After compatibility commit **bdb5d1c**, the complete PostgreSQL **18.6/Linux x64**
+suite finishes with the unchanged frozen **10.0.12-ankus.4** runtime/compiler
+composition: **11,568 total / 11,553 passed / zero failures / 15 platform skips**,
+**48m57.583s**, exit zero. All six TRX reports are independently counted; all 63
+source identities verify after completion. This includes real PostgreSQL
+execution and installed-package consumers. The Release, native signal/shutdown
+and documentation gates below apply to these same production sources.
+Windows PostgreSQL 18 validation remains active; its currently staged payload
+is **ankus.3**, so that result will not establish Windows runtime servicing.
+
 ## Platform compatibility commit checkpoint — 2026-10-03
 
 Immediately before committing at **14:35 UTC**, fresh GitHub queries confirm
