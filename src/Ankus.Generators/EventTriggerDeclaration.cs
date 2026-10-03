@@ -28,7 +28,7 @@ internal static class EventTriggerDeclaration
     {
         if (!method.IsStatic || method.IsAsync || method.IsGenericMethod || method.IsAbstract ||
             method.ReturnsByRef || method.ReturnsByRefReadonly || !method.ReturnsVoid ||
-            method.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal) || method.Parameters.Length != 1)
+            method.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal or Accessibility.ProtectedOrInternal) || method.Parameters.Length != 1)
         {
             return Invalid("An event trigger must be an accessible, synchronous, non-generic static void method with one nonnull PgEventTriggerContext parameter.");
         }
@@ -42,7 +42,7 @@ internal static class EventTriggerDeclaration
 
         for (INamedTypeSymbol? type = method.ContainingType; type is not null; type = type.ContainingType)
         {
-            if (type.IsGenericType || type.IsFileLocal || type.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal))
+            if (type.IsGenericType || type.IsFileLocal || type.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal or Accessibility.ProtectedOrInternal))
             {
                 return Invalid("Event trigger callbacks must be declared in accessible, non-generic, non-file-local types.");
             }

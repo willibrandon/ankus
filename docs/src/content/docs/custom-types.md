@@ -80,6 +80,13 @@ binds or deliberately ignores C# `required` members must carry
 `[SetsRequiredMembers]`; Ankus diagnoses missing annotations instead of overwriting
 the constructor's values to satisfy C# initializer requirements.
 
+Generated code follows ordinary C# assembly access. Types, constructors and
+setters may be `public`, `internal` or `protected internal` when accessible from
+the extension assembly. Referenced assemblies must grant access to their
+nonpublic declarations. Private, protected and private-protected declarations
+are inaccessible to the generated serializer. Serialized fields, properties
+and property getters still need to be public.
+
 Missing non-nullable members are errors. Missing nullable members become null;
 `required` and `[JsonRequired]` require presence even when null is permitted.
 Duplicate known members and duplicate dictionary keys are rejected. Unknown

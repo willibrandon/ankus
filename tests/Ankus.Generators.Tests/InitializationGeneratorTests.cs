@@ -202,7 +202,7 @@ public sealed partial class PgFunctionGeneratorTests
     [DataRow("public class Functions { [Ankus.PgInitialize] public void Initialize() { } }")]
     [DataRow("public class Functions { [Ankus.PgInitialize] private static void Initialize() { } }")]
     [DataRow("public class Functions { [Ankus.PgInitialize] protected static void Initialize() { } }")]
-    [DataRow("public class Functions { [Ankus.PgInitialize] protected internal static void Initialize() { } }")]
+    [DataRow("public class Functions { [Ankus.PgInitialize] private protected static void Initialize() { } }")]
     [DataRow("public class Functions { [Ankus.PgInitialize] public static int Initialize() => 1; }")]
     [DataRow("public class Functions { [Ankus.PgInitialize] public static ref int Initialize() => throw new System.Exception(); }")]
     [DataRow("public class Functions { [Ankus.PgInitialize] public static async void Initialize() { await System.Threading.Tasks.Task.Yield(); } }")]

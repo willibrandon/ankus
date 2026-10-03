@@ -426,7 +426,7 @@ public sealed partial class PgFunctionGeneratorTests
         string resultType = typeof(T) == typeof(string[]) ? "string[]" : throw new InvalidOperationException("Unsupported probe result.");
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(declarations + $$"""
 
-            public static class SerializedProbe
+            internal static class SerializedProbe
             {
                 public static {{resultType}} Run(Ankus.PgTypeCodec<Value> codec)
                 {

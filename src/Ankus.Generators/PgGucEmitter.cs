@@ -319,9 +319,14 @@ internal static class PgGucEmitter
     };
 
     /// <summary>
-    /// Formats the two accessibility levels supported by generated partial declarations.
+    /// Formats the accessibility levels supported by generated partial declarations.
     /// </summary>
-    /// <param name="accessibility">The validated public or internal accessibility.</param>
+    /// <param name="accessibility">The validated assembly-visible accessibility.</param>
     /// <returns>The corresponding C# declaration keyword.</returns>
-    internal static string AccessibilityText(Accessibility accessibility) => accessibility == Accessibility.Public ? "public" : "internal";
+    internal static string AccessibilityText(Accessibility accessibility) => accessibility switch
+    {
+        Accessibility.Public => "public",
+        Accessibility.ProtectedOrInternal => "protected internal",
+        _ => "internal",
+    };
 }

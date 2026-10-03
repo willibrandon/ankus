@@ -3,7 +3,7 @@ title: Configuration settings
 description: Declare PostgreSQL settings with native storage and typed C# getters.
 ---
 
-Declare a setting as a static partial getter in a public or internal partial class:
+Declare a setting as a static partial getter in a partial class:
 
 ```csharp
 public static partial class Settings
@@ -18,6 +18,10 @@ public static partial class Settings
     public static partial string? Label { get; }
 }
 ```
+
+The property, its containing classes and any hooks must be accessible from
+generated code in the extension assembly. Use `public` or `internal`;
+`protected internal` also works for members and nested classes.
 
 The source generator creates native PostgreSQL storage and implements the getters.
 PostgreSQL registers the settings when it loads the library, before calling an

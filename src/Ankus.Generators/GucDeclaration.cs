@@ -184,7 +184,7 @@ internal sealed class GucDeclaration
 
         if (!property.IsStatic || property.IsIndexer || property.RefKind != RefKind.None || property.GetMethod is null || property.SetMethod is not null ||
             !property.IsPartialDefinition || property.PartialImplementationPart is not null ||
-            property.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal))
+            property.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal or Accessibility.ProtectedOrInternal))
         {
             return Invalid("A GUC requires an accessible static partial getter-only property without an existing implementation.");
         }
@@ -192,7 +192,7 @@ internal sealed class GucDeclaration
         for (INamedTypeSymbol? type = property.ContainingType; type is not null; type = type.ContainingType)
         {
             if (type.TypeKind != TypeKind.Class || type.IsGenericType || type.IsFileLocal ||
-                type.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal) ||
+                type.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal or Accessibility.ProtectedOrInternal) ||
                 type.DeclaringSyntaxReferences.Any(static reference => reference.GetSyntax() is not TypeDeclarationSyntax declaration ||
                     !declaration.Modifiers.Any(SyntaxKind.PartialKeyword)))
             {
@@ -409,7 +409,7 @@ internal sealed class GucDeclaration
             method.PartialImplementationPart?.IsAsync == true || method.IsAbstract || method.IsExtern || method.IsVirtual ||
             method.ReturnsByRef || method.ReturnsByRefReadonly ||
             method.IsPartialDefinition && method.PartialImplementationPart is null ||
-            method.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal) || method.Parameters.Length != 2 ||
+            method.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal or Accessibility.ProtectedOrInternal) || method.Parameters.Length != 2 ||
             method.Parameters.Any(static parameter => parameter.RefKind != RefKind.None || parameter.IsOptional || parameter.IsParams) ||
             method.GetAttributes().Any(static attribute => attribute.AttributeClass?.ToDisplayString() is
                 "System.Diagnostics.ConditionalAttribute" or "System.Runtime.InteropServices.UnmanagedCallersOnlyAttribute") ||

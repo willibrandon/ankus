@@ -145,6 +145,10 @@ tests or binding-only probes. Counts supplement the native behavior assertions.
 | Same composition | Linux x64 / 18.6 | 11,359 total; 11,345 passed; 14 platform skips; zero failures | 42m26.793s tests |
 | Same composition | Windows x64 / 17.11 | 11,359 total; 11,334 passed; 25 platform skips; zero failures | 42m38.142s tests |
 | 0ddc6e9 with corrected runtime/compiler packages | Linux x64 / 18.6 | 11,360 total; 11,346 passed; 14 platform skips; zero failures | 33m32.502s tests |
+| [CI 37104381270](https://github.com/willibrandon/ankus/actions/runs/37104381270), ca5ab99 | macOS ARM64 / 18 | 11,360 total; 11,334 passed; 26 platform skips; zero failures | 28m29s job |
+| Same CI / revision | Windows x64 / 17 | 11,360 total; 11,335 passed; 25 platform skips; zero failures | 31m35s job |
+| Same CI / revision | Linux x64 / 18 | 11,360 total; 11,346 passed; 14 platform skips; zero failures | 36m04s job |
+| ca5ab99 with assembly-access corrections | Linux x64 / 18.6 | 11,413 total; 11,399 passed; 14 platform skips; zero failures | 38m58.713s tests |
 
 The accepted template composition passes Release with **zero warnings/errors,
 1m38.33s**. API freshness verifies **235 pages / 2,700 members**; the site builds
@@ -160,7 +164,7 @@ primary-platform CI pass without weakening the original assertions.
 
 ## Active validation and work
 
-- Backported the upstream Native AOT universal-transition GC root correction as runtime commit **a20021d**. The rebuilt compiler explicitly embeds this runtime; its machine code verifies the flag clear, and **128/128** complete retained-input compilations pass. The initial source-only compiler rebuild still linked the stock runtime and is not counted as patched evidence. New **10.0.12-ankus.3** compiler-host and target-runtime packages are wired into the SDK. All nine focused installed-package cases and the complete **Linux x64/PostgreSQL 18.6** suite pass: **11,360 total / 11,346 passed / 14 platform skips / zero failures, 33m32.502s**. Release/API/site, native shutdown and artifact-permission checks pass. Previous primary CI and Docs remain green; the old Intel timeout is addressed by the approved six-hour limit. Fresh full platform CI remains required. The link to the original intermittent crash is supported by upstream history; no local failing GC root was captured. See [correction and evidence](docs/contributing/evidence/port-history.md#native-aot-gc-correction-and-compiler-packaging).
+- Backported the upstream Native AOT universal-transition GC root correction as runtime commit **a20021d**. The rebuilt compiler explicitly embeds this runtime; its machine code verifies the flag clear, and **128/128** complete retained-input compilations pass. The initial source-only compiler rebuild still linked the stock runtime and is not counted as patched evidence. New **10.0.12-ankus.3** compiler-host and target-runtime packages are wired into the SDK. All nine focused installed-package cases and the complete **Linux x64/PostgreSQL 18.6** suite pass: **11,360 total / 11,346 passed / 14 platform skips / zero failures, 33m32.502s**. Release/API/site, native shutdown and artifact-permission checks pass. Primary CI **37104381270** passes quality, runtime builds and all three complete platform suites; Docs **37104381195** passes. Intel's runtime build passes, and its full test job is running with the approved six-hour limit. The link to the original intermittent crash is supported by upstream history; no local failing GC root was captured. See [correction and evidence](docs/contributing/evidence/port-history.md#native-aot-gc-correction-and-compiler-packaging).
 - [Primary CI 37084745267](https://github.com/willibrandon/ankus/actions/runs/37084745267), **0ddc6e9**, passes quality, all runtime jobs and all three complete platform suites. Six downloaded TRX modules per platform confirm **11,359 total** each: Linux **11,345 passed / 14 skips**, Windows **11,334 / 25**, macOS ARM64 **11,333 / 26**, with zero failures. Platform job durations are **36m07s**, **30m58s** and **26m45s**, respectively. [Docs 37084745237](https://github.com/willibrandon/ankus/actions/runs/37084745237) passes. These successful runs do not resolve the separate intermittent compiler failure or establish Intel macOS acceptance.
 - Intel macOS [37084785806](https://github.com/willibrandon/ankus/actions/runs/37084785806), **0ddc6e9 / two package slots**, exceeds the former 60-minute limit; total job time including cleanup is **61m45s**. Initial test build takes **6m48s**, and full tests run **50m37s** before cancellation. Five completed TRX modules report **6,821 total / 6,812 passed / nine skips / zero failures**; integration has no completed report. Both Intel jobs now allow GitHub's six-hour hosted-job maximum so the unchanged full suite can finish and provide complete evidence.
 - The compiled-companion cache and SPI example composition passes complete **Linux x64 and macOS ARM64/PostgreSQL 18.6**, and **Windows x64/PostgreSQL 17.11** suites: **11,359 total per platform**, zero failures, with platform counts and durations above. All **430** source identities and the respective **26/24/52** runtime identities verify afterward. The sample preserves pgrx's shared input/TABLE-output names after correcting an overly strict generator rule. Its **nine** corrected native Linux cases and **3,098** generator cases pass. Release has zero warnings/errors; API freshness verifies **238 pages / 2,757 members**, and site build/check passes with zero diagnostics. Before committing, prior primary CI **37079091457** and Docs **37079091438** remain successful, with no active runs. Replacement CI and complete Intel acceptance remain required. Detailed earlier failures, corrections and focused platform evidence remain in the history.
@@ -209,6 +213,14 @@ the subsequently approved **360-minute** limit. Record measured durations and
 timeouts; do not shard the complete suite or cancel runs automatically.
 
 ## Remaining work order
+
+The current declaration correction admits ordinary C# `protected internal`
+assembly access and preserves generated partial modifiers. The complete composed
+suite passes on **Linux x64/PostgreSQL 18.6**: **11,413 total; 11,399 passed;
+zero failures; 14 platform skips; 38m58.713s**. All six reports and the unchanged
+source hashes are verified. Release/API/site checks pass. Previous primary CI
+and Docs pass; Intel's full suite remains in progress. Replacement CI remains
+required. See [assembly access evidence](docs/contributing/evidence/port-history.md#assembly-access-for-generated-dispatchers).
 
 1. Resolve discovered correctness and CI failures before accepting affected work.
 2. Finish the Intel timing milestone and complete supported-major/platform coverage, including Intel macOS and the macOS 15/16 library-suffix boundary.

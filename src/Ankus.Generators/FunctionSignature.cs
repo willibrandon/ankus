@@ -18,7 +18,7 @@ internal static class FunctionSignature
 
     private static readonly DiagnosticDescriptor s_access = new(
         "ANKUS034", "PostgreSQL function is inaccessible",
-        "'{0}' is not accessible to the generated dispatcher; declare the method and every containing type public or internal",
+        "'{0}' is not accessible to the generated dispatcher; make the method and every containing type accessible within the extension assembly",
         "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLink);
 
     private static readonly DiagnosticDescriptor s_generic = new(
@@ -95,7 +95,7 @@ internal static class FunctionSignature
             return Reject(s_generic, (syntax as MethodDeclarationSyntax)?.TypeParameterList?.GetLocation() ?? name, diagnostics, method.Name);
         }
 
-        if (method.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal))
+        if (method.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal or Accessibility.ProtectedOrInternal))
         {
             return Reject(s_access, name, diagnostics, method.Name);
         }
@@ -114,7 +114,7 @@ internal static class FunctionSignature
                 return Reject(s_fileLocal, Modifier(declaration?.Modifiers ?? default, SyntaxKind.FileKeyword) ?? owner, diagnostics, type.Name);
             }
 
-            if (type.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal))
+            if (type.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal or Accessibility.ProtectedOrInternal))
             {
                 return Reject(s_access, owner, diagnostics, type.Name);
             }

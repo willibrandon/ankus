@@ -39,7 +39,7 @@ internal sealed record EnumDeclaration(string Name, string? Schema, string Manag
 
         for (INamedTypeSymbol? container = type; container is not null; container = container.ContainingType)
         {
-            if (container.IsGenericType || container.IsFileLocal || container.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal))
+            if (container.IsGenericType || container.IsFileLocal || container.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal or Accessibility.ProtectedOrInternal))
             {
                 return Invalid("Enum declarations and their containing types must be accessible, non-generic, and not file-local.");
             }

@@ -58,8 +58,10 @@ for prerequisites and reading the server log.
 
 ## Declare tests inside the extension
 
-Use `[PgTest]` on a synchronous static `void` method in a public or internal
-partial class:
+Use `[PgTest]` on a synchronous static `void` method in a partial class.
+The method and its containing classes must be accessible from generated code
+in the extension assembly: `public`, `internal`, or `protected internal` for
+members and nested classes.
 
 ```csharp
 using Ankus;

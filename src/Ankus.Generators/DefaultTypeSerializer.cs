@@ -431,8 +431,9 @@ internal sealed class DefaultTypeSerializer(IAssemblySymbol assembly)
     {
         for (INamedTypeSymbol? current = type; current is not null; current = current.ContainingType)
         {
-            if (current.IsFileLocal || current.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal) ||
-                current.DeclaredAccessibility == Accessibility.Internal && !SymbolEqualityComparer.Default.Equals(current.ContainingAssembly, assembly))
+            if (current.IsFileLocal || current.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal or Accessibility.ProtectedOrInternal) ||
+                current.DeclaredAccessibility is Accessibility.Internal or Accessibility.ProtectedOrInternal &&
+                !current.ContainingAssembly.GivesAccessTo(assembly))
             {
                 return false;
             }
@@ -446,7 +447,7 @@ internal sealed class DefaultTypeSerializer(IAssemblySymbol assembly)
     /// </summary>
     private static bool IsVisible(IMethodSymbol method, IAssemblySymbol assembly) => method.DeclaredAccessibility == Accessibility.Public ||
         method.DeclaredAccessibility is Accessibility.Internal or Accessibility.ProtectedOrInternal &&
-        SymbolEqualityComparer.Default.Equals(method.ContainingAssembly, assembly);
+        method.ContainingAssembly.GivesAccessTo(assembly);
 
     /// <summary>
     /// Reports a contract that needs an explicit codec rather than lossy inference.

@@ -205,7 +205,7 @@ internal sealed class AggregateDeclaration(INamedTypeSymbol type, AttributeData 
         };
         for (INamedTypeSymbol? container = type; container is not null; container = container.ContainingType)
         {
-            if (container.IsGenericType || container.IsFileLocal || container.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal))
+            if (container.IsGenericType || container.IsFileLocal || container.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal or Accessibility.ProtectedOrInternal))
             {
                 return Invalid("Aggregate containers must be accessible, non-generic, non-file-local classes or structs.");
             }

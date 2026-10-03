@@ -1,6 +1,70 @@
 # Historical port evidence
 
+## Assembly access for generated dispatchers
+
+Generator visibility checks rejected `protected internal` methods and nested
+types even though C# permits generated code in the same assembly to use them.
+The initial scalar regression run reproduces three failures in 29 cases; direct
+C# controls return 42 before the generator rejects the same calls. Nineteen
+declaration checks now accept assembly access. Generated GUC properties and
+backend-test partial containers retain their authored accessibility.
+
+The default serializer also compared assembly identity instead of respecting
+an existing assembly access grant. Separate reference compilations reproduce
+four failures in sixteen cases. Roslyn's `GivesAccessTo` fixes type, constructor
+and setter access without exposing private or family-only declarations. No
+production friend assembly is added. Public data-member selection is unchanged.
+
+Tests compile the complete generated assembly, resolve callback invocations to
+their authored symbols, execute scalar controls, inspect partial-property
+visibility and round-trip nested serialized values. Twenty-four referenced-type,
+constructor and setter cases compare generated behavior with independent C#
+compilation controls. Existing private, protected and private-protected rejection
+tests remain in place. Two obsolete event/initialization expectations were
+corrected after the first complete generator run reported 3,145 passes and two
+failures. The corrected draft passes all 3,147 generator cases.
+
+The draft's first native run passes nested-value storage but fails the settings
+case before dispatch: its SQL leaves the keyword `limit` unquoted. Quoting the
+complete setting name corrects the fixture. Both native cases then pass on
+**Linux x64/PostgreSQL 18.6**, with zero skips, in **3m57.252s**. They observe
+settings, show hooks, scalar dispatch, stored integer bounds, nullable/empty/
+Unicode text and SQL NULL.
+
+The composition on **ca5ab99** includes the corrected runtime/compiler packages.
+Its complete generator module passes **3,149/3,149**, zero failures/skips, in
+**46.557s**. Exact changed-source hashes match on the validation machine.
+Both composed native cases also pass on **Linux x64/PostgreSQL 18.6**, with zero
+failures/skips, in **3m07.131s**. The public documentation check reports zero
+errors, warnings or hints. Release passes with zero warnings/errors in
+**2m17.38s**. API freshness verifies **238 pages / 2,757 members**; the site builds
+**286 pages in 2.65s**.
+
+The complete plain suite passes on **Linux x64/PostgreSQL 18.6** in
+**38m58.713s**: **11,413 total; 11,399 passed; zero failures; 14 platform skips**.
+All six completed TRX reports are retained and independently totaled. The
+generator module reports **3,149 passed**; integration reports **4,536 passed /
+five platform skips**. All 24 changed source/test/public-guide identities verify
+afterward and match the commit's source.
+
+Immediately before committing, primary **CI 37104381270** and
+**Docs 37104381195** are successful. **Additional platforms 37104402210** has
+a successful runtime build and an ongoing Intel macOS full suite. The older
+**37084785806** timeout remains historical evidence; no run was cancelled by
+this milestone. Replacement CI remains required after publication.
+
 ## Native AOT GC correction and compiler packaging
+
+Commit **ca5ab99** passes the complete macOS ARM64/PostgreSQL 18 and Windows
+x64/PostgreSQL 17 jobs in [CI 37104381270](https://github.com/willibrandon/ankus/actions/runs/37104381270).
+Each retains all six completed TRX modules with **11,360 total** and zero failures.
+macOS reports **11,334 passed / 26 platform skips**, **28m29s** job duration;
+Windows reports **11,335 passed / 25 platform skips**, **31m35s**. Linux
+x64/PostgreSQL 18 also completes all six modules: **11,360 total; 11,346 passed;
+zero failures; 14 platform skips**, **36m04s**. All primary runtime builds and
+quality pass; [Docs 37104381195](https://github.com/willibrandon/ankus/actions/runs/37104381195)
+passes. The Intel macOS runtime build passes and its full test job is underway
+with the approved 360-minute limit.
 
 The runtime fork now includes upstream [dotnet/runtime#127640](https://github.com/dotnet/runtime/pull/127640)
 as commit `a20021dfdf03c51b46f2bf9d10050806826e0b4c`. When the GC unwinds a
@@ -54,8 +118,9 @@ abandoned local builds were subsequently found and terminated. The unchanged
 tests then passed with normal node reuse and retained child-node diagnostics;
 no compiler crash or new worker diagnostic was recorded. The first failure's
 worker diagnostic was unavailable, so its precise cause remains unproven.
-Complete replacement platform suites remain required before accepting the
-composition.
+The completed primary-platform suites recorded at the start of this section
+supersede that pending requirement. Intel macOS and the complete supported
+version/platform matrix remain open.
 
 The native host-shutdown probe is published with both corrected payload paths.
 All three Linux cases pass: return from native `main`, process `exit`, and native

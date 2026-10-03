@@ -271,7 +271,7 @@ internal sealed class CustomTypeDeclaration(INamedTypeSymbol type, INamedTypeSym
     {
         for (INamedTypeSymbol? current = type; current is not null; current = current.ContainingType)
         {
-            if (current.IsGenericType || current.IsFileLocal || current.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal))
+            if (current.IsGenericType || current.IsFileLocal || current.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal or Accessibility.ProtectedOrInternal))
             {
                 return false;
             }

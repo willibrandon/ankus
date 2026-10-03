@@ -28,7 +28,7 @@ internal static class TriggerDeclaration
     {
         if (!method.IsStatic || method.IsAsync || method.IsGenericMethod || method.IsAbstract ||
             method.ReturnsByRef || method.ReturnsByRefReadonly ||
-            method.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal) ||
+            method.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal or Accessibility.ProtectedOrInternal) ||
             method.ReturnType.WithNullableAnnotation(NullableAnnotation.NotAnnotated).ToDisplayString() != "Ankus.PgHeapTuple" ||
             method.Parameters.Length != 1)
         {
@@ -44,7 +44,7 @@ internal static class TriggerDeclaration
 
         for (INamedTypeSymbol? type = method.ContainingType; type is not null; type = type.ContainingType)
         {
-            if (type.IsGenericType || type.IsFileLocal || type.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal))
+            if (type.IsGenericType || type.IsFileLocal || type.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal or Accessibility.ProtectedOrInternal))
             {
                 return Invalid("Trigger callbacks must be declared in accessible, non-generic, non-file-local types.");
             }

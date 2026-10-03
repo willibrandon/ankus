@@ -27,7 +27,13 @@ internal sealed record PgTestCatalogModel(PgTestCatalogModel.Owner Container, Eq
             var containers = new Stack<string>();
             for (INamedTypeSymbol? type = owner; type is not null; type = type.ContainingType)
             {
-                containers.Push((type.DeclaredAccessibility == Accessibility.Public ? "public " : "internal ") +
+                string accessibility = type.DeclaredAccessibility switch
+                {
+                    Accessibility.Public => "public",
+                    Accessibility.ProtectedOrInternal => "protected internal",
+                    _ => "internal",
+                };
+                containers.Push(accessibility + " " +
                     (type.IsStatic ? "static " : string.Empty) + "partial " + (type.IsRecord ? "record class" : "class") + " @" + type.Name);
             }
 

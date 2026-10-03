@@ -45,7 +45,7 @@ internal sealed record BackgroundWorkerDeclaration(string Target, string EntryPo
             method.IsGenericMethod || method.IsAbstract || method.IsVirtual || method.IsExtern || !method.ReturnsVoid ||
             method.Parameters.Length != 1 || method.Parameters[0].RefKind != RefKind.None ||
             method.Parameters[0].Type.SpecialType != SpecialType.System_UIntPtr ||
-            method.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal) ||
+            method.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal or Accessibility.ProtectedOrInternal) ||
             method.IsPartialDefinition && method.PartialImplementationPart is null)
         {
             return Invalid("A worker entry requires an accessible synchronous non-generic static void method with one by-value nuint argument and an implementation.");
@@ -53,7 +53,7 @@ internal sealed record BackgroundWorkerDeclaration(string Target, string EntryPo
 
         for (INamedTypeSymbol? type = method.ContainingType; type is not null; type = type.ContainingType)
         {
-            if (type.IsGenericType || type.IsFileLocal || type.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal))
+            if (type.IsGenericType || type.IsFileLocal || type.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal or Accessibility.ProtectedOrInternal))
             {
                 return Invalid("Worker entries require accessible, non-generic, non-file-local containing types.");
             }

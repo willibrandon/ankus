@@ -163,7 +163,7 @@ public sealed partial class PgFunctionGeneratorTests
     [DataRow("public void Audit(Ankus.PgEventTriggerContext context) { }")]
     [DataRow("private static void Audit(Ankus.PgEventTriggerContext context) { }")]
     [DataRow("protected static void Audit(Ankus.PgEventTriggerContext context) { }")]
-    [DataRow("protected internal static void Audit(Ankus.PgEventTriggerContext context) { }")]
+    [DataRow("private protected static void Audit(Ankus.PgEventTriggerContext context) { }")]
     [DataRow("public static void Audit<T>(Ankus.PgEventTriggerContext context) { }")]
     [DataRow("public static int Audit(Ankus.PgEventTriggerContext context) => 1;")]
     [DataRow("public static Ankus.PgHeapTuple? Audit(Ankus.PgEventTriggerContext context) => null;")]

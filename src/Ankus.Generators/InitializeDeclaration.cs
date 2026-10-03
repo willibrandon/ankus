@@ -52,7 +52,7 @@ internal static class InitializeDeclaration
 
         if (method.MethodKind != MethodKind.Ordinary || !method.IsStatic || method.IsAsync || method.PartialImplementationPart?.IsAsync == true ||
             method.IsGenericMethod || method.IsAbstract || method.IsVirtual || method.IsExtern || !method.ReturnsVoid || method.Parameters.Length != 0 ||
-            method.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal) ||
+            method.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal or Accessibility.ProtectedOrInternal) ||
             method.IsPartialDefinition && method.PartialImplementationPart is null)
         {
             return Invalid("Initialization requires an accessible, synchronous, non-generic, parameterless static void method with an implementation.");
@@ -60,7 +60,7 @@ internal static class InitializeDeclaration
 
         for (INamedTypeSymbol? type = method.ContainingType; type is not null; type = type.ContainingType)
         {
-            if (type.IsGenericType || type.IsFileLocal || type.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal))
+            if (type.IsGenericType || type.IsFileLocal || type.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal or Accessibility.ProtectedOrInternal))
             {
                 return Invalid("Initialization callbacks must be declared in accessible, non-generic, non-file-local types.");
             }

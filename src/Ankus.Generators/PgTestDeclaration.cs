@@ -34,7 +34,7 @@ internal sealed record PgTestDeclaration(PgTestCatalogModel.Owner Owner, PgTestC
     internal static PgTestDeclaration? Create(IMethodSymbol method, GeneratorDiagnostics context)
     {
         if (!method.IsStatic || method.IsAsync || method.IsGenericMethod || method.IsAbstract || !method.ReturnsVoid ||
-            method.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal) ||
+            method.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal or Accessibility.ProtectedOrInternal) ||
             FunctionParameter.Create(method).Any(static parameter => !parameter.IsInjected || parameter.RefKind != RefKind.None))
         {
             return Invalid("PgTest requires an accessible synchronous static void method with no SQL arguments.");
@@ -53,7 +53,7 @@ internal sealed record PgTestDeclaration(PgTestCatalogModel.Owner Owner, PgTestC
         for (INamedTypeSymbol? type = method.ContainingType; type is not null; type = type.ContainingType)
         {
             if (type.TypeKind != TypeKind.Class || type.IsGenericType || type.IsFileLocal ||
-                type.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal) ||
+                type.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal or Accessibility.ProtectedOrInternal) ||
                 !type.DeclaringSyntaxReferences.All(static reference => reference.GetSyntax() is TypeDeclarationSyntax declaration &&
                     declaration.Modifiers.Any(SyntaxKind.PartialKeyword)))
             {

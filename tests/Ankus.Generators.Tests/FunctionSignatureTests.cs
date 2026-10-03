@@ -19,10 +19,10 @@ public sealed partial class PgFunctionGeneratorTests
     /// <param name="action">The required correction in the diagnostic message.</param>
     [TestMethod]
     [DataRow("public class Bad { [Ankus.PgFunction] public int Reject() => 42; }", "ANKUS033", "Reject", "declare a static entry method")]
-    [DataRow("public class Bad { [Ankus.PgFunction] private static int Reject() => 42; }", "ANKUS034", "Reject", "public or internal")]
-    [DataRow("public class Bad { [Ankus.PgFunction] protected static int Reject() => 42; }", "ANKUS034", "Reject", "public or internal")]
-    [DataRow("public class Bad { [Ankus.PgFunction] protected internal static int Reject() => 42; }", "ANKUS034", "Reject", "public or internal")]
-    [DataRow("public class Outer { private class Bad { [Ankus.PgFunction] public static int Reject() => 42; } }", "ANKUS034", "Bad", "public or internal")]
+    [DataRow("public class Bad { [Ankus.PgFunction] private static int Reject() => 42; }", "ANKUS034", "Reject", "accessible within the extension assembly")]
+    [DataRow("public class Bad { [Ankus.PgFunction] protected static int Reject() => 42; }", "ANKUS034", "Reject", "accessible within the extension assembly")]
+    [DataRow("public class Bad { [Ankus.PgFunction] private protected static int Reject() => 42; }", "ANKUS034", "Reject", "accessible within the extension assembly")]
+    [DataRow("public class Outer { private class Bad { [Ankus.PgFunction] public static int Reject() => 42; } }", "ANKUS034", "Bad", "accessible within the extension assembly")]
     [DataRow("public class Bad<T> { [Ankus.PgFunction] public static int Reject() => 42; }", "ANKUS035", "<T>", "non-generic containing types")]
     [DataRow("public class Outer<T> { public class Bad { [Ankus.PgFunction] public static int Reject() => 42; } }", "ANKUS035", "<T>", "non-generic containing types")]
     [DataRow("public class Bad { [Ankus.PgFunction] public static int Reject<T>() => 42; }", "ANKUS035", "<T>", "non-generic entry method")]
@@ -121,11 +121,15 @@ public sealed partial class PgFunctionGeneratorTests
     [DataRow("public static class Bad { [Ankus.PgFunction] public static int Read() => 42; }", "Bad.Read()")]
     [DataRow("internal static class Bad { [Ankus.PgFunction] internal static int Read() => 42; }", "Bad.Read()")]
     [DataRow("public class Outer { internal class Bad { [Ankus.PgFunction] internal static int Read() => 42; } }", "Outer.Bad.Read()")]
+    [DataRow("public class Bad { [Ankus.PgFunction] protected internal static int Read() => 42; }", "Bad.Read()")]
+    [DataRow("public class Outer { protected internal class Bad { [Ankus.PgFunction] internal static int Read() => 42; } }", "Outer.Bad.Read()")]
+    [DataRow("public class Outer { protected internal class Bad { [Ankus.PgFunction] protected internal static int Read() => 42; } }", "Outer.Bad.Read()")]
     [DataRow("public static class Bad { [Ankus.PgFunction] public static int Read(params int[] values) => values[0]; }", "Bad.Read(42)")]
     [DataRow("public static class Bad { [Ankus.PgFunction] public static int Read(params byte[][] values) => values[0][0]; }", "Bad.Read(new byte[] { 42 })")]
     public void CallableSignaturesRetainCompiledBehavior(string declaration, string call)
     {
         CSharpCompilation initial = ModuleCompilation(declaration + " public static class Functions { public static int Answer() => " + call + "; }");
+        Assert.AreEqual(42, InvokeSqlReferenceAnswer(initial));
         RunModule(ModuleDriver(), initial, out Compilation output);
 
         Assert.AreEqual(42, InvokeSqlReferenceAnswer(output));

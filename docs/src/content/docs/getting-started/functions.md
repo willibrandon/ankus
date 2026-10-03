@@ -81,10 +81,12 @@ See [enumerated types](/enums/) for custom C# enums, labels and type dependencie
 
 ## Function signatures
 
-SQL entry methods must be synchronous, concrete static methods. Declare the
-method and every containing type `public` or `internal`. Generic methods,
-generic containing types and file-local types cannot provide the concrete call
-required by the generated Native AOT dispatcher.
+SQL entry methods must be synchronous, concrete static methods. The method and
+every containing type must be accessible from generated code in the extension
+assembly: use `public` or `internal`, or `protected internal` for members and
+nested types. `protected`, `private protected` and `private` do not grant that
+assembly access. Generic methods, generic containing types and file-local types
+cannot provide the concrete call required by the generated Native AOT dispatcher.
 
 Pass parameters and return values by value. PostgreSQL supplies SQL datums, not
 C# `ref`, `in`, `out` or `ref readonly` slots. Injected `PgMemoryContext` and
@@ -102,7 +104,7 @@ Invalid signatures report a specific error at the offending declaration:
 | Diagnostic | Required correction |
 | --- | --- |
 | ANKUS033 | Declare a static entry method. |
-| ANKUS034 | Make the method and containing types public or internal. |
+| ANKUS034 | Make the method and containing types accessible within the extension assembly: public, internal, or protected internal where permitted. |
 | ANKUS035 | Use a non-generic entry method in non-generic containing types. |
 | ANKUS036 | Put the entry attribute on a concrete implementation. |
 | ANKUS037 | Return the SQL value by value. |
