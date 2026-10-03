@@ -11,7 +11,8 @@ namespace Ankus.Generators;
 internal static class EnumPipeline
 {
     private static readonly DiagnosticDescriptor s_invalid = new(
-        "ANKUS006", "Invalid PostgreSQL enum", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true);
+        "ANKUS006", "Invalid PostgreSQL enum", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true,
+        helpLinkUri: "https://willibrandon.github.io/ankus/enums/#names-labels-and-ordering");
 
     /// <summary>
     /// Registers independent immutable enum contracts and their managed, native and SQL emission.

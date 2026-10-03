@@ -8,7 +8,8 @@ namespace Ankus.Generators;
 internal static class EventTriggerDeclaration
 {
     private static readonly DiagnosticDescriptor s_invalid = new(
-        "ANKUS011", "Invalid PostgreSQL event trigger declaration", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true);
+        "ANKUS011", "Invalid PostgreSQL event trigger declaration", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true,
+        helpLinkUri: "https://willibrandon.github.io/ankus/event-triggers/");
 
     /// <summary>
     /// Gets whether a method declares a PostgreSQL event trigger callback.

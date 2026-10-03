@@ -17,7 +17,8 @@ namespace Ankus.Generators;
 internal sealed record PgTestDeclaration(PgTestCatalogModel.Owner Owner, PgTestCatalogModel.Case Case, string Order, FunctionDeclaration Function)
 {
     private static readonly DiagnosticDescriptor s_invalid = new(
-        "ANKUS023", "Invalid PostgreSQL test declaration", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true);
+        "ANKUS023", "Invalid PostgreSQL test declaration", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true,
+        helpLinkUri: "https://willibrandon.github.io/ankus/getting-started/testing/#declare-tests-inside-the-extension");
 
     /// <summary>
     /// Identifies test methods independently of whether this build enables their native exports.

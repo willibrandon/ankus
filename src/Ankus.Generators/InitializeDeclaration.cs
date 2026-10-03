@@ -8,7 +8,8 @@ namespace Ankus.Generators;
 internal static class InitializeDeclaration
 {
     private static readonly DiagnosticDescriptor s_invalid = new(
-        "ANKUS013", "Invalid PostgreSQL initialization declaration", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true);
+        "ANKUS013", "Invalid PostgreSQL initialization declaration", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true,
+        helpLinkUri: "https://willibrandon.github.io/ankus/initialization/");
 
     /// <summary>
     /// Identifies initialization callbacks independently of SQL function discovery.

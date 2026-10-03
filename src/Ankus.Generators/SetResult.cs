@@ -8,7 +8,8 @@ namespace Ankus.Generators;
 internal sealed record SetResult
 {
     private static readonly DiagnosticDescriptor s_invalid = new(
-        "ANKUS008", "Invalid PostgreSQL set result", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true);
+        "ANKUS008", "Invalid PostgreSQL set result", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true,
+        helpLinkUri: "https://willibrandon.github.io/ankus/sets-and-tables/");
 
     /// <summary>
     /// Gets the managed iterator element type, including tuple names and nullable annotations.

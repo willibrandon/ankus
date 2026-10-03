@@ -8,7 +8,8 @@ namespace Ankus.Generators;
 internal static class RangeTypeDeclaration
 {
     private static readonly DiagnosticDescriptor s_invalid = new(
-        "ANKUS020", "Invalid PostgreSQL range mapping", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true);
+        "ANKUS020", "Invalid PostgreSQL range mapping", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true,
+        helpLinkUri: "https://willibrandon.github.io/ankus/ranges/#mapped-bounds");
 
     /// <summary>
     /// Finds a mapped scalar bound inside the exact Ankus range container.

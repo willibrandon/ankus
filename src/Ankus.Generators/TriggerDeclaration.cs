@@ -8,7 +8,8 @@ namespace Ankus.Generators;
 internal static class TriggerDeclaration
 {
     private static readonly DiagnosticDescriptor s_invalid = new(
-        "ANKUS010", "Invalid PostgreSQL trigger declaration", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true);
+        "ANKUS010", "Invalid PostgreSQL trigger declaration", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true,
+        helpLinkUri: "https://willibrandon.github.io/ankus/triggers/");
 
     /// <summary>
     /// Gets whether a method declares a PostgreSQL trigger callback.

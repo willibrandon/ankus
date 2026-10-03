@@ -8,7 +8,8 @@ namespace Ankus.Generators;
 internal static class DerivedOperatorDeclaration
 {
     private static readonly DiagnosticDescriptor s_invalid = new(
-        "ANKUS018", "Invalid generated PostgreSQL operators", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true);
+        "ANKUS018", "Invalid generated PostgreSQL operators", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true,
+        helpLinkUri: "https://willibrandon.github.io/ankus/operators-and-casts/#generated-type-operators");
 
     /// <summary>
     /// Identifies explicit operator-generation attributes without requiring a valid storage declaration.

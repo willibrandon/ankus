@@ -13,7 +13,8 @@ namespace Ankus.Generators;
 internal sealed class NativeCallbackDeclaration(IPropertySymbol property, IMethodSymbol handler, IMethodSymbol signature, int nativeSignature)
 {
     private static readonly DiagnosticDescriptor s_invalid = new(
-        "ANKUS021", "Invalid PostgreSQL native callback", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true);
+        "ANKUS021", "Invalid PostgreSQL native callback", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true,
+        helpLinkUri: "https://willibrandon.github.io/ankus/raw-values/#managed-native-callbacks-and-hooks");
 
     /// <summary>
     /// Gets the defining partial property.

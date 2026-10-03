@@ -482,12 +482,19 @@ public sealed partial class ToolCommandTests(TestContext context)
         Assert.StartsWith(s_environment["NUGET_PACKAGES"]!, helper);
         Assert.IsTrue(File.Exists(helper));
         Assert.AreEqual(0, document.RootElement.GetProperty("Items").GetProperty("ProjectReference").GetArrayLength());
-        JsonElement analyzer = document.RootElement.GetProperty("Items").GetProperty("Analyzer").EnumerateArray()
-            .Single(item => Path.GetFileName(item.GetProperty("Identity").GetString()) == "Ankus.Generators.dll");
-        Assert.StartsWith(s_environment["NUGET_PACKAGES"]!, analyzer.GetProperty("FullPath").GetString());
+        foreach (string assemblyName in new[] { "Ankus.Generators.dll", "Ankus.CodeFixes.dll" })
+        {
+            JsonElement analyzer = document.RootElement.GetProperty("Items").GetProperty("Analyzer").EnumerateArray()
+                .Single(item => Path.GetFileName(item.GetProperty("Identity").GetString()) == assemblyName);
+            Assert.StartsWith(s_environment["NUGET_PACKAGES"]!, analyzer.GetProperty("FullPath").GetString());
+            Assert.IsTrue(File.Exists(analyzer.GetProperty("FullPath").GetString()));
+        }
+
         using JsonDocument assets = JsonDocument.Parse(await File.ReadAllTextAsync(
             Path.Combine(Path.GetDirectoryName(s_project)!, "obj", "project.assets.json"), context.CancellationToken));
         JsonElement libraries = assets.RootElement.GetProperty("libraries");
+        Assert.IsEmpty(libraries.EnumerateObject().Where(static library =>
+            library.Name.StartsWith("Microsoft.CodeAnalysis.", StringComparison.Ordinal)));
         Assert.AreEqual("package", libraries.GetProperty("Ankus.Runtime/" + s_version).GetProperty("type").GetString());
         Assert.AreEqual("package", libraries.GetProperty("Ankus.Generators/" + s_version).GetProperty("type").GetString());
         Assert.AreEqual("package", libraries.GetProperty("Ankus.NativeAot.Runtime." + RuntimeInformation.RuntimeIdentifier + "/" +

@@ -16,7 +16,8 @@ internal sealed record BackgroundWorkerDeclaration(string Target, string EntryPo
     private const string InvalidExport = "Worker exports must be unique ASCII C identifiers of at most 95 bytes, starting with a letter and not using reserved Ankus or PostgreSQL symbols.";
 
     private static readonly DiagnosticDescriptor s_invalid = new(
-        "ANKUS022", "Invalid PostgreSQL background-worker entry", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true);
+        "ANKUS022", "Invalid PostgreSQL background-worker entry", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true,
+        helpLinkUri: "https://willibrandon.github.io/ankus/background-workers/");
 
     private static readonly HashSet<string> s_reserved = new(StringComparer.Ordinal)
     {

@@ -8,7 +8,8 @@ namespace Ankus.Generators;
 internal sealed partial class SqlGraph
 {
     private static readonly DiagnosticDescriptor s_invalid = new(
-        "ANKUS005", "Invalid installation SQL dependency", "{0}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true);
+        "ANKUS005", "Invalid installation SQL dependency", "{0}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true,
+        helpLinkUri: "https://willibrandon.github.io/ankus/custom-sql/#order-declarations");
 
     /// <summary>
     /// Gets the original diagnostic used for detached graph encoding bounds.

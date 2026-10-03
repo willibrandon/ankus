@@ -10,6 +10,19 @@ and must preserve the managed wrapper's argument, result and NULL contracts.
 See [custom SQL](/custom-sql/#replace-function-sql) for placeholders, dependencies
 and relocation.
 
+## Function names
+
+Ankus converts the C# method name to a snake-case SQL name. Set
+`[PgFunction(Name = "chosen_name")]` to choose it explicitly. A function name
+must contain 1–63 lowercase ASCII letters, digits or underscores, starting with
+a letter or underscore. Invalid names produce `ANKUS002`.
+
+Overloads must have distinct SQL input signatures within their schema. Different
+C# types can map to the same SQL type, and injected contexts do not distinguish
+SQL overloads. Rename the function or change its SQL input types when `ANKUS002`
+reports a duplicate signature. A different return type alone does not resolve
+the conflict.
+
 ## SQL nullability
 
 Enable nullable annotations with `<Nullable>enable</Nullable>` in your project,
@@ -356,6 +369,12 @@ external SQL routine. PostgreSQL validates its signature at installation. Choose
 either the external SQL name or `PgSupportFunction` for a declaration.
 
 ## Declaration diagnostics
+
+For `ANKUS056`, supported C# editors offer **Remove SQL metadata from injected
+context**. This removes `PgParameter` from injected `PgFunctionContext` and
+`PgMemoryContext` parameters while retaining ordinary SQL inputs, their metadata,
+and unrelated attributes. The correction also supports the editor's **Fix all**
+action.
 
 Declaration errors point to the option value, result type or parameter that
 needs correction. Schema errors point to the schema argument, including named

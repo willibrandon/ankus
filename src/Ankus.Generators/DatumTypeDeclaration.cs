@@ -10,7 +10,8 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
     bool external, bool canRead, bool canWrite, bool inferred, DatumTypeDeclaration? rangeBound = null)
 {
     private static readonly DiagnosticDescriptor s_invalid = new(
-        "ANKUS019", "Invalid PostgreSQL datum mapping", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true);
+        "ANKUS019", "Invalid PostgreSQL datum mapping", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true,
+        helpLinkUri: "https://willibrandon.github.io/ankus/raw-values/#reusable-scalar-mappings");
 
     /// <summary>
     /// Gets the exact managed root identity.

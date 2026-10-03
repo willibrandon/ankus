@@ -18,6 +18,7 @@
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/Ankus.Build/Ankus.Build.csproj" />
+    <Project Path="src/Ankus.CodeFixes/Ankus.CodeFixes.csproj" />
     <Project Path="src/Ankus.DocGenerator/Ankus.DocGenerator.csproj" />
     <Project Path="src/Ankus.Generators/Ankus.Generators.csproj" />
     <Project Path="src/Ankus.NativeAot.Compiler/Ankus.NativeAot.Compiler.csproj" />

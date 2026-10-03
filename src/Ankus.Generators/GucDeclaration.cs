@@ -10,7 +10,8 @@ namespace Ankus.Generators;
 internal sealed class GucDeclaration
 {
     private static readonly DiagnosticDescriptor s_invalid = new(
-        "ANKUS014", "Invalid PostgreSQL configuration declaration", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true);
+        "ANKUS014", "Invalid PostgreSQL configuration declaration", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true,
+        helpLinkUri: "https://willibrandon.github.io/ankus/configuration/#types-and-metadata");
 
     /// <summary>
     /// Identifies invalid setting contracts and current duplicate-name constraints.

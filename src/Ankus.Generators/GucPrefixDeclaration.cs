@@ -10,7 +10,8 @@ namespace Ankus.Generators;
 internal static class GucPrefixDeclaration
 {
     private static readonly DiagnosticDescriptor s_invalid = new(
-        "ANKUS015", "Invalid PostgreSQL configuration prefix", "{0}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true);
+        "ANKUS015", "Invalid PostgreSQL configuration prefix", "{0}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true,
+        helpLinkUri: "https://willibrandon.github.io/ankus/configuration/#reserving-a-prefix");
 
     /// <summary>
     /// Reads valid prefixes without case folding or imposing SQL identifier restrictions.

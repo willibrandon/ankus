@@ -13,9 +13,11 @@ namespace Ankus.Generators;
 internal sealed record SqlTypeReference(string Name, string? Schema, bool IsRaw = false, bool IsArray = false)
 {
     private static readonly DiagnosticDescriptor s_invalid = new(
-        "ANKUS009", "Invalid PostgreSQL composite binding", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true);
+        "ANKUS009", "Invalid PostgreSQL composite binding", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true,
+        helpLinkUri: "https://willibrandon.github.io/ankus/composites/#named-composite-types");
     private static readonly DiagnosticDescriptor s_invalidRaw = new(
-        "ANKUS016", "Invalid PostgreSQL raw type binding", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true);
+        "ANKUS016", "Invalid PostgreSQL raw type binding", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true,
+        helpLinkUri: "https://willibrandon.github.io/ankus/raw-values/#raw-sql-values");
 
     /// <summary>
     /// Gets whether the binding names PostgreSQL's internal callback type.

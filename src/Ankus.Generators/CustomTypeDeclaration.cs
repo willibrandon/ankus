@@ -12,7 +12,8 @@ internal sealed class CustomTypeDeclaration(INamedTypeSymbol type, INamedTypeSym
     SerializationModel? serializer, int nativeSize, AttributeData attribute, string name, string? schema)
 {
     private static readonly DiagnosticDescriptor s_invalid = new(
-        "ANKUS017", "Invalid PostgreSQL base type", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true);
+        "ANKUS017", "Invalid PostgreSQL base type", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true,
+        helpLinkUri: "https://willibrandon.github.io/ankus/custom-types/#generated-contracts");
 
     /// <summary>
     /// Gets the shared descriptor for current-tree custom-type validation errors.
