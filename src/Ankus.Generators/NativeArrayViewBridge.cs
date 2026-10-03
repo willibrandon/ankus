@@ -122,12 +122,24 @@ internal static class NativeArrayViewBridge
                 if (request->scalar_operation == 6)
                 {
                     if (request->limit < 0 || request->limit >= ArrayGetNItems(rank, ARR_DIMS(array)))
+                    {
                         ereport(ERROR, (errcode(ERRCODE_ARRAY_SUBSCRIPT_ERROR), errmsg("Borrowed array index is outside its bounds")));
-                    ArrayIterator iterator = array_create_iterator(array, 0, NULL);
-                    found = false;
-                    for (int index = 0; index <= request->limit; index++)
-                        found = array_iterate(iterator, &cell, &is_null);
-                    array_free_iterator(iterator);
+                    }
+
+                    int subscripts[MAXDIM];
+                    int offset = (int) request->limit;
+                    for (int dimension = rank - 1; dimension >= 0; dimension--)
+                    {
+                        subscripts[dimension] = ARR_LBOUND(array)[dimension] + offset % ARR_DIMS(array)[dimension];
+                        offset /= ARR_DIMS(array)[dimension];
+                    }
+
+                    int16 length;
+                    bool by_value;
+                    char alignment;
+                    get_typlenbyvalalign(element, &length, &by_value, &alignment);
+                    cell = array_ref(array, rank, subscripts, -1, length, by_value, alignment, &is_null);
+                    found = true;
                 }
                 else
                 {

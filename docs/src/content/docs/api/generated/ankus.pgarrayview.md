@@ -22,7 +22,8 @@ Dispose explicitly created views while their backend is active. Copy Datum or a 
 another memory context before its source expires when an independent lifetime is needed.
 Copied type and shape metadata remain readable after disposal; native access does not.
 Resetting only the source context also expires all views and cells, even when private child contexts survive.
-Indexed access is O(n); enumeration visits the elements in one linear pass.
+Indexed access is O(1) for fixed-size elements stored without a NULL bitmap,
+and O(n) otherwise; enumeration visits the elements in one linear pass.
 
 Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object)
 
@@ -101,7 +102,7 @@ Value: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
 
 ### this[int]
 
-Borrows a cell at a zero-based row-major index in O(n) time.
+Borrows a cell at a zero-based row-major index using PostgreSQL's native array lookup.
 
 ```csharp
 public PgDatum this[int index] { get; }

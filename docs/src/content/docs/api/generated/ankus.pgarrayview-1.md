@@ -26,7 +26,8 @@ Elements are converted on access using PgDatum.Read&lt;T&gt;; ordinary values ar
 while borrowed text and bytea elements retain the source lifetime. Dispose such elements
 when finished. Disposing an enumerator releases only its cursor, not its returned elements.
 Nonnullable value types reject arrays containing SQL NULL during construction.
-Indexed access is O(n); enumeration visits the array in one linear pass and converts each
+Indexed lookup is O(1) for fixed-size native elements stored without a NULL bitmap,
+and O(n) otherwise; enumeration visits the array in one linear pass and converts each
 cell once. Native access expires with this view, its source owner or its source callback.
 Copied metadata remains readable after expiry. Construct this view from a checked PgDatum,
 or request it through PgDatum.Read, SPI scalar helpers or PgFunctions. Raw reads borrow their
@@ -121,7 +122,7 @@ Value: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
 
 ### this[int]
 
-Converts a cell at a zero-based row-major index in O(n) time.
+Converts a cell at a zero-based row-major index using PostgreSQL's native array lookup.
 
 ```csharp
 public T this[int index] { get; }

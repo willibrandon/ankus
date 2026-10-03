@@ -240,7 +240,8 @@ SELECT describe_cells(ARRAY[0, NULL, -7]); -- {0,NULL,-7}
 
 The view preserves native dimensions and lower bounds. `values[0]` selects the
 first cell in row-major order; `values.GetValue(-1, 6)` uses PostgreSQL
-subscripts. Indexed access may scan preceding cells. Use `foreach` for a linear
+subscripts. PostgreSQL locates fixed-size cells directly when the array has no
+NULL bitmap; other storage can require scanning preceding cells. Use `foreach` for a linear
 pass. Enumerators advance independently, and disposing one does not invalidate
 cells already obtained from it.
 
@@ -298,8 +299,9 @@ int?[] copy = values.ToArray();  // Explicitly copies in row-major order.
 
 The typed view exposes `TypeOid`, `ElementTypeOid`, `Count`, `Rank`, `HasNulls`,
 `Lengths`, `LowerBounds`, and the checked original `Datum`. Its indexer uses a
-zero-based flat index; `GetValue` uses PostgreSQL subscripts. Both take O(n)
-time. Enumeration visits the cells in one linear pass, with independent cursors
+zero-based flat index; `GetValue` uses PostgreSQL subscripts. Native lookup is O(1)
+for fixed-size elements stored without a NULL bitmap and O(n) otherwise. Element
+conversion can add its own cost. Enumeration visits the cells in one linear pass, with independent cursors
 and one conversion per cell. Repeated `Current` reads return that same converted
 value after checking the source lifetime.
 
