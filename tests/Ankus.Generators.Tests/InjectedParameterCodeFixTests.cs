@@ -20,14 +20,15 @@ public sealed partial class PgFunctionGeneratorTests
     {
         using CompositionHost container = new ContainerConfiguration().WithAssembly(typeof(InjectedParameterCodeFixProvider).Assembly).CreateContainer();
         Lazy<CodeFixProvider, IDictionary<string, object>> export =
-            Assert.ContainsSingle(container.GetExports<Lazy<CodeFixProvider, IDictionary<string, object>>>());
+            Assert.ContainsSingle(container.GetExports<Lazy<CodeFixProvider, IDictionary<string, object>>>()
+                .Where(static value => (string)value.Metadata["Name"] == nameof(InjectedParameterCodeFixProvider)));
         CodeFixProvider provider = export.Value;
 
         Assert.IsInstanceOfType<InjectedParameterCodeFixProvider>(provider);
         Assert.AreEqual(nameof(InjectedParameterCodeFixProvider), Assert.IsInstanceOfType<string>(export.Metadata["Name"]));
         Assert.AreSequenceEqual([LanguageNames.CSharp], Assert.IsInstanceOfType<IEnumerable<string>>(export.Metadata["Languages"]));
         Assert.AreSequenceEqual(["ANKUS056"], provider.FixableDiagnosticIds);
-        Assert.AreSame(provider, Assert.ContainsSingle(container.GetExports<CodeFixProvider>()));
+        Assert.AreSame(provider, Assert.ContainsSingle(container.GetExports<CodeFixProvider>().OfType<InjectedParameterCodeFixProvider>()));
     }
 
     /// <summary>

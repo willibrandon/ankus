@@ -95,6 +95,13 @@ Visible inherited methods with an aggregate role name require the corresponding
 capability interface as well. Private base helpers that the aggregate cannot
 access remain ordinary helpers.
 
+For `ANKUS111` on `Combine`, the editor offers **Add missing typed aggregate
+combine interfaces** when the existing public static method matches the
+aggregate's state, return type and nullability. The action derives `TState`
+from `IPgAggregate<TState, TArgs>` and adds `IPgCombinableAggregate<TState>`.
+For a shared inherited callback, it updates each compatible attributed aggregate
+in the project. Existing callback bodies and their metadata are preserved.
+
 Apply parameter metadata to a tuple group with `Element` selecting its exact
 C# element name. Each SQL input retains its own name, numeric constraint or
 explicit raw/composite binding:
