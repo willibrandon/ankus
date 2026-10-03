@@ -310,7 +310,8 @@ Console.WriteLine(schema.Name);
 Console.WriteLine(schema.Sql);
 ```
 
-Use `.dll` on Windows or `.dylib` on macOS. The reader supports Linux x64,
+Use `.dll` on Windows, or `.dylib` on macOS with PostgreSQL 16 and later.
+macOS PostgreSQL 13–15 uses `.so`. The reader supports Linux x64,
 Windows x64, and macOS x64/ARM64 libraries. For a universal macOS library,
 pass `"osx-x64"` or `"osx-arm64"` as the second argument to select its slice.
 For a thin library, that optional argument checks the native target instead.

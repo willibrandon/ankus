@@ -2,6 +2,7 @@
 #include "utils/expandeddatum.h"
 
 /* Pass the original physical Datum to managed code without the ordinary owned raw argument conversion. */
+PGDLLEXPORT Datum ankus_test_array_storage(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ankus_test_array_storage);
 PGDLLEXPORT Datum
 ankus_test_array_storage(PG_FUNCTION_ARGS)
@@ -72,6 +73,7 @@ ankus_test_array_address(FunctionCallInfo fcinfo, int mode)
     return result;
 }
 
+PGDLLEXPORT Datum ankus_test_array_argument(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ankus_test_array_argument);
 PGDLLEXPORT Datum
 ankus_test_array_argument(PG_FUNCTION_ARGS)
@@ -80,6 +82,7 @@ ankus_test_array_argument(PG_FUNCTION_ARGS)
 }
 
 /* Observe the native payload before the generated conversion borrows it. */
+PGDLLEXPORT Datum ankus_test_array_slice_argument(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ankus_test_array_slice_argument);
 PGDLLEXPORT Datum
 ankus_test_array_slice_argument(PG_FUNCTION_ARGS)
@@ -88,6 +91,7 @@ ankus_test_array_slice_argument(PG_FUNCTION_ARGS)
 }
 
 /* A bitmap with every cell present is different from an array containing NULLs. */
+PGDLLEXPORT Datum ankus_test_array_slice_bitmap(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ankus_test_array_slice_bitmap);
 PGDLLEXPORT Datum
 ankus_test_array_slice_bitmap(PG_FUNCTION_ARGS)
@@ -96,6 +100,7 @@ ankus_test_array_slice_bitmap(PG_FUNCTION_ARGS)
 }
 
 /* Only called for a new detoast allocation, never an interior tuple address. */
+PGDLLEXPORT Datum ankus_test_array_owner(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ankus_test_array_owner);
 PGDLLEXPORT Datum
 ankus_test_array_owner(PG_FUNCTION_ARGS)

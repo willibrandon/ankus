@@ -24,6 +24,7 @@
 PG_MODULE_MAGIC;
 
 /* Independent observation through deconstruct_array, not the borrowed-view iterator path. */
+PGDLLEXPORT Datum ankus_test_array_bits(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ankus_test_array_bits);
 PGDLLEXPORT Datum
 ankus_test_array_bits(PG_FUNCTION_ARGS)
@@ -54,6 +55,7 @@ ankus_test_array_bits(PG_FUNCTION_ARGS)
 
 #if PG_VERSION_NUM < 140000
 /* PostgreSQL 13 has native allocator counters but no SQL memory-context catalog. */
+PGDLLEXPORT Datum ankus_test_memory_contexts(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ankus_test_memory_contexts);
 PGDLLEXPORT Datum
 ankus_test_memory_contexts(PG_FUNCTION_ARGS)
@@ -153,6 +155,7 @@ relation_commit_fault(SubXactEvent event, SubTransactionId child, SubTransaction
     }
 }
 
+PGDLLEXPORT Datum ankus_test_relation_commit_fault(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ankus_test_relation_commit_fault);
 PGDLLEXPORT Datum
 ankus_test_relation_commit_fault(PG_FUNCTION_ARGS)
@@ -185,6 +188,7 @@ ankus_test_relation_commit_fault(PG_FUNCTION_ARGS)
     PG_RETURN_BOOL(valid);
 }
 
+PGDLLEXPORT Datum ankus_test_relation_transfer_fault(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ankus_test_relation_transfer_fault);
 PGDLLEXPORT Datum
 ankus_test_relation_transfer_fault(PG_FUNCTION_ARGS)
@@ -225,6 +229,7 @@ ankus_test_relation_transfer_fault(PG_FUNCTION_ARGS)
     PG_RETURN_BOOL(valid);
 }
 
+PGDLLEXPORT Datum ankus_test_relation_owner(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ankus_test_relation_owner);
 PGDLLEXPORT Datum
 ankus_test_relation_owner(PG_FUNCTION_ARGS)
@@ -262,6 +267,7 @@ ankus_test_relation_owner(PG_FUNCTION_ARGS)
     PG_RETURN_BOOL(valid);
 }
 
+PGDLLEXPORT Datum ankus_test_relation_borrow(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ankus_test_relation_borrow);
 PGDLLEXPORT Datum
 ankus_test_relation_borrow(PG_FUNCTION_ARGS)
@@ -288,6 +294,7 @@ ankus_test_relation_borrow(PG_FUNCTION_ARGS)
     PG_RETURN_BOOL(valid);
 }
 
+PGDLLEXPORT Datum ankus_test_relation_stats(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ankus_test_relation_stats);
 PGDLLEXPORT Datum
 ankus_test_relation_stats(PG_FUNCTION_ARGS)
@@ -317,6 +324,7 @@ ankus_test_relation_stats(PG_FUNCTION_ARGS)
     PG_RETURN_ARRAYTYPE_P(construct_array(values, 5, INT8OID, sizeof(int64), FLOAT8PASSBYVAL, TYPALIGN_DOUBLE));
 }
 
+PGDLLEXPORT Datum ankus_test_default_values(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ankus_test_default_values);
 PGDLLEXPORT Datum
 ankus_test_default_values(PG_FUNCTION_ARGS)
@@ -353,6 +361,7 @@ ankus_test_default_values(PG_FUNCTION_ARGS)
     PG_RETURN_ARRAYTYPE_P(construct_md_array(values, nulls, 1, &count, &lower, TEXTOID, -1, false, TYPALIGN_INT));
 }
 
+PGDLLEXPORT Datum ankus_test_item_pointer_describe(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ankus_test_item_pointer_describe);
 PGDLLEXPORT Datum
 ankus_test_item_pointer_describe(PG_FUNCTION_ARGS)
@@ -364,6 +373,7 @@ ankus_test_item_pointer_describe(PG_FUNCTION_ARGS)
         owner->ident == NULL ? owner->name : owner->ident)));
 }
 
+PGDLLEXPORT Datum ankus_test_item_pointer_borrow(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ankus_test_item_pointer_borrow);
 PGDLLEXPORT Datum
 ankus_test_item_pointer_borrow(PG_FUNCTION_ARGS)
@@ -424,6 +434,7 @@ list_fixture_describe(List *list)
     return value;
 }
 
+PGDLLEXPORT Datum ankus_test_list_describe(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ankus_test_list_describe);
 PGDLLEXPORT Datum
 ankus_test_list_describe(PG_FUNCTION_ARGS)
@@ -431,6 +442,7 @@ ankus_test_list_describe(PG_FUNCTION_ARGS)
     PG_RETURN_TEXT_P(list_fixture_describe((List *) (intptr_t) PG_GETARG_INT64(0)));
 }
 
+PGDLLEXPORT Datum ankus_test_list_borrow(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ankus_test_list_borrow);
 PGDLLEXPORT Datum
 ankus_test_list_borrow(PG_FUNCTION_ARGS)
@@ -454,6 +466,7 @@ ankus_test_list_borrow(PG_FUNCTION_ARGS)
 }
 
 /* Native access deliberately uses the selected header's layout, never a managed copy. */
+PGDLLEXPORT Datum ankus_test_stringinfo_cursor(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ankus_test_stringinfo_cursor);
 PGDLLEXPORT Datum
 ankus_test_stringinfo_cursor(PG_FUNCTION_ARGS)
@@ -465,6 +478,7 @@ ankus_test_stringinfo_cursor(PG_FUNCTION_ARGS)
     PG_RETURN_INT32(buffer->cursor);
 }
 
+PGDLLEXPORT Datum ankus_test_stringinfo_borrow(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ankus_test_stringinfo_borrow);
 PGDLLEXPORT Datum
 ankus_test_stringinfo_borrow(PG_FUNCTION_ARGS)
@@ -519,6 +533,7 @@ ankus_test_stringinfo_borrow(PG_FUNCTION_ARGS)
     return result;
 }
 
+PGDLLEXPORT Datum ankus_test_function_address(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ankus_test_function_address);
 PGDLLEXPORT Datum
 ankus_test_function_address(PG_FUNCTION_ARGS)
@@ -528,6 +543,7 @@ ankus_test_function_address(PG_FUNCTION_ARGS)
     PG_RETURN_INT64((int64) (intptr_t) function.fn_addr);
 }
 
+PGDLLEXPORT Datum ankus_test_nullable_sum(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ankus_test_nullable_sum);
 PGDLLEXPORT Datum
 ankus_test_nullable_sum(PG_FUNCTION_ARGS)
@@ -545,6 +561,7 @@ ankus_test_nullable_sum(PG_FUNCTION_ARGS)
     PG_RETURN_INT32(total);
 }
 
+PGDLLEXPORT Datum ankus_test_internal_invoke(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ankus_test_internal_invoke);
 PGDLLEXPORT Datum
 ankus_test_internal_invoke(PG_FUNCTION_ARGS)
@@ -581,6 +598,7 @@ internal_fixture_check_row(FmgrInfo *reader, Datum value, bool is_null, int row)
         ereport(ERROR, (errmsg("internal set state did not retain its expected value")));
 }
 
+PGDLLEXPORT Datum ankus_test_internal_set_invoke(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ankus_test_internal_set_invoke);
 PGDLLEXPORT Datum
 ankus_test_internal_set_invoke(PG_FUNCTION_ARGS)
@@ -676,6 +694,7 @@ allocator_fixture_cleanup(void *argument)
     fixture_parent = NULL;
 }
 
+PGDLLEXPORT Datum ankus_test_allocator_create(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ankus_test_allocator_create);
 PGDLLEXPORT Datum
 ankus_test_allocator_create(PG_FUNCTION_ARGS)
@@ -745,6 +764,7 @@ ankus_test_allocator_create(PG_FUNCTION_ARGS)
     return result;
 }
 
+PGDLLEXPORT Datum ankus_test_allocator_delete(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ankus_test_allocator_delete);
 PGDLLEXPORT Datum
 ankus_test_allocator_delete(PG_FUNCTION_ARGS)
@@ -758,6 +778,7 @@ ankus_test_allocator_delete(PG_FUNCTION_ARGS)
     PG_RETURN_VOID();
 }
 
+PGDLLEXPORT Datum ankus_test_allocator_flags(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ankus_test_allocator_flags);
 PGDLLEXPORT Datum
 ankus_test_allocator_flags(PG_FUNCTION_ARGS)

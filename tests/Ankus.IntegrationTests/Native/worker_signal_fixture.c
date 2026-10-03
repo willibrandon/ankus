@@ -3,6 +3,7 @@
 #include <signal.h>
 
 PG_MODULE_MAGIC;
+PGDLLEXPORT Datum ankus_test_worker_child_signal(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ankus_test_worker_child_signal);
 
 /* Exercise the actual selected-platform signal delivery, including pgkill on Windows. */

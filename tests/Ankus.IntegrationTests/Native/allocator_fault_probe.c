@@ -41,6 +41,7 @@ fault_child_contexts(MemoryContext parent)
     return count;
 }
 
+PGDLLEXPORT Datum ankus_test_function_defaults_fault(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ankus_test_function_defaults_fault);
 PGDLLEXPORT Datum
 ankus_test_function_defaults_fault(PG_FUNCTION_ARGS)
@@ -155,6 +156,7 @@ fault_create_bump(MemoryContext parent)
 #endif
 }
 
+PGDLLEXPORT Datum ankus_test_allocator_registry_fault(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ankus_test_allocator_registry_fault);
 PGDLLEXPORT Datum
 ankus_test_allocator_registry_fault(PG_FUNCTION_ARGS)
@@ -291,6 +293,7 @@ ankus_test_allocator_registry_fault(PG_FUNCTION_ARGS)
 
 /* Executes the emitted production bridge, observing native chunk releases and
  * independent registry reservations at bounded acquisition failure points. */
+PGDLLEXPORT Datum ankus_test_stringinfo_fault(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ankus_test_stringinfo_fault);
 PGDLLEXPORT Datum
 ankus_test_stringinfo_fault(PG_FUNCTION_ARGS)
@@ -420,6 +423,7 @@ ankus_test_stringinfo_fault(PG_FUNCTION_ARGS)
     PG_RETURN_TEXT_P(cstring_to_text(report));
 }
 
+PGDLLEXPORT Datum ankus_test_item_pointer_fault(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ankus_test_item_pointer_fault);
 PGDLLEXPORT Datum
 ankus_test_item_pointer_fault(PG_FUNCTION_ARGS)
@@ -537,6 +541,7 @@ ankus_test_item_pointer_fault(PG_FUNCTION_ARGS)
     PG_RETURN_TEXT_P(cstring_to_text(report));
 }
 
+PGDLLEXPORT Datum ankus_test_list_fault(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ankus_test_list_fault);
 PGDLLEXPORT Datum
 ankus_test_list_fault(PG_FUNCTION_ARGS)

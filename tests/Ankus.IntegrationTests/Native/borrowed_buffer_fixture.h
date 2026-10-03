@@ -1,6 +1,7 @@
 #include "nodes/makefuncs.h"
 
 /* Compare exact C-string storage and exercise a null address with isnull still false. */
+PGDLLEXPORT Datum ankus_test_cstring_argument(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ankus_test_cstring_argument);
 PGDLLEXPORT Datum
 ankus_test_cstring_argument(PG_FUNCTION_ARGS)
@@ -68,6 +69,7 @@ ankus_test_call_buffer(Oid callback, Datum value, Oid type)
     return result;
 }
 
+PGDLLEXPORT Datum ankus_test_buffer_argument(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ankus_test_buffer_argument);
 PGDLLEXPORT Datum
 ankus_test_buffer_argument(PG_FUNCTION_ARGS)
@@ -76,6 +78,7 @@ ankus_test_buffer_argument(PG_FUNCTION_ARGS)
 }
 
 /* Deliberately malformed text tests guarded validation before any managed string conversion. */
+PGDLLEXPORT Datum ankus_test_buffer_invalid_text(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ankus_test_buffer_invalid_text);
 PGDLLEXPORT Datum
 ankus_test_buffer_invalid_text(PG_FUNCTION_ARGS)

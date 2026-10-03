@@ -78,8 +78,9 @@ internal static class NativeTransactionBridge
                             errmsg("Terminal transaction callback messages must unwind managed code before reporting")));
                     }
 
-                    *enabled = ankus_log_enabled(ankus_log_level(level)) ? 1 : 0;
-                    if (operation == 1 && *enabled != 0)
+                    *enabled = ankus_log_enabled(ankus_log_level(level), error) ? 1 : 0;
+                    status = error->sqlstate != 0;
+                    if (status == 0 && operation == 1 && *enabled != 0)
                     {
                         ankus_report(report, ankus_log_level(level));
                     }

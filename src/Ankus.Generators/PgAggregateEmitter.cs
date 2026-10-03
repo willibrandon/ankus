@@ -114,6 +114,7 @@ internal static class PgAggregateEmitter
         string count = required.Length.ToString(CultureInfo.InvariantCulture);
         string capacity = Math.Max(1, required.Length).ToString(CultureInfo.InvariantCulture);
         header.AppendLine($"extern int {callback}(const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute, const AnkusValue *, int, void *, void *, AnkusMemoryApi *);");
+        header.AppendLine($"PGDLLEXPORT Datum {nativeName}(PG_FUNCTION_ARGS);");
         header.AppendLine($"PG_FUNCTION_INFO_V1({nativeName});");
         header.AppendLine($"PGDLLEXPORT Datum {nativeName}(PG_FUNCTION_ARGS)");
         header.AppendLine("{");

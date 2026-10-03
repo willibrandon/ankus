@@ -333,7 +333,7 @@ Historical SDK roots from PostgreSQL's build machine are replaced. Other argumen
 
 ### GetRegressionDriverPathAsync(CancellationToken)
 
-Locates this installation's PostgreSQL regression driver through its PGXS configuration.
+Locates this installation's PostgreSQL regression driver in its PGXS tree or Windows executable directory.
 Ordinary installation discovery does not require the regression tools to be installed.
 
 ```csharp

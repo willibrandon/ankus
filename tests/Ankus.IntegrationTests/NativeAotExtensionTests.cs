@@ -1,3 +1,4 @@
+using Ankus.PgConfig;
 using Npgsql;
 
 namespace Ankus.IntegrationTests;
@@ -21,6 +22,53 @@ public sealed class NativeAotExtensionTests(TestContext context)
     /// </summary>
     [AssemblyCleanup]
     public static Task CleanupAssemblyAsync() => PostgresFixture.CleanupAsync();
+
+    /// <summary>
+    /// Publication and SQL use the selected backend's suffix, allowing ordinary unqualified library loading.
+    /// </summary>
+    [TestMethod]
+    public async Task PublishedLibraryMatchesPostgresLoaderSuffix()
+    {
+        PostgresInstallation installation = await IntegrationEnvironment.GetInstallationAsync(context.CancellationToken);
+        PublishedExtension manifest = PublishedExtension.Read(IntegrationEnvironment.NativeOutputDirectory);
+        string suffix = OperatingSystem.IsWindows() ? ".dll"
+            : OperatingSystem.IsMacOS() && installation.Version.Major >= 16 ? ".dylib" : ".so";
+        Assert.AreEqual("Ankus.Examples.Hello" + suffix, manifest.Library);
+        Assert.IsTrue(File.Exists(Path.Combine(IntegrationEnvironment.NativeOutputDirectory, manifest.Library)));
+
+        await using NpgsqlConnection connection = await PostgresFixture.Cluster.OpenConnectionAsync(context.CancellationToken);
+        await using var command = new NpgsqlCommand("LOAD 'Ankus.Examples.Hello'; SELECT public.add(20, 22)", connection);
+        Assert.AreEqual(42, await command.ExecuteScalarAsync(context.CancellationToken));
+        command.CommandText = "SELECT probin FROM pg_proc WHERE oid = 'public.add(integer,integer)'::regprocedure";
+        string library = Assert.IsInstanceOfType<string>(await command.ExecuteScalarAsync(context.CancellationToken));
+        Assert.AreEqual(manifest.Library, Path.GetFileName(library));
+    }
+
+    /// <summary>
+    /// Native fixture SQL names the actual compiled files without depending on the backend's implicit library suffix.
+    /// </summary>
+    [TestMethod]
+    public async Task NativeFixtureFunctionsNameExistingArtifacts()
+    {
+        await using NpgsqlConnection connection = await PostgresFixture.Cluster.OpenConnectionAsync(context.CancellationToken);
+        await using var command = new NpgsqlCommand("""
+            SELECT array_agg(probin ORDER BY probin)
+            FROM pg_proc
+            WHERE oid IN ('tests.cstring_argument(regprocedure,boolean)'::regprocedure,
+                'tests.allocator_registry_fault(integer)'::regprocedure,
+                'tests.raw_call_holdoffs()'::regprocedure)
+            """, connection);
+        string[] artifacts = Assert.IsInstanceOfType<string[]>(await command.ExecuteScalarAsync(context.CancellationToken));
+
+        Assert.AreSequenceEqual(["Ankus.AllocatorFaultFixture", "Ankus.AllocatorFixture", "Ankus.RawCallFixture"],
+            artifacts.Select(Path.GetFileNameWithoutExtension));
+        foreach (string artifact in artifacts)
+        {
+            Assert.AreEqual(Path.GetFileName(artifact), artifact);
+            Assert.IsTrue(File.Exists(Path.Combine(IntegrationEnvironment.NativeOutputDirectory, artifact)),
+                $"PostgreSQL must name the existing native fixture file '{artifact}' exactly.");
+        }
+    }
 
     /// <summary>
     /// Verifies signed datums and generated argument conversion through the sample's native entry point.

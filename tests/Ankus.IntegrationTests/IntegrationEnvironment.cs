@@ -225,8 +225,7 @@ internal static class IntegrationEnvironment
 
         s_nativeExtensionFilesInstalled = installation.Version.Major < 18;
         Directory.Delete(publishRoot, true);
-        string libraryExtension = OperatingSystem.IsWindows() ? ".dll" : OperatingSystem.IsMacOS() ? ".dylib" : ".so";
-        return RequireFile(Path.Combine(NativeOutputDirectory, "Ankus.Examples.Hello" + libraryExtension));
+        return RequireFile(Path.Combine(NativeOutputDirectory, PublishedExtension.Read(NativeOutputDirectory).Library));
     }
 
     private static async Task PublishExtensionAsync(string directory, string name, string output,
@@ -248,8 +247,7 @@ internal static class IntegrationEnvironment
             new Dictionary<string, string?>(),
             cancellationToken);
 
-        string extension = OperatingSystem.IsWindows() ? ".dll" : OperatingSystem.IsMacOS() ? ".dylib" : ".so";
-        RequireFile(Path.Combine(output, name + extension));
+        RequireFile(Path.Combine(output, PublishedExtension.Read(output).Library));
     }
 
     private static void CopyDirectory(string source, string destination)

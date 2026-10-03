@@ -118,7 +118,7 @@ public sealed class PostgresInstallation
     public string PsqlPath => GetExecutablePath("psql");
 
     /// <summary>
-    /// Locates this installation's PostgreSQL regression driver through its PGXS configuration.
+    /// Locates this installation's PostgreSQL regression driver in its PGXS tree or Windows executable directory.
     /// Ordinary installation discovery does not require the regression tools to be installed.
     /// </summary>
     /// <param name="cancellationToken">Cancels the PGXS query.</param>
@@ -137,6 +137,16 @@ public sealed class PostgresInstallation
         }
 
         string driver = Path.Combine(sourceDirectory, "test", "regress", OperatingSystem.IsWindows() ? "pg_regress.exe" : "pg_regress");
+        if (!File.Exists(driver) && OperatingSystem.IsWindows())
+        {
+            // PostgreSQL's MSVC installer places executable projects in bin; Meson uses the PGXS tree.
+            string executable = Path.Combine(BinDirectory, "pg_regress.exe");
+            if (File.Exists(executable))
+            {
+                return executable;
+            }
+        }
+
         if (!File.Exists(driver))
         {
             throw new FileNotFoundException("The selected PostgreSQL installation is missing pg_regress. Install its development and regression tools.", driver);

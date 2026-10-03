@@ -115,6 +115,16 @@ public sealed class MemoryCleanupOwnerTests(TestContext context)
                 await command.ExecuteNonQueryAsync(token);
                 var notices = new List<PostgresNotice>();
                 connection.Notice += (_, args) => notices.Add(args.Notice);
+                PostgresNotice? nativeNotice = null;
+                if (viaSpi && !filtered)
+                {
+                    command.CommandText = "DO $notice$ BEGIN RAISE NOTICE USING ERRCODE = '01000', MESSAGE = 'error context SPI notice café 100%', DETAIL = 'SPI détail conservé', HINT = 'SPI hint café'; END; $notice$";
+                    await command.ExecuteNonQueryAsync(token);
+                    nativeNotice = Assert.ContainsSingle(notices);
+                    Assert.IsNotNull(nativeNotice.File);
+                    Assert.IsNotNull(nativeNotice.Line);
+                }
+
                 command.CommandText = $"SELECT datatype.memory_error_context_child_notice({viaSpi})";
                 bool reclaimed = !filtered && version >= 190000;
                 string expected = reclaimed
@@ -139,7 +149,9 @@ public sealed class MemoryCleanupOwnerTests(TestContext context)
                             Assert.AreEqual("SPI détail conservé", notice.Detail);
                             Assert.AreEqual("SPI hint café", notice.Hint);
                             Assert.Contains("inline_code_block line 1 at RAISE", Assert.IsInstanceOfType<string>(notice.Where));
-                            Assert.AreEqual("pl_exec.c", notice.File);
+                            Assert.IsNotNull(nativeNotice);
+                            Assert.AreEqual(nativeNotice.File, notice.File);
+                            Assert.AreEqual(nativeNotice.Line, notice.Line);
                             Assert.AreEqual("exec_stmt_raise", notice.Routine);
                             Assert.IsGreaterThan(0, int.Parse(Assert.IsInstanceOfType<string>(notice.Line), System.Globalization.CultureInfo.InvariantCulture));
                         }

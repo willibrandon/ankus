@@ -116,8 +116,8 @@ internal static class GuardedBackend
 
             if (request->operation == ANKUS_SPI_IS_LOG_ENABLED)
             {
-                result->processed = ankus_log_enabled(ankus_log_level(request->log_level));
-                return 0;
+                result->processed = ankus_log_enabled(ankus_log_level(request->log_level), error);
+                return error->sqlstate != 0;
             }
 
             if (request->operation == ANKUS_SPI_CLOSE_SESSION && ankus_session != NULL &&

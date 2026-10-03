@@ -177,6 +177,7 @@ internal static class PgSetEmitter
         string polymorphic = sqlParameters.Length == 0 ? "false" : string.Join(", ", sqlParameters.Select(static parameter =>
             parameter.Type!.UsesRawTransport ? "true" : "false"));
         header.AppendLine($"extern int {callback}(int, void **, const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute, AnkusMemoryApi *, FunctionCallInfo);");
+        header.AppendLine($"PGDLLEXPORT Datum {nativeName}(PG_FUNCTION_ARGS);");
         header.AppendLine($"PG_FUNCTION_INFO_V1({nativeName});");
         header.AppendLine($"PGDLLEXPORT Datum {nativeName}(PG_FUNCTION_ARGS)");
         header.AppendLine("{");

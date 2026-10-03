@@ -1,4 +1,14 @@
 <Project>
+  <Target Name="_SelectAnkusNativeLibrarySuffix" BeforeTargets="SetupOSSpecificProps"
+          DependsOnTargets="ImportRuntimeIlcPackageTarget" Condition="'$(PublishAot)' == 'true'">
+    <!-- PostgreSQL on macOS used .so before PostgreSQL 16. Select the backend's
+         name before linker, control-file and publication paths are constructed. -->
+    <PropertyGroup Condition="'$(_targetOS)' == 'osx' and '$(AnkusPostgresMajor)' &lt; '16'">
+      <NativeBinaryExt>.so</NativeBinaryExt>
+      <NativeBinary>$(NativeOutputPath)$(NativeBinaryPrefix)$(TargetName)$(NativeBinaryExt)</NativeBinary>
+    </PropertyGroup>
+  </Target>
+
   <Target Name="_CleanAnkusSchemaSnapshots" BeforeTargets="CoreClean" Condition="'$(NativeIntermediateOutputPath)' != ''">
     <ItemGroup>
       <Clean Include="$(NativeIntermediateOutputPath)ankus/schema-pg*-*.json" />

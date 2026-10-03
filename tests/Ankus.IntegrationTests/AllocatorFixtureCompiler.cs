@@ -9,68 +9,81 @@ namespace Ankus.IntegrationTests;
 internal static class AllocatorFixtureCompiler
 {
     /// <summary>
+    /// Gets the exact filename shared by native compilation and SQL installation.
+    /// </summary>
+    private static string ModuleFileName { get; } = GetModuleFileName("Ankus.AllocatorFixture");
+
+    /// <summary>
     /// Gets SQL that installs the native fixture functions in an existing tests schema.
     /// </summary>
-    internal const string InstallationSql = """
+    internal static string InstallationSql { get; } = $$"""
         CREATE FUNCTION tests.cstring_argument(regprocedure, boolean) RETURNS boolean
-        AS 'Ankus.AllocatorFixture', 'ankus_test_cstring_argument' LANGUAGE c STRICT;
+        AS '{{ModuleFileName}}', 'ankus_test_cstring_argument' LANGUAGE c STRICT;
         CREATE FUNCTION tests.buffer_argument(regprocedure, anyelement) RETURNS text[]
-        AS 'Ankus.AllocatorFixture', 'ankus_test_buffer_argument' LANGUAGE c STRICT;
+        AS '{{ModuleFileName}}', 'ankus_test_buffer_argument' LANGUAGE c STRICT;
         CREATE FUNCTION tests.buffer_invalid_text(regprocedure, integer) RETURNS text[]
-        AS 'Ankus.AllocatorFixture', 'ankus_test_buffer_invalid_text' LANGUAGE c STRICT;
+        AS '{{ModuleFileName}}', 'ankus_test_buffer_invalid_text' LANGUAGE c STRICT;
         CREATE FUNCTION tests.array_bits(bigint) RETURNS bigint[]
-        AS 'Ankus.AllocatorFixture', 'ankus_test_array_bits' LANGUAGE c STRICT;
+        AS '{{ModuleFileName}}', 'ankus_test_array_bits' LANGUAGE c STRICT;
         CREATE FUNCTION tests.array_storage(regprocedure, anyarray, integer) RETURNS text[]
-        AS 'Ankus.AllocatorFixture', 'ankus_test_array_storage' LANGUAGE c STRICT;
+        AS '{{ModuleFileName}}', 'ankus_test_array_storage' LANGUAGE c STRICT;
         CREATE FUNCTION tests.array_argument(regprocedure, anyarray) RETURNS boolean
-        AS 'Ankus.AllocatorFixture', 'ankus_test_array_argument' LANGUAGE c STRICT;
+        AS '{{ModuleFileName}}', 'ankus_test_array_argument' LANGUAGE c STRICT;
         CREATE FUNCTION tests.array_slice_argument(regprocedure, anyarray) RETURNS boolean
-        AS 'Ankus.AllocatorFixture', 'ankus_test_array_slice_argument' LANGUAGE c STRICT;
+        AS '{{ModuleFileName}}', 'ankus_test_array_slice_argument' LANGUAGE c STRICT;
         CREATE FUNCTION tests.array_slice_bitmap(regprocedure, anyarray) RETURNS boolean
-        AS 'Ankus.AllocatorFixture', 'ankus_test_array_slice_bitmap' LANGUAGE c STRICT;
+        AS '{{ModuleFileName}}', 'ankus_test_array_slice_bitmap' LANGUAGE c STRICT;
         CREATE FUNCTION tests.array_owner(bigint) RETURNS text
-        AS 'Ankus.AllocatorFixture', 'ankus_test_array_owner' LANGUAGE c STRICT;
+        AS '{{ModuleFileName}}', 'ankus_test_array_owner' LANGUAGE c STRICT;
         CREATE TABLE tests.relation_locks_1 (x integer);
         CREATE TABLE tests.relation_locks_8 (x integer);
         CREATE FUNCTION tests.relation_commit_fault(regprocedure, oid) RETURNS boolean
-        AS 'Ankus.AllocatorFixture', 'ankus_test_relation_commit_fault' LANGUAGE c STRICT;
+        AS '{{ModuleFileName}}', 'ankus_test_relation_commit_fault' LANGUAGE c STRICT;
         CREATE FUNCTION tests.relation_transfer_fault(regprocedure, oid, integer) RETURNS boolean
-        AS 'Ankus.AllocatorFixture', 'ankus_test_relation_transfer_fault' LANGUAGE c STRICT;
+        AS '{{ModuleFileName}}', 'ankus_test_relation_transfer_fault' LANGUAGE c STRICT;
         CREATE FUNCTION tests.relation_owner(regprocedure, oid, boolean) RETURNS boolean
-        AS 'Ankus.AllocatorFixture', 'ankus_test_relation_owner' LANGUAGE c STRICT;
+        AS '{{ModuleFileName}}', 'ankus_test_relation_owner' LANGUAGE c STRICT;
         CREATE FUNCTION tests.relation_borrow(regprocedure, oid, integer) RETURNS boolean
-        AS 'Ankus.AllocatorFixture', 'ankus_test_relation_borrow' LANGUAGE c STRICT;
+        AS '{{ModuleFileName}}', 'ankus_test_relation_borrow' LANGUAGE c STRICT;
         CREATE FUNCTION tests.relation_stats(bigint) RETURNS bigint[]
-        AS 'Ankus.AllocatorFixture', 'ankus_test_relation_stats' LANGUAGE c STRICT;
+        AS '{{ModuleFileName}}', 'ankus_test_relation_stats' LANGUAGE c STRICT;
         CREATE FUNCTION tests.default_values(bigint) RETURNS text[]
-        AS 'Ankus.AllocatorFixture', 'ankus_test_default_values' LANGUAGE c STRICT;
+        AS '{{ModuleFileName}}', 'ankus_test_default_values' LANGUAGE c STRICT;
         CREATE FUNCTION tests.item_pointer_describe(bigint) RETURNS text
-        AS 'Ankus.AllocatorFixture', 'ankus_test_item_pointer_describe' LANGUAGE c STRICT;
+        AS '{{ModuleFileName}}', 'ankus_test_item_pointer_describe' LANGUAGE c STRICT;
         CREATE FUNCTION tests.item_pointer_borrow(regprocedure, integer) RETURNS text
-        AS 'Ankus.AllocatorFixture', 'ankus_test_item_pointer_borrow' LANGUAGE c STRICT;
+        AS '{{ModuleFileName}}', 'ankus_test_item_pointer_borrow' LANGUAGE c STRICT;
         CREATE FUNCTION tests.function_address(regprocedure) RETURNS bigint
-        AS 'Ankus.AllocatorFixture', 'ankus_test_function_address' LANGUAGE c STRICT;
+        AS '{{ModuleFileName}}', 'ankus_test_function_address' LANGUAGE c STRICT;
         CREATE FUNCTION tests.native_nullable_sum(integer, integer) RETURNS integer
-        AS 'Ankus.AllocatorFixture', 'ankus_test_nullable_sum' LANGUAGE c;
+        AS '{{ModuleFileName}}', 'ankus_test_nullable_sum' LANGUAGE c;
         CREATE FUNCTION tests.internal_invoke(regprocedure, integer) RETURNS bigint
-        AS 'Ankus.AllocatorFixture', 'ankus_test_internal_invoke' LANGUAGE c STRICT;
+        AS '{{ModuleFileName}}', 'ankus_test_internal_invoke' LANGUAGE c STRICT;
         CREATE FUNCTION tests.internal_set_invoke(regprocedure, regprocedure, boolean, boolean) RETURNS integer
-        AS 'Ankus.AllocatorFixture', 'ankus_test_internal_set_invoke' LANGUAGE c STRICT;
+        AS '{{ModuleFileName}}', 'ankus_test_internal_set_invoke' LANGUAGE c STRICT;
         CREATE FUNCTION tests.allocator_create(integer, regprocedure, text) RETURNS integer
-        AS 'Ankus.AllocatorFixture', 'ankus_test_allocator_create' LANGUAGE c STRICT;
+        AS '{{ModuleFileName}}', 'ankus_test_allocator_create' LANGUAGE c STRICT;
         CREATE FUNCTION tests.allocator_delete() RETURNS void
-        AS 'Ankus.AllocatorFixture', 'ankus_test_allocator_delete' LANGUAGE c;
+        AS '{{ModuleFileName}}', 'ankus_test_allocator_delete' LANGUAGE c;
         CREATE FUNCTION tests.allocator_flags() RETURNS integer
-        AS 'Ankus.AllocatorFixture', 'ankus_test_allocator_flags' LANGUAGE c;
+        AS '{{ModuleFileName}}', 'ankus_test_allocator_flags' LANGUAGE c;
         CREATE FUNCTION tests.stringinfo_cursor(bigint, integer) RETURNS integer
-        AS 'Ankus.AllocatorFixture', 'ankus_test_stringinfo_cursor' LANGUAGE c STRICT;
+        AS '{{ModuleFileName}}', 'ankus_test_stringinfo_cursor' LANGUAGE c STRICT;
         CREATE FUNCTION tests.stringinfo_borrow(regprocedure, integer) RETURNS text
-        AS 'Ankus.AllocatorFixture', 'ankus_test_stringinfo_borrow' LANGUAGE c STRICT;
+        AS '{{ModuleFileName}}', 'ankus_test_stringinfo_borrow' LANGUAGE c STRICT;
         CREATE FUNCTION tests.list_describe(bigint) RETURNS text
-        AS 'Ankus.AllocatorFixture', 'ankus_test_list_describe' LANGUAGE c STRICT;
+        AS '{{ModuleFileName}}', 'ankus_test_list_describe' LANGUAGE c STRICT;
         CREATE FUNCTION tests.list_borrow(regprocedure, integer) RETURNS text
-        AS 'Ankus.AllocatorFixture', 'ankus_test_list_borrow' LANGUAGE c STRICT;
+        AS '{{ModuleFileName}}', 'ankus_test_list_borrow' LANGUAGE c STRICT;
         """;
+
+    /// <summary>
+    /// Names the compiled artifact explicitly instead of relying on a PostgreSQL version's implied library suffix.
+    /// </summary>
+    /// <param name="moduleName">The fixture's fixed module basename.</param>
+    /// <returns>The exact platform-native library filename.</returns>
+    internal static string GetModuleFileName(string moduleName)
+        => moduleName + (OperatingSystem.IsWindows() ? ".dll" : OperatingSystem.IsMacOS() ? ".dylib" : ".so");
 
     /// <summary>
     /// Builds the fixture with the host C compiler without adding any production exports.
@@ -80,9 +93,8 @@ internal static class AllocatorFixtureCompiler
     internal static async Task BuildAsync(PostgresInstallation installation, CancellationToken cancellationToken)
     {
         string source = Path.Combine(IntegrationEnvironment.RepositoryRoot, "tests", "Ankus.IntegrationTests", "Native", "allocator_fixture.c");
-        string extension = OperatingSystem.IsWindows() ? ".dll" : OperatingSystem.IsMacOS() ? ".dylib" : ".so";
         await CompileModuleAsync(installation, source,
-            Path.Combine(IntegrationEnvironment.NativeOutputDirectory, "Ankus.AllocatorFixture" + extension), cancellationToken);
+            Path.Combine(IntegrationEnvironment.NativeOutputDirectory, ModuleFileName), cancellationToken);
     }
 
     /// <summary>

@@ -223,7 +223,7 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
             List<string> configuration = [$"dynamic_library_path = '{searchPath}{separator}$libdir'"];
             if (installation.Version.Major >= 18)
             {
-                string scriptBase = Path.Combine(output, "postgres-share");
+                string scriptBase = Path.Combine(dataDirectoryBase, "share");
                 PostgresExtensionFiles.Stage(output, scriptBase);
                 string controlPath = scriptBase.Replace("\\", "/", StringComparison.Ordinal).Replace("'", "''", StringComparison.Ordinal);
                 configuration.Insert(0, $"extension_control_path = '{controlPath}{separator}$system'");

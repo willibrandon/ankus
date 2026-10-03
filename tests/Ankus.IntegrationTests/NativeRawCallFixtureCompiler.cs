@@ -10,23 +10,28 @@ namespace Ankus.IntegrationTests;
 internal static class NativeRawCallFixtureCompiler
 {
     /// <summary>
+    /// Gets the exact filename shared by native compilation and SQL installation.
+    /// </summary>
+    private static string ModuleFileName { get; } = AllocatorFixtureCompiler.GetModuleFileName("Ankus.RawCallFixture");
+
+    /// <summary>
     /// Gets the SQL entry points for native body addresses, backend state and deliberate errors.
     /// </summary>
-    internal const string InstallationSql = """
+    internal static string InstallationSql { get; } = $$"""
         CREATE FUNCTION tests.raw_call_address(integer) RETURNS bigint
-        AS 'Ankus.RawCallFixture', 'ankus_test_raw_call_address' LANGUAGE c STRICT;
+        AS '{{ModuleFileName}}', 'ankus_test_raw_call_address' LANGUAGE c STRICT;
         CREATE FUNCTION tests.raw_call_holdoffs() RETURNS bigint
-        AS 'Ankus.RawCallFixture', 'ankus_test_raw_call_holdoffs' LANGUAGE c STRICT;
+        AS '{{ModuleFileName}}', 'ankus_test_raw_call_holdoffs' LANGUAGE c STRICT;
         CREATE FUNCTION tests.raw_call_error(integer) RETURNS integer
-        AS 'Ankus.RawCallFixture', 'ankus_test_raw_call_error' LANGUAGE c STRICT;
+        AS '{{ModuleFileName}}', 'ankus_test_raw_call_error' LANGUAGE c STRICT;
         CREATE FUNCTION tests.raw_call_lock_held() RETURNS boolean
-        AS 'Ankus.RawCallFixture', 'ankus_test_raw_call_lock_held' LANGUAGE c STRICT;
+        AS '{{ModuleFileName}}', 'ankus_test_raw_call_lock_held' LANGUAGE c STRICT;
         CREATE FUNCTION tests.raw_call_control(integer) RETURNS bigint
-        AS 'Ankus.RawCallFixture', 'ankus_test_raw_call_control' LANGUAGE c STRICT;
+        AS '{{ModuleFileName}}', 'ankus_test_raw_call_control' LANGUAGE c STRICT;
         CREATE FUNCTION tests.log_arm(text, integer) RETURNS void
-        AS 'Ankus.RawCallFixture', 'ankus_test_log_arm' LANGUAGE c STRICT;
+        AS '{{ModuleFileName}}', 'ankus_test_log_arm' LANGUAGE c STRICT;
         CREATE FUNCTION tests.log_holdoff() RETURNS bigint
-        AS 'Ankus.RawCallFixture', 'ankus_test_log_holdoff' LANGUAGE c STRICT;
+        AS '{{ModuleFileName}}', 'ankus_test_log_holdoff' LANGUAGE c STRICT;
         """;
 
     /// <summary>
@@ -52,9 +57,8 @@ internal static class NativeRawCallFixtureCompiler
             string generated = await File.ReadAllTextAsync(Path.Combine(temporary, "native-calls.c"), cancellationToken);
             string source = Path.Combine(output, "raw_call_fixture.c");
             await File.WriteAllTextAsync(source, generated + "\n" + fixture, cancellationToken);
-            string extension = OperatingSystem.IsWindows() ? ".dll" : OperatingSystem.IsMacOS() ? ".dylib" : ".so";
             await AllocatorFixtureCompiler.CompileModuleAsync(installation, source,
-                Path.Combine(output, "Ankus.RawCallFixture" + extension), true, cancellationToken);
+                Path.Combine(output, ModuleFileName), true, cancellationToken);
         }
         finally
         {

@@ -34,6 +34,7 @@ public sealed partial class PgFunctionGeneratorTests
         string native = ManifestValue(compilation, "Ankus.NativeSource").ReplaceLineEndings("\n");
         Assert.Contains("ankus_event_trigger_call(FunctionCallInfo fcinfo, AnkusEventTriggerCallback callback)", native);
         Assert.Contains($"extern int {callback.Name}(const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute, AnkusMemoryApi *);\n" +
+            $"PGDLLEXPORT Datum {nativeName}(PG_FUNCTION_ARGS);\n" +
             $"PG_FUNCTION_INFO_V1({nativeName});\nPGDLLEXPORT Datum {nativeName}(PG_FUNCTION_ARGS)\n{{\n" +
             $"    return ankus_event_trigger_call(fcinfo, {callback.Name});\n}}", native);
         Assert.DoesNotContain("ankus_trigger_call", native);

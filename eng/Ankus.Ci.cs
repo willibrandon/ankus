@@ -11,8 +11,8 @@ using Ankus.PgConfig;
 
 const string RuntimeRepository = "willibrandon/runtime";
 const string RuntimeBase = "v10.0.12";
-const string RuntimeCommit = "a20021dfdf03c51b46f2bf9d10050806826e0b4c";
-const string RuntimeVersion = "10.0.12-ankus.3";
+const string RuntimeCommit = "d23f4e7374cd3878dc5696fbc26ee6ecdddde1ca";
+const string RuntimeVersion = "10.0.12-ankus.4";
 const string RuntimeCompilerVersion = "10.0.12";
 
 string repositoryRoot = FindRepositoryRoot();
@@ -340,12 +340,12 @@ static void BuildRuntime(string repositoryRoot, string platform, string architec
 
     if (!OperatingSystem.IsWindows())
     {
-        VerifyNativeHostShutdown(repositoryRoot, platform, architecture);
+        VerifyNativeHostBehavior(repositoryRoot, platform, architecture);
     }
 }
 
-// Prove that a newly built fork runtime preserves bounded native host shutdown and managed thread cleanup.
-static void VerifyNativeHostShutdown(string repositoryRoot, string platform, string architecture)
+// Prove that a newly built fork runtime preserves native host shutdown, thread cleanup and signal masks.
+static void VerifyNativeHostBehavior(string repositoryRoot, string platform, string architecture)
 {
     string runtimeIdentifier = $"{platform}-{architecture}";
     string probeRoot = Path.Combine(repositoryRoot, "runtime", "eng", "ankus", "fork-probes", "host-shutdown");
@@ -372,6 +372,24 @@ static void VerifyNativeHostShutdown(string repositoryRoot, string platform, str
     Run("clang", compilerArguments);
     string library = "NativeHostShutdownProbe" + (OperatingSystem.IsMacOS() ? ".dylib" : ".so");
     Run(host, [Path.Combine(output, library)]);
+
+    string signalProbe = Path.Combine(repositoryRoot, "runtime", "eng", "ankus", "fork-probes", "signal-mask", "host.cpp");
+    string signalHost = Path.Combine(output, "signal-mask-host");
+    List<string> signalArguments =
+    [
+        "-std=c++17", "-O2", "-Wall", "-Wextra", "-Werror",
+        "-I" + Path.Combine(repositoryRoot, "runtime", "src", "coreclr", "nativeaot", "Runtime", "unix"),
+        signalProbe, Path.Combine(GetBuiltRuntimePath(repositoryRoot, platform, architecture), "libRuntime.WorkstationGC.a"),
+        "-o", signalHost,
+    ];
+    if (OperatingSystem.IsLinux())
+    {
+        signalArguments.Add("-ldl");
+    }
+
+    Run("clang++", signalArguments);
+    Run(signalHost, []);
+    Run(signalHost, [Path.Combine(output, library)]);
 }
 
 static void VerifyPlatform(string platform, string architecture)

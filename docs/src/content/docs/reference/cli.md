@@ -473,7 +473,8 @@ selection and intended actions without building, starting a server, or writing f
 
 Comparison uses the selected PostgreSQL installation's `pg_regress`, including
 its alternate expected outputs and `resultmap` behavior. That executable must
-be installed alongside PGXS; `diff` must be available on `PATH` (Git for Windows
+be installed in the PGXS tree or, for PostgreSQL's Windows MSVC layout, its `bin`
+directory. `diff` must be available on `PATH` (Git for Windows
 supplies it). Paths and test names that the native driver's shell command cannot
 represent safely are rejected. Spaces in suite paths and test names are supported.
 

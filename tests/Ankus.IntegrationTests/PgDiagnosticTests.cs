@@ -198,13 +198,21 @@ public sealed class PgDiagnosticTests(TestContext context)
             $body$
             """, connection);
         await command.ExecuteNonQueryAsync(token);
+        command.CommandText = "SELECT 1 / 0";
+        PostgresException nativeError = await Assert.ThrowsExactlyAsync<PostgresException>(() => command.ExecuteScalarAsync(token));
+        Assert.AreEqual(PostgresErrorCodes.DivisionByZero, nativeError.SqlState);
+        Assert.IsNotNull(nativeError.File);
+        Assert.IsNotNull(nativeError.Line);
         command.CommandText = "SELECT pg_temp.diagnostic_outer()";
         PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => command.ExecuteScalarAsync(token));
         Assert.AreEqual(PostgresErrorCodes.DivisionByZero, error.SqlState);
         Assert.IsNotNull(error.Where);
         Assert.ContainsSingle(error.Where.Split('\n').Where(static line => line.Contains("diagnostic_outer()", StringComparison.Ordinal)));
         Assert.AreEqual("int4div", error.Routine);
-        Assert.AreEqual("int.c", error.File);
+        Assert.AreEqual(nativeError.File, error.File);
+        Assert.AreEqual(nativeError.Line, error.Line);
+        command.CommandText = "SELECT 42";
+        Assert.AreEqual(42, await command.ExecuteScalarAsync(token));
     }
 
     /// <summary>

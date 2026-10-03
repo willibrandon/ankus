@@ -6,12 +6,19 @@
 #include "utils/builtins.h"
 
 PG_MODULE_MAGIC;
+PGDLLEXPORT Datum ankus_test_raw_call_address(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ankus_test_raw_call_address);
+PGDLLEXPORT Datum ankus_test_raw_call_holdoffs(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ankus_test_raw_call_holdoffs);
+PGDLLEXPORT Datum ankus_test_raw_call_error(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ankus_test_raw_call_error);
+PGDLLEXPORT Datum ankus_test_raw_call_control(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ankus_test_raw_call_control);
+PGDLLEXPORT Datum ankus_test_raw_call_lock_held(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ankus_test_raw_call_lock_held);
+PGDLLEXPORT Datum ankus_test_log_arm(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ankus_test_log_arm);
+PGDLLEXPORT Datum ankus_test_log_holdoff(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ankus_test_log_holdoff);
 
 static bool raw_holdoffs_saved = false;

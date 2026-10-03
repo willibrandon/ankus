@@ -35,8 +35,8 @@ installs the latest stable 10.0 SDK. This selection must remain separate from th
 runtime included in published extensions.
 
 `eng/Ankus.Ci.cs` pins upstream `v10.0.12`, fork commit
-`a20021dfdf03c51b46f2bf9d10050806826e0b4c`, runtime and compiler-host packages
-`10.0.12-ankus.3`, and ILCompiler targets/framework packs `10.0.12`. The SDK
+`d23f4e7374cd3878dc5696fbc26ee6ecdddde1ca`, runtime and compiler-host packages
+`10.0.12-ankus.4`, and ILCompiler targets/framework packs `10.0.12`. The SDK
 target and per-RID package properties carry matching target runtime and host
 compiler identities. Framework runtime packs also use 10.0.12 instead of
 following the installed SDK's default patch. Check
@@ -126,6 +126,35 @@ CI/release matrix. Reuse caches, run independent jobs in parallel, retain the
 60-minute primary-job limit and the approved 360-minute Intel macOS limit, and
 measure durations; do not shard or substitute smoke
 tests for platform evidence.
+
+### Compiler memory-safety acceptance
+
+The [C# memory-safety proposal](https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/proposals/unsafe-evolution)
+changes pointer syntax and, when enabled, the caller contract of `unsafe`
+members. It also specifies compatibility behavior for assemblies compiled with
+older rules. Recheck the shipping compiler; preview specifications are not
+completed compatibility evidence.
+
+The raw-binding review remains open: data pointers currently use `nint`, while
+native callback validation rejects pointer-shaped signatures. Changing only
+`NativeMethods` would leave globals, callback construction and transport
+inconsistent. Preserve the native error guard and exact ABI while addressing
+these surfaces together.
+
+Before declaring the new compiler supported, verify:
+
+- Raw calls, global addresses and callbacks expose their actual caller obligations,
+  including pointer-free native signatures that still depend on backend state.
+- Checked managed APIs remain usable without making their callers responsible
+  for internal pointer operations.
+- Old and new compiler consumers, generated binding assemblies, imports and
+  explicit layouts compile under the applicable legacy and updated rules.
+- Ordinary safe calls pass, invalid raw usage fails compilation, and valid native
+  calls retain ownership, cancellation and same-session error recovery.
+
+Do not manufacture compiler-owned safety attributes or weaken diagnostics to
+make these checks pass. SDK compatibility and this compiler contract need
+separate evidence from the embedded runtime patch.
 
 ## Servicing a supported runtime line
 

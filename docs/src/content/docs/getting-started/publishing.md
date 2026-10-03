@@ -99,7 +99,8 @@ extension/
   hello--0.1.0.sql
 ```
 
-The library suffix is `.dll` on Windows and `.dylib` on macOS.
+The library suffix is `.dll` on Windows. On macOS it is `.so` for PostgreSQL
+13–15 and `.dylib` for PostgreSQL 16 and later, matching PostgreSQL's loader.
 
 An authored control `directory` setting changes the installed SQL location.
 The publication still keeps its SQL and control files together under
@@ -129,7 +130,8 @@ ankus schema --from publish/Hello.so --output schema.sql
 
 This reads the library's embedded metadata without loading its native code,
 building the project, or requiring adjacent SQL, control, or JSON files. Use
-`.dll` on Windows or `.dylib` on macOS. You can inspect another supported
+`.dll` on Windows, or `.dylib` on macOS with PostgreSQL 16 and later. macOS
+PostgreSQL 13–15 uses `.so`. You can inspect another supported
 platform's library; `--runtime osx-arm64` or `--runtime osx-x64` selects a slice
 from a universal macOS library. For a thin library, `--runtime` checks its target.
 Do not combine `--from` with project, configuration, PostgreSQL, or build options.

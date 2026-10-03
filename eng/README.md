@@ -38,6 +38,9 @@ Runtime and compiler packages are built on their own operating system and
 architecture, including Intel macOS. Linux/macOS builds also execute the fork's bounded host-shutdown
 probes before staging a payload. They require normal process exit and managed
 thread cleanup, including mutex abandonment, GC and finalizer drain.
+Signal checks also verify host masks, ordinary and alternate stacks, and
+termination deferred until forked children install their own handlers. They
+exercise both the runtime's native object and an initialized Native AOT library.
 
 Use `--` before command arguments:
 

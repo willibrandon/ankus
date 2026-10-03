@@ -59,7 +59,7 @@ PostgreSQL/platform matrix remains required.
 
 NuGet packages now provide the extension-author project SDK, runtime, source generator, PostgreSQL configuration,
 testing harness, and .NET tool. The SDK embeds a framework-dependent .NET 10 native-build helper and references
-matching runtime/generator versions during the first restore. `Ankus.Generators` ships only its analyzer assembly;
+matching runtime/generator versions during the first restore. `Ankus.Generators` ships its generator and editor code-fix assemblies as analyzers;
 compiler dependencies do not flow into extension projects. `Ankus.Testing` exposes its PgConfig and Npgsql dependencies.
 
 `ToolCommandTests` packs unique versions and restores consumers outside the checkout with an empty package directory.

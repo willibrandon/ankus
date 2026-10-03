@@ -86,6 +86,7 @@ internal static class PgTriggerEmitter
         managed.AppendLine("    }");
         managed.AppendLine();
         header.AppendLine($"extern int {callback}(const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute, AnkusMemoryApi *);");
+        header.AppendLine($"PGDLLEXPORT Datum {nativeName}(PG_FUNCTION_ARGS);");
         header.AppendLine($"PG_FUNCTION_INFO_V1({nativeName});");
         header.AppendLine($"PGDLLEXPORT Datum {nativeName}(PG_FUNCTION_ARGS)");
         header.AppendLine("{");

@@ -1,6 +1,521 @@
 # Historical port evidence
 
+## Platform compatibility commit checkpoint — 2026-10-03
+
+Immediately before committing at **14:35 UTC**, fresh GitHub queries confirm
+primary **37117515450** and docs **37117515453** passed. Platform-version
+**37117650497** and Intel **37104402210** retain the diagnosed failures described
+below. The compatibility repairs pass complete Windows PostgreSQL 13 and macOS
+PostgreSQL 15/16 suites; the latter use the new **ankus.4** compiler/runtime.
+Release, API freshness and site checks pass on the same production sources.
+Linux **18.6/ankus.4** and Windows **18.6/ankus.3** complete suites remain active,
+and replacement Intel and primary CI acceptance remain outstanding. The commit
+does not count those pending checks as passes.
+
+## macOS library-suffix boundary acceptance — 2026-10-03
+
+The unchanged compatibility, array/editor and **10.0.12-ankus.4** composition
+completes the full **PostgreSQL 16.15/macOS ARM64** suite with exit zero:
+**11,568 total / 11,541 passed / zero failures / 27 platform skips**, in
+**25m53.580s**. All six retained TRX modules are independently counted, and all
+63 frozen source identities verify after completion. Together with the complete
+PostgreSQL 15.19 result below, this proves actual extension publication/loading,
+worker startup and package consumers on both sides of the `.so`/`.dylib` change.
+Linux runtime servicing and Windows PostgreSQL 18 validation remain active;
+corrected Intel acceptance still requires a replacement run.
+
+## Array milestone commit checkpoint — 2026-10-03
+
+The indexed-array milestone is committed as **46d0237**. Before the next,
+aggregate-editor commit, a fresh **14:15 UTC** CI query returns the same primary,
+docs, version and Intel outcomes listed below. Its 24 workspace regressions and
+all **3,288** generator cases pass; the same complete platform compositions
+contain the correction and its packaged-editor checks. No active result is
+counted as a pass, and the batch has not yet been pushed.
+
+Immediately before committing the indexed-array change at **14:15 UTC**, fresh
+GitHub outcomes remain: primary **37117515450** and docs **37117515453** pass;
+platform versions **37117650497** and Intel **37104402210** fail with the diagnosed
+repairs described below. The array sources are included in the complete passing
+Linux x64/PostgreSQL 18.6, Windows x64/PostgreSQL 13.23 and macOS ARM64/PostgreSQL
+15.19 compositions. The Linux and Windows runs use **ankus.3**; the Mac run uses
+**ankus.4**. API generation, Release and documentation checks pass as recorded
+below. New Linux runtime servicing, Mac PostgreSQL 16 and Windows PostgreSQL 18
+complete suites are still running. This checkpoint does not treat those active
+checks or corrected Intel acceptance as passed.
+
+## Intel macOS diagnostic retry completes — 2026-10-03
+
+[Run 37104402210, attempt two](https://github.com/willibrandon/ankus/actions/runs/37104402210/job/111173163906)
+finishes at **13:58:32 UTC** on **ca5ab99**, using macOS x64 and PostgreSQL
+**18.6**. The job takes **4h40m41s**, within its approved six-hour limit. Full
+tests take **4h25m13.994s**. All six retained TRX reports independently total
+**11,360 tests / 11,328 passed / six failures / 26 platform skips**. There are no
+timed-out or aborted cases in those reports. This replaces the earlier
+in-progress interpretation of the quiet downloadable log; the original attempt's
+runner disconnect still has no established cause.
+
+The reported custom-operator cases pass and execution continues. Package-consumer
+cases span **10:04:34.014841–13:56:57.581276 UTC**, or **3h52m23.566s**. The
+slowest individual framework-template cases take about **29m29s** and pass.
+The fixture reports two package-consumer slots on four logical processors.
+These timings locate the long-running section; cumulative nested target timings
+are not independent wall-clock costs and do not establish resource exhaustion,
+a compiler crash or a deadlock. No concurrency or analyzer setting is changed
+from this evidence alone.
+
+The six failures are `EnvironmentInitRegistersSelectedVersion(true)`, all three
+`InfoSubcommandsUseProjectSelection` inputs, and both
+`RelativeHomeRemainsSelectedAcrossBuildAndTestHosts` inputs. The temporary root's
+logical `/var` spelling disagrees with the child process's physical `/private/var`
+working directory. Relative installation paths consequently acquire a nonexistent
+`/private/usr` prefix; home-path assertions and nested project-reference loading
+also disagree. The pending fixture correction resolves ancestor aliases before
+forming these paths. The same mechanism was independently reproduced with an
+ordinary .NET project, and the corrected complete PostgreSQL 15.19/macOS ARM64
+suite passes. This is not corrected-source Intel acceptance; an Intel rerun
+remains required.
+
+All six reports, PostgreSQL failure logs, replayed build timings and the final
+job log are retained. The final log was fetched directly from the job endpoint
+because the CLI's cached partial copy still ended at 10:06:33 UTC. No run was
+cancelled or restarted during this inspection.
+
+## Upstream servicing check — 2026-10-03
+
+The current GitHub release endpoints still identify [pgrx 0.19.3](https://github.com/pgcentralfoundation/pgrx/releases/tag/v0.19.3)
+and [.NET runtime 10.0.12](https://github.com/dotnet/runtime/releases/tag/v10.0.12)
+as their latest releases. PostgreSQL's [version table](https://www.postgresql.org/support/versioning/)
+lists 18.6, 17.11, 16.15, 15.19 and 14.24 as current supported minors;
+13.23 is its final, upstream-unsupported PostgreSQL 13 release. Its
+[beta page](https://www.postgresql.org/developer/beta/) still identifies 19 beta 4.
+The selected inputs have not fallen behind these release identities. This check
+does not establish complete Ankus platform/version acceptance; recheck before
+publishing 0.1.0.
+
+## Raw-call compiler contract audit
+
+The remaining raw-API review is confirmed in the current implementation:
+non-function pointers map to `nint`, the same mapped type drives public call
+signatures and byte transport, global addresses use `nint`, and native callback
+validation rejects pointer-shaped signatures. A pointer-only signature edit
+would also conflict with generic frame read/write operations and leave callback
+contracts inconsistent. No raw API implementation is changed by this audit.
+
+Read-only Roslyn compiler tests and the current official memory-safety proposal
+also distinguish legacy and updated caller contracts. The [.NET support plan](../dotnet-support.md#compiler-memory-safety-acceptance)
+now requires old/new compiler consumers, generated assemblies, raw calls, globals,
+callbacks and checked managed wrappers to be validated together. This is an open
+acceptance requirement, not a claim of new compiler or runtime support.
+
+## Native host signal-mask regression
+
+The complete PostgreSQL **15.19/macOS ARM64** run after the suffix and
+temporary-path repairs finishes with **11,531 total / 11,499 passed / five
+failures / 27 skips, 27m13.388s**. The failures are
+`BackgroundWorkersRegisterAndShareState` and the four
+`WorkerRegistrationAllocationFailuresRecover` inputs. An unexpected smart
+shutdown message precedes the first worker timeout. The emitting process has
+not been independently identified from that inherited PostgreSQL log prefix.
+
+Source inspection identifies a Native AOT defect: `AddSignalHandler` preserves
+the previous handler's signal mask only when that handler uses `SA_ONSTACK`.
+PostgreSQL 15's
+[`pqsignal_pm`](https://github.com/postgres/postgres/blob/REL_15_STABLE/src/backend/libpq/pqsignal.c)
+installs ordinary-stack handlers with `BlockSig`. Its
+[`sigusr1_handler`](https://github.com/postgres/postgres/blob/REL_15_STABLE/src/backend/postmaster/postmaster.c)
+relies on that mask while starting workers. Native AOT uses the same `SIGUSR1`
+activation signal on macOS and chains the previous handler. Dropping the mask
+allows a forked worker to receive termination before replacing the inherited
+postmaster handler.
+
+A native regression links the actual runtime archive and checks both handler
+ABIs on ordinary and alternate stacks. It verifies the active mask, execution
+stack, pending child termination, delivery only after the child installs its
+handler, and restoration of the original host handler. On **Linux x64** and
+**macOS ARM64**, both ordinary-stack cases fail and both alternate-stack controls
+pass. Loading the real Native AOT library and enabling fork support reproduces
+the same two failures on macOS, including the actual activation and fork callbacks.
+
+The isolated correction always preserves the previous mask, independently of
+alternate-stack selection. All four native-object cases pass on both systems.
+A fresh macOS Release runtime build passes with **zero warnings/errors,
+1m46.42s**. Its four actual Native AOT signal cases and all three existing
+native shutdown checks pass. Rerunning the original five PostgreSQL failures
+with only the runtime changed produces **one pass / four failures / zero skips,
+5m07.825s**. `BackgroundWorkersRegisterAndShareState` passes. The four allocation
+cases reveal a separate native fixture defect: worker registration uses a bare
+module name, but the fixture compiler and SQL explicitly use `.dylib` on macOS.
+PostgreSQL 15 looks for `.so` when the suffix is omitted. The fixture now emits
+its actual compiled filename into the native worker definition, sharing the
+same identity with its compiler and SQL rather than relying on a suffix guess.
+The combined native loader and worker verification passes **7/7**, zero failures
+or skips, **2m39.943s**, on PostgreSQL **15.19/macOS ARM64**. This includes every
+original failing worker case and both real filename/loading checks.
+
+The actual CI runtime-build command subsequently passes on macOS ARM64, including
+the matching compiler publication, all shutdown checks and both signal-probe
+modes. Local creation of matching **10.0.12-ankus.4** runtime and compiler packages
+passes. The complete PostgreSQL 15 suite is running with those packages and no
+developer runtime-path override. Linux runtime servicing validation is running;
+full backend and replacement CI acceptance remain pending.
+
+Linux x64 subsequently passes the same runtime-build command, matching compiler
+publication, all three native shutdown cases and all four cases in each signal
+probe mode. Runtime and compiler package creation passes. The initial local
+invocation stops before compilation because it selects hosted-machine package
+installation without an interactive sudo session; selecting the dedicated-machine
+path verifies the already installed toolchain and completes the build. The
+runtime checkout remains clean at **d23f4e7**. Final Release/documentation and
+complete PostgreSQL servicing acceptance remain pending.
+
+Final composed Release then passes with zero warnings/errors (**2m04.17s**).
+API freshness verifies **238 pages / 2,757 members**; the site builds **286 pages
+in 2.56s** and checks with zero errors, warnings or hints. All 63 frozen sources
+verify before the complete, unsharded PostgreSQL **18.6/Linux x64** suite starts
+with the new runtime and compiler. Complete servicing acceptance is still pending.
+
+The complete **PostgreSQL 15.19/macOS ARM64** servicing suite subsequently passes:
+**11,568 total / 11,541 passed / 27 platform skips / zero failures, 25m20.803s**.
+All six TRX reports are independently totalled, and all 63 frozen source
+identities match after completion. The suite includes every formerly failing
+worker case, real library loading, native error recovery and installed-package
+consumers using **10.0.12-ankus.4** runtime and compiler packages. The complete
+PostgreSQL **16.15** suite starts with the same source and payload to verify the
+other side of the macOS library-suffix change. Linux, Windows and Intel servicing
+acceptance and replacement CI remain separate requirements.
+
+Two earlier validation-build setup failures are retained. A symbolic checkout
+path prevents the runtime's analyzer configuration from matching source paths.
+After using a physical checkout, a compiler server still running from the old
+location cannot load a framework dependency. Retiring only that obsolete process
+allows the unchanged build to pass. No runtime source, analyzer severity or
+package dependency is changed to work around these environment failures.
+
+The runtime correction is committed and pushed as **d23f4e7** on the existing
+runtime support branch. Before both operations, primary **CI 37117515450** and
+**Docs 37117515453** remain successful, platform-version **37117650497** remains
+failed with the repairs above under validation, and Intel job **111173163906**
+remains active with its unchanged buffered log. The runtime fork has no separate
+Actions runs. Ankus's working tree selects immutable **10.0.12-ankus.4** runtime
+and compiler packages and adds both signal-probe modes to Unix runtime-build
+acceptance. No NuGet package is published.
+
+## Additional platform compatibility repairs
+
+Version workflow **37117650497**, source **7f58d03**, finishes its Windows
+PostgreSQL 13 job with a native compilation failure after **8m38s**. Its older
+function-info macro declares functions without export decoration, and its signal
+API has no `sigprocmask`. The generated entry points and standalone C witnesses
+now declare exported functions before the macro. Older Windows backends save
+the exported signal mask, call `BackgroundWorkerBlockSignals`, and restore the
+mask through `pqsigsetmask`; this also avoids the unexported `BlockSig` object.
+PostgreSQL 13 exports its diagnostic-routing state but omits DLL import
+annotations in its headers. The native filter resolves those actual data
+exports through the Windows loader and retains their addresses.
+
+The first complete local Windows 13 attempt exposes the missing data imports
+and three generator expectations needing the new forward declaration. It ends
+with **11,530 total / 6,978 passed / 4,527 failed / 25 skipped, 1m06.318s**;
+**4,524** failures share the failed integration assembly initializer and are not
+independent backend failures. A subsequent direct import redeclaration also
+fails compilation and is replaced by actual exported-storage lookup. With the
+corrected sources, both native filename/loading regressions pass on PostgreSQL
+**13.23/Windows x64**: **two passed / zero failures or skips, 2m41.651s**.
+The complete Windows 13 repair run finishes with **11,530 total / 11,483 passed /
+22 failures / 25 skips, 41m49.293s**. Windows 18 acceptance remains due.
+
+That Windows 13 run subsequently reports two diagnostic-test assumptions and a
+regression-driver discovery failure. Its PostgreSQL build supplies full native
+source paths, rather than only `int.c` or `pl_exec.c`. The tests now obtain the
+same error or notice directly from PostgreSQL and require the transported file
+and line to match exactly; production diagnostics remain unchanged. PostgreSQL's
+[MSVC installer](https://github.com/postgres/postgres/blob/REL_13_STABLE/src/tools/msvc/Install.pm)
+places executable projects, including `pg_regress`, in `bin`. Discovery now
+supports that selected installation's layout as well as the PGXS tree. The new
+Windows regression stages both layouts, verifies PGXS precedence, executes the
+remaining binary after removing the PGXS copy, and requires failure when both
+owned copies are absent. The parallel GUC test also identifies the native source
+unit by basename, since the vendor's absolute compiler path is not part of that
+origin assertion. Its SQLSTATE, message, actual parallel execution and complete
+leader/worker recovery checks remain intact; exact diagnostic transport is tested
+against direct PostgreSQL results as described above. Corrected PostgreSQL
+**13.23/Windows x64** checks pass **94/94**, zero failures/skips, **6m49.521s**.
+All original failing scopes are included. The complete unfiltered repaired suite
+is running with the array and aggregate editor composition as well.
+
+That complete **PostgreSQL 13.23/Windows x64** suite subsequently passes:
+**11,568 total / 11,543 passed / 25 platform skips / zero failures, 41m49.962s**.
+All six reports are independently counted, and all 46 frozen compatibility,
+array and editor source identities match after completion. This closes the
+observed Windows 13 compatibility failures on the tested composition. The run
+uses **10.0.12-ankus.3**, so it does not establish Windows acceptance of the new
+runtime package identity. The complete PostgreSQL **18.6** suite starts next
+with those same sources and payload to verify the control-path repair.
+
+Review of the Windows 13 export lookup also identifies an unsafe exceptional
+path: ordinary logging filters do not establish a PostgreSQL error frame.
+Failed export lookup now fills the owned diagnostic and returns failure through
+all logging callers, without entering PostgreSQL's error reporter. Normal
+filtering still reads PostgreSQL's live routing state. This follow-up is not
+included in the already running platform suites and needs its own validation.
+
+An independent PostgreSQL **18.6/Windows x64** cluster confirms the control-file
+path problem. The same SQL-only extension is readable at **180 and 240**
+characters; **260 and 280** characters fail native opening, and **320** disappears
+from discovery, although managed file checks succeed. The fixture now stages
+control files and SQL beneath its owned cluster directory instead of extending
+the deeply nested project publication path. Its native library, build cache and
+retained logs keep their existing locations.
+
+The fixture-only PostgreSQL 15/macOS rerun gets past initialization but exposes
+the broader Native AOT suffix mismatch in ordinary `LOAD`, preload and workers.
+The SDK now selects `.so` for macOS/PostgreSQL 13–15 before linker, control and
+publication paths are built, matching pgrx's version boundary. A new native test
+checks the published filename, unqualified loading, a real SQL call and the
+catalog's installed module filename. Complete repaired macOS acceptance is pending.
+
+The same run exposes temporary-directory aliases in package-consumer tests.
+A separate ordinary .NET control, with no Ankus references, builds successfully
+through both paths. Through the alias its dependency file omits the project
+library and execution fails; the physical-path build includes the library and
+returns **42**. Package fixtures now resolve their owned temporary root once,
+before deriving projects, expected paths or relative executable arguments.
+
+The complete fixture-only macOS attempt ends with **11,529 total / 11,316
+passed / 187 failed / 26 skipped, 28m33.571s**; its reports and logs are retained.
+After the SDK suffix and physical-root repairs, the selected PostgreSQL
+**15.19/macOS ARM64** native, logging, relative-path and worker-consumer checks
+pass **17/17**, zero skips, **3m56.874s**. Its complete five-failure result and
+subsequent runtime investigation are recorded above.
+
+The composed Linux generator module passes **3,288/3,288**, zero skips,
+**49.139s**, including the aggregate editor draft and initial platform repairs.
+That composition also passes Release with zero warnings/errors in **58.79s**,
+API freshness for **238 pages / 2,757 members**, and the **286-page** site build
+in **2.79s** with zero check findings. These gates precede the follow-up driver,
+diagnostic and logging changes; final package, native and documentation
+acceptance is still required. Intel
+run **37104402210**, attempt two, remains active under its approved six-hour
+limit; the freshly downloaded log is still **4,222,046 bytes** and ends after
+the previously reported custom-operator case. No hang or successful completion
+is inferred from that buffered download.
+
+The follow-up diagnostic and regression checks pass on Linux x64/PostgreSQL
+**18.6**: **nine passed / one Windows-only skip / zero failures, 2m26.282s**.
+After the logging transport correction, all **3,288** generator cases pass
+again in **45.121s**. The final composed Release build has zero warnings/errors
+in **1m00.33s**; API freshness verifies **238 pages / 2,757 members**. Both normal
+and `--no-build` generator packages restore and compile clean external consumers,
+with exactly two analyzer assemblies, matching restored bytes, no Roslyn
+dependency packages and no compiler assemblies deployed with application output.
+The **286-page** public site builds in **2.88s** and its check reports zero
+errors, warnings or hints. All **45** composed source identities verify before
+the complete, unfiltered Linux/PostgreSQL 18.6 run starts. This includes the
+array and aggregate editor drafts; their promotion remains pending full results.
+
+The first complete composed Linux attempt fails native fixture compilation:
+the new logging output parameter is unused outside the Windows 13 branch.
+Warnings remain errors. The filter now explicitly initializes its output
+SQLSTATE to success on every platform before resolving or reading logging state.
+The failed attempt records **11,568 total / 7,002 passed / 4,551 failed /
+15 skipped, 1m17.725s**; all **4,551** integration failures share that assembly
+initializer failure. Corrected native logging checks pass **62/62**, zero skips,
+**2m34.747s**. Final Release passes with zero warnings/errors (**41.45s**), and
+normal plus no-build packages pass fresh-cache external consumer checks again.
+The complete unfiltered **Linux x64/PostgreSQL 18.6** suite then passes:
+**11,568 total / 11,553 passed / 15 platform skips / zero failures, 36m41.247s**.
+All six retained reports are independently counted, and all 45 frozen source
+identities remain unchanged. This composition uses **10.0.12-ankus.3**; it does
+not establish complete acceptance of the subsequent runtime servicing change.
+The array lookup and aggregate editor sources are subsequently promoted into
+the main working tree. All 61 non-evidence files match the frozen 63-file
+servicing candidate; the other two files contain newer progress and history.
+No commit or complete new-runtime acceptance is claimed by that promotion.
+
+## PostgreSQL 15 fixture library resolution
+
+Primary **CI 37117515450**, source **7f58d03**, passes quality, all runtime jobs
+and all three full suites. Six downloaded TRX reports per platform independently
+verify **11,528 total**, zero failures: Linux x64/PostgreSQL 18 **11,514 passed /
+14 skips, 36m09s job**; macOS ARM64/PostgreSQL 18 **11,502 / 26, 27m09s**;
+Windows x64/PostgreSQL 17 **11,503 / 25, 32m02s**. Docs **37117515453** passes.
+
+New platform-version run **37117650497** passes both runtime jobs. Its macOS
+ARM64/PostgreSQL 15 cell **111192378255** builds successfully but fails native
+fixture initialization with SQLSTATE **58P01** for `Ankus.AllocatorFixture`.
+The three standalone fixture compilers produce `.dylib` on macOS, whereas their
+installation SQL names only a basename. PostgreSQL 15's fallback suffix is
+`.so`. PostgreSQL's `expand_dynamic_library_name` first resolves an explicitly
+named file, then tries appending its configured suffix. The repair therefore
+uses the same complete filename for compilation and SQL installation in the
+allocator, allocation-fault and raw-call fixtures. It does not rename Native
+AOT extension artifacts or guess a suffix from the PostgreSQL major.
+Native validation of this repair remains pending; no PostgreSQL 15 acceptance
+is claimed. Read-only checks of the installed **15.19** and **16.15** headers
+confirm `DLSUFFIX` is `.so` and `.dylib`, respectively. The repaired integration
+module compiles in Release with **zero warnings/errors, 14.22s**, using its
+already-built project references. Other version cells remain running/queued.
+
+The new regression queries actual `pg_proc.probin` values for all three fixture
+libraries and requires each registered filename to exist in the native output.
+Against the original compilers on Linux x64/PostgreSQL 18.6 it executes and fails
+as expected: all three names lack the artifact suffix (**one failed case,
+2m21.104s** including native fixture setup). The corrected files are restored
+and all fifteen source identities in the composed validator match before the
+positive rerun. This proves the regression detects the omission even on a
+backend whose implicit suffix happened to match the compiled file. Native
+macOS/PostgreSQL 15 verification and complete composed acceptance remain due.
+
+The first positive rerun still fails (**one case, 1m48.597s**) because archive
+restoration preserved source timestamps older than the negative-run assembly.
+Inspecting that assembly confirms the original unsuffixed SQL is still embedded;
+the corrected source identities match. An unconditional rebuild of the affected
+test module and a run of that rebuilt binary replace this invalid verification.
+The stale-binary failure is retained and is not counted as repair evidence.
+
+The unconditional integration Release build passes with **zero warnings/errors,
+4.09s**. Running its rebuilt assembly against PostgreSQL **18.6/Linux x64**
+passes the regression: **one passed / zero failed / zero skipped, 1m47.387s**.
+All fifteen composed source identities verify afterward. Original negative,
+stale-binary negative, rebuild and positive reports/logs are retained together.
+
+Version workflow **37117650497** then completes PostgreSQL **16/macOS ARM64**
+successfully. Six independently checked reports verify **11,528 total / 11,502
+passed / 26 platform skips / zero failures**, with **26m20s** job duration.
+The Windows x64/PostgreSQL **18** cell completes all six reports but fails:
+**11,528 total / 11,486 passed / 17 failed / 25 skips**, **31m16s** job. Its
+consumer-fixture failures report SQLSTATE **0A000**, extension not available,
+while the main native fixture initializes and runs. Retained results identify
+project-selection, generated-template/backend, schema-reuse, custom-script and
+data-directory consumers. The root cause remains under investigation; no
+Windows 18 acceptance is claimed. Windows/PostgreSQL 13 is still running.
+
+## Aggregate combine editor correction draft
+
+An isolated `ANKUS111` code action derives a missing `IPgCombinableAggregate`
+interface from the declared aggregate state. It verifies exact callback/context
+types and nullability, checks the corrected compiler binding, and preserves
+method bodies and callback metadata. Shared inherited callbacks are corrected
+on eligible attributed users; unrelated or incompatible methods receive no fix.
+Project-wide fixing, nested partial declarations, cancellation and actual editor
+composition have explicit regression cases. The aggregate guide explains the action.
+
+The corrected no-op-provider baseline has four expected action-absence failures
+and nine passes. The implemented initial focused scope passes **22/22**, zero
+skips, **7.964s**. Subsequent expanded whole-module validation aborts after
+**3,217 reported passes**, zero failed assertions, **2m05.451s**; the TRX records
+a crashed managed test host. The validator records one out-of-memory kill and
+a roughly 16 GiB peak while native testing and compilation overlap. Without a
+kernel log identifying the process, memory contention remains an inference.
+Remaining full checks are sequenced; this run is not successful acceptance.
+
+The draft's production source passes Release with zero warnings/errors
+(**4m29.91s**), API freshness (**238 pages / 2,757 members**) and site build
+(**286 pages, 5.65s**) / zero check diagnostics. A further test-only mixed-sibling
+case and the fixture repair above require final source verification, module and
+native acceptance before this editor draft can be promoted.
+
+After the original array suite and fixture regression finish, the entire final
+generator module runs independently: **3,288 passed / zero failures / zero skips,
+56.921s**, including all **24** new editor cases. The memory kill counter remains
+unchanged at one; there is no new event. All fifteen composed source identities
+verify afterward, and the completed report/log replace the aborted run as module
+acceptance. Full native and final package/build gates remain required.
+
+Final composed Release also completes with **zero warnings/errors, 39.76s**.
+API freshness verifies **238 pages / 2,757 members**; the site builds **286 pages
+in 2.57s** and checks with zero errors, warnings or hints. All fifteen source
+identities verify after these sequential gates. Package and full native
+acceptance remain pending.
+
+## Intel macOS quiet-log comparison
+
+**Superseded:** the diagnostic retry later completes. Its final reports and
+timings are recorded in [the completed retry evidence](#intel-macos-diagnostic-retry-completes--2026-10-03).
+
+At **11:09 UTC on October 3**, additional-platform run **37104402210**, attempt
+two, remains in progress with no failure annotation. Its available log ends at
+**10:06:33 UTC**, after the reported custom-operator test and subsequent SPI
+cases. Repeated downloads are byte-identical. The earlier failed attempt's log
+ends at **07:49:41 UTC** after borrowed-memory cases; GitHub later reports lost
+runner communication at **09:15:00 UTC**. The two available logs therefore end
+at different tests. Neither proves the cause of the silence or establishes a
+test deadlock, resource exhaustion or compiler crash. Method-level parallelism
+also prevents identifying a waiting test from the last completed case alone.
+The diagnostic retry is left running under its approved 360-minute limit.
+
+The **11:42 UTC** download is still **4,222,046 bytes / 27,665 lines**. GitHub's
+[2.337.0 runner logger](https://github.com/actions/runner/blob/v2.337.0/src/Runner.Common/Logging.cs),
+matching the runner version in this job,
+queues result-log uploads only when a **2 MiB** block fills or the logger ends;
+the live console uses a separate feed. Excluding newline bytes, this downloaded
+log is two blocks plus **77 bytes** of last-line overflow. The first attempt's
+**2,112,536 bytes / 15,234 lines** is one block plus **150 bytes**. These sizes
+are consistent with unfinished block uploads, so the downloadable log's last
+timestamp cannot establish when test output actually stopped. They do not
+establish that the hosted machine is healthy or explain its earlier disconnect.
+
+## Native indexed array lookup draft
+
+Indexed borrowed-array reads previously constructed an iterator and walked
+from the beginning for each index. The isolated draft converts the validated
+flat index to PostgreSQL subscripts and calls its `array_ref` routine. This
+uses fixed-size lookup when storage permits it while retaining PostgreSQL's
+variable-width/NULL handling and the existing error guard and ownership checks.
+The pgrx inventories expose the same call signature for PostgreSQL 13–19.
+
+Thirteen additional `BorrowedArrayCellsShareNativeStorage` inputs cover native
+widths, floating-point bits, fixed by-reference elements, three/six dimensions,
+extreme lower bounds and NULL bitmap boundaries. Its independent C witness
+uses PostgreSQL deconstruction to compare actual datum words/addresses.
+All affected **236/236** integration cases pass with zero skips in
+**3m10.152s**, including existing lifetime, bounds, domain and recovery cases.
+The complete generator module passes **3,264/3,264**, zero skips, in **49.326s**.
+Changed-source identities and the unchanged compiler/runtime payload verify.
+
+A private real-backend comparison uses the same existing storage witness on
+both native libraries, builds inputs outside timing, warms each case twice and
+retains seven successful server execution times per case. Every invocation
+requires a true storage comparison. PostgreSQL 18.6/Linux x64 median times are:
+
+| Storage | Cells | Original | Candidate |
+| --- | ---: | ---: | ---: |
+| Fixed-size, no NULLs | 100 | 0.571 ms | 0.552 ms |
+| Fixed-size, no NULLs | 1,000 | 8.228 ms | 5.106 ms |
+| Fixed-size, no NULLs | 10,000 | 356.863 ms | 46.875 ms |
+| Variable-width text with NULLs | 100 | 0.581 ms | 0.510 ms |
+| Variable-width text with NULLs | 1,000 | 9.455 ms | 5.974 ms |
+| Variable-width text with NULLs | 10,000 | 510.075 ms | 195.115 ms |
+
+These measurements include enumeration, repeated indexing and the independent
+storage witness. They do not isolate one accessor or establish every workload's
+speedup. The original/candidate native hashes and all samples are retained.
+The first private measurement attempt incorrectly read PostgreSQL's fractional
+JSON representation of `Actual Rows` as an integer; correcting that parser and
+using an explicit JSON writer required no production change or warning suppression.
+Release passes with **zero warnings/errors, 1m27.98s**. Normal API generation and
+freshness checking verify **238 pages / 2,757 members**; the site builds **286
+pages in 2.98s** and checks with zero errors, warnings or hints. The two generated
+array API pages join the five changed source/test/guide files in the frozen
+manifest. All seven identities and the accepted editor composition's fifty
+identities verify before and after the ordinary complete Linux x64/PostgreSQL
+18.6 suite: **11,541 total / 11,527 passed / 14 platform skips / zero failures,
+38m36.172s**. Six independently read TRX reports include **3,264** passing
+generator cases and **4,549** passing integration cases with five platform
+skips. Reports and logs are retained. The original suite completes before
+starting the separate fixture regression; the accepted array files remain
+isolated until the newly discovered PostgreSQL 15 CI failure is resolved.
+Broader guard work and permanent benchmarks remain open.
+
 ## Additional macOS and Windows PostgreSQL versions
+
+The workflow is committed and pushed as **7f58d03**, following editor commit
+**21d586f**. Fresh prior primary/docs outcomes and the active Intel retry are
+checked and retained before each commit and again before the combined push.
+Replacement **CI 37117515450** and **Docs 37117515453** are running. Manual
+version run **37117650497** is queued behind the already-running primary
+platform jobs. No additional-version acceptance is claimed before its reports.
 
 The weekly/manual platform-version workflow runs complete suites for macOS
 ARM64/PostgreSQL **15 and 16**, covering the `.so`/`.dylib` boundary, and Windows

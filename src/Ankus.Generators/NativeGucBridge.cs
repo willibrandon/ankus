@@ -840,8 +840,9 @@ internal static class NativeGucBridge
                         ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg("Invalid configuration logging request")));
                     if (operation == 1 && (level >= 10 || report == NULL))
                         ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg("Terminal configuration messages must unwind managed code before reporting")));
-                    *enabled = ankus_log_enabled(ankus_log_level(level)) ? 1 : 0;
-                    if (operation == 1 && *enabled != 0)
+                    *enabled = ankus_log_enabled(ankus_log_level(level), error) ? 1 : 0;
+                    status = error->sqlstate != 0;
+                    if (status == 0 && operation == 1 && *enabled != 0)
                     {
                         work = AllocSetContextCreate(caller, "Ankus configuration logging", ALLOCSET_SMALL_SIZES);
                         MemoryContextSwitchTo(work);

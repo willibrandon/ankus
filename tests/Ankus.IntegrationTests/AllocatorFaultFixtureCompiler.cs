@@ -9,21 +9,26 @@ namespace Ankus.IntegrationTests;
 internal static class AllocatorFaultFixtureCompiler
 {
     /// <summary>
+    /// Gets the exact filename shared by native compilation and SQL installation.
+    /// </summary>
+    private static string ModuleFileName { get; } = AllocatorFixtureCompiler.GetModuleFileName("Ankus.AllocatorFaultFixture");
+
+    /// <summary>
     /// Gets the declaration for the native registry failure probe.
     /// </summary>
-    internal const string InstallationSql = """
+    internal static string InstallationSql { get; } = $$"""
         CREATE FUNCTION tests.function_defaults_fault(integer) RETURNS text
-        AS 'Ankus.AllocatorFaultFixture', 'ankus_test_function_defaults_fault' LANGUAGE c STRICT;
+        AS '{{ModuleFileName}}', 'ankus_test_function_defaults_fault' LANGUAGE c STRICT;
         CREATE FUNCTION tests.item_pointer_fault(integer) RETURNS text
-        AS 'Ankus.AllocatorFaultFixture', 'ankus_test_item_pointer_fault' LANGUAGE c STRICT;
+        AS '{{ModuleFileName}}', 'ankus_test_item_pointer_fault' LANGUAGE c STRICT;
         CREATE FUNCTION tests.allocator_registry_fault(integer) RETURNS text
-        AS 'Ankus.AllocatorFaultFixture', 'ankus_test_allocator_registry_fault' LANGUAGE c STRICT;
+        AS '{{ModuleFileName}}', 'ankus_test_allocator_registry_fault' LANGUAGE c STRICT;
         CREATE FUNCTION tests.stringinfo_fault(integer) RETURNS text
-        AS 'Ankus.AllocatorFaultFixture', 'ankus_test_stringinfo_fault' LANGUAGE c STRICT;
+        AS '{{ModuleFileName}}', 'ankus_test_stringinfo_fault' LANGUAGE c STRICT;
         CREATE FUNCTION tests.list_fault(integer) RETURNS text
-        AS 'Ankus.AllocatorFaultFixture', 'ankus_test_list_fault' LANGUAGE c STRICT;
+        AS '{{ModuleFileName}}', 'ankus_test_list_fault' LANGUAGE c STRICT;
         CREATE FUNCTION tests.worker_allocation_fault(integer, text) RETURNS text
-        AS 'Ankus.AllocatorFaultFixture', 'ankus_test_worker_allocation_fault' LANGUAGE c STRICT;
+        AS '{{ModuleFileName}}', 'ankus_test_worker_allocation_fault' LANGUAGE c STRICT;
         """;
 
     /// <summary>
@@ -55,14 +60,14 @@ internal static class AllocatorFaultFixtureCompiler
         string workerPrefix = await File.ReadAllTextAsync(Path.Combine(fixtures, "worker_fault_prefix.c"), cancellationToken);
         string workerProbe = await File.ReadAllTextAsync(Path.Combine(fixtures, "worker_fault_probe.c"), cancellationToken);
         // The memory-only probe has no managed logger; retain recovery frames but exclude its terminal logging entry point.
+        // Workers and SQL must load the same compiled filename, including its explicit platform suffix.
         string source = emitted[..preambleEnd] + emitted[diagnosticsStart..terminalStart] + prefix + workerPrefix +
-            emitted[memoryStart..memoryEnd] + probe + workerProbe;
+            emitted[memoryStart..memoryEnd] + probe + $"\n#define ANKUS_WORKER_FAULT_LIBRARY \"{ModuleFileName}\"\n" + workerProbe;
         string output = IntegrationEnvironment.NativeOutputDirectory;
         string sourcePath = Path.Combine(output, "allocator_fault_fixture.c");
         await File.WriteAllTextAsync(sourcePath, source, cancellationToken);
-        string extension = OperatingSystem.IsWindows() ? ".dll" : OperatingSystem.IsMacOS() ? ".dylib" : ".so";
         await AllocatorFixtureCompiler.CompileModuleAsync(installation, sourcePath,
-            Path.Combine(output, "Ankus.AllocatorFaultFixture" + extension), cancellationToken);
+            Path.Combine(output, ModuleFileName), cancellationToken);
     }
 
     /// <summary>

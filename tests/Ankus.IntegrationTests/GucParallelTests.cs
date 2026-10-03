@@ -119,7 +119,8 @@ public sealed partial class GucParallelTests(TestContext context)
                     $"SELECT sum(datatype.guc_parallel_set(value, {(local ? "true" : "false")})) FROM guc_parallel_input", token));
                 Assert.AreEqual("25000", error.SqlState);
                 Assert.AreEqual("parameter \"ankus_parallel.integer\" cannot be set during a parallel operation", error.MessageText);
-                Assert.AreEqual("guc.c", error.File);
+                // Vendor builds can retain the full native source path in diagnostics.
+                Assert.AreEqual("guc.c", Path.GetFileName(error.File));
                 Assert.Contains("parallel worker", error.Where ?? string.Empty);
                 await transaction.RollbackAsync("worker_set", token);
                 Assert.AreEqual("37", await ScalarAsync<string>(connection, transaction, "SHOW ankus_parallel.integer", token));

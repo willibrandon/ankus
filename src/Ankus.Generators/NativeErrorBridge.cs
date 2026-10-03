@@ -130,17 +130,42 @@ internal static class NativeErrorBridge
         }
 
         static bool
-        ankus_log_enabled(int level)
+        ankus_log_enabled(int level, AnkusError *error)
         {
+            error->sqlstate = 0;
         #if PG_VERSION_NUM >= 140000
             return message_level_is_interesting(level);
         #else
             /* PostgreSQL 13 predates message_level_is_interesting. Mirror errstart's routing rules. */
+        #ifdef WIN32
+            /* These data exports exist in PostgreSQL 13, but its headers omit
+             * their DLL import annotations. Resolve their actual storage once. */
+            static CommandDest *destination = NULL;
+            static bool *authenticating = NULL;
+            if (destination == NULL || authenticating == NULL)
+            {
+                HMODULE backend = GetModuleHandle(NULL);
+                destination = (CommandDest *) GetProcAddress(backend, "whereToSendOutput");
+                authenticating = (bool *) GetProcAddress(backend, "ClientAuthInProgress");
+                if (destination == NULL || authenticating == NULL)
+                {
+                    /* The ordinary filter runs without a PostgreSQL error frame.
+                     * Transport lookup failures without entering the error reporter. */
+                    memset(error, 0, sizeof(*error));
+                    error->sqlstate = ERRCODE_INTERNAL_ERROR;
+                    strlcpy(error->message, "could not resolve PostgreSQL message-routing state", sizeof(error->message));
+                    return false;
+                }
+            }
+        #else
+            CommandDest *destination = &whereToSendOutput;
+            bool *authenticating = &ClientAuthInProgress;
+        #endif
             bool server = (level == LOG || level == LOG_SERVER_ONLY)
                 ? (log_min_messages == LOG || log_min_messages <= ERROR)
                 : (log_min_messages == LOG ? level >= FATAL : level >= log_min_messages);
-            bool client = whereToSendOutput == DestRemote && level != LOG_SERVER_ONLY &&
-                (ClientAuthInProgress ? level >= ERROR : level >= client_min_messages || level == INFO);
+            bool client = *destination == DestRemote && level != LOG_SERVER_ONLY &&
+                (*authenticating ? level >= ERROR : level >= client_min_messages || level == INFO);
             return level >= ERROR || server || client;
         #endif
         }
@@ -198,8 +223,9 @@ internal static class NativeErrorBridge
                             errmsg("Terminal initializer messages must unwind managed code before reporting")));
                     }
 
-                    *enabled = ankus_log_enabled(ankus_log_level(level)) ? 1 : 0;
-                    if (operation == 1 && *enabled != 0)
+                    *enabled = ankus_log_enabled(ankus_log_level(level), error) ? 1 : 0;
+                    status = error->sqlstate != 0;
+                    if (status == 0 && operation == 1 && *enabled != 0)
                     {
                         /* The shared reporter owns conversion scratch independently of the caller.
                          * It returns to a surviving context even when reporting resets ErrorContext. */

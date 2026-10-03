@@ -153,6 +153,7 @@ internal static class PgFunctionEmitter
     {
         var header = new StringBuilder();
         header.AppendLine($"extern int {callback}(const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute, AnkusMemoryApi *, FunctionCallInfo);");
+        header.AppendLine($"PGDLLEXPORT Datum {name}(PG_FUNCTION_ARGS);");
         header.AppendLine($"PG_FUNCTION_INFO_V1({name});");
         header.AppendLine($"PGDLLEXPORT Datum {name}(PG_FUNCTION_ARGS)");
         header.AppendLine("{");

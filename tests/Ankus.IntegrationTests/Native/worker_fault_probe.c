@@ -99,6 +99,7 @@ fault_worker_contexts(void)
     return count;
 }
 
+PGDLLEXPORT Datum ankus_test_worker_allocation_fault(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ankus_test_worker_allocation_fault);
 PGDLLEXPORT Datum
 ankus_test_worker_allocation_fault(PG_FUNCTION_ARGS)
@@ -141,7 +142,7 @@ ankus_test_worker_allocation_fault(PG_FUNCTION_ARGS)
         AnkusWorkerDefinition definition = {0};
         definition.name = "Ankus allocation fault worker";
         definition.type = definition.name;
-        definition.library = "Ankus.AllocatorFaultFixture";
+        definition.library = ANKUS_WORKER_FAULT_LIBRARY;
         definition.entry = "ankus_test_allocation_worker";
         definition.extra = failed_extra;
         definition.argument = 42;

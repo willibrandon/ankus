@@ -177,10 +177,15 @@ internal static class NativeBackgroundWorkerBridge
                 ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg("invalid background-worker signal flags")));
             }
 
+        #if defined(WIN32) && PG_VERSION_NUM < 160000
+            previous = pg_signal_mask;
+            BackgroundWorkerBlockSignals();
+        #else
             if (sigprocmask(SIG_SETMASK, &BlockSig, &previous) != 0)
             {
                 ereport(ERROR, (errcode_for_file_access(), errmsg("could not block background-worker signals: %m")));
             }
+        #endif
 
             if ((signals & 1) && ankus_worker_hup)
             {
@@ -206,10 +211,14 @@ internal static class NativeBackgroundWorkerBridge
                 ankus_worker_child = 0;
             }
 
+        #if defined(WIN32) && PG_VERSION_NUM < 160000
+            pqsigsetmask(previous);
+        #else
             if (sigprocmask(SIG_SETMASK, &previous, NULL) != 0)
             {
                 ereport(ERROR, (errcode_for_file_access(), errmsg("could not restore background-worker signals: %m")));
             }
+        #endif
 
             return received;
         }

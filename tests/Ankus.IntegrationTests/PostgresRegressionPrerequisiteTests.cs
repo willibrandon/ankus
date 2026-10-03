@@ -31,8 +31,11 @@ public sealed class PostgresRegressionPrerequisiteTests(TestContext context)
         string original = await source.GetRegressionDriverPathAsync(token);
         ProcessResult pgxs = await ProcessRunner.RunAsync(source.PgConfigPath, ["--pgxs"], new Dictionary<string, string?>(), token);
         pgxs.EnsureSuccess("pg_config", ["--pgxs"]);
-        Assert.AreEqual(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(pgxs.StandardOutput.Trim())!, "..", "test", "regress",
-            OperatingSystem.IsWindows() ? "pg_regress.exe" : "pg_regress")), original);
+        string pgxsDriver = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(pgxs.StandardOutput.Trim())!, "..", "test", "regress",
+            OperatingSystem.IsWindows() ? "pg_regress.exe" : "pg_regress"));
+        Assert.AreEqual(OperatingSystem.IsWindows() && !File.Exists(pgxsDriver)
+            ? Path.Combine(source.BinDirectory, "pg_regress.exe")
+            : pgxsDriver, original);
         ProcessResult version = await ProcessRunner.RunAsync(original, ["--version"],
             new Dictionary<string, string?> { ["PATH"] = source.BinDirectory + Path.PathSeparator + Environment.GetEnvironmentVariable("PATH") }, token);
         Assert.AreEqual(0, version.ExitCode, version.StandardError);
@@ -55,12 +58,52 @@ public sealed class PostgresRegressionPrerequisiteTests(TestContext context)
         PostgresInstallation stillUsable = await PostgresInstallation.CreateAsync(owner.Installation.PgConfigPath, token);
         Assert.AreEqual(source.Version, stillUsable.Version);
         FileNotFoundException error = await Assert.ThrowsExactlyAsync<FileNotFoundException>(() => stillUsable.GetRegressionDriverPathAsync(token));
-        Assert.AreEqual(relocated, error.FileName);
+        ProcessResult stagedPgxs = await ProcessRunner.RunAsync(stillUsable.PgConfigPath, ["--pgxs"], new Dictionary<string, string?>(), token);
+        stagedPgxs.EnsureSuccess("pg_config", ["--pgxs"]);
+        Assert.AreEqual(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(stagedPgxs.StandardOutput.Trim())!, "..", "test", "regress",
+            OperatingSystem.IsWindows() ? "pg_regress.exe" : "pg_regress")), error.FileName);
         Assert.Contains("regression tools", error.Message);
         Assert.IsTrue(File.Exists(original));
         using var canceled = new CancellationTokenSource();
         await canceled.CancelAsync();
         await Assert.ThrowsExactlyAsync<OperationCanceledException>(() => source.GetRegressionDriverPathAsync(canceled.Token));
+    }
+
+    /// <summary>
+    /// Windows resolves both native installer layouts inside the selected installation, preferring its PGXS driver.
+    /// </summary>
+    [TestMethod]
+    [OSCondition(OperatingSystems.Windows)]
+    public async Task WindowsRegressionDriverSupportsBothInstallerLayouts()
+    {
+        CancellationToken token = context.CancellationToken;
+        PostgresInstallation source = await IntegrationEnvironment.GetInstallationAsync(token);
+        string original = await source.GetRegressionDriverPathAsync(token);
+        await using PostgresTestInstallation owner = await PostgresTestInstallation.StageAsync(source, Path.Combine(_root, "layouts"), token);
+        ProcessResult pgxs = await ProcessRunner.RunAsync(owner.Installation.PgConfigPath, ["--pgxs"], new Dictionary<string, string?>(), token);
+        pgxs.EnsureSuccess("pg_config", ["--pgxs"]);
+        string pgxsDriver = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(pgxs.StandardOutput.Trim())!, "..", "test", "regress", "pg_regress.exe"));
+        string binaryDriver = Path.Combine(owner.Installation.BinDirectory, "pg_regress.exe");
+        Assert.StartsWith(owner.RootDirectory + Path.DirectorySeparatorChar, pgxsDriver);
+        Assert.StartsWith(owner.RootDirectory + Path.DirectorySeparatorChar, binaryDriver);
+        Directory.CreateDirectory(Path.GetDirectoryName(pgxsDriver)!);
+        File.Copy(original, pgxsDriver, overwrite: true);
+        File.Copy(original, binaryDriver, overwrite: true);
+        Assert.AreEqual(pgxsDriver, await owner.Installation.GetRegressionDriverPathAsync(token));
+
+        File.Delete(pgxsDriver);
+        Assert.AreEqual(binaryDriver, await owner.Installation.GetRegressionDriverPathAsync(token));
+        ProcessResult version = await ProcessRunner.RunAsync(binaryDriver, ["--version"],
+            new Dictionary<string, string?> { ["PATH"] = owner.Installation.BinDirectory + Path.PathSeparator + Environment.GetEnvironmentVariable("PATH") }, token);
+        version.EnsureSuccess(binaryDriver, ["--version"]);
+        ProcessResult configuration = await ProcessRunner.RunAsync(owner.Installation.PgConfigPath, ["--version"], new Dictionary<string, string?>(), token);
+        configuration.EnsureSuccess("pg_config", ["--version"]);
+        Assert.AreEqual(configuration.StandardOutput.Replace("PostgreSQL ", "pg_regress (PostgreSQL) ", StringComparison.Ordinal), version.StandardOutput);
+
+        File.Delete(binaryDriver);
+        FileNotFoundException error = await Assert.ThrowsExactlyAsync<FileNotFoundException>(() => owner.Installation.GetRegressionDriverPathAsync(token));
+        Assert.AreEqual(pgxsDriver, error.FileName);
+        Assert.IsTrue(File.Exists(original));
     }
 
     /// <summary>
