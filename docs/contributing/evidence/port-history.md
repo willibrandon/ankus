@@ -1,5 +1,31 @@
 # Historical port evidence
 
+## Additional macOS and Windows PostgreSQL versions
+
+The weekly/manual platform-version workflow runs complete suites for macOS
+ARM64/PostgreSQL **15 and 16**, covering the `.so`/`.dylib` boundary, and Windows
+x64/PostgreSQL **13 and 18**. Each cell keeps the entire suite, a 60-minute
+timeout and its own reports. Runtime preparation reuses the primary cache
+identity. Failures do not cancel other cells or older runs. Owner and
+triggering-owner checks restrict both jobs to the owner's `main` branch;
+there is no pull-request trigger.
+
+Current-code `postgresql-check` succeeds for macOS **15.19/16.15** and Windows
+**13.23/18.6**, including matching server headers. Windows archives come from
+the official EDB binary distribution and are installed side by side with the
+existing primary installation. Versioned repository secrets select their roots;
+device paths and connection details are not recorded here. Actionlint and
+whitespace validation pass. Product sources match the editor composition's
+complete suite and Release/API/site gates; only workflow and contributor
+documentation are added. These prerequisites do not count as full platform
+acceptance. The four real complete jobs remain required.
+
+The preceding **3a06bd9** primary CI **37114971205** and Docs **37114971196**
+pass. Six downloaded reports per primary platform verify the counts recorded
+below. Intel **37104402210** attempt two is still running. The editor change
+is committed as **21d586f**, with **11,514 passed / 14 platform skips / zero
+failures** in its ordinary complete native suite; replacement CI is pending.
+
 ## Editor correction for injected SQL metadata
 
 The isolated code-fix assembly offers an `ANKUS056` correction that removes

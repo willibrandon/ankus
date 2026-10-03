@@ -102,7 +102,8 @@ current-source acceptance for every advertised combination.
 Earlier platform results, timings and failures remain in the
 [evidence archive](docs/contributing/evidence/port-history.md#progress-snapshot-before-editor-acceptance).
 [Docs 37114971196](https://github.com/willibrandon/ankus/actions/runs/37114971196)
-passes on 3a06bd9. Replacement primary CI remains required for the editor change.
+passes on 3a06bd9. The editor change is committed as **21d586f**; replacement
+primary CI remains required.
 
 ## Active validation and work
 
@@ -121,11 +122,11 @@ passes on 3a06bd9. Replacement primary CI remains required for the editor change
   and later SPI cases through **10:06:33 UTC**. The unchanged partial log does
   not prove current progress or rule out a stall. The disconnect's cause and
   complete Intel acceptance remain unresolved.
-- The platform-version workflow draft runs complete macOS ARM64/PostgreSQL
+- The platform-version workflow adds complete macOS ARM64/PostgreSQL
   15–16 and Windows x64/PostgreSQL 13 and 18 suites. Current-code preflight
   verifies **15.19, 16.15, 13.23 and 18.6** with matching headers; Windows roots
-  are selected through per-major secrets. Workflow validation passes. Publication
-  and actual full-suite runs remain required; preflight is not platform proof.
+  are selected through per-major secrets. Workflow validation passes. Actual
+  full-suite runs remain required; preflight is not platform proof.
 - The isolated array draft replaces repeated iterator scans with PostgreSQL's
   native indexed lookup, preserving the existing error guard. Thirteen more
   native storage-witness inputs cover element widths, NULL bitmap boundaries,

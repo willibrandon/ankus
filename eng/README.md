@@ -102,10 +102,40 @@ dotnet run --file ./eng/Ankus.Ci.cs -- postgresql-check 19 /path/to/pg19/bin/pg_
 The preparation command verifies that `pg_config` matches the selected major,
 including beta and release-candidate identifiers. Completed native test reports,
 not the matrix definition or this prerequisite check, establish version coverage.
+
+### Additional platform and version prerequisites
+
+The `PostgreSQL platform versions` workflow runs weekly or on manual dispatch:
+
+| Platform | PostgreSQL majors | Purpose |
+| --- | --- | --- |
+| macOS ARM64 | 15 and 16 | Exercise both sides of the `.so`/`.dylib` extension suffix change. |
+| Windows x64 | 13 and 18 | Exercise the oldest supported server and the current stable major alongside primary PG17 CI. |
+
+Install the corresponding Homebrew `postgresql@15` and `postgresql@16` formulae
+on the macOS runner. On Windows, install both majors with server headers and
+import libraries; PostgreSQL 18 must be 18.6 or later. Configure repository
+secrets `ANKUS_WINDOWS_PG13_ROOT` and `ANKUS_WINDOWS_PG18_ROOT` with each
+installation's root, containing its `bin`, `include` and `lib` directories.
+The workflow selects the matching root for the build step. It does not change
+the runner's default `PGROOT` or store device paths in tracked files.
+
+Check every installation with `postgresql-check` before dispatch. Each matrix
+cell runs the entire suite against its selected real server, with a 60-minute
+timeout and separate result artifacts. Platform runners process their jobs in
+sequence; independent machines can run simultaneously. Runtime artifacts reuse
+the primary workflow's verified runtime cache. Failures do not cancel other
+cells, and there is no cancellation of earlier runs. Both actors must be the
+repository owner on `main`, and the workflow has no pull-request trigger.
+
+Successful reports are still required for coverage. This workflow does not by
+itself establish acceptance of these or other supported platform/version pairs.
+
+### Linux version test concurrency
+
 `ANKUS_LINUX_VERSIONS_PACKAGE_TEST_CONCURRENCY` sets the compatibility runner's
 default package-consumer slots independently of primary CI. Configure the runner
-privacy secret before uploading reports. macOS and Windows version coverage
-remain separate acceptance requirements.
+privacy secret before uploading reports.
 
 Timed-out runs also upload available redacted failure logs. Test builds print
 an MSBuild performance summary and retain a unique binary log in

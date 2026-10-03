@@ -53,6 +53,13 @@ toolchain prerequisites. See [engineering apps](../../eng/README.md) for the
 preflight command, runner isolation and retained evidence. A scheduled matrix
 does not replace successful full-suite results for each supported target.
 
+The weekly `PostgreSQL platform versions` workflow adds complete macOS ARM64
+suites for PostgreSQL 15 and 16, and Windows x64 suites for PostgreSQL 13 and 18.
+The macOS pair covers the extension library suffix change from `.so` to `.dylib`.
+These jobs use the dedicated platform runners and the same full suite as primary
+CI. Install the selected servers and configure the Windows installation roots
+before dispatch; see [engineering prerequisites](../../eng/README.md#additional-platform-and-version-prerequisites).
+
 The `header-frontend-check` engineering command checks a compiler's version and
 required option without modifying the machine; see [engineering apps](../../eng/README.md).
 
