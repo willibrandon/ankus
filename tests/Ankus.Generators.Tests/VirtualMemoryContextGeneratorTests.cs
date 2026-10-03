@@ -363,14 +363,15 @@ public sealed partial class PgFunctionGeneratorTests
     /// Virtual arguments cannot satisfy required operator operands or cast source and modifier contracts.
     /// </summary>
     /// <param name="method">The invalid attributed method.</param>
+    /// <param name="id">The specific contract diagnostic.</param>
     [TestMethod]
-    [DataRow("[Ankus.PgOperator(\"@+\")] public static int Apply(Ankus.PgMemoryContext context) => 1;")]
-    [DataRow("[Ankus.PgCast] public static string Apply(Ankus.PgMemoryContext context) => \"value\";")]
-    [DataRow("[Ankus.PgCast] public static string Apply(int value, Ankus.PgMemoryContext context, bool modifier) => \"value\";")]
-    public void VirtualContextsDoNotBypassOperatorOrCastArityValidation(string method)
+    [DataRow("[Ankus.PgOperator(\"@+\")] public static int Apply(Ankus.PgMemoryContext context) => 1;", "ANKUS066")]
+    [DataRow("[Ankus.PgCast] public static string Apply(Ankus.PgMemoryContext context) => \"value\";", "ANKUS075")]
+    [DataRow("[Ankus.PgCast] public static string Apply(int value, Ankus.PgMemoryContext context, bool modifier) => \"value\";", "ANKUS076")]
+    public void VirtualContextsDoNotBypassOperatorOrCastArityValidation(string method, string id)
     {
         (_, ImmutableArray<Diagnostic> diagnostics) = Generate("public static class Functions { " + method + " }");
-        AssertVirtualContextDiagnostic(diagnostics, "ANKUS007");
+        AssertVirtualContextDiagnostic(diagnostics, id);
     }
 
     /// <summary>

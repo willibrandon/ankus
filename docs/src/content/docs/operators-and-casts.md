@@ -354,8 +354,9 @@ the native entry point and dependency IDs. External prerequisites precede the
 complete replacement. See [function SQL controls](/custom-sql/#replace-function-sql)
 for placeholders, relocation and ordering constraints.
 
-The generator reports `ANKUS007` for invalid operator/cast declarations and
-`ANKUS005` for duplicate SQL signatures or invalid dependencies. PostgreSQL
+The generator reports [specific declaration diagnostics](#declaration-diagnostics)
+for invalid operators and casts, and `ANKUS005` for duplicate SQL signatures or
+invalid dependencies. PostgreSQL
 validates database-dependent contracts during installation. An existing cast for
 the same source/target pair or an existing fully defined operator is an installation
 error, even when the backing function uses `CreateOrReplace`.
@@ -364,3 +365,29 @@ PostgreSQL owns the generated objects as extension members. `DROP EXTENSION`
 removes them, and a relocatable extension can move its enum, functions and
 operators while retaining its casts. See the complete
 `samples/Ankus.Examples.Operators` sample in the repository.
+
+## Declaration diagnostics
+
+These errors identify the affected attribute value, result type, operand type,
+`params` modifier or argument list. Injected contexts do not count as SQL
+arguments. The same diagnostics apply to ordinary methods, C# operators and
+conversion declarations. They replace the former general `ANKUS007` code.
+
+| Diagnostic | Required correction |
+| --- | --- |
+| ANKUS064 | Return one value instead of a set. |
+| ANKUS065 | Use a valid PostgreSQL operator token containing 1–63 ASCII punctuation characters. |
+| ANKUS066 | Declare one prefix operand or two binary operands. |
+| ANKUS067 | Replace the variadic parameter with fixed SQL arguments. |
+| ANKUS068 | Return a supported SQL value instead of `void`. |
+| ANKUS069 | Choose a distinct negator with the complementary result. |
+| ANKUS070 | Use the named planner option only on a binary operator. |
+| ANKUS071 | Use the named planner option only on an operator returning SQL `boolean`. |
+| ANKUS072 | Name one commutator or negator, optionally qualified by one schema. |
+| ANKUS073 | Name one estimator function, optionally qualified by one schema. |
+| ANKUS074 | Select `Explicit`, `Assignment` or `Implicit` as the cast context. |
+| ANKUS075 | Declare one to three SQL arguments for the cast. |
+| ANKUS076 | Use non-nullable `int` for the cast's optional type modifier. |
+| ANKUS077 | Use non-nullable `bool` for the cast's optional explicit-conversion flag. |
+| ANKUS078 | Give composite endpoints concrete SQL identities with `PgCompositeType`. |
+| ANKUS079 | Convert between distinct SQL types in a one-argument cast. |

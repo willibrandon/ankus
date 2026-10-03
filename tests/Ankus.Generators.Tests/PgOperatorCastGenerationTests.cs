@@ -209,7 +209,7 @@ public sealed partial class PgFunctionGeneratorTests
             "public static class Functions { [Ankus.PgOperator(\"" + name + "\")] public static int Apply(int value) => value; }");
         if (length == 64)
         {
-            Assert.AreEqual("ANKUS007", Assert.ContainsSingle(diagnostics).Id);
+            Assert.AreEqual("ANKUS065", Assert.ContainsSingle(diagnostics).Id);
         }
         else
         {
@@ -250,7 +250,7 @@ public sealed partial class PgFunctionGeneratorTests
         (_, ImmutableArray<Diagnostic> diagnostics) = Generate(
             "public static class Functions { [Ankus.PgOperator(" + literal + ")] public static int Apply(int value) => value; }");
         Diagnostic diagnostic = Assert.ContainsSingle(diagnostics);
-        Assert.AreEqual("ANKUS007", diagnostic.Id);
+        Assert.AreEqual("ANKUS065", diagnostic.Id);
         Assert.AreEqual(DiagnosticSeverity.Error, diagnostic.Severity);
         Assert.IsTrue(diagnostic.Location.IsInSource);
     }
@@ -277,24 +277,25 @@ public sealed partial class PgFunctionGeneratorTests
     /// Operator declarations reject impossible operand counts, void results, and planner options incompatible with the signature.
     /// </summary>
     /// <param name="method">The invalid attributed operator method.</param>
+    /// <param name="id">The specific contract diagnostic.</param>
     [TestMethod]
-    [DataRow("[Ankus.PgOperator(\"+\")] public static int Apply() => 0;")]
-    [DataRow("[Ankus.PgOperator(\"+\")] public static int Apply(int a, int b, int c) => 0;")]
-    [DataRow("[Ankus.PgOperator(\"+\")] public static void Apply(int a) { }")]
-    [DataRow("[Ankus.PgOperator(\"+\")] public static int Apply(params int[] a) => 0;")]
-    [DataRow("[Ankus.PgOperator(\"?\", Commutator = \"?\")] public static bool Apply(int a) => true;")]
-    [DataRow("[Ankus.PgOperator(\"?\", JoinEstimator = \"eqjoinsel\")] public static bool Apply(int a) => true;")]
-    [DataRow("[Ankus.PgOperator(\"?\", Hashes = true)] public static bool Apply(int a) => true;")]
-    [DataRow("[Ankus.PgOperator(\"?\", Merges = true)] public static bool Apply(int a) => true;")]
-    [DataRow("[Ankus.PgOperator(\"+\", Negator = \"-\")] public static int Apply(int a, int b) => a;")]
-    [DataRow("[Ankus.PgOperator(\"+\", RestrictionEstimator = \"eqsel\")] public static int Apply(int a, int b) => a;")]
-    [DataRow("[Ankus.PgOperator(\"+\", JoinEstimator = \"eqjoinsel\")] public static int Apply(int a, int b) => a;")]
-    [DataRow("[Ankus.PgOperator(\"+\", Hashes = true)] public static int Apply(int a, int b) => a;")]
-    [DataRow("[Ankus.PgOperator(\"+\", Merges = true)] public static int Apply(int a, int b) => a;")]
-    public void InvalidOperatorSignaturesAndPlannerOptionsAreDiagnosed(string method)
+    [DataRow("[Ankus.PgOperator(\"+\")] public static int Apply() => 0;", "ANKUS066")]
+    [DataRow("[Ankus.PgOperator(\"+\")] public static int Apply(int a, int b, int c) => 0;", "ANKUS066")]
+    [DataRow("[Ankus.PgOperator(\"+\")] public static void Apply(int a) { }", "ANKUS068")]
+    [DataRow("[Ankus.PgOperator(\"+\")] public static int Apply(params int[] a) => 0;", "ANKUS067")]
+    [DataRow("[Ankus.PgOperator(\"?\", Commutator = \"?\")] public static bool Apply(int a) => true;", "ANKUS070")]
+    [DataRow("[Ankus.PgOperator(\"?\", JoinEstimator = \"eqjoinsel\")] public static bool Apply(int a) => true;", "ANKUS070")]
+    [DataRow("[Ankus.PgOperator(\"?\", Hashes = true)] public static bool Apply(int a) => true;", "ANKUS070")]
+    [DataRow("[Ankus.PgOperator(\"?\", Merges = true)] public static bool Apply(int a) => true;", "ANKUS070")]
+    [DataRow("[Ankus.PgOperator(\"+\", Negator = \"-\")] public static int Apply(int a, int b) => a;", "ANKUS071")]
+    [DataRow("[Ankus.PgOperator(\"+\", RestrictionEstimator = \"eqsel\")] public static int Apply(int a, int b) => a;", "ANKUS071")]
+    [DataRow("[Ankus.PgOperator(\"+\", JoinEstimator = \"eqjoinsel\")] public static int Apply(int a, int b) => a;", "ANKUS071")]
+    [DataRow("[Ankus.PgOperator(\"+\", Hashes = true)] public static int Apply(int a, int b) => a;", "ANKUS071")]
+    [DataRow("[Ankus.PgOperator(\"+\", Merges = true)] public static int Apply(int a, int b) => a;", "ANKUS071")]
+    public void InvalidOperatorSignaturesAndPlannerOptionsAreDiagnosed(string method, string id)
     {
         (_, ImmutableArray<Diagnostic> diagnostics) = Generate("public static class Functions { " + method + " }");
-        Assert.AreEqual("ANKUS007", Assert.ContainsSingle(diagnostics).Id);
+        Assert.AreEqual(id, Assert.ContainsSingle(diagnostics).Id);
     }
 
     /// <summary>
@@ -327,7 +328,7 @@ public sealed partial class PgFunctionGeneratorTests
         (_, ImmutableArray<Diagnostic> diagnostics) = Generate(
             "public static class Functions { [Ankus.PgOperator(\"@=\", " + property + " = " + SymbolDisplay.FormatLiteral(reference, true) +
             ")] public static bool Apply(int a, int b) => a == b; }");
-        Assert.AreEqual("ANKUS007", Assert.ContainsSingle(diagnostics).Id);
+        Assert.AreEqual(property is "Commutator" or "Negator" ? "ANKUS072" : "ANKUS073", Assert.ContainsSingle(diagnostics).Id);
     }
 
     /// <summary>
@@ -343,7 +344,7 @@ public sealed partial class PgFunctionGeneratorTests
     {
         (_, ImmutableArray<Diagnostic> diagnostics) = Generate("public static class Functions { " + attributes +
             " public static bool Same(int a, int b) => a == b; }");
-        Assert.AreEqual("ANKUS007", Assert.ContainsSingle(diagnostics).Id);
+        Assert.AreEqual("ANKUS069", Assert.ContainsSingle(diagnostics).Id);
     }
 
     /// <summary>
@@ -381,7 +382,7 @@ public sealed partial class PgFunctionGeneratorTests
             SymbolDisplay.FormatLiteral(reference, true) + ")] public static bool Equal(int left, int right) => left == right; }");
         if (bytes == 64)
         {
-            Assert.AreEqual("ANKUS007", Assert.ContainsSingle(diagnostics).Id);
+            Assert.AreEqual(isOperator ? "ANKUS072" : "ANKUS073", Assert.ContainsSingle(diagnostics).Id);
         }
         else
         {
@@ -469,28 +470,29 @@ public sealed partial class PgFunctionGeneratorTests
     /// Invalid cast contexts, extra argument contracts, void results, and one-argument identity casts fail during generation.
     /// </summary>
     /// <param name="method">The invalid attributed cast method.</param>
+    /// <param name="id">The specific contract diagnostic.</param>
     [TestMethod]
-    [DataRow("[Ankus.PgCast((Ankus.PgCastContext)(-1))] public static string Render(int value) => \"\";")]
-    [DataRow("[Ankus.PgCast((Ankus.PgCastContext)3)] public static string Render(int value) => \"\";")]
-    [DataRow("[Ankus.PgCast] public static string Render() => \"\";")]
-    [DataRow("[Ankus.PgCast] public static string Render(int a, int b, bool c, int d) => \"\";")]
-    [DataRow("[Ankus.PgCast] public static void Render(int value) { }")]
-    [DataRow("[Ankus.PgCast] public static string Render(int value, long modifier) => \"\";")]
-    [DataRow("[Ankus.PgCast] public static string Render(int value, int? modifier) => \"\";")]
-    [DataRow("[Ankus.PgCast] public static string Render(int value, bool modifier) => \"\";")]
-    [DataRow("[Ankus.PgCast] public static string Render(int value, int modifier, int explicitly) => \"\";")]
-    [DataRow("[Ankus.PgCast] public static string Render(int value, int modifier, bool? explicitly) => \"\";")]
-    [DataRow("[Ankus.PgCast] public static string Render(params int[] values) => \"\";")]
-    [DataRow("[Ankus.PgCast] public static string Render(int value, params int[] modifiers) => \"\";")]
-    [DataRow("[Ankus.PgCast] public static int Render(int value) => value;")]
-    [DataRow("[Ankus.PgCast] public static int? Render(int value) => value;")]
-    [DataRow("[Ankus.PgCast] public static Ankus.PgNumeric Render(decimal value) => default;")]
-    [DataRow("[Ankus.PgCast] public static Ankus.PgDate Render(System.DateOnly value) => default;")]
-    [DataRow("[Ankus.PgCast] public static Ankus.PgArray<int> Render(int[] value) => new(value);")]
-    public void InvalidCastSignaturesAreDiagnosed(string method)
+    [DataRow("[Ankus.PgCast((Ankus.PgCastContext)(-1))] public static string Render(int value) => \"\";", "ANKUS074")]
+    [DataRow("[Ankus.PgCast((Ankus.PgCastContext)3)] public static string Render(int value) => \"\";", "ANKUS074")]
+    [DataRow("[Ankus.PgCast] public static string Render() => \"\";", "ANKUS075")]
+    [DataRow("[Ankus.PgCast] public static string Render(int a, int b, bool c, int d) => \"\";", "ANKUS075")]
+    [DataRow("[Ankus.PgCast] public static void Render(int value) { }", "ANKUS068")]
+    [DataRow("[Ankus.PgCast] public static string Render(int value, long modifier) => \"\";", "ANKUS076")]
+    [DataRow("[Ankus.PgCast] public static string Render(int value, int? modifier) => \"\";", "ANKUS076")]
+    [DataRow("[Ankus.PgCast] public static string Render(int value, bool modifier) => \"\";", "ANKUS076")]
+    [DataRow("[Ankus.PgCast] public static string Render(int value, int modifier, int explicitly) => \"\";", "ANKUS077")]
+    [DataRow("[Ankus.PgCast] public static string Render(int value, int modifier, bool? explicitly) => \"\";", "ANKUS077")]
+    [DataRow("[Ankus.PgCast] public static string Render(params int[] values) => \"\";", "ANKUS067")]
+    [DataRow("[Ankus.PgCast] public static string Render(int value, params int[] modifiers) => \"\";", "ANKUS067")]
+    [DataRow("[Ankus.PgCast] public static int Render(int value) => value;", "ANKUS079")]
+    [DataRow("[Ankus.PgCast] public static int? Render(int value) => value;", "ANKUS079")]
+    [DataRow("[Ankus.PgCast] public static Ankus.PgNumeric Render(decimal value) => default;", "ANKUS079")]
+    [DataRow("[Ankus.PgCast] public static Ankus.PgDate Render(System.DateOnly value) => default;", "ANKUS079")]
+    [DataRow("[Ankus.PgCast] public static Ankus.PgArray<int> Render(int[] value) => new(value);", "ANKUS079")]
+    public void InvalidCastSignaturesAreDiagnosed(string method, string id)
     {
         (_, ImmutableArray<Diagnostic> diagnostics) = Generate("public static class Functions { " + method + " }");
-        Assert.AreEqual("ANKUS007", Assert.ContainsSingle(diagnostics).Id);
+        Assert.AreEqual(id, Assert.ContainsSingle(diagnostics).Id);
     }
 
     /// <summary>

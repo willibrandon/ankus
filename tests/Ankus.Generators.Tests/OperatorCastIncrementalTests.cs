@@ -336,17 +336,18 @@ public sealed partial class PgFunctionGeneratorTests
     /// Invalid names, operator references/capabilities and cast signatures retain current mapped diagnostics and recover.
     /// </summary>
     /// <param name="kind">The invalid operator or cast rule.</param>
+    /// <param name="id">The specific contract diagnostic.</param>
     [TestMethod]
-    [DataRow("name")]
-    [DataRow("self negator")]
-    [DataRow("unary capability")]
-    [DataRow("nonboolean capability")]
-    [DataRow("reference")]
-    [DataRow("context")]
-    [DataRow("modifier")]
-    [DataRow("same type")]
-    [DataRow("set")]
-    public void OperatorCastDiagnosticsFollowCurrentTreesAndRecover(string kind)
+    [DataRow("name", "ANKUS065")]
+    [DataRow("self negator", "ANKUS069")]
+    [DataRow("unary capability", "ANKUS070")]
+    [DataRow("nonboolean capability", "ANKUS071")]
+    [DataRow("reference", "ANKUS073")]
+    [DataRow("context", "ANKUS074")]
+    [DataRow("modifier", "ANKUS076")]
+    [DataRow("same type", "ANKUS079")]
+    [DataRow("set", "ANKUS064")]
+    public void OperatorCastDiagnosticsFollowCurrentTreesAndRecover(string kind, string id)
     {
         string source = kind switch
         {
@@ -369,7 +370,7 @@ public sealed partial class PgFunctionGeneratorTests
         driver = driver.RunGeneratorsAndUpdateCompilation(edited, out _, out ImmutableArray<Diagnostic> errors, context.CancellationToken);
         Diagnostic error = Assert.ContainsSingle(errors);
 
-        Assert.AreEqual("ANKUS007", error.Id);
+        Assert.AreEqual(id, error.Id);
         Assert.AreEqual(IncrementalStepRunReason.Cached, ModuleStep(driver, "OperatorCastEmission"));
         Assert.AreEqual(before.GetMessage(System.Globalization.CultureInfo.InvariantCulture), error.GetMessage(System.Globalization.CultureInfo.InvariantCulture));
         Assert.Contains(kind switch
@@ -378,7 +379,7 @@ public sealed partial class PgFunctionGeneratorTests
             "self negator" => "own negator",
             "unary capability" => "Only binary operators",
             "nonboolean capability" => "Only boolean operators",
-            "reference" => "Operator references require",
+            "reference" => "must name one estimator function",
             "context" => "cast context must be",
             "modifier" => "optional second parameter",
             "same type" => "distinct PostgreSQL types",

@@ -273,7 +273,7 @@ public sealed partial class PgFunctionGeneratorTests
     {
         (_, ImmutableArray<Diagnostic> diagnostics) = Generate("public static class Functions { [Ankus.PgCast] " + method + " }");
         Diagnostic diagnostic = Assert.ContainsSingle(diagnostics);
-        Assert.AreEqual("ANKUS007", diagnostic.Id);
+        Assert.AreEqual("ANKUS078", diagnostic.Id);
         Assert.Contains("record pseudo-type", diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture));
     }
 

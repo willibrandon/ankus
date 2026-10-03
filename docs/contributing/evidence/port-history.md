@@ -45,9 +45,14 @@ between those runs. Existing boundary and SQL assertions remain in place.
 The operator/cast Release build passes with zero warnings/errors in
 **5m17.67s**. API freshness verifies **238 pages / 2,757 members**; the site
 builds **286 pages in 3.75s**, with zero check errors, warnings or hints.
-Its complete native suite is now running separately. Neither draft relaxes analyzer
-policy or adds suppressions. Aggregate diagnostic specificity, remaining help
-links, useful semantic code fixes and final platform acceptance remain open.
+The complete ordinary **Linux x64/PostgreSQL 18.6** suite subsequently passes
+**11,476 total; 11,462 passed; zero failures; 14 platform skips**, in
+**38m54.065s**. All six completed TRX reports are retained and independently
+totaled: generator **3,212 passed**, integration **4,536 passed / five skips**.
+All **28** changed source/test/public-guide identities verify afterward and
+after promotion. Neither draft relaxes analyzer policy or adds suppressions.
+Aggregate diagnostic specificity, remaining help links, useful semantic code
+fixes and final platform acceptance remain open.
 
 Before committing the function/schema milestone, **CI 37107730859** on
 **c285382** passes quality, every runtime job and all three complete suites.
@@ -59,6 +64,73 @@ Windows x64/PostgreSQL 17 reports **11,388 passed / 25 skips**, **31m28s**.
 **Docs 37104381195** remain successful. **Additional platforms 37104402210**
 continues the full Intel macOS suite after its successful runtime build, under
 the approved 360-minute limit. No new failure is reported at this checkpoint.
+
+### Dependent aggregate diagnostic draft
+
+The isolated aggregate draft replaces `ANKUS012` with `ANKUS080`–`ANKUS128`,
+distinguishing catalog relationships, capability implementations and input
+metadata. Existing typed and SQL contracts remain enforced. Authored options,
+callback types and metadata receive specific locations and correction links;
+visible inherited callbacks point to their declaring source file. Detached
+cached models retain no additional symbols or syntax nodes.
+
+Ten initial option cases fail against the original diagnostic, then pass after
+replacement. The first expanded aggregate run reports **335 passes / one
+failure / zero skips**: Roslyn represents zero-arity `ValueTuple` as a tuple,
+so its metadata reaches the nonempty-tuple diagnostic. Checking the empty group
+first restores the intended empty-group validation; the corrected affected run
+passes **336/336**, zero failures/skips, in **11.912s**. Existing zero-input
+aggregates still compile and preserve their SQL star signature.
+
+The complete generator module then passes **3,240/3,240**, zero failures/skips,
+in **1m17.953s**. A subsequent assertion review adds seven independently invalid
+relationships between compiler-valid callbacks and three combined argument-limit
+boundaries. All **10/10** pass in **3.750s**. The latter accepts 99 combined
+direct/aggregated inputs and rejects both 100 and 101 while each support function
+fits its own limit. Other new cases pin exact diagnostic IDs, severity, help
+links and current source spans; valid independent declarations still compile
+and invalid aggregate/helper SQL remains absent. Source-edit cases verify cached
+outputs, current tree identity and successful repair.
+
+All **38** changed source/test/public-guide identities match the validator.
+The final combined generator run passes **3,250/3,250**, zero failures/skips,
+in **1m31.585s**. At that checkpoint, Release/API/site and ordinary native
+acceptance remained pending.
+This draft is not promoted or committed. Neither
+focused checks nor a generator-only run constitutes full platform evidence.
+
+The aggregate draft subsequently passes Release with zero warnings/errors in
+**4m05.21s**. API freshness verifies **238 pages / 2,757 members**; the site
+builds **286 pages in 6.12s**, with zero check errors, warnings or hints. All
+38 source identities still match afterward. Ordinary native acceptance starts
+after the operator/cast suite finishes and remains in progress.
+
+The preceding function/schema milestone is committed and pushed as **c981d16**.
+**CI 37110157303** passes quality, all runtime jobs and all three full suites.
+Six downloaded reports per platform confirm **11,441 total** and zero failures:
+Linux x64/PostgreSQL 18 has **11,427 passed / 14 skips**, **36m03s** job;
+macOS ARM64/PostgreSQL 18 has **11,415 passed / 26 skips**, **26m52s**;
+Windows x64/PostgreSQL 17 has **11,416 passed / 25 skips**, **31m13s**.
+**Docs 37110157304** passes.
+
+While Intel macOS **37104402210** still reported its full-test step in progress,
+the CLI refused unfinished logs. The direct job-log endpoint returned an older
+partial snapshot last modified at **07:49:42 UTC**. It did not include the later
+custom-operator results seen in the live UI. The run was left intact.
+
+The first attempt subsequently fails at **09:15:00 UTC**, after **2h00m14s**
+of job time. GitHub's annotation says the hosted runner lost communication with
+the server. The full-test step never reports completion, and report preparation,
+artifact upload and post-job cleanup do not run. The six-hour limit was not
+reached. The retained log records successful completion of the five smaller
+modules, **6,821 total / 6,812 passed / nine skips / zero failures**; integration
+never produces its final summary. Only the runtime artifact is uploaded.
+
+Runner resource starvation and a host/network fault remain possibilities, not
+established causes. The original partial log, completed job metadata and failure
+annotation are retained. A rerun of the same failed job with GitHub runner and
+step diagnostics enabled is submitted, preserving its code, full-suite scope
+and timeout. No Intel acceptance or root-cause fix is claimed yet.
 
 ## Assembly access for generated dispatchers
 

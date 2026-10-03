@@ -6,7 +6,6 @@ ANKUS002 | Ankus | Error | Invalid or duplicate PostgreSQL function name
 ANKUS003 | Ankus | Error | Invalid numeric precision or scale constraint
 ANKUS005 | Ankus | Error | Invalid custom SQL input or installation dependency graph
 ANKUS006 | Ankus | Error | Invalid PostgreSQL enum declaration or label mapping
-ANKUS007 | Ankus | Error | Invalid PostgreSQL operator or cast
 ANKUS008 | Ankus | Error | Invalid PostgreSQL set result or table columns
 ANKUS009 | Ankus | Error | Invalid named composite type or TABLE column binding
 ANKUS010 | Ankus | Error | Invalid PostgreSQL trigger declaration
@@ -63,3 +62,19 @@ ANKUS060 | Ankus | Error | Invalid PostgreSQL default expression
 ANKUS061 | Ankus | Error | Managed default needs an explicit SQL expression
 ANKUS062 | Ankus | Error | PostgreSQL parameter requires a following default
 ANKUS063 | Ankus | Error | PostgreSQL schema prefix is reserved
+ANKUS064 | Ankus | Error | PostgreSQL operator or cast returns a set
+ANKUS065 | Ankus | Error | Invalid PostgreSQL operator token
+ANKUS066 | Ankus | Error | Invalid PostgreSQL operator operand count
+ANKUS067 | Ankus | Error | PostgreSQL operator or cast has a variadic argument
+ANKUS068 | Ankus | Error | PostgreSQL operator or cast has no result
+ANKUS069 | Ankus | Error | PostgreSQL operator is its own negator
+ANKUS070 | Ankus | Error | PostgreSQL operator option requires two operands
+ANKUS071 | Ankus | Error | PostgreSQL operator option requires a boolean result
+ANKUS072 | Ankus | Error | Invalid PostgreSQL operator reference
+ANKUS073 | Ankus | Error | Invalid PostgreSQL estimator reference
+ANKUS074 | Ankus | Error | Invalid PostgreSQL cast context
+ANKUS075 | Ankus | Error | Invalid PostgreSQL cast argument count
+ANKUS076 | Ankus | Error | Invalid PostgreSQL cast type modifier
+ANKUS077 | Ankus | Error | Invalid PostgreSQL cast conversion flag
+ANKUS078 | Ankus | Error | PostgreSQL cast endpoint has no composite identity
+ANKUS079 | Ankus | Error | PostgreSQL cast has identical endpoint types

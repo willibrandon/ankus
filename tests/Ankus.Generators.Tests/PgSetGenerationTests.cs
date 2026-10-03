@@ -529,7 +529,7 @@ public sealed partial class PgFunctionGeneratorTests
     {
         (_, ImmutableArray<Diagnostic> diagnostics) = Generate("public static class Functions { " + attribute +
             " public static System.Collections.Generic.IEnumerable<int> Rows(int value) => new[] { value }; }");
-        Assert.AreEqual("ANKUS007", Assert.ContainsSingle(diagnostics).Id);
+        Assert.AreEqual("ANKUS064", Assert.ContainsSingle(diagnostics).Id);
     }
 
     /// <summary>
