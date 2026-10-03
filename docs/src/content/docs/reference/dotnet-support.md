@@ -66,7 +66,9 @@ installed .NET runtime.
 ## Runtime servicing and deployment
 
 Ankus includes a patched Native AOT runtime for PostgreSQL process and preload
-behavior. Its compiler and runtime payload are versioned together. Support for
+behavior. The SDK automatically restores a matching patched Native AOT compiler
+for the build machine and runtime for the extension's target platform. These
+packages are versioned together. Support for
 .NET 11 requires adapting and validating that patch against .NET 11, rather than
 reusing a .NET 10 runtime with a .NET 11 compiler.
 

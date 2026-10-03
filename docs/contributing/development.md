@@ -78,9 +78,9 @@ defaulting to `~/.ankus`. For a nonstandard path:
 
 ### Stage the patched Native AOT runtime
 
-A fresh checkout needs the patched runtime before building or running backend
-tests. It is not published to NuGet yet; without a staged payload, restore can
-fail with `NU1101` for `Ankus.NativeAot.Runtime.<rid>`.
+A fresh checkout needs the patched runtime and compiler before building or running
+backend tests. These packages are not published to NuGet yet; without a staged payload, restore can
+fail with `NU1101` for `Ankus.NativeAot.Runtime.<rid>` or `Ankus.NativeAot.Compiler.<rid>`.
 
 Read the checkout's runtime identity and find a successful CI run for the same
 Ankus revision:
@@ -103,16 +103,19 @@ Use `win-x64`, `osx-arm64` or `osx-x64` for the corresponding platform, replacin
 the artifact name, directory and command argument together. Primary CI produces
 the first three; the additional-platforms workflow produces `osx-x64`. Artifacts
 expire, so an older checkout may need a new workflow run. The staged directory
-must contain `aotsdk/System.Private.CoreLib.dll` and the runtime license files
-under `source/`. The repository SDK automatically selects this payload, and
-`runtime-pack` creates the matching runtime package in `artifacts/packages` for
-external package consumers.
+must contain `aotsdk/System.Private.CoreLib.dll`, the compiler and its native
+libraries under `compiler/`, and runtime license files under `source/`.
+The repository SDK automatically selects these payloads. `runtime-pack` restores
+the compiler's executable permission on Unix and creates matching runtime and
+compiler packages in `artifacts/packages` for external package consumers.
 
 To build it locally instead, use a separate writable `runtime/` checkout of the
 repository and commit printed by `runtime-info`; reference clones stay read-only.
 Then run `dotnet run --file eng/Ankus.Ci.cs -- runtime-build linux x64 linux-x64`
-on Linux, `runtime-build osx arm64 osx-arm64` on Apple Silicon, or
-`runtime-build windows x64 win-x64` on Windows. See
+on Linux, `runtime-build osx arm64 osx-arm64` on Apple Silicon,
+`runtime-build osx x64 osx-x64` on Intel macOS, or
+`runtime-build windows x64 win-x64` on Windows. Use a host with the package's
+operating system and architecture. See
 [engineering prerequisites](../../eng/README.md) for the native toolchain and
 runtime build commands. Keep the runtime payload and compiler versions matched
 to the selected Ankus revision.
@@ -133,7 +136,8 @@ connections close. The cluster shuts down after the run.
 The complete suite also publishes independent installed-package consumers in
 temporary directories. Allow disk space for concurrent native builds. On Linux,
 if `/tmp` is a small RAM-backed filesystem, set `TMPDIR` for the test process to
-a directory on a disk-backed filesystem. Build outputs and NuGet extraction
+a directory on a disk-backed filesystem outside the checkout. Test consumers
+must not inherit repository build files or Git context. Build outputs and NuGet extraction
 need that capacity even though the fixture removes its temporary directories
 after the run. A full temporary filesystem is a failed prerequisite, not a
 reason to skip consumer tests.

@@ -1,12 +1,17 @@
 <Project>
   <PropertyGroup>
-    <_AnkusNativeAotVersion>10.0.12-ankus.2</_AnkusNativeAotVersion>
+    <_AnkusNativeAotVersion>10.0.12-ankus.3</_AnkusNativeAotVersion>
     <_AnkusNativeAotCompilerVersion>10.0.12</_AnkusNativeAotCompilerVersion>
+    <_AnkusNativeAotCompilerHostVersion>10.0.12-ankus.3</_AnkusNativeAotCompilerHostVersion>
     <_AnkusNativeAotSdkPath Condition="'$(AnkusNativeAotSdkPath)' != ''">$([MSBuild]::NormalizeDirectory('$(AnkusNativeAotSdkPath)'))</_AnkusNativeAotSdkPath>
+    <_AnkusNativeAotCompilerToolsPath Condition="'$(AnkusNativeAotCompilerToolsPath)' != ''">$([MSBuild]::NormalizeDirectory('$(AnkusNativeAotCompilerToolsPath)'))</_AnkusNativeAotCompilerToolsPath>
     <_AnkusNativeAotPayloadVersion Condition="'$(AnkusNativeAotSdkPath)' != ''">$(_AnkusNativeAotVersion)</_AnkusNativeAotPayloadVersion>
     <_AnkusNativeAotPayloadCompilerVersion Condition="'$(AnkusNativeAotSdkPath)' != ''">$(_AnkusNativeAotCompilerVersion)</_AnkusNativeAotPayloadCompilerVersion>
     <_AnkusNativeAotPayloadRid Condition="'$(AnkusNativeAotSdkPath)' != '' and '$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)</_AnkusNativeAotPayloadRid>
     <_AnkusNativeAotPayloadRid Condition="'$(AnkusNativeAotSdkPath)' != '' and '$(_AnkusNativeAotPayloadRid)' == ''">$(NETCoreSdkRuntimeIdentifier)</_AnkusNativeAotPayloadRid>
+    <_AnkusNativeAotCompilerPayloadVersion Condition="'$(AnkusNativeAotCompilerToolsPath)' != ''">$(_AnkusNativeAotCompilerHostVersion)</_AnkusNativeAotCompilerPayloadVersion>
+    <_AnkusNativeAotCompilerPayloadBaseVersion Condition="'$(AnkusNativeAotCompilerToolsPath)' != ''">$(_AnkusNativeAotCompilerVersion)</_AnkusNativeAotCompilerPayloadBaseVersion>
+    <_AnkusNativeAotCompilerPayloadRid Condition="'$(AnkusNativeAotCompilerToolsPath)' != ''">$(NETCoreSdkRuntimeIdentifier)</_AnkusNativeAotCompilerPayloadRid>
   </PropertyGroup>
 
   <Target Name="_ValidateAnkusNativeAotTarget" BeforeTargets="_CheckForUnsupportedNETCoreVersion;ProcessFrameworkReferences"
@@ -31,6 +36,10 @@
                         Version="[$(_AnkusNativeAotVersion)]" IsImplicitlyDefined="true"
                         PrivateAssets="all"
                         Condition="'$(RuntimeIdentifier)' != '' and '$(AnkusNativeAotSdkPath)' == ''" />
+      <PackageReference Include="Ankus.NativeAot.Compiler.$(NETCoreSdkRuntimeIdentifier)"
+                        Version="[$(_AnkusNativeAotCompilerHostVersion)]" IsImplicitlyDefined="true"
+                        PrivateAssets="all"
+                        Condition="'$(NETCoreSdkRuntimeIdentifier)' != '' and '$(AnkusNativeAotCompilerToolsPath)' == ''" />
     </ItemGroup>
   </Target>
 
@@ -42,12 +51,21 @@
     <Error Condition="'$(_AnkusNativeAotPayloadCompilerVersion)' != '$(_AnkusNativeAotCompilerVersion)' or
                       '@(ResolvedILCompilerPack->'%(NuGetPackageVersion)')' != '$(_AnkusNativeAotCompilerVersion)'"
            Text="The restored Native AOT compiler does not match the Ankus runtime package." />
+    <Error Condition="'$(_AnkusNativeAotCompilerPayloadVersion)' != '$(_AnkusNativeAotCompilerHostVersion)' or
+                      '$(_AnkusNativeAotCompilerPayloadBaseVersion)' != '$(_AnkusNativeAotCompilerVersion)' or
+                      '$(_AnkusNativeAotCompilerPayloadRid)' != '$(NETCoreSdkRuntimeIdentifier)'"
+           Text="The restored Ankus Native AOT compiler host does not match this SDK and build machine." />
     <Error Condition="!Exists('$(_AnkusNativeAotSdkPath)System.Private.CoreLib.dll')"
            Text="The Ankus Native AOT runtime package is missing System.Private.CoreLib.dll." />
+    <Error Condition="!Exists('$(_AnkusNativeAotCompilerToolsPath)ilc') and !Exists('$(_AnkusNativeAotCompilerToolsPath)ilc.exe')"
+           Text="The Ankus Native AOT compiler package is missing its compiler executable." />
     <Error Condition="'$(IlcSdkPath)' != '' and '$(IlcSdkPath)' != '$(_AnkusNativeAotSdkPath)'"
            Text="Ankus.Sdk selects its matching Native AOT runtime automatically. Remove the IlcSdkPath override." />
+    <Error Condition="'$(IlcToolsPath)' != '' and '$(IlcToolsPath)' != '$(_AnkusNativeAotCompilerToolsPath)'"
+           Text="Ankus.Sdk selects its matching Native AOT compiler automatically. Remove the IlcToolsPath override." />
     <PropertyGroup>
       <IlcSdkPath>$(_AnkusNativeAotSdkPath)</IlcSdkPath>
+      <IlcToolsPath>$(_AnkusNativeAotCompilerToolsPath)</IlcToolsPath>
     </PropertyGroup>
   </Target>
 </Project>

@@ -110,8 +110,8 @@ Extension projects use the `Ankus.Sdk` NuGet project SDK:
 </Project>
 ```
 
-The SDK includes matching runtime and source-generator packages plus the native
-build helper. See [package setup](docs/contributing/development.md#build-the-packages)
+The SDK includes matching Native AOT compiler, runtime and source-generator
+packages plus the native build helper. See [package setup](docs/contributing/development.md#build-the-packages)
 for the local NuGet feed; the initial `0.1.0` release is pending.
 
 The initial target is .NET 10 LTS. .NET 11 support is planned and requires a

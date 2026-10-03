@@ -32,10 +32,12 @@ Repository `global.json` selects stable SDK **10.0.400** with
 target is **net10.0**. Installing another SDK does not silently change an
 extension's selected compiler, target framework or embedded runtime.
 
-The current embedded runtime is **10.0.12-ankus.2**, paired with the 10.0.12
-Native AOT compiler/framework packs. Servicing requires immutable patched-runtime
-packages, matching compiler selection, complete backend validation and extension
-rebuild/redeployment. Check current upstream servicing before releasing 0.1.0.
+The current embedded runtime and compiler host are **10.0.12-ankus.3**, based on
+runtime fork commit `a20021dfdf03c51b46f2bf9d10050806826e0b4c` and paired with
+the 10.0.12 Native AOT framework and compiler targets. Servicing requires
+immutable patched-runtime and compiler packages, matching compiler selection,
+complete backend validation and extension rebuild/redeployment. Check current
+upstream servicing before releasing 0.1.0.
 
 | Runtime line | Evidence and remaining requirements |
 | --- | --- |
@@ -142,6 +144,7 @@ tests or binding-only probes. Counts supplement the native behavior assertions.
 | 71095c9 composition with compiled-cache relocation and SPI examples | macOS ARM64 / 18.6 | 11,359 total; 11,333 passed; 26 platform skips; zero failures | 24m33.576s tests |
 | Same composition | Linux x64 / 18.6 | 11,359 total; 11,345 passed; 14 platform skips; zero failures | 42m26.793s tests |
 | Same composition | Windows x64 / 17.11 | 11,359 total; 11,334 passed; 25 platform skips; zero failures | 42m38.142s tests |
+| 0ddc6e9 with corrected runtime/compiler packages | Linux x64 / 18.6 | 11,360 total; 11,346 passed; 14 platform skips; zero failures | 33m32.502s tests |
 
 The accepted template composition passes Release with **zero warnings/errors,
 1m38.33s**. API freshness verifies **235 pages / 2,700 members**; the site builds
@@ -157,7 +160,9 @@ primary-platform CI pass without weakening the original assertions.
 
 ## Active validation and work
 
-- The intermittent Native AOT compiler failure is a required root-cause fix, not resolved by successful reruns. Matching Microsoft compiler symbols locate the recorded exception at three bounds checks in signature/body scanning. An independent decoder validates **166,245** method instruction streams in all **179** retained compiler inputs. Targeted debugger reproduction retains the unchanged compiler and captures state before the exception; the cause and correction remain unproven. See the current investigation in the history.
+- Backported the upstream Native AOT universal-transition GC root correction as runtime commit **a20021d**. The rebuilt compiler explicitly embeds this runtime; its machine code verifies the flag clear, and **128/128** complete retained-input compilations pass. The initial source-only compiler rebuild still linked the stock runtime and is not counted as patched evidence. New **10.0.12-ankus.3** compiler-host and target-runtime packages are wired into the SDK. All nine focused installed-package cases and the complete **Linux x64/PostgreSQL 18.6** suite pass: **11,360 total / 11,346 passed / 14 platform skips / zero failures, 33m32.502s**. Release/API/site, native shutdown and artifact-permission checks pass. Previous primary CI and Docs remain green; the old Intel timeout is addressed by the approved six-hour limit. Fresh full platform CI remains required. The link to the original intermittent crash is supported by upstream history; no local failing GC root was captured. See [correction and evidence](docs/contributing/evidence/port-history.md#native-aot-gc-correction-and-compiler-packaging).
+- [Primary CI 37084745267](https://github.com/willibrandon/ankus/actions/runs/37084745267), **0ddc6e9**, passes quality, all runtime jobs and all three complete platform suites. Six downloaded TRX modules per platform confirm **11,359 total** each: Linux **11,345 passed / 14 skips**, Windows **11,334 / 25**, macOS ARM64 **11,333 / 26**, with zero failures. Platform job durations are **36m07s**, **30m58s** and **26m45s**, respectively. [Docs 37084745237](https://github.com/willibrandon/ankus/actions/runs/37084745237) passes. These successful runs do not resolve the separate intermittent compiler failure or establish Intel macOS acceptance.
+- Intel macOS [37084785806](https://github.com/willibrandon/ankus/actions/runs/37084785806), **0ddc6e9 / two package slots**, exceeds the former 60-minute limit; total job time including cleanup is **61m45s**. Initial test build takes **6m48s**, and full tests run **50m37s** before cancellation. Five completed TRX modules report **6,821 total / 6,812 passed / nine skips / zero failures**; integration has no completed report. Both Intel jobs now allow GitHub's six-hour hosted-job maximum so the unchanged full suite can finish and provide complete evidence.
 - The compiled-companion cache and SPI example composition passes complete **Linux x64 and macOS ARM64/PostgreSQL 18.6**, and **Windows x64/PostgreSQL 17.11** suites: **11,359 total per platform**, zero failures, with platform counts and durations above. All **430** source identities and the respective **26/24/52** runtime identities verify afterward. The sample preserves pgrx's shared input/TABLE-output names after correcting an overly strict generator rule. Its **nine** corrected native Linux cases and **3,098** generator cases pass. Release has zero warnings/errors; API freshness verifies **238 pages / 2,757 members**, and site build/check passes with zero diagnostics. Before committing, prior primary CI **37079091457** and Docs **37079091438** remain successful, with no active runs. Replacement CI and complete Intel acceptance remain required. Detailed earlier failures, corrections and focused platform evidence remain in the history.
 - Compiled-companion reuse now stages the selected runtime at an owned logical location and keys the generator by content. Current helper/runtime bytes are checked before lookup, publication and reuse; consumer restore policy is unchanged. The new regression fails against unchanged production and passes after correction. Linux x64 build-tool checks pass **1,204 total; 1,195 passed; zero failures; nine platform skips; 1m18.984s**. A real binding probe reduces three compilations/entries to one while preserving every DLL/PDB/XML byte against the original baseline, including relocation and producer cleanup. Complete composed acceptance, platform checks and final gates remain required; the Intel timeout is not yet resolved.
 - Published compiler-helper namespace migration **71095c9** passes [primary CI 37079091457](https://github.com/willibrandon/ankus/actions/runs/37079091457) and [Docs 37079091438](https://github.com/willibrandon/ankus/actions/runs/37079091438). All runtime jobs and quality pass; six downloaded TRX modules per platform independently confirm the complete counters above. This supersedes the pending primary-CI requirement in the namespace entry below. The independent intermittent Native AOT compiler failure and Intel timeout remain unresolved.
@@ -199,8 +204,9 @@ primary-platform CI pass without weakening the original assertions.
 
 Keep complete version/platform gaps visible. The scheduled workflow, labels,
 installed prerequisites or an unfinished suite do not replace successful results.
-Every job retains the requested **60-minute** limit. Record measured durations
-and timeouts; do not shard the complete suite or cancel runs automatically.
+Primary jobs retain the requested **60-minute** limit; Intel macOS jobs now use
+the subsequently approved **360-minute** limit. Record measured durations and
+timeouts; do not shard the complete suite or cancel runs automatically.
 
 ## Remaining work order
 

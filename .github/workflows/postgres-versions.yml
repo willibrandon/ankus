@@ -42,7 +42,7 @@ jobs:
         id: runtime-cache
         with:
           path: artifacts/nativeaot/linux-x64
-          key: nativeaot-v2-linux-x64-versions-${{ steps.runtime.outputs.commit }}
+          key: nativeaot-v3-linux-x64-versions-${{ steps.runtime.outputs.commit }}
 
       - uses: actions/checkout@v5
         if: steps.runtime-cache.outputs.cache-hit != 'true'

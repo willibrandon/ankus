@@ -6,6 +6,8 @@
     <_AnkusDevelopmentRuntimeIdentifier Condition="'$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)</_AnkusDevelopmentRuntimeIdentifier>
     <_AnkusDevelopmentRuntimeIdentifier Condition="'$(_AnkusDevelopmentRuntimeIdentifier)' == ''">$(NETCoreSdkRuntimeIdentifier)</_AnkusDevelopmentRuntimeIdentifier>
     <AnkusNativeAotSdkPath Condition="'$(AnkusNativeAotSdkPath)' == '' and Exists('$(MSBuildThisFileDirectory)../../artifacts/nativeaot/$(_AnkusDevelopmentRuntimeIdentifier)/aotsdk/System.Private.CoreLib.dll')">$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)', '..', '..', 'artifacts', 'nativeaot', '$(_AnkusDevelopmentRuntimeIdentifier)', 'aotsdk'))</AnkusNativeAotSdkPath>
+    <AnkusNativeAotCompilerToolsPath Condition="'$(AnkusNativeAotCompilerToolsPath)' == '' and Exists('$(MSBuildThisFileDirectory)../../artifacts/nativeaot/$(NETCoreSdkRuntimeIdentifier)/compiler/ilc')">$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)', '..', '..', 'artifacts', 'nativeaot', '$(NETCoreSdkRuntimeIdentifier)', 'compiler'))</AnkusNativeAotCompilerToolsPath>
+    <AnkusNativeAotCompilerToolsPath Condition="'$(AnkusNativeAotCompilerToolsPath)' == '' and Exists('$(MSBuildThisFileDirectory)../../artifacts/nativeaot/$(NETCoreSdkRuntimeIdentifier)/compiler/ilc.exe')">$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)', '..', '..', 'artifacts', 'nativeaot', '$(NETCoreSdkRuntimeIdentifier)', 'compiler'))</AnkusNativeAotCompilerToolsPath>
   </PropertyGroup>
 
   <ItemGroup>

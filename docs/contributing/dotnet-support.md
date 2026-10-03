@@ -35,17 +35,26 @@ installs the latest stable 10.0 SDK. This selection must remain separate from th
 runtime included in published extensions.
 
 `eng/Ankus.Ci.cs` pins upstream `v10.0.12`, fork commit
-`a96595dcd43cf770466315673afd6cf04669d4c8`, runtime package
-`10.0.12-ankus.2`, and ILCompiler `10.0.12`. The SDK target and per-RID runtime
-package properties carry matching identities. Framework runtime packs also use
-10.0.12 instead of following the installed SDK's default patch. Check
+`a20021dfdf03c51b46f2bf9d10050806826e0b4c`, runtime and compiler-host packages
+`10.0.12-ankus.3`, and ILCompiler targets/framework packs `10.0.12`. The SDK
+target and per-RID package properties carry matching target runtime and host
+compiler identities. Framework runtime packs also use 10.0.12 instead of
+following the installed SDK's default patch. Check
 `PROGRESS.md` for completed platform evidence and recheck upstream servicing
 before publishing `0.1.0`.
 
+The compiler executable embeds Native AOT runtime code too. Building ILCompiler
+from the fork does not automatically link the fork's runtime: its publish command
+must explicitly select the freshly built `aotsdk` through `IlcSdkPath`.
+`runtime-build` does this, builds the cross-target JIT libraries, and stages the
+compiler alongside the target runtime. The SDK restores the compiler package for
+the build host RID and the runtime package for the extension target RID.
+
 The SDK checks compiler/package/RID agreement, rejects targets other than
 `net10.0` before framework resolution, and rejects a conflicting
-`RuntimeFrameworkVersion` override. Packed-consumer tests inspect the actual
-restored compiler and framework-pack versions and verify incompatible settings
+`RuntimeFrameworkVersion`, `IlcSdkPath` or `IlcToolsPath` override.
+Packed-consumer tests inspect the actual compiler bytes, restored compiler and
+framework-pack versions, and verify incompatible settings
 fail before publication. Extend this explicit selection to a supported-TFM
 table when introducing a second runtime line; an unknown target must never
 fall back to the .NET 10 payload.
@@ -114,7 +123,8 @@ scheduled/manual preview lane if useful; it must record failures without
 weakening stable checks. Stable runtime/compiler changes require the affected
 full platform suites. A newly supported .NET major becomes part of the required
 CI/release matrix. Reuse caches, run independent jobs in parallel, retain the
-60-minute per-job limit and measure durations; do not shard or substitute smoke
+60-minute primary-job limit and the approved 360-minute Intel macOS limit, and
+measure durations; do not shard or substitute smoke
 tests for platform evidence.
 
 ## Servicing a supported runtime line

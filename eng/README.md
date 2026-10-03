@@ -20,8 +20,8 @@ repository root with `dotnet run --file`.
 | `runtime-info` | Validate and print the checkout's runtime repository, commit and matching package/compiler versions locally. |
 | `release-metadata` | Validate a release tag and export release metadata. |
 | `quality` | Install PostgreSQL headers, build Ankus and validate generated API and site documentation. |
-| `runtime-build` | Build and stage one runtime for CI. |
-| `runtime-pack` | Pack a staged runtime for CI. |
+| `runtime-build` | Build and stage the runtime and compiler host for the runner's platform. |
+| `runtime-pack` | Pack a staged runtime and compiler host for CI. |
 | `runtime-test` | Use a staged runtime to run the complete unit and PostgreSQL integration test suites. |
 | `runtime-test-build` | Prepare the staged runtime's PostgreSQL toolchain and build all test projects before saving CI caches. |
 | `windows-toolchain` | Select the latest supported Visual Studio installation with C++ x64 tools and export its developer environment to later CI steps. |
@@ -31,14 +31,13 @@ repository root with `dotnet run --file`.
 | `unit-test` | Build and run the five unit test modules. |
 | `prepare-reports` | Copy test results and server logs with private runner identifiers removed before artifact upload. |
 | `release-managed` | Pack the managed NuGet packages. |
-| `release-runtime` | Build and pack one platform runtime package. |
+| `release-runtime` | Build and pack the runtime and compiler host for one platform. |
 | `publish` | Validate and publish the complete NuGet package set. |
 
-Native Linux/macOS runtime builds also execute the fork's bounded host-shutdown
+Runtime and compiler packages are built on their own operating system and
+architecture, including Intel macOS. Linux/macOS builds also execute the fork's bounded host-shutdown
 probes before staging a payload. They require normal process exit and managed
-thread cleanup, including mutex abandonment, GC and finalizer drain. A macOS
-cross-build compiles its payload but requires separate execution on that
-architecture; it does not claim native shutdown test evidence.
+thread cleanup, including mutex abandonment, GC and finalizer drain.
 
 Use `--` before command arguments:
 
@@ -63,7 +62,8 @@ exports the selected PostgreSQL installation and compiler path to subsequent
 GitHub Actions steps. `AnkusBindingCacheDirectory` selects the restored cache;
 normal header preprocessing, native ABI verification and content checks still
 run before reuse. The full suite remains in one platform job with a 60-minute
-timeout. `runtime-test` retains the combined local command.
+timeout on primary platforms and 360 minutes on Intel macOS.
+`runtime-test` retains the combined local command.
 Test commands write each module's TRX results and durations to
 `artifacts/test-results`; platform CI uploads available reports on every outcome.
 
@@ -81,7 +81,7 @@ The `Additional platforms` workflow runs the complete PostgreSQL 18 suite on a
 GitHub-hosted Intel macOS runner weekly and on manual dispatch. This covers the
 release architecture unavailable on the dedicated machines. Runtime, NuGet and
 binding caches are saved before tests so later runs reuse successful preparation.
-Each run retains test results and timings; the job limit remains 60 minutes.
+Each run retains test results and timings; both jobs allow 360 minutes.
 Successful execution is required before counting Intel macOS as validated.
 
 The `PostgreSQL versions` workflow runs complete Linux x64 suites for PostgreSQL
@@ -175,7 +175,8 @@ and `TMP` for its service account. Native binding entries persist in
 `runner.tool_cache/ankus-binding-cache` and retain normal content and ABI
 validation. Self-hosted jobs reuse these local caches; hosted jobs continue to
 restore and save GitHub caches. All platform suites remain complete and
-unsharded with the same 60-minute job limit. Workflows do not automatically
+unsharded with a 60-minute primary-job limit and 360 minutes on Intel macOS.
+Workflows do not automatically
 cancel earlier runs; jobs queue while their dedicated runner is busy.
 
 `ANKUS_PACKAGE_TEST_CONCURRENCY` controls package-consumer test slots and accepts

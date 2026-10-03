@@ -20,6 +20,7 @@
     <Project Path="src/Ankus.Build/Ankus.Build.csproj" />
     <Project Path="src/Ankus.DocGenerator/Ankus.DocGenerator.csproj" />
     <Project Path="src/Ankus.Generators/Ankus.Generators.csproj" />
+    <Project Path="src/Ankus.NativeAot.Compiler/Ankus.NativeAot.Compiler.csproj" />
     <Project Path="src/Ankus.NativeAot.Runtime/Ankus.NativeAot.Runtime.csproj" />
     <Project Path="src/Ankus.PgConfig/Ankus.PgConfig.csproj" />
     <Project Path="src/Ankus.Runtime/Ankus.Runtime.csproj" />

@@ -11,8 +11,8 @@ using Ankus.PgConfig;
 
 const string RuntimeRepository = "willibrandon/runtime";
 const string RuntimeBase = "v10.0.12";
-const string RuntimeCommit = "a96595dcd43cf770466315673afd6cf04669d4c8";
-const string RuntimeVersion = "10.0.12-ankus.2";
+const string RuntimeCommit = "a20021dfdf03c51b46f2bf9d10050806826e0b4c";
+const string RuntimeVersion = "10.0.12-ankus.3";
 const string RuntimeCompilerVersion = "10.0.12";
 
 string repositoryRoot = FindRepositoryRoot();
@@ -80,6 +80,7 @@ try
                 repositoryRoot,
                 args[1],
                 GetStagedRuntimePath(repositoryRoot, args[1]),
+                GetStagedCompilerPath(repositoryRoot, args[1]),
                 GetStagedRuntimeSourcePath(repositoryRoot, args[1]));
             break;
 
@@ -145,6 +146,7 @@ try
                 repositoryRoot,
                 args[3],
                 GetBuiltRuntimePath(repositoryRoot, args[1], args[2]),
+                GetBuiltCompilerPath(repositoryRoot, args[1], args[2]),
                 Path.Combine(repositoryRoot, "runtime"));
             break;
 
@@ -223,6 +225,11 @@ static void ValidateRuntimeIdentity(string repositoryRoot)
 
     string[] runtimeFiles =
     [
+        "src/Ankus.NativeAot.Compiler/Ankus.NativeAot.Compiler.csproj",
+        "src/Ankus.NativeAot.Compiler/build/Ankus.NativeAot.Compiler.linux-x64.props",
+        "src/Ankus.NativeAot.Compiler/build/Ankus.NativeAot.Compiler.osx-arm64.props",
+        "src/Ankus.NativeAot.Compiler/build/Ankus.NativeAot.Compiler.osx-x64.props",
+        "src/Ankus.NativeAot.Compiler/build/Ankus.NativeAot.Compiler.win-x64.props",
         "src/Ankus.NativeAot.Runtime/Ankus.NativeAot.Runtime.csproj",
         "src/Ankus.NativeAot.Runtime/build/Ankus.NativeAot.Runtime.linux-x64.props",
         "src/Ankus.NativeAot.Runtime/build/Ankus.NativeAot.Runtime.osx-arm64.props",
@@ -238,6 +245,10 @@ static void ValidateRuntimeIdentity(string repositoryRoot)
 
     string[] compilerFiles =
     [
+        "src/Ankus.NativeAot.Compiler/build/Ankus.NativeAot.Compiler.linux-x64.props",
+        "src/Ankus.NativeAot.Compiler/build/Ankus.NativeAot.Compiler.osx-arm64.props",
+        "src/Ankus.NativeAot.Compiler/build/Ankus.NativeAot.Compiler.osx-x64.props",
+        "src/Ankus.NativeAot.Compiler/build/Ankus.NativeAot.Compiler.win-x64.props",
         "src/Ankus.NativeAot.Runtime/build/Ankus.NativeAot.Runtime.linux-x64.props",
         "src/Ankus.NativeAot.Runtime/build/Ankus.NativeAot.Runtime.osx-arm64.props",
         "src/Ankus.NativeAot.Runtime/build/Ankus.NativeAot.Runtime.osx-x64.props",
@@ -298,7 +309,7 @@ static void BuildRuntime(string repositoryRoot, string platform, string architec
     List<string> arguments =
     [
         "-s",
-        "clr.nativeaotruntime+clr.nativeaotlibs",
+        "clr.nativeaotruntime+clr.nativeaotlibs+clr.alljits",
         "-c",
         "Release",
         "-arch",
@@ -309,16 +320,25 @@ static void BuildRuntime(string repositoryRoot, string platform, string architec
     if (OperatingSystem.IsWindows())
     {
         Run(Path.Combine(runtimeRoot, "build.cmd"), arguments, runtimeRoot, true);
-        return;
     }
-
-    if (IsMacOsCrossBuild(architecture))
+    else
     {
-        arguments.Add("-cross");
+        Run(Path.Combine(runtimeRoot, "build.sh"), arguments, runtimeRoot);
     }
 
-    Run(Path.Combine(runtimeRoot, "build.sh"), arguments, runtimeRoot);
-    if (!IsMacOsCrossBuild(architecture))
+    string runtimeDotNet = Path.Combine(runtimeRoot, OperatingSystem.IsWindows() ? "dotnet.cmd" : "dotnet.sh");
+    Run(runtimeDotNet,
+    [
+        "publish",
+        Path.Combine(runtimeRoot, "src", "coreclr", "tools", "aot", "ILCompiler", "ILCompiler_publish.csproj"),
+        "--configuration", "Release",
+        "-p:UseNativeAotForComponents=true",
+        $"-p:IlcSdkPath={GetBuiltRuntimePath(repositoryRoot, platform, architecture)}{Path.DirectorySeparatorChar}",
+        $"-p:RuntimeFrameworkVersion={RuntimeCompilerVersion}",
+        "/p:ManagePackageVersionsCentrally=false",
+    ], runtimeRoot, OperatingSystem.IsWindows());
+
+    if (!OperatingSystem.IsWindows())
     {
         VerifyNativeHostShutdown(repositoryRoot, platform, architecture);
     }
@@ -335,6 +355,7 @@ static void VerifyNativeHostShutdown(string repositoryRoot, string platform, str
         "publish", Path.Combine(probeRoot, "NativeHostShutdownProbe.csproj"),
         "--configuration", "Release", "--runtime", runtimeIdentifier, "--output", output,
         $"-p:IlcSdkPath={GetBuiltRuntimePath(repositoryRoot, platform, architecture)}{Path.DirectorySeparatorChar}",
+        $"-p:IlcToolsPath={GetBuiltCompilerPath(repositoryRoot, platform, architecture)}{Path.DirectorySeparatorChar}",
     ]);
 
     string host = Path.Combine(output, "host");
@@ -353,10 +374,6 @@ static void VerifyNativeHostShutdown(string repositoryRoot, string platform, str
     Run(host, [Path.Combine(output, library)]);
 }
 
-static bool IsMacOsCrossBuild(string architecture)
-    => OperatingSystem.IsMacOS() && (architecture, RuntimeInformation.ProcessArchitecture) is
-        ("x64", Architecture.Arm64) or ("arm64", Architecture.X64);
-
 static void VerifyPlatform(string platform, string architecture)
 {
     bool matches = platform switch
@@ -367,9 +384,12 @@ static void VerifyPlatform(string platform, string architecture)
         _ => false,
     };
 
-    if (!matches)
+    bool matchesArchitecture = (architecture, RuntimeInformation.ProcessArchitecture) is
+        ("x64", Architecture.X64) or ("arm64", Architecture.Arm64);
+
+    if (!matches || !matchesArchitecture)
     {
-        throw new PlatformNotSupportedException($"The {platform}-{architecture} runtime cannot be built on this runner.");
+        throw new PlatformNotSupportedException($"The {platform}-{architecture} runtime and compiler require a runner with the same operating system and architecture.");
     }
 }
 
@@ -418,9 +438,19 @@ static string GetBuiltRuntimePath(string repositoryRoot, string platform, string
     return Path.Combine(repositoryRoot, "runtime", "artifacts", "bin", "coreclr", $"{platform}.{architecture}.Release", "aotsdk");
 }
 
+static string GetBuiltCompilerPath(string repositoryRoot, string platform, string architecture)
+{
+    return Path.Combine(repositoryRoot, "runtime", "artifacts", "bin", "coreclr", $"{platform}.{architecture}.Release", "ilc-published");
+}
+
 static string GetStagedRuntimePath(string repositoryRoot, string runtimeIdentifier)
 {
     return Path.Combine(repositoryRoot, "artifacts", "nativeaot", runtimeIdentifier, "aotsdk");
+}
+
+static string GetStagedCompilerPath(string repositoryRoot, string runtimeIdentifier)
+{
+    return Path.Combine(repositoryRoot, "artifacts", "nativeaot", runtimeIdentifier, "compiler");
 }
 
 static string GetStagedRuntimeSourcePath(string repositoryRoot, string runtimeIdentifier)
@@ -432,6 +462,8 @@ static void StageRuntime(string repositoryRoot, string platform, string architec
 {
     string source = GetBuiltRuntimePath(repositoryRoot, platform, architecture);
     string destination = GetStagedRuntimePath(repositoryRoot, runtimeIdentifier);
+    string compilerSource = GetBuiltCompilerPath(repositoryRoot, platform, architecture);
+    string compilerDestination = GetStagedCompilerPath(repositoryRoot, runtimeIdentifier);
 
     if (!Directory.Exists(source))
     {
@@ -439,6 +471,13 @@ static void StageRuntime(string repositoryRoot, string platform, string architec
     }
 
     CopyDirectory(source, destination);
+
+    if (!Directory.Exists(compilerSource))
+    {
+        throw new DirectoryNotFoundException($"Compiler output was not found at {compilerSource}.");
+    }
+
+    CopyDirectory(compilerSource, compilerDestination);
 
     string runtimeSource = Path.Combine(repositoryRoot, "runtime");
     string stagedSource = GetStagedRuntimeSourcePath(repositoryRoot, runtimeIdentifier);
@@ -462,12 +501,21 @@ static void VerifyStagedRuntime(string repositoryRoot, string runtimeIdentifier)
 {
     string path = GetStagedRuntimePath(repositoryRoot, runtimeIdentifier);
     string sourcePath = GetStagedRuntimeSourcePath(repositoryRoot, runtimeIdentifier);
+    string compilerPath = GetStagedCompilerPath(repositoryRoot, runtimeIdentifier);
+    string compilerExecutable = Path.Combine(compilerPath, runtimeIdentifier == "win-x64" ? "ilc.exe" : "ilc");
 
     if (!File.Exists(Path.Combine(path, "System.Private.CoreLib.dll"))
+        || !File.Exists(compilerExecutable)
         || !File.Exists(Path.Combine(sourcePath, "LICENSE.TXT"))
         || !File.Exists(Path.Combine(sourcePath, "THIRD-PARTY-NOTICES.TXT")))
     {
         throw new DirectoryNotFoundException($"The staged {runtimeIdentifier} runtime is incomplete.");
+    }
+
+    if (!OperatingSystem.IsWindows())
+    {
+        // Downloaded workflow artifacts do not preserve Unix executable permissions.
+        File.SetUnixFileMode(compilerExecutable, File.GetUnixFileMode(compilerExecutable) | UnixFileMode.UserExecute);
     }
 }
 
@@ -995,6 +1043,7 @@ static void PackRuntime(
     string repositoryRoot,
     string runtimeIdentifier,
     string runtimeSdkPath,
+    string compilerToolsPath,
     string runtimeSourcePath)
 {
     string normalizedSdkPath = Path.EndsInDirectorySeparator(runtimeSdkPath)
@@ -1014,6 +1063,24 @@ static void PackRuntime(
         $"-p:AnkusRuntimeSdkPath={normalizedSdkPath}",
         $"-p:AnkusRuntimeSourcePath={runtimeSourcePath}",
     ], repositoryRoot);
+
+    string normalizedCompilerPath = Path.EndsInDirectorySeparator(compilerToolsPath)
+        ? compilerToolsPath
+        : compilerToolsPath + Path.DirectorySeparatorChar;
+    Run(GetDotNetHost(),
+    [
+        "pack",
+        "src/Ankus.NativeAot.Compiler/Ankus.NativeAot.Compiler.csproj",
+        "--configuration",
+        "Release",
+        "--output",
+        "artifacts/packages",
+        "-m:1",
+        $"-p:PackageVersion={RuntimeVersion}",
+        $"-p:AnkusCompilerRuntimeIdentifier={runtimeIdentifier}",
+        $"-p:AnkusCompilerToolsPath={normalizedCompilerPath}",
+        $"-p:AnkusRuntimeSourcePath={runtimeSourcePath}",
+    ], repositoryRoot);
 }
 
 static void PublishPackages(string repositoryRoot, string packageVersion)
@@ -1025,6 +1092,10 @@ static void PublishPackages(string repositoryRoot, string packageVersion)
         $"Ankus.NativeAot.Runtime.osx-arm64.{RuntimeVersion}.nupkg",
         $"Ankus.NativeAot.Runtime.osx-x64.{RuntimeVersion}.nupkg",
         $"Ankus.NativeAot.Runtime.win-x64.{RuntimeVersion}.nupkg",
+        $"Ankus.NativeAot.Compiler.linux-x64.{RuntimeVersion}.nupkg",
+        $"Ankus.NativeAot.Compiler.osx-arm64.{RuntimeVersion}.nupkg",
+        $"Ankus.NativeAot.Compiler.osx-x64.{RuntimeVersion}.nupkg",
+        $"Ankus.NativeAot.Compiler.win-x64.{RuntimeVersion}.nupkg",
         $"Ankus.Generators.{packageVersion}.nupkg",
         $"Ankus.PgConfig.{packageVersion}.nupkg",
         $"Ankus.Runtime.{packageVersion}.nupkg",

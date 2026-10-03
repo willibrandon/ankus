@@ -79,7 +79,7 @@ jobs:
         id: runtime-cache
         with:
           path: artifacts/nativeaot/${{ matrix.rid }}
-          key: nativeaot-v2-${{ matrix.rid }}-${{ runner.os != 'Windows' && runner.environment == 'self-hosted' && 'dedicated-' || '' }}${{ steps.runtime.outputs.commit }}
+          key: nativeaot-v3-${{ matrix.rid }}-${{ runner.os != 'Windows' && runner.environment == 'self-hosted' && 'dedicated-' || '' }}${{ steps.runtime.outputs.commit }}
 
       - uses: actions/checkout@v5
         if: steps.runtime-cache.outputs.cache-hit != 'true'

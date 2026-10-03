@@ -1,6 +1,99 @@
 # Historical port evidence
 
+## Native AOT GC correction and compiler packaging
+
+The runtime fork now includes upstream [dotnet/runtime#127640](https://github.com/dotnet/runtime/pull/127640)
+as commit `a20021dfdf03c51b46f2bf9d10050806826e0b4c`. When the GC unwinds a
+universal-transition thunk, the managed caller is still inactive. Leaving
+`ActiveStackFrame` set incorrectly reports scratch registers from the caller's
+post-call GC map. Upstream captured an interface-dispatch code pointer reported
+as an object reference. Clearing that flag preserves the caller's other roots
+and the conservative thunk range while preventing the invalid precise root.
+
+Ankus's retained `GraphBuilder.WalkMethod + 0xc5f` failure matches
+[dotnet/runtime#122845](https://github.com/dotnet/runtime/issues/122845).
+Upstream continued seeing that failure in April 27 Preview 5 compiler builds,
+before the May 2 GC correction, and stopped seeing it after moving off Preview 5.
+The old compiler's source and machine code lack this correction. This supports
+the GC defect as the explanation for the intermittent compiler corruption;
+it is an inference from upstream evidence, not a captured local failing GC root.
+The unchanged failing compilation never reproduced locally under the retained
+diagnostic workload. Successful replays alone do not establish causation.
+
+Building ILCompiler from patched source initially produced a compiler that still
+embedded the stock runtime. Its first **128/128** replay result is therefore
+baseline evidence, superseded as patched-compiler evidence. The build now passes
+the newly built `aotsdk` explicitly as `IlcSdkPath` and selects framework patch
+**10.0.12**. The corrected Linux compiler's machine code contains the
+`ActiveStackFrame` clear (`andb $0xbf`); the earlier binary does not. Its SHA-256
+is `EF462423BED7C8AED7700264BF4DEBD65571FBFFD3DE0DCB982E537DBA4B5D59`.
+This corrected executable completes **128/128** full retained-input compilations
+at eight concurrent processes, with zero failures or timeouts. Release runtime,
+JIT and compiler builds pass; building all cross-target JITs takes **41.07s**
+with zero warnings or errors.
+
+Ankus selects immutable runtime and compiler-host packages
+**10.0.12-ankus.3**. The compiler package follows the build host RID; the runtime
+package follows the extension target RID. Compiler publication includes matching
+native JIT libraries. Packed-consumer checks compare actual compiler bytes and
+reject conflicting compiler overrides. CI restores the executable permission
+after downloading Unix artifacts. The existing Unix shutdown probe also compiles
+with the patched compiler. Runtime artifact cache identities change to include
+this new compiler payload generation.
+
+The complete Release solution build passes with zero warnings/errors in
+**2m33.41s**. API freshness and site build/check pass; the site builds **286 pages**
+and reports zero errors, warnings or hints.
+
+The nine focused installed-package cases pass on **Linux x64/PostgreSQL 18.6**:
+**nine passed, zero failures/skips, 3m29.221s**. They verify the restored compiler
+bytes, matching SDK selection, rejected conflicting settings and an installed,
+preloaded extension executing in PostgreSQL. The first attempt stopped during
+assembly setup with MSBuild child-node errors, before test assertions ran. Two
+abandoned local builds were subsequently found and terminated. The unchanged
+tests then passed with normal node reuse and retained child-node diagnostics;
+no compiler crash or new worker diagnostic was recorded. The first failure's
+worker diagnostic was unavailable, so its precise cause remains unproven.
+Complete replacement platform suites remain required before accepting the
+composition.
+
+The native host-shutdown probe is published with both corrected payload paths.
+All three Linux cases pass: return from native `main`, process `exit`, and native
+owner-thread `pthread_exit`, including managed thread cleanup and GC/finalizer
+drain. The native supervisor uses the available system C compiler; an initial
+attempt found no unversioned `clang` command after publication had succeeded.
+
+An isolated artifact-staging check removes the Unix compiler executable bit
+before running the actual `runtime-pack` command. It restores mode **0744**,
+successfully packs both **10.0.12-ankus.3** payloads, and the restored compiler's
+help command exits successfully. Runtime identity validation and workflow
+linting also pass.
+
+The first complete-suite attempt uses an invalid temporary directory inside the
+repository. This causes the Git-error fixture to discover the enclosing checkout
+and a standalone accessor fixture to inherit repository build rules. The run is
+canceled; those results do not establish a product regression. The replacement
+uses disk-backed temporary storage outside the checkout. Contributor guidance
+now states this isolation requirement explicitly.
+
+The replacement ordinary `dotnet test` run, with TRX reporting, passes all six
+modules on **Linux x64/PostgreSQL 18.6**: **11,360 total; 11,346 passed; zero
+failures; 14 platform skips; 33m32.502s**. Integration contributes **4,539 total,
+4,534 passed and five platform skips**. All six completed reports confirm the
+totals. The staged compiler retains the verified SHA-256 above. The final site
+build produces **286 pages in 3.84s**, and its check reports zero errors,
+warnings or hints.
+
+Immediately before committing, primary CI **37084745267** and Docs
+**37084745237** on **0ddc6e9** remain successful. No runs are active or queued.
+Intel **37084785806** retains its recorded 60-minute timeout; the replacement
+workflow now permits 360 minutes. Fresh full platform CI is required after
+pushing this composition.
+
 ## Native AOT compiler failure: root-cause investigation
+
+This records the earlier investigation. The correction and its evidence limits
+are documented above; historical statements below describe that earlier state.
 
 The intermittent `GraphBuilder.WalkMethod` failure remains a required correction.
 Successful retries and complete later suites do not establish its cause or fix.
@@ -26,6 +119,58 @@ private GC-pressure observations complete scanning without the failure. These
 are diagnostic observations, not full compilations or a resolution. A bounded
 larger reproduction is in progress. Compiler flags, test assertions and CI retry
 policy remain unchanged.
+
+Further reproduction separates debugger timing from compiler execution. An
+isolated copy of the exact compiler traps only at the previously identified
+bounds-exception instruction. Complete repeated compilations, including higher
+compiler parallelism and verified heap checking, have not reproduced the error.
+An independently built diagnostic compiler also runs with explicit compacting
+or background collections. Thirty-two complete compilations with background
+collections and heap checking, without an attached debugger, all succeed and
+produce identical object bytes. None of these diagnostic executables replaces
+the compiler shipped to consumers.
+
+Debugger observations confirm actual collections and universal-transition
+unwinds. The observed callers are inactive frames, so these observations do not
+establish the active-frame GC defects fixed upstream as this failure's cause.
+Memcheck completes compilation but reports **8,542 errors in 216 contexts**,
+with zero suppressions. The early managed reports concern value-tuple padding;
+the remaining native-code-generation reports need further classification. This
+is not a clean Memcheck result or a reproduction of the original bounds error.
+A complete unchanged-source Linux suite also passes with the exact compiler
+copy instrumented only at the recorded bounds-exception instruction: **11,359
+total, 11,345 passed, 14 platform skips and zero failures** in **40m53.307s**.
+The observer verifies the selected compiler bytes, unlimited core limit and
+complete core-dump filter for actual compiler processes; no compiler core is
+captured. Thirty-two further complete compilations with forced generation-zero
+collections and heap verification all pass with identical object bytes. A
+debugger run observes **1,103 actual generation-zero collections** without the
+original failure. These results exhaust ordinary repetition and managed
+collection pressure; a Checked NativeAOT runtime with call-site GC stress is
+the next causal experiment. The root cause and product correction remain
+unresolved.
+
+For **0ddc6e9**, [primary CI 37084745267](https://github.com/willibrandon/ankus/actions/runs/37084745267)
+passes quality, all runtime jobs and all complete primary-platform suites.
+Six downloaded TRX modules per platform independently confirm **11,359 total**:
+Linux x64/PostgreSQL 18.6 has **11,345 passed / 14 platform skips**;
+Windows x64/PostgreSQL 17.11 has **11,334 / 25**;
+macOS ARM64/PostgreSQL 18.6 has **11,333 / 26**. All have zero failures.
+Platform job durations, including setup and cleanup, are **36m07s**, **30m58s**
+and **26m45s**, respectively.
+[Docs 37084745237](https://github.com/willibrandon/ankus/actions/runs/37084745237)
+also passes. Independent compiler root-cause work and Intel macOS acceptance
+remain open.
+
+The same commit's Intel macOS [run 37084785806](https://github.com/willibrandon/ankus/actions/runs/37084785806)
+uses two package-test slots and exceeds its **60-minute** limit, confirmed by
+the job annotation. Its total duration including cleanup is **61m45s**.
+The initial test build takes **6m48s**; the full test step runs **50m37s**.
+Five completed TRX modules contain **6,821 total, 6,812 passed, nine skips and
+zero failures**. Integration has no completed report, so this remains incomplete
+platform evidence. Both Intel jobs now use GitHub's six-hour hosted-job maximum
+so the unchanged full suite can complete. Logs and timing artifacts are retained
+for comparison with the replacement run.
 
 ## SPI and SPI table examples: implementation draft
 

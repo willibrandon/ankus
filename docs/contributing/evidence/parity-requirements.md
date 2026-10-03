@@ -162,9 +162,12 @@ The `samples/Ankus.Examples.Hello`, `samples/Ankus.Examples.Enums`, `samples/Ank
 `samples/Ankus.Examples.Sets`, `samples/Ankus.Examples.Composites` and
 `samples/Ankus.Examples.Ranges` samples are validated. Full example parity is pending.
 
-The `samples/Ankus.Examples.Spi` draft combines `spi` and `spi_srf`. Nine
-published-native cases pass on macOS ARM64/PostgreSQL 18.6; complete composed
-acceptance remains pending.
+The `samples/Ankus.Examples.Spi` sample combines `spi` and `spi_srf`. Its nine
+published-native cases and complete composed suites pass on Linux x64 and macOS
+ARM64/PostgreSQL 18.6, and Windows x64/PostgreSQL 17.11. Primary CI
+[37084745267](https://github.com/willibrandon/ankus/actions/runs/37084745267)
+confirms all three platforms on `0ddc6e9`. Other sample and platform requirements
+remain open.
 
 Required test-source inventory:
 

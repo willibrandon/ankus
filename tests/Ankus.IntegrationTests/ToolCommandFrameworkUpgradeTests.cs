@@ -95,7 +95,7 @@ public sealed partial class ToolCommandTests
             "<PackageReference Include='Ankus.Testing' Version='$(Shared)' />" +
             "<PackageReference Include='Other' Version='$(Shared)' />" +
             "<PackageReference Include='Ankus.PgConfig'><Version>$(Empty)</Version></PackageReference>" +
-            "<PackageReference Include='Ankus.NativeAot.Runtime' Version='10.0.12-ankus.2' /></ItemGroup>\r\n</Project>\r\n";
+            "<PackageReference Include='Ankus.NativeAot.Runtime' Version='10.0.12-ankus.3' /></ItemGroup>\r\n</Project>\r\n";
         original = original.Replace("\r\n", lineEnding, StringComparison.Ordinal);
         Encoding encoding = unicode ? Encoding.Unicode : new UTF8Encoding(false);
         await File.WriteAllTextAsync(project, original, encoding, token);
