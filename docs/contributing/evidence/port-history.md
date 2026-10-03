@@ -1,5 +1,65 @@
 # Historical port evidence
 
+## Precise function and schema diagnostics
+
+Function/schema validation previously combined unrelated contracts under
+`ANKUS004` and usually reported the method name. The isolated replacement uses
+`ANKUS045`–`ANKUS063`, precise option/result/parameter locations and public
+correction links. PostgreSQL validation rules and generated SQL are preserved.
+The original production fails all **20** new option regressions with the old
+diagnostic; corrected production passes them. Six schema cases cover invalid
+identifiers and the reserved creation prefix. Two additional tests prove exact
+current locations after an earlier declaration grows, an earlier file is
+inserted, and an inherited schema resides in another partial declaration.
+
+Composed with the accepted assembly-access changes, the complete generator
+module passes **3,177/3,177**, zero failures/skips, in **1m24.438s**. Release
+passes with zero warnings/errors in **2m49.16s**. API freshness verifies
+**238 pages / 2,757 members**; the site builds **286 pages in 5.89s**, and its
+check reports zero errors, warnings or hints. All **45** changed source/test/
+public-guide identities verify before and after the complete ordinary
+**Linux x64/PostgreSQL 18.6** suite. It passes **11,441 total; 11,427 passed;
+zero failures; 14 platform skips**, in **38m38.584s**. All six completed TRX
+reports are retained and independently totaled: generator **3,177 passed**,
+integration **4,536 passed / five platform skips**. The same 45 source/test/
+public-guide identities verify after promotion to the main checkout.
+
+### Dependent operator and cast draft
+
+The dependent operator/cast draft replaces `ANKUS007` with
+`ANKUS064`–`ANKUS079`, preserving the same PostgreSQL contracts. It distinguishes
+operand counts, variadic arguments, result types, operator options/references,
+cast contexts, modifier/explicit-conversion arguments and endpoint identity.
+Errors point to the authored value, type, modifier or argument list and link to
+the public guide. Injected managed contexts do not shift SQL operand locations.
+
+All **30** new contract cases fail against old production in **3.242s**, then
+pass after correction in **4.653s**. Three C# special-method cases and two
+cache/current-location cases extend coverage. The complete combined generator
+module passes **3,212/3,212**, zero failures/skips, in **2m12.831s**. A subsequent
+test-only change disambiguates repeated token text by asserting the exact
+source offset; all **36** matching cases then pass in **5.562s**, including
+all 35 new cases and one existing raw-binding case. Production is unchanged
+between those runs. Existing boundary and SQL assertions remain in place.
+
+The operator/cast Release build passes with zero warnings/errors in
+**5m17.67s**. API freshness verifies **238 pages / 2,757 members**; the site
+builds **286 pages in 3.75s**, with zero check errors, warnings or hints.
+Its complete native suite is now running separately. Neither draft relaxes analyzer
+policy or adds suppressions. Aggregate diagnostic specificity, remaining help
+links, useful semantic code fixes and final platform acceptance remain open.
+
+Before committing the function/schema milestone, **CI 37107730859** on
+**c285382** passes quality, every runtime job and all three complete suites.
+Six downloaded reports per platform confirm **11,413 total** and zero failures.
+Linux x64/PostgreSQL 18 reports **11,399 passed / 14 skips**, **36m06s** job;
+macOS ARM64/PostgreSQL 18 reports **11,387 passed / 26 skips**, **26m55s**;
+Windows x64/PostgreSQL 17 reports **11,388 passed / 25 skips**, **31m28s**.
+**Docs 37107730879** succeeds. Prior **CI 37104381270** and
+**Docs 37104381195** remain successful. **Additional platforms 37104402210**
+continues the full Intel macOS suite after its successful runtime build, under
+the approved 360-minute limit. No new failure is reported at this checkpoint.
+
 ## Assembly access for generated dispatchers
 
 Generator visibility checks rejected `protected internal` methods and nested

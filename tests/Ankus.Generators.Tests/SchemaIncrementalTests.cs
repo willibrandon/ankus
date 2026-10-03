@@ -137,13 +137,13 @@ public sealed partial class PgFunctionGeneratorTests
         CSharpCompilation initial = ModuleCompilation(Source);
         GeneratorDriver driver = ModuleDriver().RunGeneratorsAndUpdateCompilation(initial, out _,
             out ImmutableArray<Diagnostic> firstErrors, context.CancellationToken);
-        Assert.AreEqual("ANKUS004", Assert.ContainsSingle(firstErrors).Id);
+        Assert.AreEqual("ANKUS063", Assert.ContainsSingle(firstErrors).Id);
         SyntaxTree current = CSharpSyntaxTree.ParseText(Source + "\n// unrelated edit", path: "Module.cs", cancellationToken: context.CancellationToken);
         CSharpCompilation edited = initial.ReplaceSyntaxTree(initial.SyntaxTrees.Single(), current);
         driver = driver.RunGeneratorsAndUpdateCompilation(edited, out _, out ImmutableArray<Diagnostic> errors, context.CancellationToken);
         Diagnostic error = Assert.ContainsSingle(errors);
 
-        Assert.AreEqual("ANKUS004", error.Id);
+        Assert.AreEqual("ANKUS063", error.Id);
         Assert.AreSame(current, error.Location.SourceTree);
         Assert.AreEqual(Assert.ContainsSingle(firstErrors).Location.SourceSpan, error.Location.SourceSpan);
         Assert.AreEqual(IncrementalStepRunReason.Cached, ModuleStep(driver, "SchemaModel"));
@@ -178,12 +178,12 @@ public sealed partial class PgFunctionGeneratorTests
         CSharpCompilation initial = ModuleCompilation("public static class Unrelated;").AddSyntaxTrees(schema);
         GeneratorDriver driver = ModuleDriver().RunGeneratorsAndUpdateCompilation(initial, out _,
             out ImmutableArray<Diagnostic> firstErrors, context.CancellationToken);
-        Assert.AreEqual("ANKUS004", Assert.ContainsSingle(firstErrors).Id);
+        Assert.AreEqual("ANKUS063", Assert.ContainsSingle(firstErrors).Id);
 
         CSharpCompilation edited = initial.RemoveSyntaxTrees(initial.SyntaxTrees.First());
         driver = driver.RunGeneratorsAndUpdateCompilation(edited, out _, out ImmutableArray<Diagnostic> errors, context.CancellationToken);
         Diagnostic error = Assert.ContainsSingle(errors);
-        Assert.AreEqual("ANKUS004", error.Id);
+        Assert.AreEqual("ANKUS063", error.Id);
         Assert.AreSame(schema, error.Location.SourceTree);
         Assert.AreEqual(Assert.ContainsSingle(firstErrors).Location.SourceSpan, error.Location.SourceSpan);
         Assert.IsNull(Assert.ContainsSingle(driver.GetRunResult().Results).Exception);
@@ -205,7 +205,7 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.IsNull(Assert.ContainsSingle(driver.GetRunResult().Results).Exception);
         Assert.DoesNotContain(static diagnostic => diagnostic.Id == "CS8785", errors);
         Assert.Contains(static diagnostic => diagnostic.Id == "CS7036", output.GetDiagnostics(context.CancellationToken));
-        Assert.Contains(static diagnostic => diagnostic.Id == "ANKUS004", errors);
+        Assert.Contains(static diagnostic => diagnostic.Id == "ANKUS050", errors);
 
         CSharpCompilation repaired = initial.ReplaceSyntaxTree(initial.SyntaxTrees.Single(),
             CSharpSyntaxTree.ParseText("[Ankus.PgSchema(\"repaired\")] public static class Missing { " + members + " }",

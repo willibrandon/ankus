@@ -432,9 +432,9 @@ public sealed partial class PgFunctionGeneratorTests
     /// <param name="parameter">The scalar parameter with invalid metadata.</param>
     /// <param name="diagnostic">The expected declaration error.</param>
     [TestMethod]
-    [DataRow("[Ankus.PgParameter(Element=\"missing\")] int value", "ANKUS004")]
-    [DataRow("[Ankus.PgParameter(Variadic=true)] int[] value", "ANKUS004")]
-    [DataRow("[Ankus.PgParameter(Name=\"first\"),Ankus.PgParameter(Name=\"second\")] int value", "ANKUS004")]
+    [DataRow("[Ankus.PgParameter(Element=\"missing\")] int value", "ANKUS057")]
+    [DataRow("[Ankus.PgParameter(Variadic=true)] int[] value", "ANKUS057")]
+    [DataRow("[Ankus.PgParameter(Name=\"first\"),Ankus.PgParameter(Name=\"second\")] int value", "ANKUS057")]
     [DataRow("[Ankus.PgNumericPrecision(5,2,Element=\"missing\")] decimal value", "ANKUS003")]
     [DataRow("[Ankus.PgNumericPrecision(5,2),Ankus.PgNumericPrecision(6,3)] decimal value", "ANKUS003")]
     [DataRow("[Ankus.PgSqlType(\"int4\",Element=\"missing\")] Ankus.PgDatum value", "ANKUS016")]

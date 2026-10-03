@@ -432,17 +432,18 @@ public sealed partial class PgFunctionGeneratorTests
     /// Set modes and planner row estimates reject undefined, nonpositive, nonfinite and unrepresentable values.
     /// </summary>
     /// <param name="options">The invalid function option assignment.</param>
+    /// <param name="id">The specific invalid set option diagnostic.</param>
     [TestMethod]
-    [DataRow("Rows = 0")]
-    [DataRow("Rows = -1")]
-    [DataRow("Rows = double.NaN")]
-    [DataRow("Rows = double.PositiveInfinity")]
-    [DataRow("Rows = double.NegativeInfinity")]
-    [DataRow("Rows = double.Epsilon")]
-    [DataRow("Rows = double.MaxValue")]
-    [DataRow("SetMode = (Ankus.PgSetMode)(-1)")]
-    [DataRow("SetMode = (Ankus.PgSetMode)3")]
-    public void InvalidSetOptionsAreDiagnosed(string options)
+    [DataRow("Rows = 0", "ANKUS051")]
+    [DataRow("Rows = -1", "ANKUS051")]
+    [DataRow("Rows = double.NaN", "ANKUS051")]
+    [DataRow("Rows = double.PositiveInfinity", "ANKUS051")]
+    [DataRow("Rows = double.NegativeInfinity", "ANKUS051")]
+    [DataRow("Rows = double.Epsilon", "ANKUS051")]
+    [DataRow("Rows = double.MaxValue", "ANKUS051")]
+    [DataRow("SetMode = (Ankus.PgSetMode)(-1)", "ANKUS052")]
+    [DataRow("SetMode = (Ankus.PgSetMode)3", "ANKUS052")]
+    public void InvalidSetOptionsAreDiagnosed(string options, string id)
     {
         (_, ImmutableArray<Diagnostic> diagnostics) = Generate($$"""
             public static class Functions
@@ -451,7 +452,7 @@ public sealed partial class PgFunctionGeneratorTests
                 public static System.Collections.Generic.IEnumerable<int> Rows() => System.Array.Empty<int>();
             }
             """);
-        Assert.AreEqual("ANKUS004", Assert.ContainsSingle(diagnostics).Id);
+        Assert.AreEqual(id, Assert.ContainsSingle(diagnostics).Id);
     }
 
     /// <summary>
@@ -468,7 +469,7 @@ public sealed partial class PgFunctionGeneratorTests
     {
         (_, ImmutableArray<Diagnostic> diagnostics) = Generate("public static class Functions { [Ankus.PgFunction(" + options +
             ")] public static int Rows() => 1; }");
-        Assert.AreEqual("ANKUS004", Assert.ContainsSingle(diagnostics).Id);
+        Assert.AreEqual("ANKUS053", Assert.ContainsSingle(diagnostics).Id);
     }
 
     /// <summary>

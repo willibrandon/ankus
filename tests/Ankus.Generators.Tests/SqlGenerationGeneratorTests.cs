@@ -408,7 +408,7 @@ public sealed partial class PgFunctionGeneratorTests
     [TestMethod]
     [DataRow("[Ankus.PgFunction(GenerateSql = false)] public static System.Uri Bad() => new(\"https://example.com\");", "ANKUS039")]
     [DataRow("[Ankus.PgFunction(Sql = \"\")] public static int Bad(ref int value) => value;", "ANKUS038")]
-    [DataRow("[Ankus.PgFunction(Sql = \"SELECT 1;\", NullInput = Ankus.PgNullInput.CalledOnNull)] public static int Bad(int value) => value;", "ANKUS004")]
+    [DataRow("[Ankus.PgFunction(Sql = \"SELECT 1;\", NullInput = Ankus.PgNullInput.CalledOnNull)] public static int Bad(int value) => value;", "ANKUS049")]
     [DataRow("[Ankus.PgFunction(GenerateSql = false), Ankus.PgOperator(\"@\")] public static int Bad() => 1;", "ANKUS007")]
     [DataRow("[Ankus.PgFunction(Sql = \"SELECT 1;\"), Ankus.PgCast] public static int Bad(int value) => value;", "ANKUS007")]
     [DataRow("[Ankus.PgFunction(GenerateSql = false), Ankus.PgTrigger] public static int Bad(Ankus.PgTriggerContext context) => 1;", "ANKUS010")]

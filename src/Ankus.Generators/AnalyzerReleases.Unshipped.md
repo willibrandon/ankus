@@ -4,7 +4,6 @@ Rule ID | Category | Severity | Notes
 --------|----------|----------|------
 ANKUS002 | Ankus | Error | Invalid or duplicate PostgreSQL function name
 ANKUS003 | Ankus | Error | Invalid numeric precision or scale constraint
-ANKUS004 | Ankus | Error | Invalid PostgreSQL function or schema declaration
 ANKUS005 | Ankus | Error | Invalid custom SQL input or installation dependency graph
 ANKUS006 | Ankus | Error | Invalid PostgreSQL enum declaration or label mapping
 ANKUS007 | Ankus | Error | Invalid PostgreSQL operator or cast
@@ -45,3 +44,22 @@ ANKUS041 | Ankus | Error | PostgreSQL variadic parameter must map to an array
 ANKUS042 | Ankus | Error | Too many PostgreSQL function arguments
 ANKUS043 | Ankus | Error | PostgreSQL function is in a file-local type
 ANKUS044 | Ankus | Error | Interpolated PostgreSQL commands must bind parameters
+ANKUS045 | Ankus | Error | Undefined PostgreSQL execution policy
+ANKUS046 | Ankus | Error | Invalid PostgreSQL planner cost
+ANKUS047 | Ankus | Error | PostgreSQL internal result requires an input
+ANKUS048 | Ankus | Error | PostgreSQL polymorphic result requires an input
+ANKUS049 | Ankus | Error | PostgreSQL NULL policy conflicts with parameter types
+ANKUS050 | Ankus | Error | Invalid PostgreSQL schema identifier
+ANKUS051 | Ankus | Error | Invalid PostgreSQL row estimate
+ANKUS052 | Ankus | Error | Invalid PostgreSQL set mode
+ANKUS053 | Ankus | Error | Set option requires a PostgreSQL set result
+ANKUS054 | Ankus | Error | Invalid PostgreSQL support-function name
+ANKUS055 | Ankus | Error | Invalid PostgreSQL search-path entry
+ANKUS056 | Ankus | Error | Injected parameter has no SQL metadata
+ANKUS057 | Ankus | Error | Invalid PostgreSQL parameter options
+ANKUS058 | Ankus | Error | Invalid PostgreSQL parameter name
+ANKUS059 | Ankus | Error | Duplicate PostgreSQL parameter name
+ANKUS060 | Ankus | Error | Invalid PostgreSQL default expression
+ANKUS061 | Ankus | Error | Managed default needs an explicit SQL expression
+ANKUS062 | Ankus | Error | PostgreSQL parameter requires a following default
+ANKUS063 | Ankus | Error | PostgreSQL schema prefix is reserved

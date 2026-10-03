@@ -39,8 +39,13 @@ internal static class SchemaPipeline
         bool create = AttributeValues.Get(attribute, "Create", true);
         SchemaDeclaration? declaration = SqlText.IsIdentifier(name) && (!create || !name!.StartsWith("pg_", StringComparison.OrdinalIgnoreCase))
             ? new(name!, create) : null;
+        GeneratorProblem? problem = declaration is null
+            ? new(SqlText.IsIdentifier(name) ? FunctionDeclarationDiagnostics.ReservedSchema : FunctionDeclarationDiagnostics.Schema,
+                GeneratorLocation.Create(FunctionDeclarationDiagnostics.ConstructorArgument(attribute, cancellationToken), context.SemanticModel.Compilation),
+                new([]))
+            : null;
         return new(DeclarationIdentity.Create(type), type.ToDisplayString(), type.Name, declaration,
-            SqlDeclarationOptions.Read(attribute)!, GeneratorLocation.Create(type.Locations.FirstOrDefault(), context.SemanticModel.Compilation));
+            SqlDeclarationOptions.Read(attribute)!, GeneratorLocation.Create(type.Locations.FirstOrDefault(), context.SemanticModel.Compilation), problem);
     }
 
     /// <summary>
@@ -50,8 +55,7 @@ internal static class SchemaPipeline
     /// <param name="compilation">The compilation owning the current source trees.</param>
     /// <param name="context">The diagnostic destination.</param>
     internal static void Report(SchemaAnalysis analysis, GeneratorSourceResolver compilation, GeneratorDiagnostics context)
-        => FunctionDeclaration.ReportInvalid(context, analysis.Location?.Resolve(compilation), analysis.Name,
-            "A fixed schema must be a nonempty identifier of at most 63 UTF-8 bytes outside the reserved pg_ namespace.");
+        => analysis.Problem!.Report(compilation, context);
 
     /// <summary>
     /// Contains only the schema values that affect its generated SQL.
@@ -69,8 +73,9 @@ internal static class SchemaPipeline
     /// <param name="Declaration">The validated rendering contract, or null for an invalid schema.</param>
     /// <param name="Options">The immutable graph options.</param>
     /// <param name="Location">The detached current declaration coordinates.</param>
+    /// <param name="Problem">The specific schema failure at its authored value, or null for a valid declaration.</param>
     internal sealed record SchemaAnalysis(DeclarationIdentity Identity, string Display, string Name, SchemaDeclaration? Declaration,
-        SqlDeclarationOptions Options, GeneratorLocation? Location);
+        SqlDeclarationOptions Options, GeneratorLocation? Location, GeneratorProblem? Problem);
 
     /// <summary>
     /// Supplies one schema declaration and its cached SQL to installation graph composition.

@@ -654,15 +654,16 @@ public sealed partial class PgFunctionGeneratorTests
     /// Shared PgFunction option validation rejects unsupported aggregate helper SQL settings.
     /// </summary>
     /// <param name="option">An invalid common helper option.</param>
+    /// <param name="id">The specific SQL declaration diagnostic.</param>
     [TestMethod]
-    [DataRow("Rows=10")]
-    [DataRow("SetMode=Ankus.PgSetMode.Materialize")]
-    [DataRow("Cost=0")]
-    [DataRow("NullInput=Ankus.PgNullInput.CalledOnNull")]
-    [DataRow("Schema=\"\"")]
-    public void AggregateSupportOptionsUseSharedDiagnostics(string option)
+    [DataRow("Rows=10", "ANKUS053")]
+    [DataRow("SetMode=Ankus.PgSetMode.Materialize", "ANKUS053")]
+    [DataRow("Cost=0", "ANKUS046")]
+    [DataRow("NullInput=Ankus.PgNullInput.CalledOnNull", "ANKUS049")]
+    [DataRow("Schema=\"\"", "ANKUS050")]
+    public void AggregateSupportOptionsUseSharedDiagnostics(string option, string id)
         => AssertInvalidAggregate("[Ankus.PgAggregate] public sealed class Invalid : Ankus.IPgAggregate<int,int> { [Ankus.PgFunction(" + option +
-            ")] public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state; }", "ANKUS004");
+            ")] public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state; }", id);
 
     /// <summary>
     /// Identifier limits measure UTF-8 bytes and apply equally to aggregate and support function names.

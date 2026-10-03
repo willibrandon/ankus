@@ -93,6 +93,7 @@ internal sealed record ExtensionCompositionInput(FunctionPipeline.MethodInputs M
         foreach (SchemaPipeline.SchemaOutput output in Schemas)
         {
             yield return output.Analysis.Location;
+            yield return output.Analysis.Problem?.Location;
         }
 
         foreach (SqlProviderModel provider in Providers)

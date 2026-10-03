@@ -184,7 +184,7 @@ public sealed partial class PgFunctionGeneratorTests
             }
             """);
         Diagnostic diagnostic = Assert.ContainsSingle(diagnostics);
-        Assert.AreEqual("ANKUS004", diagnostic.Id);
+        Assert.AreEqual("ANKUS061", diagnostic.Id);
         Assert.Contains("explicit PgParameter.Default", diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture));
     }
 

@@ -1,5 +1,6 @@
 using System.Globalization;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Ankus.Generators;
 
@@ -8,9 +9,6 @@ namespace Ankus.Generators;
 /// </summary>
 internal sealed record FunctionDeclaration
 {
-    private static readonly DiagnosticDescriptor s_invalid = new(
-        "ANKUS004", "Invalid PostgreSQL declaration", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true);
-
     /// <summary>
     /// Gets the fixed schema, or null to use the extension's installation schema.
     /// </summary>
@@ -118,14 +116,24 @@ internal sealed record FunctionDeclaration
         int parallel = Value(attribute, "ParallelSafety", 0);
         int nullInput = Value(attribute, "NullInput", 0);
         double cost = Value(attribute, "Cost", 1d);
-        if (volatility is < 0 or > 2 || parallel is < 0 or > 2 || nullInput is < 0 or > 2)
+        if (volatility is < 0 or > 2)
         {
-            return Invalid("Volatility, ParallelSafety, and NullInput must be defined enum values.");
+            return Invalid(FunctionDeclarationDiagnostics.ExecutionOption, Option("Volatility"), "Volatility", "PgVolatility");
+        }
+
+        if (parallel is < 0 or > 2)
+        {
+            return Invalid(FunctionDeclarationDiagnostics.ExecutionOption, Option("ParallelSafety"), "ParallelSafety", "PgParallelSafety");
+        }
+
+        if (nullInput is < 0 or > 2)
+        {
+            return Invalid(FunctionDeclarationDiagnostics.ExecutionOption, Option("NullInput"), "NullInput", "PgNullInput");
         }
 
         if (double.IsNaN(cost) || double.IsInfinity(cost) || cost <= 0 || cost > float.MaxValue || (float)cost == 0)
         {
-            return Invalid("Cost must be positive, finite, and representable as PostgreSQL's real planner cost.");
+            return Invalid(FunctionDeclarationDiagnostics.Cost, Option("Cost"));
         }
 
         FunctionParameter[] sqlParameters = contextParameter ? [] :
@@ -133,13 +141,13 @@ internal sealed record FunctionDeclaration
         if (!contextParameter && (set?.Columns.Any(static column => column.IsSqlInternal) ?? FunctionType.CreateResult(method)?.IsSqlInternal == true) &&
             !sqlParameters.Any(static parameter => parameter.Type?.IsSqlInternal == true))
         {
-            return Invalid("A PostgreSQL internal result requires an internal SQL input.");
+            return Invalid(FunctionDeclarationDiagnostics.InternalResult, FunctionDeclarationDiagnostics.Result(method, context.CancellationToken));
         }
 
         if (!contextParameter && (set?.Columns.Any(static column => column.IsSqlPolymorphic) ?? FunctionType.CreateResult(method)?.IsSqlPolymorphic == true) &&
             !sqlParameters.Any(static parameter => parameter.Type?.IsSqlPolymorphic == true))
         {
-            return Invalid("A polymorphic result requires a polymorphic SQL input to resolve its type.");
+            return Invalid(FunctionDeclarationDiagnostics.PolymorphicResult, FunctionDeclarationDiagnostics.Result(method, context.CancellationToken));
         }
 
         bool allNullable = sqlNullability?.All(static nullable => nullable) ??
@@ -148,27 +156,31 @@ internal sealed record FunctionDeclaration
             (!contextParameter && sqlParameters.All(static parameter => !parameter.Type!.Nullable));
         if (nullInput == 2 && !allNullable)
         {
-            return Invalid("CalledOnNull requires nullable declarations for every parameter.");
+            return Invalid(FunctionDeclarationDiagnostics.NullInput, Option("NullInput"));
         }
 
         string? schema = Value(attribute, "Schema", schemaFallback);
+        AttributeData? inheritedSchema = null;
         for (INamedTypeSymbol? container = method.ContainingType; schema is null && container is not null; container = container.ContainingType)
         {
             AttributeData? schemaAttribute = container.GetAttributes().FirstOrDefault(static value =>
                 value.AttributeClass?.ToDisplayString() == "Ankus.PgSchemaAttribute");
             if (schemaAttribute is not null)
             {
+                inheritedSchema = schemaAttribute;
                 schema = schemaAttribute.ConstructorArguments.FirstOrDefault().Value as string;
                 if (schema is null)
                 {
-                    return Invalid("PgSchema requires a non-null schema identifier.");
+                    return Invalid(FunctionDeclarationDiagnostics.Schema,
+                        FunctionDeclarationDiagnostics.ConstructorArgument(schemaAttribute, context.CancellationToken));
                 }
             }
         }
 
         if (schema is not null && !SqlText.IsIdentifier(schema))
         {
-            return Invalid("A fixed schema must be a nonempty identifier of at most 63 UTF-8 bytes.");
+            return Invalid(FunctionDeclarationDiagnostics.Schema, inheritedSchema is null ? Option("Schema") :
+                FunctionDeclarationDiagnostics.ConstructorArgument(inheritedSchema, context.CancellationToken));
         }
 
         declaration = declaration with
@@ -196,19 +208,20 @@ internal sealed record FunctionDeclaration
             int mode = Value(attribute, "SetMode", 0);
             if (double.IsNaN(rows) || double.IsInfinity(rows) || rows <= 0 || rows > float.MaxValue || (float)rows == 0)
             {
-                return Invalid("Rows must be positive, finite, and representable as PostgreSQL's real row estimate.");
+                return Invalid(FunctionDeclarationDiagnostics.Rows, Option("Rows"));
             }
 
             if (mode is < 0 or > 2)
             {
-                return Invalid("SetMode must be a defined PgSetMode value.");
+                return Invalid(FunctionDeclarationDiagnostics.SetMode, Option("SetMode"));
             }
 
             options.Add("ROWS " + rows.ToString("R", CultureInfo.InvariantCulture));
         }
         else if (attribute?.NamedArguments.Any(static argument => argument.Key is "Rows" or "SetMode") == true)
         {
-            return Invalid("Rows and SetMode require an IEnumerable return.");
+            string option = attribute.NamedArguments.First(static argument => argument.Key is "Rows" or "SetMode").Key;
+            return Invalid(FunctionDeclarationDiagnostics.ScalarSetOption, Option(option), option);
         }
 
         string? support = Value<string?>(attribute, "SupportFunction", null);
@@ -217,7 +230,7 @@ internal sealed record FunctionDeclaration
             string[] parts = support.Split('.');
             if (parts.Length is < 1 or > 2 || parts.Any(static part => !SqlText.IsIdentifier(part)))
             {
-                return Invalid("SupportFunction must name one function, optionally prefixed by one schema.");
+                return Invalid(FunctionDeclarationDiagnostics.SupportFunction, Option("SupportFunction"));
             }
 
             options.Add("SUPPORT " + string.Join(".", parts.Select(SqlText.Identifier)));
@@ -231,9 +244,11 @@ internal sealed record FunctionDeclaration
             }
 
             string?[] path = [.. argument.Value.Values.Select(static value => value.Value as string)];
-            if (path.Any(static entry => !SqlText.IsIdentifier(entry)))
+            int invalidEntry = Array.FindIndex(path, static entry => !SqlText.IsIdentifier(entry));
+            if (invalidEntry >= 0)
             {
-                return Invalid("SearchPath entries must be nonempty schema identifiers of at most 63 UTF-8 bytes.");
+                return Invalid(FunctionDeclarationDiagnostics.SearchPath,
+                    FunctionDeclarationDiagnostics.OptionElement(attribute, "SearchPath", invalidEntry, context.CancellationToken));
             }
 
             declaration = declaration with { UsesExtensionSchema = path.Contains("@extschema@", StringComparer.Ordinal) };
@@ -250,13 +265,20 @@ internal sealed record FunctionDeclaration
         var parameters = new List<SqlFunctionParameter>();
         var parameterNames = new HashSet<string>(StringComparer.Ordinal);
         bool defaultSeen = false;
-        foreach (FunctionParameter model in parameterModels ?? FunctionParameter.Create(method))
+        FunctionParameter[] managedParameters = parameterModels ?? FunctionParameter.Create(method);
+        for (int index = 0; index < managedParameters.Length; index++)
         {
+            FunctionParameter model = managedParameters[index];
+            IParameterSymbol parameter = method.Parameters[index];
+            AttributeData[] parameterAttributes = [.. parameter.GetAttributes().Where(static candidate =>
+                candidate.AttributeClass?.ToDisplayString() == "Ankus.PgParameterAttribute")];
+            AttributeData? parameterAttribute = parameterAttributes.FirstOrDefault();
             if (model.IsInjected)
             {
                 if (!model.SqlOptions.IsEmpty)
                 {
-                    return Invalid($"An injected {model.DeclaredTypeName} has no SQL parameter name or default; remove PgParameter from it.");
+                    return Invalid(FunctionDeclarationDiagnostics.InjectedParameter,
+                        parameterAttribute?.ApplicationSyntaxReference?.GetSyntax(context.CancellationToken).GetLocation(), model.Name);
                 }
 
                 continue;
@@ -265,20 +287,29 @@ internal sealed record FunctionDeclaration
             FunctionType type = model.Type!;
             if (model.SqlOptions.Count > 1 || model.SqlOptions.Any(static value => value.Element is not null || value.Variadic))
             {
-                return Invalid("Ordinary SQL parameters allow one PgParameter attribute without aggregate element or variadic options; declare variadic functions with params.");
+                Location? location = parameterAttributes.Length > 1
+                    ? parameterAttributes[1].ApplicationSyntaxReference?.GetSyntax(context.CancellationToken).GetLocation()
+                    : FunctionDeclarationDiagnostics.Option(parameterAttribute, model.SqlOptions[0].Element is not null ? "Element" : "Variadic",
+                        context.CancellationToken);
+                return Invalid(FunctionDeclarationDiagnostics.ParameterOptions, location, model.Name);
             }
 
             SqlParameterOptions? parameterOptions = model.SqlOptions.IsEmpty ? null : model.SqlOptions[0];
             string parameterName = parameterOptions?.Name ?? SqlText.SnakeCase(model.Name);
-            if (!SqlText.IsIdentifier(parameterName) || !parameterNames.Add(parameterName))
+            if (!SqlText.IsIdentifier(parameterName))
             {
-                return Invalid("SQL parameter names must be distinct identifiers of at most 63 UTF-8 bytes.");
+                return Invalid(FunctionDeclarationDiagnostics.ParameterName, ParameterOption("Name"), model.Name);
+            }
+
+            if (!parameterNames.Add(parameterName))
+            {
+                return Invalid(FunctionDeclarationDiagnostics.DuplicateParameterName, ParameterOption("Name"), parameterName);
             }
 
             string? expression = parameterOptions?.Default;
             if (expression is not null && (string.IsNullOrWhiteSpace(expression) || !SqlText.IsText(expression)))
             {
-                return Invalid("A SQL default must be a nonempty expression with valid Unicode and no zero characters.");
+                return Invalid(FunctionDeclarationDiagnostics.SqlDefault, ParameterOption("Default"));
             }
 
             if (expression is null && model.HasExplicitDefaultValue)
@@ -286,38 +317,35 @@ internal sealed record FunctionDeclaration
                 expression = model.OptionalDefaultSql;
                 if (expression is null)
                 {
-                    return Invalid($"The optional default for '{model.Name}' needs an explicit PgParameter.Default SQL expression.");
+                    Location? location = (parameter.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax(context.CancellationToken)
+                        as ParameterSyntax)?.Default?.Value.GetLocation() ?? parameter.Locations.FirstOrDefault();
+                    return Invalid(FunctionDeclarationDiagnostics.OptionalDefault, location, model.Name);
                 }
             }
 
             if (defaultSeen && expression is null)
             {
-                return Invalid("Every input parameter after a defaulted parameter must also declare a SQL default.");
+                return Invalid(FunctionDeclarationDiagnostics.MissingDefault, parameter.Locations.FirstOrDefault(), model.Name);
             }
 
             defaultSeen |= expression is not null;
             parameters.Add(new(parameterName, type, model.IsParams, expression));
+
+            Location? ParameterOption(string option) => FunctionDeclarationDiagnostics.Option(parameterAttribute, option, context.CancellationToken)
+                ?? parameter.Locations.FirstOrDefault();
         }
 
         declaration = declaration with { Parameters = new(parameters) };
         return declaration;
 
-        FunctionDeclaration? Invalid(string reason)
+        Location? Option(string option) => FunctionDeclarationDiagnostics.Option(attribute, option, context.CancellationToken);
+
+        FunctionDeclaration? Invalid(DiagnosticDescriptor descriptor, Location? location, params string[] arguments)
         {
-            ReportInvalid(context, method.Locations.FirstOrDefault(), method.Name, reason);
+            context.Report(descriptor, location ?? method.Locations.FirstOrDefault(), arguments);
             return null;
         }
     }
-
-    /// <summary>
-    /// Reports declaration validation using the established diagnostic contract.
-    /// </summary>
-    /// <param name="context">The diagnostic destination.</param>
-    /// <param name="location">The current declaration location.</param>
-    /// <param name="name">The authored managed name.</param>
-    /// <param name="reason">The exact validation failure.</param>
-    internal static void ReportInvalid(GeneratorDiagnostics context, Location? location, string name, string reason)
-        => context.Report(s_invalid, location, name, reason);
 
     private static T Value<T>(AttributeData? attribute, string name, T fallback)
     {

@@ -204,13 +204,14 @@ public sealed partial class PgFunctionGeneratorTests
     /// A virtual parameter does not reset default ordering or make required SQL arguments callable on null.
     /// </summary>
     /// <param name="method">The invalid function declaration.</param>
+    /// <param name="id">The specific SQL declaration diagnostic.</param>
     [TestMethod]
-    [DataRow("[Ankus.PgFunction] public static int Apply([Ankus.PgParameter(Default = \"17\")] int first, Ankus.PgMemoryContext context, int last) => first + last;")]
-    [DataRow("[Ankus.PgFunction(NullInput = Ankus.PgNullInput.CalledOnNull)] public static int Apply(Ankus.PgMemoryContext? context, int value) => value;")]
-    public void VirtualContextsDoNotBypassSqlDeclarationValidation(string method)
+    [DataRow("[Ankus.PgFunction] public static int Apply([Ankus.PgParameter(Default = \"17\")] int first, Ankus.PgMemoryContext context, int last) => first + last;", "ANKUS062")]
+    [DataRow("[Ankus.PgFunction(NullInput = Ankus.PgNullInput.CalledOnNull)] public static int Apply(Ankus.PgMemoryContext? context, int value) => value;", "ANKUS049")]
+    public void VirtualContextsDoNotBypassSqlDeclarationValidation(string method, string id)
     {
         (_, ImmutableArray<Diagnostic> diagnostics) = Generate("public static class Functions { " + method + " }");
-        AssertVirtualContextDiagnostic(diagnostics, "ANKUS004");
+        AssertVirtualContextDiagnostic(diagnostics, id);
     }
 
     /// <summary>
@@ -378,9 +379,9 @@ public sealed partial class PgFunctionGeneratorTests
     /// <param name="attribute">The SQL-only parameter annotation.</param>
     /// <param name="expected">The expected diagnostic identifier.</param>
     [TestMethod]
-    [DataRow("Ankus.PgParameter", "ANKUS004")]
-    [DataRow("Ankus.PgParameter(Name = \"memory\")", "ANKUS004")]
-    [DataRow("Ankus.PgParameter(Default = \"NULL\")", "ANKUS004")]
+    [DataRow("Ankus.PgParameter", "ANKUS056")]
+    [DataRow("Ankus.PgParameter(Name = \"memory\")", "ANKUS056")]
+    [DataRow("Ankus.PgParameter(Default = \"NULL\")", "ANKUS056")]
     [DataRow("Ankus.PgNumericPrecision(5, 2)", "ANKUS003")]
     [DataRow("Ankus.PgCompositeType(\"memory\")", "ANKUS009")]
     public void VirtualContextSqlMetadataIsDiagnosed(string attribute, string expected)

@@ -120,7 +120,7 @@ public sealed partial class PgFunctionGeneratorTests
                 public static Ankus.PgDatum? Value() => null;
             }
             """);
-        AssertVirtualContextDiagnostic(diagnostics, "ANKUS004");
+        AssertVirtualContextDiagnostic(diagnostics, type == "internal" ? "ANKUS047" : "ANKUS048");
     }
 
     /// <summary>

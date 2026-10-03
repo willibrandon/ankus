@@ -37,30 +37,31 @@ public sealed partial class PgFunctionGeneratorTests
     /// Rejects invalid option values and declaration contracts before native publishing.
     /// </summary>
     /// <param name="method">The invalid function declaration.</param>
+    /// <param name="id">The specific declaration diagnostic.</param>
     [TestMethod]
-    [DataRow("[Ankus.PgFunction(Cost = 0)] public static int F() => 1;")]
-    [DataRow("[Ankus.PgFunction(Cost = double.NaN)] public static int F() => 1;")]
-    [DataRow("[Ankus.PgFunction(Cost = double.PositiveInfinity)] public static int F() => 1;")]
-    [DataRow("[Ankus.PgFunction(Cost = double.Epsilon)] public static int F() => 1;")]
-    [DataRow("[Ankus.PgFunction(Cost = double.MaxValue)] public static int F() => 1;")]
-    [DataRow("[Ankus.PgFunction(Volatility = (Ankus.PgVolatility)3)] public static int F() => 1;")]
-    [DataRow("[Ankus.PgFunction(ParallelSafety = (Ankus.PgParallelSafety)(-1))] public static int F() => 1;")]
-    [DataRow("[Ankus.PgFunction(NullInput = (Ankus.PgNullInput)3)] public static int F() => 1;")]
-    [DataRow("[Ankus.PgFunction(NullInput = Ankus.PgNullInput.CalledOnNull)] public static int F(int value) => value;")]
-    [DataRow("[Ankus.PgFunction(Schema = \"\")] public static int F() => 1;")]
-    [DataRow("[Ankus.PgFunction(Schema = \"a\\0b\")] public static int F() => 1;")]
-    [DataRow("[Ankus.PgFunction(SearchPath = new[] { \"\" })] public static int F() => 1;")]
-    [DataRow("[Ankus.PgFunction(SearchPath = new string[] { null! })] public static int F() => 1;")]
-    [DataRow("[Ankus.PgFunction(SupportFunction = \"a.b.c\")] public static int F() => 1;")]
-    [DataRow("[Ankus.PgFunction] public static int F(int URL, int Url) => URL;")]
-    [DataRow("[Ankus.PgFunction] public static int F([Ankus.PgParameter(Default = \" \" )] int value) => value;")]
-    [DataRow("[Ankus.PgFunction] public static int F([Ankus.PgParameter(Default = \"42\")] int value, int other) => value;")]
-    [DataRow("[Ankus.PgFunction] public static string F(string value = \"\\0\") => value;")]
-    [DataRow("[Ankus.PgFunction] public static string F(string value = \"\\ud800\") => value;")]
-    public void InvalidDeclarationOptionsAreRejected(string method)
+    [DataRow("[Ankus.PgFunction(Cost = 0)] public static int F() => 1;", "ANKUS046")]
+    [DataRow("[Ankus.PgFunction(Cost = double.NaN)] public static int F() => 1;", "ANKUS046")]
+    [DataRow("[Ankus.PgFunction(Cost = double.PositiveInfinity)] public static int F() => 1;", "ANKUS046")]
+    [DataRow("[Ankus.PgFunction(Cost = double.Epsilon)] public static int F() => 1;", "ANKUS046")]
+    [DataRow("[Ankus.PgFunction(Cost = double.MaxValue)] public static int F() => 1;", "ANKUS046")]
+    [DataRow("[Ankus.PgFunction(Volatility = (Ankus.PgVolatility)3)] public static int F() => 1;", "ANKUS045")]
+    [DataRow("[Ankus.PgFunction(ParallelSafety = (Ankus.PgParallelSafety)(-1))] public static int F() => 1;", "ANKUS045")]
+    [DataRow("[Ankus.PgFunction(NullInput = (Ankus.PgNullInput)3)] public static int F() => 1;", "ANKUS045")]
+    [DataRow("[Ankus.PgFunction(NullInput = Ankus.PgNullInput.CalledOnNull)] public static int F(int value) => value;", "ANKUS049")]
+    [DataRow("[Ankus.PgFunction(Schema = \"\")] public static int F() => 1;", "ANKUS050")]
+    [DataRow("[Ankus.PgFunction(Schema = \"a\\0b\")] public static int F() => 1;", "ANKUS050")]
+    [DataRow("[Ankus.PgFunction(SearchPath = new[] { \"\" })] public static int F() => 1;", "ANKUS055")]
+    [DataRow("[Ankus.PgFunction(SearchPath = new string[] { null! })] public static int F() => 1;", "ANKUS055")]
+    [DataRow("[Ankus.PgFunction(SupportFunction = \"a.b.c\")] public static int F() => 1;", "ANKUS054")]
+    [DataRow("[Ankus.PgFunction] public static int F(int URL, int Url) => URL;", "ANKUS059")]
+    [DataRow("[Ankus.PgFunction] public static int F([Ankus.PgParameter(Default = \" \" )] int value) => value;", "ANKUS060")]
+    [DataRow("[Ankus.PgFunction] public static int F([Ankus.PgParameter(Default = \"42\")] int value, int other) => value;", "ANKUS062")]
+    [DataRow("[Ankus.PgFunction] public static string F(string value = \"\\0\") => value;", "ANKUS061")]
+    [DataRow("[Ankus.PgFunction] public static string F(string value = \"\\ud800\") => value;", "ANKUS061")]
+    public void InvalidDeclarationOptionsAreRejected(string method, string id)
     {
         (_, ImmutableArray<Diagnostic> diagnostics) = Generate("public static class Functions { " + method + " }");
-        Assert.AreEqual("ANKUS004", Assert.ContainsSingle(diagnostics).Id);
+        Assert.AreEqual(id, Assert.ContainsSingle(diagnostics).Id);
     }
 
     /// <summary>
@@ -95,14 +96,15 @@ public sealed partial class PgFunctionGeneratorTests
     /// </summary>
     /// <param name="name">The schema identifier.</param>
     /// <param name="valid">Whether the identifier is valid.</param>
+    /// <param name="diagnosticId">The expected failure identifier, or empty for a valid declaration.</param>
     [TestMethod]
-    [DataRow("empty", true)]
-    [DataRow("", false)]
-    [DataRow(null, false)]
-    [DataRow("pg_reserved", false)]
-    [DataRow("🐘🐘🐘🐘🐘🐘🐘🐘🐘🐘🐘🐘🐘🐘🐘", true)]
-    [DataRow("🐘🐘🐘🐘🐘🐘🐘🐘🐘🐘🐘🐘🐘🐘🐘🐘", false)]
-    public void EmptySchemasHaveValidatedStandaloneMetadata(string? name, bool valid)
+    [DataRow("empty", true, "")]
+    [DataRow("", false, "ANKUS050")]
+    [DataRow(null, false, "ANKUS050")]
+    [DataRow("pg_reserved", false, "ANKUS063")]
+    [DataRow("🐘🐘🐘🐘🐘🐘🐘🐘🐘🐘🐘🐘🐘🐘🐘", true, "")]
+    [DataRow("🐘🐘🐘🐘🐘🐘🐘🐘🐘🐘🐘🐘🐘🐘🐘🐘", false, "ANKUS050")]
+    public void EmptySchemasHaveValidatedStandaloneMetadata(string? name, bool valid, string diagnosticId)
     {
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(
             "[Ankus.PgSchema(" + (name is null ? "null!" : SymbolDisplay.FormatLiteral(name, true)) + ")] public static class Empty;");
@@ -114,7 +116,7 @@ public sealed partial class PgFunctionGeneratorTests
         }
         else
         {
-            Assert.AreEqual("ANKUS004", Assert.ContainsSingle(diagnostics).Id);
+            Assert.AreEqual(diagnosticId, Assert.ContainsSingle(diagnostics).Id);
         }
     }
 

@@ -111,12 +111,12 @@ public sealed partial class PgFunctionGeneratorTests
         Diagnostic diagnostic = Assert.ContainsSingle(diagnostics);
 
         Assert.AreEqual(move ? IncrementalStepRunReason.Unchanged : IncrementalStepRunReason.Cached, ModuleStep(driver, "FunctionDeclaration"));
-        Assert.AreEqual("ANKUS004", diagnostic.Id);
+        Assert.AreEqual("ANKUS046", diagnostic.Id);
         Assert.Contains("Cost must be positive", diagnostic.GetMessage(CultureInfo.InvariantCulture));
         Assert.AreSame(current, diagnostic.Location.SourceTree);
         Assert.AreEqual(path, diagnostic.Location.GetLineSpan().Path);
         Assert.AreEqual(move ? 2 : 0, diagnostic.Location.GetLineSpan().StartLinePosition.Line);
-        Assert.AreEqual("Value", current.GetText(context.CancellationToken).ToString(diagnostic.Location.SourceSpan));
+        Assert.AreEqual("0", current.GetText(context.CancellationToken).ToString(diagnostic.Location.SourceSpan));
         Assert.IsNull(Assert.ContainsSingle(driver.GetRunResult().Results).Exception);
 
         CSharpCompilation repaired = edited.ReplaceSyntaxTree(current, CSharpSyntaxTree.ParseText(

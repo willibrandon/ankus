@@ -241,13 +241,13 @@ public sealed partial class PgFunctionGeneratorTests
     /// <param name="diagnostic">The expected diagnostic identifier.</param>
     [TestMethod]
     [DataRow("Name = \"bad-name\"", "ANKUS002")]
-    [DataRow("Schema = \"\"", "ANKUS004")]
-    [DataRow("Cost = 0", "ANKUS004")]
-    [DataRow("NullInput = (Ankus.PgNullInput)3", "ANKUS004")]
-    [DataRow("ParallelSafety = (Ankus.PgParallelSafety)3", "ANKUS004")]
-    [DataRow("Volatility = (Ankus.PgVolatility)3", "ANKUS004")]
-    [DataRow("SearchPath = new[] { \"\" }", "ANKUS004")]
-    [DataRow("SupportFunction = \"a.b.c\"", "ANKUS004")]
+    [DataRow("Schema = \"\"", "ANKUS050")]
+    [DataRow("Cost = 0", "ANKUS046")]
+    [DataRow("NullInput = (Ankus.PgNullInput)3", "ANKUS045")]
+    [DataRow("ParallelSafety = (Ankus.PgParallelSafety)3", "ANKUS045")]
+    [DataRow("Volatility = (Ankus.PgVolatility)3", "ANKUS045")]
+    [DataRow("SearchPath = new[] { \"\" }", "ANKUS055")]
+    [DataRow("SupportFunction = \"a.b.c\"", "ANKUS054")]
     public void InvalidEventTriggerCommonOptionsUseSharedDiagnostics(string option, string diagnostic)
         => AssertInvalidEventTrigger("public static class Functions { [Ankus.PgEventTrigger, Ankus.PgFunction(" + option + ")] " +
             "public static void Audit(Ankus.PgEventTriggerContext context) { } }", diagnostic);

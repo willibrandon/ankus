@@ -238,13 +238,13 @@ public sealed partial class PgFunctionGeneratorTests
     /// <param name="diagnostic">The expected shared diagnostic.</param>
     [TestMethod]
     [DataRow("Name = \"bad-name\"", "ANKUS002")]
-    [DataRow("Schema = \"\"", "ANKUS004")]
-    [DataRow("Cost = 0", "ANKUS004")]
-    [DataRow("NullInput = (Ankus.PgNullInput)3", "ANKUS004")]
-    [DataRow("ParallelSafety = (Ankus.PgParallelSafety)3", "ANKUS004")]
-    [DataRow("Volatility = (Ankus.PgVolatility)3", "ANKUS004")]
-    [DataRow("SearchPath = new[] { \"\" }", "ANKUS004")]
-    [DataRow("SupportFunction = \"a.b.c\"", "ANKUS004")]
+    [DataRow("Schema = \"\"", "ANKUS050")]
+    [DataRow("Cost = 0", "ANKUS046")]
+    [DataRow("NullInput = (Ankus.PgNullInput)3", "ANKUS045")]
+    [DataRow("ParallelSafety = (Ankus.PgParallelSafety)3", "ANKUS045")]
+    [DataRow("Volatility = (Ankus.PgVolatility)3", "ANKUS045")]
+    [DataRow("SearchPath = new[] { \"\" }", "ANKUS055")]
+    [DataRow("SupportFunction = \"a.b.c\"", "ANKUS054")]
     public void InvalidTriggerCommonOptionsUseSharedDiagnostics(string option, string diagnostic)
         => AssertInvalidTrigger("public static class Functions { [Ankus.PgTrigger, Ankus.PgFunction(" + option + ")] " +
             "public static Ankus.PgHeapTuple? Audit(Ankus.PgTriggerContext context) => null; }", diagnostic);

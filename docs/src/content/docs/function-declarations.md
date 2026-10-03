@@ -51,7 +51,8 @@ does not make the argument optional in direct C# calls. When both are present,
 `PgParameter.Default` overrides the C# default for SQL calls only.
 
 Every argument following a defaulted argument must also have a default. Ankus
-reports `ANKUS004` for invalid declaration options, names, or default ordering;
+reports `ANKUS062` on an argument missing that default. Other invalid options
+have [specific declaration diagnostics](#declaration-diagnostics).
 PostgreSQL validates SQL expressions during installation. Expressions are
 trusted extension source, just like handwritten installation SQL.
 
@@ -93,7 +94,7 @@ count only SQL parameters. Operators and casts follow the same rule.
 
 The injected handle is borrowed and always non-null. Nullable annotations and
 optional null defaults affect direct C# calls only. A `PgParameter` attribute on
-the context reports `ANKUS004` because there is no corresponding SQL name or
+the context reports `ANKUS056` because there is no corresponding SQL name or
 default. Context arrays, context results, and `ref`, `in`, or `out` parameters
 are unsupported.
 
@@ -353,3 +354,31 @@ desired `SUPPORT` clause itself.
 Keep `PgFunction.SupportFunction = "pg_catalog.textlike_support"` for an existing
 external SQL routine. PostgreSQL validates its signature at installation. Choose
 either the external SQL name or `PgSupportFunction` for a declaration.
+
+## Declaration diagnostics
+
+Declaration errors point to the option value, result type or parameter that
+needs correction. Schema errors point to the schema argument, including named
+constructor arguments. These errors replace the former general `ANKUS004` code.
+
+| Diagnostic | Required correction |
+| --- | --- |
+| ANKUS045 | Use a defined member of the option's volatility, parallel-safety or NULL-policy enum. |
+| ANKUS046 | Set `Cost` to a positive, finite value representable as PostgreSQL's single-precision planner cost. |
+| ANKUS047 | Pair a SQL `internal` result with a SQL `internal` input. |
+| ANKUS048 | Supply a polymorphic SQL input that determines the polymorphic result type. |
+| ANKUS049 | Make every SQL parameter nullable when using `CalledOnNull`, or choose a compatible NULL policy. |
+| ANKUS050 | Use a nonempty schema identifier containing at most 63 UTF-8 bytes, valid Unicode and no zero characters. |
+| ANKUS051 | Set `Rows` to a positive, finite value representable as PostgreSQL's single-precision row estimate. |
+| ANKUS052 | Choose `Auto`, `ValuePerCall` or `Materialize` for `SetMode`. |
+| ANKUS053 | Use `Rows` and `SetMode` only on set-returning functions. |
+| ANKUS054 | Specify one support-function name, optionally preceded by one schema name. |
+| ANKUS055 | Give each `SearchPath` element a valid schema identifier. |
+| ANKUS056 | Remove `PgParameter` from injected contexts, which do not consume SQL arguments. |
+| ANKUS057 | Use one ordinary `PgParameter` attribute. `Element` and `Variadic` options belong to typed aggregate arguments; ordinary functions use C# `params`. |
+| ANKUS058 | Give the SQL parameter a valid identifier of at most 63 UTF-8 bytes. |
+| ANKUS059 | Give each SQL parameter a distinct name, including names produced by snake-case conversion. |
+| ANKUS060 | Supply a nonempty SQL default expression with valid Unicode and no zero characters. |
+| ANKUS061 | Supply `PgParameter.Default` when the C# optional value has no exact SQL translation. |
+| ANKUS062 | Give every input after a defaulted SQL argument its own SQL default. |
+| ANKUS063 | Create schemas outside PostgreSQL's reserved `pg_` namespace. Use `Create = false` when referencing an existing schema. |
