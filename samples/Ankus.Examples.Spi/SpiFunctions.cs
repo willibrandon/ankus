@@ -51,13 +51,13 @@ public static class SpiFunctions
     [PgFunction]
     public static string? SpiQueryById(long id)
     {
-        (long? Id, string? Title) value = Spi.Connect(session =>
+        (long? foundId, string? title) = Spi.Connect(session =>
         {
             SpiResult rows = session.Select(Spi.Sql($"SELECT id, title FROM spi.spi_example WHERE id = {id}"));
             return rows.Count == 0 ? (null, null) : (rows[0].Get<long?>(0), rows[0].Get<string?>(1));
         });
-        PgLog.Info(FormattableString.Invariant($"id={value.Id}"));
-        return value.Title;
+        PgLog.Info(FormattableString.Invariant($"id={foundId}"));
+        return title;
     }
 
     /// <summary>

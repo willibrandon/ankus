@@ -85,7 +85,7 @@
         <Private>true</Private>
       </ReferenceCopyLocalPaths>
       <TargetPathWithTargetPlatformMoniker Remove="@(TargetPathWithTargetPlatformMoniker)"
-                                           Condition="'%(AnkusBindingReference)' == 'true'" />
+                                           Condition="'%(TargetPathWithTargetPlatformMoniker.AnkusBindingReference)' == 'true'" />
       <TargetPathWithTargetPlatformMoniker Include="@(_AnkusBindingAssembly)">
         <ReferenceSourceTarget>ResolveAssemblyReference</ReferenceSourceTarget>
         <AnkusBindingReference>true</AnkusBindingReference>

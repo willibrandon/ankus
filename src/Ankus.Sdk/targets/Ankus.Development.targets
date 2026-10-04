@@ -1,0 +1,17 @@
+<Project>
+  <!-- Editors do not build project references. Repository tools and the runtime
+       must exist before binding generation can supply the compiler references.
+       The packaged SDK already contains its tools and uses NuGet references. -->
+  <Target Name="_BuildAnkusDesignTimeDependencies" BeforeTargets="ResolveReferences"
+          Condition="'$(DesignTimeBuild)' == 'true'">
+    <ItemGroup>
+      <_AnkusDesignTimeDependency Include="@(ProjectReference)"
+                                  Condition="'%(Filename)' == 'Ankus.Build' or '%(Filename)' == 'Ankus.Runtime' or '%(Filename)' == 'Ankus.Generators' or '%(Filename)' == 'Ankus.CodeFixes'">
+        <UndefineProperties>%(ProjectReference.GlobalPropertiesToRemove)</UndefineProperties>
+      </_AnkusDesignTimeDependency>
+    </ItemGroup>
+    <MSBuild Projects="@(_AnkusDesignTimeDependency)" Targets="Build" BuildInParallel="true"
+             Properties="DesignTimeBuild=false;BuildProjectReferences=true;BuildingProject=true;SkipCompilerExecution=false"
+             RemoveProperties="TargetFramework;NonExistentFile;ProvideCommandLineArgs;ContinueOnError" />
+  </Target>
+</Project>

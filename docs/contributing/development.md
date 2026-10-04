@@ -167,6 +167,15 @@ Every repository project inherits `MSTestAnalysisMode=All` and
 without suppressing diagnostics or reducing the enforced analysis mode.
 The root `.editorconfig` also enforces IDE0251 as an error: mark eligible struct
 members `readonly`, including helpers exposed by fixing their callees.
+IDE0042 requires eligible tuple locals to be deconstructed. Nullable annotations
+are enabled for repository projects, including samples; CS8632 is an error.
+These settings remain confined to the repository and are not added to consumer templates.
+
+Editor design-time builds prepare the repository's build helper, runtime and
+analyzer assemblies before resolving native bindings. This also works before
+the first ordinary build. The editor receives the project's nullable settings
+and generated binding references without publishing the extension. The packaged
+SDK already includes the helper and restores its runtime and analyzers from NuGet.
 
 To run a subset:
 

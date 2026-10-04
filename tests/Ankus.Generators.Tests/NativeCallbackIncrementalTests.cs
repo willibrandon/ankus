@@ -363,11 +363,11 @@ public sealed partial class PgFunctionGeneratorTests
     /// </summary>
     private static (string Source, IncrementalStepRunReason Reason) CallbackEmission(GeneratorDriver driver, string property)
     {
-        (object Value, IncrementalStepRunReason Reason) output = Assert.ContainsSingle(Assert.ContainsSingle(driver.GetRunResult().Results)
+        (object trackedValue, IncrementalStepRunReason reason) = Assert.ContainsSingle(Assert.ContainsSingle(driver.GetRunResult().Results)
             .TrackedSteps["NativeCallbackEmission"].SelectMany(static step => step.Outputs).Where(value =>
                 value.Reason != IncrementalStepRunReason.Removed && value.Value is string source &&
                 source.Replace("\r\n", "\n", StringComparison.Ordinal).Contains(" @" + property + "\n", StringComparison.Ordinal)));
-        return (Assert.IsInstanceOfType<string>(output.Value), output.Reason);
+        return (Assert.IsInstanceOfType<string>(trackedValue), reason);
     }
 
     /// <summary>

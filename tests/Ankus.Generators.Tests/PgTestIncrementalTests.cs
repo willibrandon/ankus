@@ -204,14 +204,14 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.AreEqual(catalog, PgTestCatalogSource(driver));
         Assert.AreSame(sameCoordinates, cachedError.Location.SourceTree);
         Assert.AreEqual(error.Location.SourceSpan, cachedError.Location.SourceSpan);
-        (object Value, IncrementalStepRunReason Reason) cached = Assert.ContainsSingle(Assert.ContainsSingle(driver.GetRunResult().Results)
+        (object trackedValue, IncrementalStepRunReason reason) = Assert.ContainsSingle(Assert.ContainsSingle(driver.GetRunResult().Results)
             .TrackedSteps["PgTestAnalysis"].SelectMany(static step => step.Outputs).Where(static value =>
                 value.Value is PgTestPipeline.Analysis analysis && !analysis.Problems.IsEmpty));
-        Assert.AreEqual(IncrementalStepRunReason.Unchanged, cached.Reason);
-        Assert.IsNull(Assert.IsInstanceOfType<PgTestPipeline.Analysis>(cached.Value).Model);
-        (object Value, IncrementalStepRunReason Reason) cachedModel = Assert.ContainsSingle(Assert.ContainsSingle(driver.GetRunResult().Results)
+        Assert.AreEqual(IncrementalStepRunReason.Unchanged, reason);
+        Assert.IsNull(Assert.IsInstanceOfType<PgTestPipeline.Analysis>(trackedValue).Model);
+        (object _, IncrementalStepRunReason modelReason) = Assert.ContainsSingle(Assert.ContainsSingle(driver.GetRunResult().Results)
             .TrackedSteps["PgTestModel"].SelectMany(static step => step.Outputs).Where(static value => value.Value is null));
-        Assert.AreEqual(IncrementalStepRunReason.Cached, cachedModel.Reason);
+        Assert.AreEqual(IncrementalStepRunReason.Cached, modelReason);
         driver = RunModule(driver, PgTestEdit(edited, valid), out Compilation repaired);
         Assert.Contains("Extension.Checks.First()", PgTestCatalogSource(driver)!);
         Assert.Contains(PgTestBoundary(driver, "global::Extension.Checks.@First").Emission.NativeName, ManifestValue(repaired, "Ankus.Exports"));
@@ -434,10 +434,10 @@ public sealed partial class PgFunctionGeneratorTests
     /// </summary>
     private static (PgTestPipeline.CatalogEmission Emission, IncrementalStepRunReason Reason) PgTestCatalog(GeneratorDriver driver, string owner)
     {
-        (object Value, IncrementalStepRunReason Reason) result = Assert.ContainsSingle(Assert.ContainsSingle(driver.GetRunResult().Results)
+        (object trackedValue, IncrementalStepRunReason reason) = Assert.ContainsSingle(Assert.ContainsSingle(driver.GetRunResult().Results)
             .TrackedSteps["PgTestCatalogEmission"].SelectMany(static step => step.Outputs)
             .Where(value => value.Reason != IncrementalStepRunReason.Removed && value.Value is PgTestPipeline.CatalogEmission emission && emission.Owner == owner));
-        return (Assert.IsInstanceOfType<PgTestPipeline.CatalogEmission>(result.Value), result.Reason);
+        return (Assert.IsInstanceOfType<PgTestPipeline.CatalogEmission>(trackedValue), reason);
     }
 
     /// <summary>
@@ -445,11 +445,11 @@ public sealed partial class PgFunctionGeneratorTests
     /// </summary>
     private static (FunctionEmission Emission, IncrementalStepRunReason Reason) PgTestBoundary(GeneratorDriver driver, string target)
     {
-        (object Value, IncrementalStepRunReason Reason) result = Assert.ContainsSingle(Assert.ContainsSingle(driver.GetRunResult().Results)
+        (object trackedValue, IncrementalStepRunReason reason) = Assert.ContainsSingle(Assert.ContainsSingle(driver.GetRunResult().Results)
             .TrackedSteps["PgTestEmission"].SelectMany(static step => step.Outputs)
             .Where(value => value.Reason != IncrementalStepRunReason.Removed && value.Value is FunctionEmission emission &&
                 emission.Managed.Contains(target + "(", StringComparison.Ordinal)));
-        return (Assert.IsInstanceOfType<FunctionEmission>(result.Value), result.Reason);
+        return (Assert.IsInstanceOfType<FunctionEmission>(trackedValue), reason);
     }
 
     /// <summary>
@@ -457,11 +457,11 @@ public sealed partial class PgFunctionGeneratorTests
     /// </summary>
     private static (FunctionSqlEmission Emission, IncrementalStepRunReason Reason) PgTestSql(GeneratorDriver driver, string nativeName)
     {
-        (object Value, IncrementalStepRunReason Reason) result = Assert.ContainsSingle(Assert.ContainsSingle(driver.GetRunResult().Results)
+        (object trackedValue, IncrementalStepRunReason reason) = Assert.ContainsSingle(Assert.ContainsSingle(driver.GetRunResult().Results)
             .TrackedSteps["PgTestSqlEmission"].SelectMany(static step => step.Outputs)
             .Where(value => value.Reason != IncrementalStepRunReason.Removed && value.Value is FunctionSqlEmission emission &&
                 emission.Tail.Contains("'" + nativeName + "'", StringComparison.Ordinal)));
-        return (Assert.IsInstanceOfType<FunctionSqlEmission>(result.Value), result.Reason);
+        return (Assert.IsInstanceOfType<FunctionSqlEmission>(trackedValue), reason);
     }
 
     /// <summary>

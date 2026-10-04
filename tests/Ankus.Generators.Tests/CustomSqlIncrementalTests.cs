@@ -353,10 +353,10 @@ public sealed partial class PgFunctionGeneratorTests
     /// </summary>
     private static (CustomSqlPipeline.Resolution Resolution, IncrementalStepRunReason Reason) TrackedCustomSql(GeneratorDriver driver, string name)
     {
-        (object Value, IncrementalStepRunReason Reason) output = Assert.ContainsSingle(
+        (object trackedValue, IncrementalStepRunReason reason) = Assert.ContainsSingle(
             Assert.ContainsSingle(driver.GetRunResult().Results).TrackedSteps["CustomSqlResolution"]
                 .SelectMany(static step => step.Outputs).Where(value => value.Reason != IncrementalStepRunReason.Removed &&
                     value.Value is CustomSqlPipeline.Resolution resolution && resolution.Name == name));
-        return (Assert.IsInstanceOfType<CustomSqlPipeline.Resolution>(output.Value), output.Reason);
+        return (Assert.IsInstanceOfType<CustomSqlPipeline.Resolution>(trackedValue), reason);
     }
 }
