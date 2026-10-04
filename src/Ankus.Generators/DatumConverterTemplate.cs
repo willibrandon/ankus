@@ -14,7 +14,7 @@ internal static class DatumConverterTemplate
     /// <summary>
     /// Closes a converter and its containing types without guessing unmentioned type parameters.
     /// </summary>
-    internal static INamedTypeSymbol? Close(INamedTypeSymbol template, INamedTypeSymbol target, out string? error)
+    internal static INamedTypeSymbol? Close(INamedTypeSymbol template, INamedTypeSymbol target, out DiagnosticDescriptor? error)
     {
         INamedTypeSymbol definition = template.OriginalDefinition;
         INamedTypeSymbol[] containers = [.. Containers(definition).Reverse()];
@@ -57,8 +57,8 @@ internal static class DatumConverterTemplate
             .Select(Construct).Distinct<INamedTypeSymbol>(SymbolEqualityComparer.IncludeNullability)];
         error = candidates.Length switch
         {
-            0 => "The generic datum converter's type arguments cannot be inferred from exact reader/writer interfaces.",
-            > 1 => "The generic datum converter has more than one inferred closed construction; specify a closed converter explicitly.",
+            0 => DatumMappingDiagnostics.Inference,
+            > 1 => DatumMappingDiagnostics.AmbiguousInference,
             _ => null,
         };
         return candidates.Length == 1 ? candidates[0] : null;
@@ -158,8 +158,8 @@ internal static class DatumConverterTemplate
 
             int index = Array.FindIndex(aliases, alias => alias.Span.Contains(diagnostic.Location.SourceSpan));
             DatumTypeDeclaration declaration = inferred[Math.Max(0, index)];
-            DatumTypeDeclaration.Error(declaration.Type, "The inferred datum converter is not a valid C# constructed type: " +
-                diagnostic.GetMessage(CultureInfo.InvariantCulture), context);
+            context.Report(DatumMappingDiagnostics.Constraint, declaration.ConverterLocation,
+                diagnostic.Id, diagnostic.GetMessage(CultureInfo.InvariantCulture));
             valid = false;
         }
 

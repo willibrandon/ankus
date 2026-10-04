@@ -91,6 +91,10 @@ extensions. Counts supplement the backend, ownership and recovery assertions.
 
 | Source | Platform / PostgreSQL | Result | Duration |
 | --- | --- | --- | --- |
+| Datum mapping diagnostic milestone / runtime **ankus.4** | Linux x64 / 18.6 | 11,927 total; 11,879 passed; 48 platform skips; zero failures | 42m37.991s tests; 44m55s command |
+| [CI 37214601834](https://github.com/willibrandon/ankus/actions/runs/37214601834), a5690d4 / runtime **ankus.4** | Linux x64 / 18 | 11,906 total; 11,858 passed; 48 platform skips; zero failures | 37m56s job |
+| Same CI / revision / runtime | macOS ARM64 / 18 | 11,906 total; 11,846 passed; 60 platform skips; zero failures | 30m25s job |
+| Same CI / revision / runtime | Windows x64 / 17 | 11,906 total; 11,878 passed; 28 platform skips; zero failures | 40m18s job |
 | Frozen CLI/template/reporting-hook composition / runtime **ankus.4** | Linux x64 / 18.6 | 11,840 total; 11,792 passed; 48 platform skips; zero failures | 51m13.968s command |
 | Frozen generator-discovery composition / runtime **ankus.4** | Linux x64 / 18.6 | 11,830 total; 11,782 passed; 48 platform skips; zero failures | 50m29.932s command |
 | [CI 37174019108](https://github.com/willibrandon/ankus/actions/runs/37174019108), 811f8d0 / runtime **ankus.4** | macOS ARM64 / 18 | 11,830 total; 11,770 passed; 60 platform skips; zero failures | 26m56s job |
@@ -280,6 +284,27 @@ passes.
   **35m19.441s**. Release passes with zero warnings/errors in **43.84s**; API
   generation reports **244 pages / 2,791 members**, site checks have zero
   diagnostics, and the site builds **293 pages**.
+- Datum mapping validation now reports **ANKUS134–157** for independently
+  correctable carrier, metadata, converter, inference, signature and duplicate
+  declaration contracts, replacing the broad **ANKUS019**. Diagnostics navigate
+  to attribute values, consuming types or the duplicate declaration; referenced
+  mappings retain an authored usage location. All **328/328** affected generator
+  cases pass, including `DatumMappingMetadataDiagnosticsIdentifyAuthoredValues`,
+  `DatumMappingSignatureDiagnosticsIdentifyConsumedTypes`,
+  `DuplicateDatumMappingDiagnosticsIdentifyTheSecondDeclaration`,
+  `DatumConverterConstraintDiagnosticsIdentifyTheAuthoredConverter` and
+  `DatumMappingValueDiagnosticsRemainCachedAcrossSourceMovement`.
+  Complete Linux/18.6 acceptance passes **11,927 total / 11,879 passed /
+  48 platform skips / zero failures** in **42m37.991s**. All six report modules
+  were independently verified; all **1,593** recorded authored build inputs
+  remain unchanged. Release passes with zero warnings/errors in **50.63s**;
+  API freshness reports **244 pages / 2,791 members**, and site checks have zero
+  errors, warnings or hints. The site builds **293 pages** in **3.41s**.
+  Before this milestone, [CI 37214601834](https://github.com/willibrandon/ankus/actions/runs/37214601834)
+  passes quality, all runtime jobs and all three complete platform suites.
+  All six report modules were independently verified for each platform.
+  [Docs 37214601835](https://github.com/willibrandon/ankus/actions/runs/37214601835)
+  passes build and deployment.
 - Remaining review work includes precise diagnostics and useful code fixes,
   remaining CLI/account contracts, representative samples and final platform
   acceptance. Detailed outcomes and superseded states belong in the

@@ -112,7 +112,7 @@ public sealed partial class PgFunctionGeneratorTests
     [DataRow("[return: Ankus.PgCompositeType(\"pair\")] public static Ankus.PgArrayView<Value>? Read() => null;", true, "cannot override")]
     public void TypedBorrowedArraysRejectInvalidMappingContracts(string method, bool reader, string message)
         => AssertDatumMappingError(DatumMappingSource(reader: reader) + "public static class Functions { [Ankus.PgFunction] " + method + " }",
-            "ANKUS019", message);
+            reader ? "ANKUS151" : "ANKUS152", message);
 
     /// <summary>
     /// A borrowed collection does not make nested arrays or polymorphic scalar cells representable.

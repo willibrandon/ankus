@@ -119,7 +119,7 @@ public sealed partial class PgFunctionGeneratorTests
     [DataRow("public static int Input(Value? value) => 0;", false)]
     public void DatumMappingsRejectUnavailableFunctionDirections(string method, bool readOnly)
         => AssertDatumMappingError(DatumMappingSource(reader: readOnly, writer: !readOnly) +
-            "public static class Functions { [Ankus.PgFunction] " + method + " }", "ANKUS019",
+            "public static class Functions { [Ankus.PgFunction] " + method + " }", readOnly ? "ANKUS153" : "ANKUS152",
             readOnly ? "writing SQL results" : "reading SQL arguments");
 
     /// <summary>
@@ -155,7 +155,7 @@ public sealed partial class PgFunctionGeneratorTests
     [DataRow("public static int Read(System.Collections.Generic.List<Value> value) => 0;")]
     public void DatumMappingsRejectUnsupportedContainers(string method)
         => AssertDatumMappingError(DatumMappingSource() + "public static class Functions { [Ankus.PgFunction] " + method + " }",
-            "ANKUS019", "nested arrays and other containers are unsupported");
+            "ANKUS154", "nested arrays and other containers are unsupported");
 
     /// <summary>
     /// Per-slot SQL metadata cannot override a reusable mapping, including renamed TABLE columns.
@@ -167,7 +167,7 @@ public sealed partial class PgFunctionGeneratorTests
     [DataRow("[return: Ankus.PgSqlType(\"text\", Column=\"renamed\"), Ankus.PgColumnNames(\"renamed\", \"number\")] public static System.Collections.Generic.IEnumerable<(Value Item, int Number)> Read() => [];")]
     public void DatumMappingsRejectSlotBindingOverrides(string method)
         => AssertDatumMappingError(DatumMappingSource() + "public static class Functions { [Ankus.PgFunction] " + method + " }",
-            "ANKUS019", "cannot override their mapping");
+            "ANKUS151", "cannot override their mapping");
 
     /// <summary>
     /// A separate raw TABLE column and opaque managed aggregate state retain their existing binding semantics.
@@ -198,57 +198,56 @@ public sealed partial class PgFunctionGeneratorTests
     /// Converter declarations require exact interfaces and a safely callable closed constructor.
     /// </summary>
     /// <param name="converter">The invalid converter declaration or type expression.</param>
+    /// <param name="id">The exact mapping contract diagnostic.</param>
     /// <param name="reason">The independently expected diagnostic reason.</param>
     [TestMethod]
-    [DataRow("public abstract class Converter : Ankus.IPgDatumReader<Value> { public abstract Value Read(Ankus.PgDatum value); }", "accessible parameterless constructor")]
-    [DataRow("public class Converter : Ankus.IPgDatumReader<Value> { private Converter() { } public Value Read(Ankus.PgDatum value) => default; }", "accessible parameterless constructor")]
-    [DataRow("public class Converter(int number) : Ankus.IPgDatumReader<Value> { public Value Read(Ankus.PgDatum value) => default; }", "accessible parameterless constructor")]
-    [DataRow("public class Converter { }", "exact non-nullable managed type")]
-    [DataRow("public class Converter : Ankus.IPgDatumReader<int> { public int Read(Ankus.PgDatum value) => 0; }", "exact non-nullable managed type")]
-    [DataRow("public class Parent { public required string Prefix { get; init; } } public class Converter : Parent, Ankus.IPgDatumReader<Value> { public Value Read(Ankus.PgDatum value) => default; }", "SetsRequiredMembers")]
-    public void DatumMappingsRejectInvalidConverterDeclarations(string converter, string reason)
+    [DataRow("public abstract class Converter : Ankus.IPgDatumReader<Value> { public abstract Value Read(Ankus.PgDatum value); }", "ANKUS142", "closed, concrete")]
+    [DataRow("public class Converter : Ankus.IPgDatumReader<Value> { private Converter() { } public Value Read(Ankus.PgDatum value) => default; }", "ANKUS144", "accessible parameterless constructor")]
+    [DataRow("public class Converter(int number) : Ankus.IPgDatumReader<Value> { public Value Read(Ankus.PgDatum value) => default; }", "ANKUS144", "accessible parameterless constructor")]
+    [DataRow("public class Converter { }", "ANKUS145", "exact non-nullable managed type")]
+    [DataRow("public class Converter : Ankus.IPgDatumReader<int> { public int Read(Ankus.PgDatum value) => 0; }", "ANKUS145", "exact non-nullable managed type")]
+    [DataRow("public class Parent { public required string Prefix { get; init; } } public class Converter : Parent, Ankus.IPgDatumReader<Value> { public Value Read(Ankus.PgDatum value) => default; }", "ANKUS146", "SetsRequiredMembers")]
+    public void DatumMappingsRejectInvalidConverterDeclarations(string converter, string id, string reason)
         => AssertDatumMappingError("[Ankus.PgDatumType(\"int4\", typeof(Converter), Origin = Ankus.PgTypeOrigin.External, Schema = \"pg_catalog\")] public struct Value { } " +
-            converter, "ANKUS019", reason);
+            converter, id, reason);
 
     /// <summary>
     /// Unsupported wrapper shapes, conflicting metadata and non-named or uninferable converters fail at their declarations.
     /// </summary>
     /// <param name="declaration">The invalid root declaration.</param>
+    /// <param name="id">The exact mapping contract diagnostic.</param>
+    /// <param name="reason">The independently expected diagnostic reason.</param>
     /// <param name="converterType">The attribute's converter type expression.</param>
     [TestMethod]
-    [DataRow("public abstract class Value { }", "Converter")]
-    [DataRow("public ref struct Value { }", "Converter")]
-    [DataRow("[Ankus.PgType] public struct Value { public int Number; }", "Converter")]
-    [DataRow("[Ankus.PgEnum] public enum Value { First }", "Converter")]
-    [DataRow("public struct Value { }", "Converter[]")]
-    [DataRow("public struct Value { }", "GenericConverter<>")]
-    public void DatumMappingsRejectUnsupportedRootContracts(string declaration, string converterType)
+    [DataRow("public abstract class Value { }", "Converter", "ANKUS134", "closed, concrete")]
+    [DataRow("public ref struct Value { }", "Converter", "ANKUS134", "closed, concrete")]
+    [DataRow("[Ankus.PgType] public struct Value { public int Number; }", "Converter", "ANKUS136", "choose one storage contract")]
+    [DataRow("[Ankus.PgEnum] public enum Value { First }", "Converter", "ANKUS136", "choose one storage contract")]
+    [DataRow("public struct Value { }", "Converter[]", "ANKUS142", "closed, concrete")]
+    [DataRow("public struct Value { }", "GenericConverter<>", "ANKUS147", "cannot be inferred")]
+    public void DatumMappingsRejectUnsupportedRootContracts(string declaration, string converterType, string id, string reason)
     {
         string source = "[Ankus.PgDatumType(\"item\", typeof(" + converterType + "))] " + declaration;
         source += " public class Converter { } public class GenericConverter<T> { }";
-        AssertDatumMappingError(source, "ANKUS019", converterType switch
-        {
-            "Converter[]" => "accessible parameterless constructor",
-            "GenericConverter<>" => "cannot be inferred",
-            _ => "closed, concrete",
-        });
+        AssertDatumMappingError(source, id, reason);
     }
 
     /// <summary>
     /// Invalid identifiers and origin choices are independent of converter and SQL provider construction.
     /// </summary>
     /// <param name="options">The invalid mapping metadata.</param>
+    /// <param name="id">The exact mapping contract diagnostic.</param>
     /// <param name="reason">The expected diagnostic reason.</param>
     [TestMethod]
-    [DataRow("null, typeof(Converter)", "valid Unicode")]
-    [DataRow("\"\", typeof(Converter)", "valid Unicode")]
-    [DataRow("\"bad\\0name\", typeof(Converter)", "valid Unicode")]
-    [DataRow("\"bad\\uD800name\", typeof(Converter)", "valid Unicode")]
-    [DataRow("\"item\", typeof(Converter), Schema=\"\"", "valid Unicode")]
-    [DataRow("\"item\", typeof(Converter), Origin=(Ankus.PgTypeOrigin)17", "Origin must be")]
-    [DataRow("\"item\", typeof(Converter), Origin=Ankus.PgTypeOrigin.External", "explicit Schema")]
-    public void DatumMappingsRejectInvalidMetadata(string options, string reason)
-        => AssertDatumMappingError("[Ankus.PgDatumType(" + options + ")] public struct Value { } " + DatumConverter(), "ANKUS019", reason);
+    [DataRow("null, typeof(Converter)", "ANKUS138", "valid Unicode")]
+    [DataRow("\"\", typeof(Converter)", "ANKUS138", "valid Unicode")]
+    [DataRow("\"bad\\0name\", typeof(Converter)", "ANKUS138", "valid Unicode")]
+    [DataRow("\"bad\\uD800name\", typeof(Converter)", "ANKUS138", "valid Unicode")]
+    [DataRow("\"item\", typeof(Converter), Schema=\"\"", "ANKUS139", "valid Unicode")]
+    [DataRow("\"item\", typeof(Converter), Origin=(Ankus.PgTypeOrigin)17", "ANKUS140", "Origin must be")]
+    [DataRow("\"item\", typeof(Converter), Origin=Ankus.PgTypeOrigin.External", "ANKUS141", "explicit Schema")]
+    public void DatumMappingsRejectInvalidMetadata(string options, string id, string reason)
+        => AssertDatumMappingError("[Ankus.PgDatumType(" + options + ")] public struct Value { } " + DatumConverter(), id, reason);
 
     /// <summary>
     /// Managed and catalog providers are aliases only for the same block, regardless of attribute order.
@@ -477,7 +476,7 @@ public sealed partial class PgFunctionGeneratorTests
     [DataRow(true)]
     public void DatumMappingsRejectNullableConverterContracts(bool reader)
         => AssertDatumMappingError("[Ankus.PgDatumType(\"text\", typeof(Converter), Origin=Ankus.PgTypeOrigin.External, Schema=\"pg_catalog\")] public class Value { } " +
-            DatumConverter("Value?", reader: reader, writer: !reader), "ANKUS019", "exact non-nullable managed type");
+            DatumConverter("Value?", reader: reader, writer: !reader), "ANKUS145", "exact non-nullable managed type");
 
     /// <summary>
     /// A shared converter's interfaces for another wrapper do not supply the missing direction for the requested wrapper.
@@ -510,7 +509,7 @@ public sealed partial class PgFunctionGeneratorTests
         string source = declarations + "public static class Functions { [Ankus.PgFunction] " + method + " }";
         if (invalidDirection != 0)
         {
-            AssertDatumMappingError(source, "ANKUS019", invalidDirection == 1 ? "reading SQL arguments" : "writing SQL results");
+            AssertDatumMappingError(source, invalidDirection == 1 ? "ANKUS152" : "ANKUS153", invalidDirection == 1 ? "reading SQL arguments" : "writing SQL results");
         }
         else
         {
@@ -538,7 +537,7 @@ public sealed partial class PgFunctionGeneratorTests
             "public static class Functions { [Ankus.PgFunction] public static Value Read() => default; }";
         if (!valid)
         {
-            AssertDatumMappingError(source, "ANKUS019", "63 UTF-8 bytes");
+            AssertDatumMappingError(source, schema ? "ANKUS139" : "ANKUS138", "63 UTF-8 bytes");
         }
         else
         {
@@ -668,8 +667,9 @@ public sealed partial class PgFunctionGeneratorTests
         else
         {
             Diagnostic diagnostic = Assert.ContainsSingle(diagnostics);
-            Assert.AreEqual("ANKUS019", diagnostic.Id);
-            Assert.Contains("accessible parameterless constructor", diagnostic.GetMessage(CultureInfo.InvariantCulture));
+            Assert.AreEqual(boundary == "constructor" ? "ANKUS144" : "ANKUS143", diagnostic.Id);
+            AssertDatumDiagnosticLocation(diagnostic, boundary == "constructor" ? "ANKUS144" : "ANKUS143", "Value");
+            Assert.Contains("accessible", diagnostic.GetMessage(CultureInfo.InvariantCulture));
             Assert.IsNull(compilation.GetTypeByMetadataName("Ankus.Generated.ExtensionDispatchers"));
             Assert.IsEmpty(compilation.GetDiagnostics(context.CancellationToken).Where(static item => item.Severity == DiagnosticSeverity.Error));
         }
@@ -688,7 +688,8 @@ public sealed partial class PgFunctionGeneratorTests
             public static class Functions { [Ankus.PgFunction] public static int Read(mapped::Value value) => 7; }
             """, [dependency]);
         Diagnostic diagnostic = Assert.ContainsSingle(diagnostics);
-        Assert.AreEqual("ANKUS019", diagnostic.Id);
+        Assert.AreEqual("ANKUS150", diagnostic.Id);
+        AssertDatumDiagnosticLocation(diagnostic, "ANKUS150", "mapped::Value");
         Assert.Contains("extern-alias-only contracts are unsupported", diagnostic.GetMessage(CultureInfo.InvariantCulture));
         Assert.IsNull(compilation.GetTypeByMetadataName("Ankus.Generated.ExtensionDispatchers"));
     }
@@ -724,7 +725,7 @@ public sealed partial class PgFunctionGeneratorTests
         if (aliasOnly)
         {
             Diagnostic diagnostic = Assert.ContainsSingle(diagnostics);
-            Assert.AreEqual("ANKUS019", diagnostic.Id);
+            Assert.AreEqual("ANKUS150", diagnostic.Id);
             Assert.Contains("extern-alias-only contracts are unsupported", diagnostic.GetMessage(CultureInfo.InvariantCulture));
             Assert.IsNull(compilation.GetTypeByMetadataName("Ankus.Generated.ExtensionDispatchers"));
         }
@@ -868,6 +869,11 @@ public sealed partial class PgFunctionGeneratorTests
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source);
         Assert.IsNotEmpty(diagnostics);
         Assert.IsTrue(diagnostics.All(error => error.Id == id), string.Join(Environment.NewLine, diagnostics));
+        foreach (Diagnostic error in diagnostics)
+        {
+            Assert.AreEqual(DiagnosticSeverity.Error, error.Severity);
+        }
+
         Assert.IsTrue(diagnostics.Any(error => error.GetMessage(CultureInfo.InvariantCulture).Contains(reason, StringComparison.Ordinal)),
             string.Join(Environment.NewLine, diagnostics));
         Assert.IsNull(compilation.GetTypeByMetadataName("Ankus.Generated.ExtensionDispatchers"));
@@ -886,7 +892,7 @@ public sealed partial class PgFunctionGeneratorTests
     /// Proves the requested compiler-selected callback itself reports the missing conversion direction.
     /// </summary>
     private void AssertDatumAggregateDirectionError(string source, string role, bool readOnly)
-        => AssertDatumMappingError(source, "ANKUS019", readOnly ? "writing SQL results" : "reading SQL arguments", role);
+        => AssertDatumMappingError(source, readOnly ? "ANKUS153" : "ANKUS152", readOnly ? "writing SQL results" : "reading SQL arguments", role);
 
     /// <summary>
     /// Builds valid C# capabilities so datum preflight errors cannot be mistaken for invalid method signatures.

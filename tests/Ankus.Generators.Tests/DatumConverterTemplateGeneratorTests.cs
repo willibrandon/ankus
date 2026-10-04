@@ -125,7 +125,7 @@ public sealed partial class PgFunctionGeneratorTests
         }
         else
         {
-            AssertDatumMappingError(source, "ANKUS019", "cannot be inferred");
+            AssertDatumMappingError(source, "ANKUS147", "cannot be inferred");
         }
     }
 
@@ -165,7 +165,7 @@ public sealed partial class PgFunctionGeneratorTests
                     """,
                 _ => throw new InvalidOperationException(),
             });
-        AssertDatumMappingError(source, "ANKUS019", kind.StartsWith("ambiguous", StringComparison.Ordinal) ? "more than one inferred closed construction" : "cannot be inferred");
+        AssertDatumMappingError(source, kind.StartsWith("ambiguous", StringComparison.Ordinal) ? "ANKUS148" : "ANKUS147", kind.StartsWith("ambiguous", StringComparison.Ordinal) ? "more than one inferred closed construction" : "cannot be inferred");
     }
 
     /// <summary>
@@ -222,7 +222,7 @@ public sealed partial class PgFunctionGeneratorTests
         }
         else
         {
-            AssertDatumMappingError(source, "ANKUS019", "not a valid C# constructed type");
+            AssertDatumMappingError(source, "ANKUS149", "not a valid C# constructed type");
         }
     }
 
@@ -251,7 +251,7 @@ public sealed partial class PgFunctionGeneratorTests
         }
         else
         {
-            AssertDatumMappingError(source, "ANKUS019", "not a valid C# constructed type");
+            AssertDatumMappingError(source, "ANKUS149", "not a valid C# constructed type");
         }
     }
 
@@ -275,19 +275,20 @@ public sealed partial class PgFunctionGeneratorTests
     /// </summary>
     /// <param name="declaration">The converter declaration modifiers.</param>
     /// <param name="members">The independently invalid converter members.</param>
+    /// <param name="id">The exact mapping contract diagnostic.</param>
     /// <param name="reason">The expected contract diagnostic.</param>
     [TestMethod]
-    [DataRow("public abstract class", "", "accessible, closed and concrete")]
-    [DataRow("file sealed class", "", "accessible, closed and concrete")]
-    [DataRow("public sealed class", "private Converter() { }", "accessible parameterless constructor")]
-    [DataRow("public sealed class", "public Converter(int value) { }", "accessible parameterless constructor")]
-    [DataRow("public sealed class", "public required int Value { get; set; }", "SetsRequiredMembers")]
-    public void DatumConverterTemplatesRetainConstructionDiagnostics(string declaration, string members, string reason)
+    [DataRow("public abstract class", "", "ANKUS142", "closed, concrete")]
+    [DataRow("file sealed class", "", "ANKUS143", "accessible")]
+    [DataRow("public sealed class", "private Converter() { }", "ANKUS144", "accessible parameterless constructor")]
+    [DataRow("public sealed class", "public Converter(int value) { }", "ANKUS144", "accessible parameterless constructor")]
+    [DataRow("public sealed class", "public required int Value { get; set; }", "ANKUS146", "SetsRequiredMembers")]
+    public void DatumConverterTemplatesRetainConstructionDiagnostics(string declaration, string members, string id, string reason)
         => AssertDatumMappingError("""
             [Ankus.PgDatumType(typeof(Box<int>), "int4", typeof(Converter<>), Origin=Ankus.PgTypeOrigin.External, Schema="pg_catalog")]
             public readonly record struct Box<T>(int Number);
             """ + declaration + " Converter<T> : Ankus.IPgDatumReader<Box<T>> { " + members +
-            " public Box<T> Read(Ankus.PgDatum value) => default; }", "ANKUS019", reason);
+            " public Box<T> Read(Ankus.PgDatum value) => default; }", id, reason);
 
     /// <summary>
     /// A nested converter with no immediate type parameters retains and validates its inferred outer constraint.
@@ -315,7 +316,7 @@ public sealed partial class PgFunctionGeneratorTests
         }
         else
         {
-            AssertDatumMappingError(source, "ANKUS019", "not a valid C# constructed type");
+            AssertDatumMappingError(source, "ANKUS149", "not a valid C# constructed type");
         }
     }
 
@@ -360,7 +361,7 @@ public sealed partial class PgFunctionGeneratorTests
         CSharpCompilation changed = original.ReplaceSyntaxTree(original.SyntaxTrees.Single(), CSharpSyntaxTree.ParseText(
             source.Replace("where T : struct", "where T : class", StringComparison.Ordinal), cancellationToken: context.CancellationToken));
         driver = driver.RunGeneratorsAndUpdateCompilation(changed, out Compilation invalid, out ImmutableArray<Diagnostic> invalidDiagnostics, context.CancellationToken);
-        Assert.Contains(diagnostic => diagnostic.Id == "ANKUS019" && diagnostic.GetMessage(CultureInfo.InvariantCulture)
+        Assert.Contains(diagnostic => diagnostic.Id == "ANKUS149" && diagnostic.GetMessage(CultureInfo.InvariantCulture)
             .Contains("not a valid C# constructed type", StringComparison.Ordinal), invalidDiagnostics);
         Assert.IsNull(invalid.GetTypeByMetadataName("Ankus.Generated.ExtensionDispatchers"));
         Assert.IsEmpty(invalid.Assembly.GetAttributes().Where(static attribute =>
@@ -448,7 +449,7 @@ public sealed partial class PgFunctionGeneratorTests
         }
         else
         {
-            AssertDatumMappingError(source, "ANKUS019", "not a valid C# constructed type");
+            AssertDatumMappingError(source, "ANKUS149", "not a valid C# constructed type");
         }
     }
 

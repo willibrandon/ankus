@@ -16,7 +16,6 @@ ANKUS015 | Ankus | Error | Invalid PostgreSQL configuration prefix
 ANKUS016 | Ankus | Error | Invalid raw PostgreSQL type or TABLE column binding
 ANKUS017 | Ankus | Error | Invalid PostgreSQL base type or storage codec
 ANKUS018 | Ankus | Error | Invalid generated PostgreSQL operators
-ANKUS019 | Ankus | Error | Invalid reusable PostgreSQL datum mapping
 ANKUS020 | Ankus | Error | Invalid mapped PostgreSQL range declaration
 ANKUS021 | Ankus | Error | Invalid static native callback declaration or handler
 ANKUS022 | Ankus | Error | Invalid PostgreSQL background-worker entry
@@ -131,3 +130,27 @@ ANKUS130 | Ankus | Error | Invalid PostgreSQL benchmark declaration
 ANKUS131 | Ankus | Error | Invalid PostgreSQL benchmark setup
 ANKUS132 | Ankus | Error | Invalid PostgreSQL benchmark configuration
 ANKUS133 | Ankus | Error | Conflicting PostgreSQL benchmark role
+ANKUS134 | Ankus | Error | Invalid datum mapping carrier
+ANKUS135 | Ankus | Error | Inaccessible datum mapping carrier
+ANKUS136 | Ankus | Error | Conflicting datum storage declarations
+ANKUS137 | Ankus | Error | Missing closed datum mapping
+ANKUS138 | Ankus | Error | Invalid datum mapping type name
+ANKUS139 | Ankus | Error | Invalid datum mapping schema
+ANKUS140 | Ankus | Error | Invalid datum mapping origin
+ANKUS141 | Ankus | Error | External datum mapping requires a schema
+ANKUS142 | Ankus | Error | Invalid datum converter type
+ANKUS143 | Ankus | Error | Inaccessible datum converter
+ANKUS144 | Ankus | Error | Datum converter requires a constructor
+ANKUS145 | Ankus | Error | Mismatched datum converter contract
+ANKUS146 | Ankus | Error | Datum converter has required members
+ANKUS147 | Ankus | Error | Cannot infer datum converter arguments
+ANKUS148 | Ankus | Error | Ambiguous datum converter inference
+ANKUS149 | Ankus | Error | Invalid inferred datum converter constraint
+ANKUS150 | Ankus | Error | Unresolved datum mapping identity
+ANKUS151 | Ankus | Error | Datum mapping has a SQL override
+ANKUS152 | Ankus | Error | Datum mapping requires a reader
+ANKUS153 | Ankus | Error | Datum mapping requires a writer
+ANKUS154 | Ankus | Error | Unsupported mapped datum container
+ANKUS155 | Ankus | Error | Duplicate default datum mapping
+ANKUS156 | Ankus | Error | Invalid explicit datum mapping target
+ANKUS157 | Ankus | Error | Duplicate exact datum mapping

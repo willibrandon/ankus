@@ -103,17 +103,18 @@ public sealed partial class PgFunctionGeneratorTests
     /// Declaration ambiguity and invalid targets fail before producing any artifacts, including unused metadata.
     /// </summary>
     /// <param name="change">The malformed declaration or selected use.</param>
+    /// <param name="id">The exact mapping contract diagnostic.</param>
     /// <param name="reason">The expected mapping diagnostic.</param>
     [TestMethod]
-    [DataRow("null", "closed construction of the annotated managed type")]
-    [DataRow("open", "closed construction of the annotated managed type")]
-    [DataRow("unrelated", "closed construction of the annotated managed type")]
-    [DataRow("duplicate", "only one exact PgDatumType")]
-    [DataRow("defaults", "only one default PgDatumType")]
-    [DataRow("unlisted", "No PgDatumType declaration selects")]
-    [DataRow("converter", "exact non-nullable managed type")]
-    [DataRow("name", "Type and schema names")]
-    public void ExplicitDatumMappingsRejectAmbiguousOrInvalidDeclarations(string change, string reason)
+    [DataRow("null", "ANKUS156", "closed construction of the annotated managed type")]
+    [DataRow("open", "ANKUS156", "closed construction of the annotated managed type")]
+    [DataRow("unrelated", "ANKUS156", "closed construction of the annotated managed type")]
+    [DataRow("duplicate", "ANKUS157", "only one exact PgDatumType")]
+    [DataRow("defaults", "ANKUS155", "only one default PgDatumType")]
+    [DataRow("unlisted", "ANKUS137", "No PgDatumType declaration selects")]
+    [DataRow("converter", "ANKUS145", "exact non-nullable managed type")]
+    [DataRow("name", "ANKUS138", "The type name")]
+    public void ExplicitDatumMappingsRejectAmbiguousOrInvalidDeclarations(string change, string id, string reason)
     {
         string source = change switch
         {
@@ -130,7 +131,7 @@ public sealed partial class PgFunctionGeneratorTests
             "name" => ExplicitDatumMappingSource.Replace("\"int4\"", "\"\"", StringComparison.Ordinal),
             _ => throw new InvalidOperationException(),
         };
-        AssertDatumMappingError(source, "ANKUS019", reason);
+        AssertDatumMappingError(source, id, reason);
     }
 
     /// <summary>

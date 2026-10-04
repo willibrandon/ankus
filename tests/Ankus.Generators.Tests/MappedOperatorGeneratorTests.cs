@@ -217,7 +217,7 @@ public sealed partial class PgFunctionGeneratorTests
     [DataRow("equatable", "ANKUS018", "require IEquatable<T>")]
     [DataRow("comparable", "ANKUS018", "requires IComparable<T>")]
     [DataRow("hashable", "ANKUS018", "requires IPgHashable")]
-    [DataRow("mapping", "ANKUS019", "exact non-nullable managed type")]
+    [DataRow("mapping", "ANKUS145", "exact non-nullable managed type")]
     [DataRow("provider", "ANKUS005", "requires a PgSqlTypeProvider")]
     public void InvalidMappedOperatorContractsAreDiagnosed(string change, string id, string reason)
     {

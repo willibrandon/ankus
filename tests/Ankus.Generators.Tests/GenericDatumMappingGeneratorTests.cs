@@ -109,7 +109,7 @@ public sealed partial class PgFunctionGeneratorTests
             {
                 [Ankus.PgFunction] public static int Read(Box<long> value) => value.Word;
             }
-            """, "ANKUS019", "exact non-nullable managed type");
+            """, "ANKUS145", "exact non-nullable managed type");
 
     /// <summary>
     /// Each selected closure needs the conversion direction used by its generated callback slot.
@@ -136,7 +136,7 @@ public sealed partial class PgFunctionGeneratorTests
             public static class Functions
             {
             """ + (read ? "[Ankus.PgFunction] public static int Read(Box<int> value) => value.Word;" :
-                "[Ankus.PgFunction] public static Box<int> Write(int value) => new(value);") + "\n}", "ANKUS019", reason);
+                "[Ankus.PgFunction] public static Box<int> Write(int value) => new(value);") + "\n}", read ? "ANKUS152" : "ANKUS153", reason);
 
     /// <summary>
     /// Two exact owned closures can depend on one completed manual SQL type without duplicating it.

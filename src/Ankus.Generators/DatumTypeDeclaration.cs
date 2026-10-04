@@ -7,12 +7,8 @@ namespace Ankus.Generators;
 /// Validates a closed managed datum converter independently of generated storage codecs.
 /// </summary>
 internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymbol converter, string name, string? schema,
-    bool external, bool canRead, bool canWrite, bool inferred, DatumTypeDeclaration? rangeBound = null)
+    bool external, bool canRead, bool canWrite, bool inferred, DatumTypeDeclaration? rangeBound = null, Location? converterLocation = null)
 {
-    private static readonly DiagnosticDescriptor s_invalid = new(
-        "ANKUS019", "Invalid PostgreSQL datum mapping", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true,
-        helpLinkUri: "https://willibrandon.github.io/ankus/raw-values/#reusable-scalar-mappings");
-
     /// <summary>
     /// Gets the exact managed root identity.
     /// </summary>
@@ -47,6 +43,11 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
     /// Gets whether compiler constraint validation is required for an inferred converter construction.
     /// </summary>
     internal bool HasInferredConverter { get; } = inferred;
+
+    /// <summary>
+    /// Gets the current converter expression or source usage for constraint diagnostics.
+    /// </summary>
+    internal Location? ConverterLocation { get; } = converterLocation;
 
     /// <summary>
     /// Gets the scalar conversion shared by a synthetic mapped range contract.
@@ -84,27 +85,40 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
     /// Resolves an attributed type and optionally reports its invalid contract.
     /// </summary>
     internal static DatumTypeDeclaration? Create(INamedTypeSymbol type, IAssemblySymbol? assembly = null,
-        GeneratorDiagnostics? context = null)
+        GeneratorDiagnostics? context = null, Location? usage = null)
     {
         type = (INamedTypeSymbol)type.WithNullableAnnotation(NullableAnnotation.NotAnnotated);
         if (RangeTypeDeclaration.Bound(type) is { } bound)
         {
-            DatumTypeDeclaration? scalar = Create(bound, assembly, context);
+            DatumTypeDeclaration? scalar = Create(bound, assembly, context, usage);
             return scalar is not null && RangeTypeDeclaration.TryCreate(scalar, out DatumTypeDeclaration? range, context) ? range : null;
         }
 
-        AttributeData[]? attributes = Declarations(type, context);
+        AttributeData[]? attributes = Declarations(type, context, usage);
         if (attributes is null || attributes.Length == 0)
         {
             return null;
         }
 
         assembly ??= type.ContainingAssembly;
+        Location? root = type.Locations.FirstOrDefault(static item => item.IsInSource) ?? usage;
         if (type.TypeKind is not (TypeKind.Class or TypeKind.Struct or TypeKind.Enum) || type.IsStatic || type.IsAbstract ||
-            type.IsRefLikeType || !IsClosed(type) || !Accessible(type, assembly) ||
-            type.GetAttributes().Any(static item => item.AttributeClass?.ToDisplayString() is "Ankus.PgTypeAttribute" or "Ankus.PgEnumAttribute"))
+            type.IsRefLikeType || !IsClosed(type))
         {
-            return Invalid("PgDatumType requires an accessible, closed, concrete class, struct, or enum without PgType or PgEnum.");
+            return Invalid(DatumMappingDiagnostics.RootShape, root);
+        }
+
+        if (!Accessible(type, assembly))
+        {
+            return Invalid(DatumMappingDiagnostics.RootAccess, root, type.ToDisplayString());
+        }
+
+        AttributeData? storage = type.GetAttributes().FirstOrDefault(static item =>
+            item.AttributeClass?.ToDisplayString() is "Ankus.PgTypeAttribute" or "Ankus.PgEnumAttribute");
+        if (storage is not null)
+        {
+            return Invalid(DatumMappingDiagnostics.StorageConflict,
+                storage.ApplicationSyntaxReference?.GetSyntax(context?.CancellationToken ?? default).GetLocation() ?? root, type.Name);
         }
 
         AttributeData? attribute = attributes.FirstOrDefault(item => item.ConstructorArguments.Length == 3 &&
@@ -112,55 +126,68 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
             attributes.FirstOrDefault(static item => item.ConstructorArguments.Length == 2);
         if (attribute is null)
         {
-            return Invalid("No PgDatumType declaration selects this exact closed managed type.");
+            return Invalid(DatumMappingDiagnostics.MissingMapping, usage ?? root, type.ToDisplayString());
         }
 
         int offset = attribute.ConstructorArguments.Length == 3 ? 1 : 0;
         string? name = attribute.ConstructorArguments[offset].Value as string;
         string? schema = AttributeValues.Get<string?>(attribute, "Schema", null);
-        if (!SqlText.IsIdentifier(name) || schema is not null && !SqlText.IsIdentifier(schema))
+        CancellationToken cancellationToken = context?.CancellationToken ?? default;
+        Location? converterSource = DatumMappingDiagnostics.Argument(attribute, offset + 1, cancellationToken) ?? usage ?? root;
+        if (!SqlText.IsIdentifier(name))
         {
-            return Invalid("Type and schema names must be nonempty identifiers of at most 63 UTF-8 bytes, without zero characters or invalid Unicode.");
+            return Invalid(DatumMappingDiagnostics.Name, DatumMappingDiagnostics.Argument(attribute, offset, cancellationToken));
+        }
+
+        if (schema is not null && !SqlText.IsIdentifier(schema))
+        {
+            return Invalid(DatumMappingDiagnostics.Schema, FunctionDeclarationDiagnostics.Option(attribute, "Schema", cancellationToken));
         }
 
         int origin = AttributeValues.Get(attribute, "Origin", 0);
         if (origin is not (0 or 1))
         {
-            return Invalid("Origin must be ThisExtension or External.");
+            return Invalid(DatumMappingDiagnostics.Origin, FunctionDeclarationDiagnostics.Option(attribute, "Origin", cancellationToken));
         }
 
         if (origin == 1 && schema is null)
         {
-            return Invalid("External datum mappings require an explicit Schema.");
+            return Invalid(DatumMappingDiagnostics.ExternalSchema, FunctionDeclarationDiagnostics.Option(attribute, "Origin", cancellationToken));
         }
 
         if (attribute.ConstructorArguments[offset + 1].Value is not INamedTypeSymbol converter)
         {
-            return Invalid("The converter must be accessible, closed and concrete, with an accessible parameterless constructor.");
+            return Invalid(DatumMappingDiagnostics.ConverterShape, converterSource);
         }
 
         bool inferred = converter.IsUnboundGenericType;
         if (inferred)
         {
-            INamedTypeSymbol? constructed = DatumConverterTemplate.Close(converter, type, out string? error);
+            INamedTypeSymbol? constructed = DatumConverterTemplate.Close(converter, type, out DiagnosticDescriptor? error);
             if (constructed is null)
             {
-                return Invalid(error!);
+                return Invalid(error!, converterSource);
             }
 
             converter = constructed;
         }
 
-        if (!Accessible(converter, assembly) || converter.IsAbstract || converter.IsStatic || converter.IsRefLikeType)
+        if (converter.TypeKind is not (TypeKind.Class or TypeKind.Struct) || converter.IsAbstract || converter.IsStatic ||
+            converter.IsRefLikeType || !IsClosed(converter))
         {
-            return Invalid("The converter must be accessible, closed and concrete, with an accessible parameterless constructor.");
+            return Invalid(DatumMappingDiagnostics.ConverterShape, converterSource);
+        }
+
+        if (!Accessible(converter, assembly))
+        {
+            return Invalid(DatumMappingDiagnostics.ConverterAccess, converterSource, converter.ToDisplayString());
         }
 
         IMethodSymbol? constructor = converter.InstanceConstructors.FirstOrDefault(item => item.Parameters.Length == 0 &&
             IsAccessible(item, assembly));
         if (constructor is null)
         {
-            return Invalid("The converter must be accessible, closed and concrete, with an accessible parameterless constructor.");
+            return Invalid(DatumMappingDiagnostics.Constructor, converterSource);
         }
 
         INamedTypeSymbol[] contracts = [.. converter.AllInterfaces.Where(static item => item.Arity == 1 &&
@@ -168,7 +195,7 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
             .Where(item => SymbolEqualityComparer.Default.Equals(item.TypeArguments[0], type))];
         if (contracts.Length == 0 || type.IsReferenceType && contracts.Any(static item => item.TypeArguments[0].NullableAnnotation == NullableAnnotation.Annotated))
         {
-            return Invalid("The converter must implement IPgDatumReader<T> or IPgDatumWriter<T> for this exact non-nullable managed type.");
+            return Invalid(DatumMappingDiagnostics.Contract, converterSource, type.ToDisplayString());
         }
 
         bool required = false;
@@ -180,17 +207,18 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
         if (required && !constructor.GetAttributes().Any(static item =>
             item.AttributeClass?.ToDisplayString() == "System.Diagnostics.CodeAnalysis.SetsRequiredMembersAttribute"))
         {
-            return Invalid("A converter with C# required members needs a parameterless constructor carrying SetsRequiredMembers.");
+            return Invalid(DatumMappingDiagnostics.RequiredMembers, converterSource);
         }
 
         return new(type, converter, name!, schema, origin == 1,
-            contracts.Any(static item => item.Name == "IPgDatumReader"), contracts.Any(static item => item.Name == "IPgDatumWriter"), inferred);
+            contracts.Any(static item => item.Name == "IPgDatumReader"), contracts.Any(static item => item.Name == "IPgDatumWriter"), inferred,
+            converterLocation: converterSource);
 
-        DatumTypeDeclaration? Invalid(string message)
+        DatumTypeDeclaration? Invalid(DiagnosticDescriptor descriptor, Location? location, params string[] arguments)
         {
             if (context is { } output)
             {
-                Error(type, message, output);
+                output.Report(descriptor, location ?? usage ?? root, arguments);
             }
 
             return null;
@@ -207,6 +235,7 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
     {
         var candidates = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.IncludeNullability);
         var requestedRanges = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.IncludeNullability);
+        var usages = new Dictionary<INamedTypeSymbol, Location>(SymbolEqualityComparer.Default);
         foreach (INamedTypeSymbol type in rangeTypes.Distinct<INamedTypeSymbol>(SymbolEqualityComparer.Default))
         {
             AttributeData[]? declared = RangeTypeDeclaration.Declarations(type, context);
@@ -249,10 +278,10 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
             .Distinct<IMethodSymbol>(SymbolEqualityComparer.Default)];
         foreach (IMethodSymbol method in signatures)
         {
-            Collect(method.ReturnType);
+            Collect(method.ReturnType, DatumMappingDiagnostics.Slot(method, context.CancellationToken));
             foreach (IParameterSymbol parameter in method.Parameters)
             {
-                Collect(parameter.Type);
+                Collect(parameter.Type, DatumMappingDiagnostics.Slot(parameter, context.CancellationToken));
             }
         }
 
@@ -261,7 +290,7 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
             if (attribute.AttributeClass?.ToDisplayString() == "Ankus.PgSqlTypeProviderAttribute" &&
                 attribute.ConstructorArguments.Length == 2 && attribute.ConstructorArguments[1].Value is ITypeSymbol supplied)
             {
-                Collect(supplied);
+                Collect(supplied, DatumMappingDiagnostics.Argument(attribute, 1, context.CancellationToken));
             }
         }
 
@@ -269,14 +298,16 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
         var declarations = new List<DatumTypeDeclaration>();
         foreach (INamedTypeSymbol type in candidates.OrderBy(static item => item.ToDisplayString(), StringComparer.Ordinal))
         {
-            DatumTypeDeclaration? declaration = Create(type, compilation.Assembly, context);
+            usages.TryGetValue(type, out Location? usage);
+            DatumTypeDeclaration? declaration = Create(type, compilation.Assembly, context, usage);
             if (declaration is null)
             {
                 valid = false;
             }
             else if (!Resolves(type) || !Resolves(declaration.Converter))
             {
-                Error(type, "The mapped type and converter must resolve unambiguously through their global qualified names; extern-alias-only contracts are unsupported.", context);
+                context.Report(DatumMappingDiagnostics.GlobalIdentity, declaration.ConverterLocation ?? usage ??
+                    type.Locations.FirstOrDefault(static item => item.IsInSource));
                 valid = false;
             }
             else
@@ -365,7 +396,7 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
         return valid ? [.. declarations.GroupBy(static declaration => declaration.Type, SymbolEqualityComparer.Default)
             .Select(static group => group.First())] : null;
 
-        void Collect(ITypeSymbol type)
+        void Collect(ITypeSymbol type, Location? location)
         {
             if (IsManagedState(type))
             {
@@ -374,10 +405,15 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
 
             if (type is IArrayTypeSymbol array)
             {
-                Collect(array.ElementType);
+                Collect(array.ElementType, location);
             }
             else if (type is INamedTypeSymbol named)
             {
+                if (location is not null && !usages.ContainsKey(named))
+                {
+                    usages.Add(named, location);
+                }
+
                 if (RangeTypeDeclaration.Bound(named) is not null)
                 {
                     requestedRanges.Add(named);
@@ -391,7 +427,7 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
 
                 foreach (ITypeSymbol argument in named.TypeArguments)
                 {
-                    Collect(argument);
+                    Collect(argument, location);
                 }
             }
         }
@@ -442,22 +478,26 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
             if (slot is INamedTypeSymbol named && (IsMapped(named) || RangeTypeDeclaration.Bound(named) is not null))
             {
                 DatumTypeDeclaration? declaration = declarations.FirstOrDefault(item => SymbolEqualityComparer.Default.Equals(item.Type, named));
-                if (bindings.Any(static item => item.AttributeClass?.ToDisplayString() is "Ankus.PgSqlTypeAttribute" or "Ankus.PgCompositeTypeAttribute"))
+                AttributeData? binding = bindings.FirstOrDefault(static item =>
+                    item.AttributeClass?.ToDisplayString() is "Ankus.PgSqlTypeAttribute" or "Ankus.PgCompositeTypeAttribute");
+                if (binding is not null)
                 {
-                    Error(owner, "PgDatumType signatures cannot override their mapping with PgSqlType or PgCompositeType.", context);
+                    context.Report(DatumMappingDiagnostics.SlotOverride,
+                        binding.ApplicationSyntaxReference?.GetSyntax(context.CancellationToken).GetLocation() ??
+                        DatumMappingDiagnostics.Slot(owner, context.CancellationToken));
                     valid = false;
                 }
 
                 if (declaration is not null && (read ? !declaration.CanRead : !borrowedArray && !declaration.CanWrite))
                 {
-                    Error(owner, "The datum mapping for '" + declaration.Managed + "' does not support " +
-                        (read ? "reading SQL arguments." : "writing SQL results."), context);
+                    context.Report(read ? DatumMappingDiagnostics.Reader : DatumMappingDiagnostics.Writer,
+                        DatumMappingDiagnostics.Slot(owner, context.CancellationToken), declaration.Managed);
                     valid = false;
                 }
             }
             else if (ContainsMapping(slot))
             {
-                Error(owner, "Mapped datum types support scalar signatures and one array layer; nested arrays and other containers are unsupported.", context);
+                context.Report(DatumMappingDiagnostics.Container, DatumMappingDiagnostics.Slot(owner, context.CancellationToken));
                 valid = false;
             }
         }
@@ -471,7 +511,7 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
     /// <summary>
     /// Validates deterministic exact and default declarations without instantiating open generic roots.
     /// </summary>
-    private static AttributeData[]? Declarations(INamedTypeSymbol type, GeneratorDiagnostics? context)
+    private static AttributeData[]? Declarations(INamedTypeSymbol type, GeneratorDiagnostics? context, Location? usage = null)
     {
         AttributeData[] attributes = [.. type.GetAttributes().Where(static item =>
             item.AttributeClass?.ToDisplayString() == "Ankus.PgDatumTypeAttribute")];
@@ -483,7 +523,7 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
             {
                 if (hasDefault)
                 {
-                    return Invalid("A managed type may have only one default PgDatumType declaration.");
+                    return Invalid(DatumMappingDiagnostics.DuplicateDefault, attribute);
                 }
 
                 hasDefault = true;
@@ -492,21 +532,23 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
                 attribute.ConstructorArguments[0].Value is not INamedTypeSymbol target || !IsClosed(target) ||
                 !SymbolEqualityComparer.Default.Equals(target.OriginalDefinition, type.OriginalDefinition))
             {
-                return Invalid("An explicit PgDatumType target must be a closed construction of the annotated managed type.");
+                return Invalid(DatumMappingDiagnostics.Target, attribute);
             }
             else if (!targets.Add(target))
             {
-                return Invalid("A closed managed type may have only one exact PgDatumType declaration.");
+                return Invalid(DatumMappingDiagnostics.DuplicateExact, attribute);
             }
         }
 
         return attributes;
 
-        AttributeData[]? Invalid(string message)
+        AttributeData[]? Invalid(DiagnosticDescriptor descriptor, AttributeData attribute)
         {
             if (context is { } output)
             {
-                Error(type, message, output);
+                output.Report(descriptor, descriptor == DatumMappingDiagnostics.Target
+                    ? DatumMappingDiagnostics.Argument(attribute, 0, output.CancellationToken) ?? usage
+                    : attribute.ApplicationSyntaxReference?.GetSyntax(output.CancellationToken).GetLocation() ?? usage);
             }
 
             return null;
@@ -530,12 +572,6 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
         => new(DatumTypeReference.Create(this), FreezeRegistration(),
             RangeBound is null ? null : DatumTypeReference.Create(RangeBound),
             GeneratorLocation.Create(Type.Locations.FirstOrDefault(), compilation));
-
-    /// <summary>
-    /// Reports a source-located invalid mapping contract.
-    /// </summary>
-    internal static void Error(ISymbol symbol, string message, GeneratorDiagnostics context)
-        => context.Report(s_invalid, symbol.Locations.FirstOrDefault(), symbol.Name, message);
 
     /// <summary>
     /// Finds a mapped leaf inside an unsupported container shape.

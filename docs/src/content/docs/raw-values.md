@@ -653,8 +653,8 @@ and compatible reader and writer patterns may jointly determine parameters.
 
 Every converter and containing-type parameter must be determined, with exactly
 one complete construction. Missing or ambiguous assignments and violated C#
-constraints produce `ANKUS019` before generation. Constraints validate the
-unique result; they do not select between competing results. Supply an explicit
+constraints produce `ANKUS147`, `ANKUS148`, or `ANKUS149` before generation.
+Constraints validate the unique result; they do not select between competing results. Supply an explicit
 closed converter to resolve ambiguity. Ankus emits ordinary closed factories
 for the selected finite roots, with separate lazy instances and no runtime
 generic construction or reflection.
@@ -772,7 +772,8 @@ A default generic declaration needs a selected closed root: an
 unused open template or a `PgDatum.Read<T>()` call in an arbitrary method body
 cannot create one by itself. Add an explicit closed declaration for a local
 raw-only root. Accessible closed nested CLR declarations are supported.
-The generator rejects unsupported mapped signatures with `ANKUS019`.
+The generator rejects unsupported mapped signatures with a specific
+[mapping diagnostic](#mapping-diagnostics).
 
 Local non-generic annotated types are registered even when only used by raw APIs.
 Default generic local declarations and types from a referenced assembly must
@@ -781,3 +782,37 @@ declaration to become registration roots. Ambiguous externally aliased names are
 rejected. A type cannot combine
 `PgDatumType` with `PgType` or `PgEnum`, and mapped slots do not use per-parameter
 `PgSqlType` or `PgCompositeType` overrides.
+
+### Mapping diagnostics
+
+Mapping errors identify the failed contract and the authored value or signature
+that needs correction. Converter constraint errors retain the C# diagnostic ID
+and reason. A mapping supplied by a referenced assembly reports errors at its
+consuming source declaration when its original source is unavailable.
+
+| Diagnostic | Required correction |
+| --- | --- |
+| `ANKUS134` | Use a closed, concrete class, struct, or enum that is neither static nor ref-like. |
+| `ANKUS135` | Make the managed carrier, its containing types, and its arguments accessible to generated code. |
+| `ANKUS136` | Choose one storage contract: `PgDatumType`, `PgType`, or `PgEnum`. |
+| `ANKUS137` | Add a mapping for the selected closed managed type or declare a default mapping. |
+| `ANKUS138` | Supply a valid PostgreSQL type identifier of at most 63 UTF-8 bytes. |
+| `ANKUS139` | Supply a valid PostgreSQL schema identifier of at most 63 UTF-8 bytes. |
+| `ANKUS140` | Set `Origin` to `ThisExtension` or `External`. |
+| `ANKUS141` | Specify `Schema` for an external SQL type. |
+| `ANKUS142` | Supply a concrete converter class or struct with a finite closed construction. |
+| `ANKUS143` | Make the converter, its containing types, and its arguments accessible to generated code. |
+| `ANKUS144` | Provide an accessible parameterless converter constructor. |
+| `ANKUS145` | Implement a reader or writer for the exact non-nullable mapped type. |
+| `ANKUS146` | Initialize required members in a constructor marked `SetsRequiredMembers`. |
+| `ANKUS147` | Specify a closed converter when its interface patterns cannot infer every argument. |
+| `ANKUS148` | Specify a closed converter when several constructions match. |
+| `ANKUS149` | Satisfy the reported C# constraint on the inferred converter. |
+| `ANKUS150` | Give the carrier and converter unambiguous global type identities. |
+| `ANKUS151` | Remove a slot's `PgSqlType` or `PgCompositeType` override. |
+| `ANKUS152` | Implement `IPgDatumReader<T>` for a SQL input. |
+| `ANKUS153` | Implement `IPgDatumWriter<T>` for a SQL result. |
+| `ANKUS154` | Use a scalar or one array layer instead of a nested mapped container. |
+| `ANKUS155` | Keep only one default mapping declaration. |
+| `ANKUS156` | Select a closed construction of the annotated managed type. |
+| `ANKUS157` | Keep only one exact mapping for each closed managed target. |

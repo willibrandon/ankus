@@ -113,7 +113,7 @@ public sealed partial class PgFunctionGeneratorTests
     [DataRow("public static int Input(params Value?[] value) => 0;", false)]
     public void DatumArraysRejectUnavailableFunctionDirections(string method, bool readOnly)
         => AssertDatumMappingError(DatumMappingSource(reader: readOnly, writer: !readOnly) +
-            "public static class Functions { [Ankus.PgFunction] " + method + " }", "ANKUS019",
+            "public static class Functions { [Ankus.PgFunction] " + method + " }", readOnly ? "ANKUS153" : "ANKUS152",
             readOnly ? "writing SQL results" : "reading SQL arguments");
 
     /// <summary>
@@ -194,7 +194,7 @@ public sealed partial class PgFunctionGeneratorTests
     [DataRow("[return: Ankus.PgCompositeType(\"pair\", Column=\"renamed\"), Ankus.PgColumnNames(\"renamed\", \"number\")] public static System.Collections.Generic.IEnumerable<(Ankus.PgArray<Value?> Item, int Number)> Read() => [];")]
     public void DatumArraysRejectSlotBindingOverrides(string method)
         => AssertDatumMappingError(DatumMappingSource() + "public static class Functions { [Ankus.PgFunction] " + method + " }",
-            "ANKUS019", "cannot override their mapping");
+            "ANKUS151", "cannot override their mapping");
 
     /// <summary>
     /// Each array argument or result independently orders its scalar leaf provider before its consumer.

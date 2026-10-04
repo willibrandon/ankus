@@ -138,7 +138,7 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.Contains(read ? "RETURNS integer" : "RETURNS \"pg_catalog\".\"int4range\"", InstallationBody(compilation));
         string invalid = read ? "public static Ankus.PgRange<Value>? Produce() => null;" :
             "public static int Consume(Ankus.PgArray<Ankus.PgRange<Value>?>? value) => 1;";
-        AssertDatumMappingError(prefix + "public static class Functions { [Ankus.PgFunction] " + invalid + " }", "ANKUS019",
+        AssertDatumMappingError(prefix + "public static class Functions { [Ankus.PgFunction] " + invalid + " }", read ? "ANKUS153" : "ANKUS152",
             read ? "writing SQL results" : "reading SQL arguments");
     }
 
@@ -287,7 +287,7 @@ public sealed partial class PgFunctionGeneratorTests
     [DataRow("Ankus.PgArray<Ankus.PgRange<Value>?>")]
     public void DatumRangesRejectSlotOverrides(string type)
         => AssertDatumMappingError(DatumRangeSource() + DatumMappingMethods(type, "Ankus.PgSqlType(\"text\", Schema=\"pg_catalog\")"),
-            "ANKUS019", "cannot override their mapping");
+            "ANKUS151", "cannot override their mapping");
 
     /// <summary>
     /// Supplies independent scalar and range declarations without relying on generated SQL creation.
