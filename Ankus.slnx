@@ -47,5 +47,6 @@
     <Project Path="tests/Ankus.PgConfig.Tests/Ankus.PgConfig.Tests.csproj" />
     <Project Path="tests/Ankus.Runtime.Tests/Ankus.Runtime.Tests.csproj" />
     <Project Path="tests/Ankus.TestExtension/Ankus.TestExtension.csproj" />
+    <Project Path="tests/Ankus.SerializationContracts/Ankus.SerializationContracts.csproj" />
   </Folder>
 </Solution>

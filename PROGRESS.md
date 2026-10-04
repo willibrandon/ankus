@@ -91,6 +91,10 @@ extensions. Counts supplement the backend, ownership and recovery assertions.
 
 | Source | Platform / PostgreSQL | Result | Duration |
 | --- | --- | --- | --- |
+| [CI 37236731631](https://github.com/willibrandon/ankus/actions/runs/37236731631), a78be2c / runtime **ankus.4** | Linux x64 / 18 | 12,078 total; 12,030 passed; 48 platform skips; zero failures | 37m58s job |
+| Same CI / revision / runtime | macOS ARM64 / 18 | 12,078 total; 12,018 passed; 60 platform skips; zero failures | 34m45s job |
+| Same CI / revision / runtime | Windows x64 / 17 | 12,078 total; 12,050 passed; 28 platform skips; zero failures | 35m30s job |
+| Frozen enum/serialization composition / runtime **ankus.4** | Linux x64 / 18.6 | 12,244 total; 12,196 passed; 48 platform skips; zero failures | 39m27.245s tests; 39m48.86s command |
 | Frozen referenced-identity/namespace composition / runtime **ankus.4** | Linux x64 / 18.6 | 12,078 total; 12,030 passed; 48 platform skips; zero failures | 39m27.651s tests; 39m50.14s command |
 | Frozen cold-editor/reload composition / runtime **ankus.4** | Linux x64 / 18.6 | 11,993 total; 11,945 passed; 48 platform skips; zero failures | 39m16.950s tests; 39m40.34s command |
 | [CI 37224209715](https://github.com/willibrandon/ankus/actions/runs/37224209715), bed79ab / runtime **ankus.4** | Linux x64 / 18 | 11,991 total; 11,943 passed; 48 platform skips; zero failures | 37m52s job |
@@ -185,12 +189,28 @@ passes.
   **12,078 total / 12,030 passed / 48 skips**, with all six reports and
   **1,650** source inputs / **39** runtime files independently verified.
   Release has zero warnings/errors; API freshness and site checks/build pass.
-- The continuing imported-string audit reproduces loss in SQL enum names,
-  schemas and labels, and in serializer member keys, enum names and polymorphic
-  discriminators. Proposed exact-reader/factory fixes pass **97** focused cases
-  and the complete **3,704-case** generator module. Promotion, precise metadata
-  diagnostics, public guidance and full real-backend acceptance remain required;
-  valid serialization keys must be preserved rather than rejected.
+- Exact enum/base-type attributes and serializer keys, enum names and variant
+  discriminators now use their defining module's exact strings. Referenced
+  SQL identities reject zero characters; valid persisted strings retain them.
+  **ANKUS206** identifies unreadable attributes at current consuming declarations,
+  including arrays, sets, tables and aggregate inputs. Assembly identity and
+  forwarders prevent equal metadata names from selecting another attribute.
+  All **153** added generator cases and the complete **3,760-case** module pass.
+  All **13** added native storage cases pass on Linux/18.6, including independent
+  binary COPY fixtures and same-session error recovery. Final Release has zero
+  warnings/errors; API/site checks pass. Complete Linux/18.6 acceptance passes
+  **12,244 total / 12,196 passed / 48 skips**, with all six reports and
+  **1,665** source inputs / **39** runtime files independently verified afterward.
+  This result does not establish the new composition's other-platform acceptance.
+- The follow-up datum/range and GUC reader audit reproduces assembly collisions
+  and incomplete label metadata. Proper fixes and current-source diagnostic
+  regressions are in isolated validation; they are not yet promoted or accepted.
+- [CI 37236731631](https://github.com/willibrandon/ankus/actions/runs/37236731631)
+  on **a78be2c** passes quality, all runtime jobs and all three complete platform
+  suites. All six reports are independently verified per platform, with counts
+  and durations above; no timeouts.
+  [Docs 37236731662](https://github.com/willibrandon/ankus/actions/runs/37236731662)
+  passes. This revision precedes the pending enum/serialization milestone.
 - [CI 37229162897](https://github.com/willibrandon/ankus/actions/runs/37229162897)
   on **e456e92** passes quality, all runtime jobs, macOS ARM64/18 and
   Windows/17 and Linux/18. All six reports are independently verified per

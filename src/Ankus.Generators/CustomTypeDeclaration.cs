@@ -9,7 +9,7 @@ namespace Ankus.Generators;
 /// Validates a generated base type and its statically constructed storage codec.
 /// </summary>
 internal sealed class CustomTypeDeclaration(INamedTypeSymbol type, INamedTypeSymbol? codec, INamedTypeSymbol? textCodec,
-    SerializationModel? serializer, int nativeSize, AttributeData attribute, string name, string? schema)
+    SerializationModel? serializer, int nativeSize, AttributeData attribute, string name, string? schema, string? nullInputErrorMessage)
 {
     private static readonly DiagnosticDescriptor s_invalid = new(
         "ANKUS017", "Invalid PostgreSQL base type", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true,
@@ -68,7 +68,7 @@ internal sealed class CustomTypeDeclaration(INamedTypeSymbol type, INamedTypeSym
     /// <summary>
     /// Gets the optional error raised by a NULL call to the text input function.
     /// </summary>
-    internal string? NullInputErrorMessage => AttributeValues.Get<string?>(Attribute, "NullInputErrorMessage", null);
+    internal string? NullInputErrorMessage => nullInputErrorMessage;
 
     /// <summary>
     /// Gets a stable assembly-specific native symbol suffix.
@@ -91,12 +91,20 @@ internal sealed class CustomTypeDeclaration(INamedTypeSymbol type, INamedTypeSym
     /// <summary>
     /// Reads and validates an attributed base type, optionally reporting diagnostics.
     /// </summary>
-    internal static CustomTypeDeclaration? Create(INamedTypeSymbol type, SourceProductionContext? context = null, Action<string>? report = null)
+    internal static CustomTypeDeclaration? Create(INamedTypeSymbol type, SourceProductionContext? context = null, Action<string>? report = null,
+        Action<AttributeMetadataFailure>? metadataFailure = null, CancellationToken cancellationToken = default)
     {
         AttributeData? attribute = type.GetAttributes().FirstOrDefault(static item => item.AttributeClass?.ToDisplayString() == "Ankus.PgTypeAttribute");
         if (attribute is null)
         {
             return null;
+        }
+
+        CancellationToken token = context?.CancellationToken ?? cancellationToken;
+        if (!ExactAttributeStrings.TryRead(type, attribute, token, out AttributeStrings? options) || options is null)
+        {
+            metadataFailure?.Invoke(AttributeMetadataFailure.Create(type, attribute));
+            return Invalid("The base type's exact attribute metadata cannot be read; rebuild its defining assembly.");
         }
 
         if (AttributeValues.Get(attribute, "Alignment", 0) is not (0 or 1))
@@ -125,7 +133,7 @@ internal sealed class CustomTypeDeclaration(INamedTypeSymbol type, INamedTypeSym
             return Invalid("NativeLayout requires TextCodec and cannot be combined with an explicit storage codec.");
         }
 
-        if (AttributeValues.Get<string?>(attribute, "NullInputErrorMessage", null) is { } nullMessage && !SqlText.IsText(nullMessage))
+        if (options.Property("NullInputErrorMessage", null) is { } nullMessage && !SqlText.IsText(nullMessage))
         {
             return Invalid("NullInputErrorMessage must contain valid Unicode without zero characters.");
         }
@@ -155,7 +163,7 @@ internal sealed class CustomTypeDeclaration(INamedTypeSymbol type, INamedTypeSym
         }
         else if (codec is null)
         {
-            serializer = DefaultTypeSerializer.Create(type, out string? error);
+            serializer = DefaultTypeSerializer.Create(type, out string? error, metadataFailure, token);
             if (serializer is null)
             {
                 return Invalid(error!);
@@ -166,14 +174,20 @@ internal sealed class CustomTypeDeclaration(INamedTypeSymbol type, INamedTypeSym
             return Invalid(codecError);
         }
 
-        string name = AttributeValues.Get(attribute, "Name", SqlText.SnakeCase(type.Name));
-        string? schema = AttributeValues.Get<string?>(attribute, "Schema", null);
+        string name = options.Property("Name", SqlText.SnakeCase(type.Name))!;
+        string? schema = options.Property("Schema", null);
         for (INamedTypeSymbol? container = type.ContainingType; schema is null && container is not null; container = container.ContainingType)
         {
             AttributeData? inherited = container.GetAttributes().FirstOrDefault(static item => item.AttributeClass?.ToDisplayString() == "Ankus.PgSchemaAttribute");
             if (inherited is not null)
             {
-                schema = inherited.ConstructorArguments.FirstOrDefault().Value as string;
+                if (!ExactAttributeStrings.TryRead(container, inherited, token, out AttributeStrings? enclosing) || enclosing is null)
+                {
+                    metadataFailure?.Invoke(AttributeMetadataFailure.Create(container, inherited));
+                    return Invalid("The enclosing schema's exact attribute metadata cannot be read; rebuild its defining assembly.");
+                }
+
+                schema = enclosing.Arguments[0];
                 if (schema is null)
                 {
                     return Invalid("The inherited schema must have a non-null identifier.");
@@ -186,7 +200,7 @@ internal sealed class CustomTypeDeclaration(INamedTypeSymbol type, INamedTypeSym
             return Invalid("Type and schema names must be valid identifiers of at most 63 UTF-8 bytes.");
         }
 
-        return new(type, codec, textCodec, serializer, nativeSize, attribute, name, schema);
+        return new(type, codec, textCodec, serializer, nativeSize, attribute, name, schema, options.Property("NullInputErrorMessage", null));
 
         CustomTypeDeclaration? Invalid(string message)
         {

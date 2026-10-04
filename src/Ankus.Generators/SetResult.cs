@@ -129,6 +129,15 @@ internal sealed record SetResult
         if (columns.Length > 1664 || columns.Any(static column => column is null || column.Managed == "void"))
         {
             valid = false;
+            for (int index = 0; index < columns.Length; index++)
+            {
+                if (columns[index] is null && AttributeMetadataFailure.ReportConversion(types[index],
+                    FunctionDeclarationDiagnostics.Result(method, context.CancellationToken), context))
+                {
+                    return null;
+                }
+            }
+
             Error("Set elements must be supported scalar or array values, or flat tuples of supported values with at most 1664 columns.");
             return null;
         }

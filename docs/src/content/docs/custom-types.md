@@ -70,6 +70,14 @@ Member names keep their C# spelling. `[JsonPropertyName]` changes a member's key
 in both formats. `[JsonIgnore]` excludes a member; `Condition = Never` includes
 it. `[JsonStringEnumMemberName]` changes an enum's stored name.
 
+Serialized keys, enum names and string discriminators preserve their exact
+Unicode text in JSON and CBOR, including empty strings and zero characters.
+This also applies to attributes imported from another assembly and attributes
+inherited by overridden properties. Unpaired UTF-16 surrogates are rejected
+instead of being replaced during UTF-8 encoding. PostgreSQL `jsonb` cannot
+represent zero characters; keep such values in the custom type's storage or
+its JSON text representation.
+
 An accessible `[JsonConstructor]` selects the constructor. Otherwise Ankus uses
 an accessible parameterless constructor, or the sole accessible constructor.
 Every parameter must match a serialized member's C# name (ignoring case) and
@@ -145,6 +153,21 @@ runtime types, including subclasses of a registered variant, are errors.
 Fallback options that discard concrete type identity are diagnosed at compile
 time. A discriminator property cannot share a name with a serialized member.
 Changing registrations or discriminator values changes the persisted contract.
+
+## Referenced attribute metadata
+
+Ankus reads exact declaration and serialization attribute strings from the
+defining assembly. It preserves storage keys and discriminator identities;
+SQL type and schema names still require nonempty identifiers of at most
+63 UTF-8 bytes, without zero characters. Inherited schemas and custom
+`NullInputErrorMessage` values receive the same exact validation as source
+declarations.
+
+Malformed UTF-8, incomplete attribute arguments and trailing attribute data
+produce `ANKUS206`, identifying the failing attribute and its defining member.
+The error points to the consuming SQL parameter, result or custom-type
+declaration. Rebuild the defining assembly with valid metadata. Ankus does not
+generate a conversion or storage codec from a partially decoded contract.
 
 ## Custom text with generated storage
 

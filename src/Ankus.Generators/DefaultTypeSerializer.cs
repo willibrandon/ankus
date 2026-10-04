@@ -5,7 +5,8 @@ namespace Ankus.Generators;
 /// <summary>
 /// Builds a closed serialization graph and emits direct member access and constructor calls.
 /// </summary>
-internal sealed class DefaultTypeSerializer(IAssemblySymbol assembly)
+internal sealed class DefaultTypeSerializer(IAssemblySymbol assembly, Action<AttributeMetadataFailure>? metadataFailure,
+    CancellationToken cancellationToken)
 {
     private readonly Dictionary<string, SerializationNode> _nodes = new(StringComparer.Ordinal);
     private readonly List<SerializationNode> _ordered = [];
@@ -13,9 +14,10 @@ internal sealed class DefaultTypeSerializer(IAssemblySymbol assembly)
     /// <summary>
     /// Validates every reachable type before emitting a serializer.
     /// </summary>
-    internal static SerializationModel? Create(INamedTypeSymbol type, out string? error)
+    internal static SerializationModel? Create(INamedTypeSymbol type, out string? error,
+        Action<AttributeMetadataFailure>? metadataFailure = null, CancellationToken cancellationToken = default)
     {
-        var serializer = new DefaultTypeSerializer(type.ContainingAssembly);
+        var serializer = new DefaultTypeSerializer(type.ContainingAssembly, metadataFailure, cancellationToken);
         try
         {
             serializer.Add(type.WithNullableAnnotation(NullableAnnotation.NotAnnotated));
@@ -39,7 +41,36 @@ internal sealed class DefaultTypeSerializer(IAssemblySymbol assembly)
     }
 
     /// <summary>
-    /// Detaches the validated graph without retaining symbols, constructor objects or cyclic node references.
+    /// Reads exact scalar attribute strings from source or compiler-owned metadata.
+    /// </summary>
+    /// <param name="owner">The declaring type or member.</param>
+    /// <param name="attribute">Its selected serialization attribute.</param>
+    /// <returns>Exact nullable strings without Roslyn import normalization.</returns>
+    private AttributeStrings Strings(ISymbol owner, AttributeData attribute)
+    {
+        ISymbol declaration = owner;
+        while (declaration is IPropertySymbol { OverriddenProperty: { } parent } &&
+            !declaration.GetAttributes().Any(candidate => ReferenceEquals(candidate, attribute)))
+        {
+            declaration = parent;
+        }
+
+        if (!ExactAttributeStrings.TryRead(declaration, attribute, cancellationToken, out AttributeStrings? strings) || strings is null)
+        {
+            metadataFailure?.Invoke(AttributeMetadataFailure.Create(declaration, attribute));
+            throw Unsupported(owner as ITypeSymbol ?? owner.ContainingType!, "exact serialization attribute metadata cannot be read; rebuild its defining assembly");
+        }
+
+        if (strings.Arguments.Values.Concat(strings.Properties.Values).Any(static value => !ExactAttributeStrings.IsUnicode(value)))
+        {
+            throw Unsupported(owner as ITypeSymbol ?? owner.ContainingType!, "serialized names and discriminators must contain valid Unicode");
+        }
+
+        return strings;
+    }
+
+    /// <summary>
+    /// Detaches the validated graph without retaining symbols or metadata readers.
     /// </summary>
     /// <returns>The exact ordered contracts needed by codec rendering.</returns>
     private SerializationModel Freeze() => new(new(_ordered.Select(static node => new SerializationModel.Node(
@@ -56,6 +87,7 @@ internal sealed class DefaultTypeSerializer(IAssemblySymbol assembly)
     /// </summary>
     private SerializationNode Add(ITypeSymbol type, bool objectShape = false)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         string managed = Display(type);
         string key = objectShape ? "object:" + managed : managed;
         if (_nodes.TryGetValue(key, out SerializationNode? existing))
@@ -143,7 +175,8 @@ internal sealed class DefaultTypeSerializer(IAssemblySymbol assembly)
             foreach (IFieldSymbol field in named.GetMembers().OfType<IFieldSymbol>().Where(static item => item.HasConstantValue))
             {
                 ValidateAttributes(field);
-                string name = Attribute(field, "JsonStringEnumMemberNameAttribute")?.ConstructorArguments[0].Value as string ?? field.Name;
+                AttributeData? rename = Attribute(field, "JsonStringEnumMemberNameAttribute");
+                string name = rename is null ? field.Name : Strings(field, rename).Arguments[0] ?? field.Name;
                 if (!names.Add(name) || !values.Add(field.ConstantValue!))
                 {
                     throw Unsupported(type, "enum names and values must be unique");
@@ -223,7 +256,7 @@ internal sealed class DefaultTypeSerializer(IAssemblySymbol assembly)
             }
 
             AttributeData? rename = Attribute(member, "JsonPropertyNameAttribute");
-            string name = rename is null ? member.Name : rename.ConstructorArguments[0].Value as string ??
+            string name = rename is null ? member.Name : Strings(member, rename).Arguments[0] ??
                 throw Unsupported(type, "serialized member names cannot be null");
             if (!memberNames.Add(name))
             {
@@ -289,7 +322,7 @@ internal sealed class DefaultTypeSerializer(IAssemblySymbol assembly)
         AttributeData? configuration = Attribute(type, "JsonPolymorphicAttribute");
         if (configuration is not null)
         {
-            node.DiscriminatorName = AttributeValues.Get(configuration, "TypeDiscriminatorPropertyName", "$type");
+            node.DiscriminatorName = Strings(type, configuration).Property("TypeDiscriminatorPropertyName", "$type")!;
             if (AttributeValues.Get(configuration, "IgnoreUnrecognizedTypeDiscriminators", false) ||
                 AttributeValues.Get(configuration, "UnknownDerivedTypeHandling", 0) != 0)
             {
@@ -302,6 +335,7 @@ internal sealed class DefaultTypeSerializer(IAssemblySymbol assembly)
         foreach (AttributeData registration in type.GetAttributes().Where(static attribute =>
             attribute.AttributeClass?.ToDisplayString() == "System.Text.Json.Serialization.JsonDerivedTypeAttribute"))
         {
+            AttributeStrings exact = Strings(type, registration);
             if (registration.ConstructorArguments.Length != 2 ||
                 registration.ConstructorArguments[0].Value is not INamedTypeSymbol derived ||
                 registration.ConstructorArguments[1].Value is not (string or int))
@@ -309,7 +343,8 @@ internal sealed class DefaultTypeSerializer(IAssemblySymbol assembly)
                 throw Unsupported(type, "each JsonDerivedType must specify a concrete type and a string or Int32 discriminator");
             }
 
-            object tag = registration.ConstructorArguments[1].Value!;
+            object tag = registration.ConstructorArguments[1].Value is string ? exact.Arguments[1] ??
+                throw Unsupported(type, "string discriminators cannot be null") : registration.ConstructorArguments[1].Value!;
             bool related = false;
             for (INamedTypeSymbol? current = derived; current is not null; current = current.BaseType)
             {

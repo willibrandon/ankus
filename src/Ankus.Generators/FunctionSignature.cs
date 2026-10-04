@@ -127,6 +127,11 @@ internal static class FunctionSignature
 
         if (set is null && result is null)
         {
+            if (AttributeMetadataFailure.ReportConversion(method.ReturnType, MethodSyntax.Result(syntax) ?? name, diagnostics))
+            {
+                return false;
+            }
+
             return Reject(s_result, MethodSyntax.Result(syntax) ?? name, diagnostics, method.ReturnType.ToDisplayString());
         }
 
@@ -160,6 +165,11 @@ internal static class FunctionSignature
                 sqlCount++;
                 if (parameter.Type is null)
                 {
+                    if (AttributeMetadataFailure.ReportConversion(symbol.Type, location, diagnostics))
+                    {
+                        return false;
+                    }
+
                     return Reject(s_parameter, location, diagnostics, parameter.Name, symbol.Type.ToDisplayString());
                 }
             }

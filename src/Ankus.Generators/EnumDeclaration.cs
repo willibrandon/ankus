@@ -23,8 +23,11 @@ internal sealed record EnumDeclaration(string Name, string? Schema, string Manag
     /// </summary>
     /// <param name="type">The attributed enum to analyze.</param>
     /// <param name="reportError">The optional destination for a contract validation failure.</param>
+    /// <param name="cancellationToken">Cancels exact attribute analysis.</param>
+    /// <param name="metadataFailure">Receives a structured unreadable attribute failure.</param>
     /// <returns>The detached immutable contract, or null when invalid or not attributed.</returns>
-    internal static EnumDeclaration? Create(INamedTypeSymbol type, Action<string>? reportError = null)
+    internal static EnumDeclaration? Create(INamedTypeSymbol type, Action<string>? reportError = null,
+        Action<AttributeMetadataFailure>? metadataFailure = null, CancellationToken cancellationToken = default)
     {
         AttributeData? attribute = type.GetAttributes().FirstOrDefault(static item => item.AttributeClass?.ToDisplayString() == "Ankus.PgEnumAttribute");
         if (attribute is null)
@@ -45,14 +48,26 @@ internal sealed record EnumDeclaration(string Name, string? Schema, string Manag
             }
         }
 
-        string name = AttributeValues.Get(attribute, "Name", SqlText.SnakeCase(type.Name));
-        string? schemaName = AttributeValues.Get<string?>(attribute, "Schema", null);
+        if (!ExactAttributeStrings.TryRead(type, attribute, cancellationToken, out AttributeStrings? options) || options is null)
+        {
+            metadataFailure?.Invoke(AttributeMetadataFailure.Create(type, attribute));
+            return Invalid("The enum's exact attribute metadata cannot be read; rebuild its defining assembly.");
+        }
+
+        string name = options.Property("Name", SqlText.SnakeCase(type.Name))!;
+        string? schemaName = options.Property("Schema", null);
         for (INamedTypeSymbol? container = type.ContainingType; schemaName is null && container is not null; container = container.ContainingType)
         {
             AttributeData? schema = container.GetAttributes().FirstOrDefault(static item => item.AttributeClass?.ToDisplayString() == "Ankus.PgSchemaAttribute");
             if (schema is not null)
             {
-                schemaName = schema.ConstructorArguments.FirstOrDefault().Value as string;
+                if (!ExactAttributeStrings.TryRead(container, schema, cancellationToken, out AttributeStrings? inherited) || inherited is null)
+                {
+                    metadataFailure?.Invoke(AttributeMetadataFailure.Create(container, schema));
+                    return Invalid("The enclosing schema's exact attribute metadata cannot be read; rebuild its defining assembly.");
+                }
+
+                schemaName = inherited.Arguments[0];
                 if (schemaName is null)
                 {
                     return Invalid("The inherited schema must have a non-null identifier.");
@@ -71,7 +86,18 @@ internal sealed record EnumDeclaration(string Name, string? Schema, string Manag
         foreach (IFieldSymbol field in type.GetMembers().OfType<IFieldSymbol>().Where(static field => field.HasConstantValue))
         {
             AttributeData? labelAttribute = field.GetAttributes().FirstOrDefault(static item => item.AttributeClass?.ToDisplayString() == "Ankus.PgEnumLabelAttribute");
-            string? label = labelAttribute is null ? field.Name : labelAttribute.ConstructorArguments[0].Value as string;
+            string? label = field.Name;
+            if (labelAttribute is not null)
+            {
+                if (!ExactAttributeStrings.TryRead(field, labelAttribute, cancellationToken, out AttributeStrings? item) || item is null)
+                {
+                    metadataFailure?.Invoke(AttributeMetadataFailure.Create(field, labelAttribute));
+                    return Invalid("The enum label's exact attribute metadata cannot be read; rebuild its defining assembly.");
+                }
+
+                label = item.Arguments[0];
+            }
+
             if (label is null || !SqlText.IsText(label) || Encoding.UTF8.GetByteCount(label) > 63 || !labels.Add(label))
             {
                 return Invalid("Enum labels must be distinct, valid Unicode of at most 63 UTF-8 bytes without zero characters.");

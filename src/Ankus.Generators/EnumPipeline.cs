@@ -40,9 +40,10 @@ internal static class EnumPipeline
         cancellationToken.ThrowIfCancellationRequested();
         var type = (INamedTypeSymbol)context.TargetSymbol;
         string? error = null;
-        EnumDeclaration? declaration = EnumDeclaration.Create(type, message => error = message);
+        AttributeMetadataFailure? metadata = null;
+        EnumDeclaration? declaration = EnumDeclaration.Create(type, message => error = message, value => metadata = value, cancellationToken);
         return new(DeclarationIdentity.Create(type), type.ToDisplayString(), type.Name, declaration,
-            SqlDeclarationOptions.Read(context.Attributes[0])!, GeneratorLocation.Create(type.Locations.FirstOrDefault(), context.SemanticModel.Compilation), error);
+            SqlDeclarationOptions.Read(context.Attributes[0])!, GeneratorLocation.Create(type.Locations.FirstOrDefault(), context.SemanticModel.Compilation), error, metadata);
     }
 
     /// <summary>
@@ -76,7 +77,11 @@ internal static class EnumPipeline
     /// <param name="context">The diagnostic destination.</param>
     internal static void Report(EnumAnalysis analysis, GeneratorSourceResolver compilation, GeneratorDiagnostics context)
     {
-        if (analysis.Error is not null)
+        if (analysis.Metadata is not null)
+        {
+            analysis.Metadata.Report(analysis.Location?.Resolve(compilation), context);
+        }
+        else if (analysis.Error is not null)
         {
             context.Report(s_invalid, analysis.Location?.Resolve(compilation), analysis.Name, analysis.Error);
         }
@@ -92,8 +97,9 @@ internal static class EnumPipeline
     /// <param name="Options">The authored SQL graph and replacement policy.</param>
     /// <param name="Location">Detached source coordinates.</param>
     /// <param name="Error">The optional contract validation failure.</param>
+    /// <param name="Metadata">The exact attribute decoding failure, if any.</param>
     internal sealed record EnumAnalysis(DeclarationIdentity Identity, string Display, string Name, EnumDeclaration? Declaration,
-        SqlDeclarationOptions Options, GeneratorLocation? Location, string? Error);
+        SqlDeclarationOptions Options, GeneratorLocation? Location, string? Error, AttributeMetadataFailure? Metadata = null);
 
     /// <summary>
     /// Contains the independently cached source fragments for one enum contract.

@@ -8,7 +8,7 @@ namespace Ankus.IntegrationTests;
 /// </summary>
 /// <param name="context">The per-test cancellation context.</param>
 [TestClass]
-public sealed class SerializedTypeTests(TestContext context)
+public sealed partial class SerializedTypeTests(TestContext context)
 {
     /// <summary>
     /// Preserves exact nested values and SQL NULL through every scalar ownership path.

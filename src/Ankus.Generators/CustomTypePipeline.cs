@@ -55,10 +55,12 @@ internal static class CustomTypePipeline
         cancellationToken.ThrowIfCancellationRequested();
         var type = (INamedTypeSymbol)context.TargetSymbol;
         string? error = null;
-        CustomTypeDeclaration? declaration = CustomTypeDeclaration.Create(type, report: message => error = message);
+        AttributeMetadataFailure? metadata = null;
+        CustomTypeDeclaration? declaration = CustomTypeDeclaration.Create(type, report: message => error = message,
+            cancellationToken: cancellationToken, metadataFailure: value => metadata = value);
         return new(DeclarationIdentity.Create(type), type.ToDisplayString(), type.Name, declaration?.Freeze(),
             SqlDeclarationOptions.Read(context.Attributes[0])!,
-            GeneratorLocation.Create(type.Locations.FirstOrDefault(), context.SemanticModel.Compilation), error);
+            GeneratorLocation.Create(type.Locations.FirstOrDefault(), context.SemanticModel.Compilation), error, metadata);
     }
 
     /// <summary>
@@ -111,7 +113,11 @@ internal static class CustomTypePipeline
     /// <param name="context">The diagnostic destination.</param>
     internal static void Report(Analysis analysis, GeneratorSourceResolver compilation, GeneratorDiagnostics context)
     {
-        if (analysis.Error is not null)
+        if (analysis.Metadata is not null)
+        {
+            analysis.Metadata.Report(analysis.Location?.Resolve(compilation), context);
+        }
+        else if (analysis.Error is not null)
         {
             context.Report(CustomTypeDeclaration.InvalidDiagnostic, analysis.Location?.Resolve(compilation), analysis.Name, analysis.Error);
         }
@@ -127,8 +133,9 @@ internal static class CustomTypePipeline
     /// <param name="Options">The authored dependency and SQL replacement policy.</param>
     /// <param name="Location">The current detached declaration coordinates.</param>
     /// <param name="Error">The optional validation failure.</param>
+    /// <param name="Metadata">The exact attribute decoding failure, if any.</param>
     internal sealed record Analysis(DeclarationIdentity Identity, string Display, string Name, CustomTypeModel? Model,
-        SqlDeclarationOptions Options, GeneratorLocation? Location, string? Error);
+        SqlDeclarationOptions Options, GeneratorLocation? Location, string? Error, AttributeMetadataFailure? Metadata = null);
 
     /// <summary>
     /// Carries the independently cached storage and I/O source fragments for one type.

@@ -4,6 +4,7 @@
   </PropertyGroup>
   <ItemGroup>
     <AdditionalFiles Include="Sql/*.sql" />
+    <ProjectReference Include="../Ankus.SerializationContracts/Ankus.SerializationContracts.csproj" />
   </ItemGroup>
   <Import Project="../../src/Ankus.Sdk/Ankus.Sdk.targets" />
 </Project>

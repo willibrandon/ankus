@@ -57,6 +57,13 @@ Labels default to the exact C# member names. `[PgEnumLabel]` overrides a label;
 case, whitespace, quotes, Unicode and empty labels are preserved. Labels must
 be distinct and occupy at most 63 UTF-8 bytes, without zero characters.
 
+Type and schema names must be nonempty, valid Unicode identifiers of at most
+63 UTF-8 bytes, without zero characters. These checks use exact attribute
+values from source and referenced assemblies, including inherited schemas.
+An invalid referenced declaration cannot supply a function conversion.
+Unreadable attribute metadata produces
+[`ANKUS206`](/custom-types/#referenced-attribute-metadata) at the consuming declaration.
+
 PostgreSQL comparisons follow source declaration order. C# comparisons still
 follow the enum's numeric values. In the example, PostgreSQL orders `in transit`
 before `delivered`, even though their C# values are 30 and 20. Numeric values

@@ -111,6 +111,12 @@ internal static class AggregateContract
             AggregateType? result = AggregateType.Create(contract.ReturnType, method.GetReturnTypeAttributes());
             if (result is null)
             {
+                if (AttributeMetadataFailure.ReportConversion(contract.ReturnType,
+                    FunctionDeclarationDiagnostics.Result(method, context.CancellationToken), context))
+                {
+                    return false;
+                }
+
                 return Invalid(AggregateDiagnostics.ResultType, FunctionDeclarationDiagnostics.Result(method, context.CancellationToken));
             }
 
@@ -235,6 +241,11 @@ internal static class AggregateContract
                 AttributeData[] naming = [.. attributes.Where(static attribute => attribute.AttributeClass?.ToDisplayString() == "Ankus.PgParameterAttribute")];
                 if (value is null)
                 {
+                    if (AttributeMetadataFailure.ReportConversion(valueType, Parameter(source), context))
+                    {
+                        return false;
+                    }
+
                     return Invalid(AggregateDiagnostics.InputType, Parameter(source));
                 }
 

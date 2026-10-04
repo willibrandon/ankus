@@ -200,3 +200,4 @@ ANKUS202 | Ankus | Error | Duplicate custom setting name
 ANKUS203 | Ankus | Error | GUC cannot be an indexer
 ANKUS204 | Ankus | Error | Unreadable datum mapping metadata
 ANKUS205 | Ankus | Error | Unreadable range mapping metadata
+ANKUS206 | Ankus | Error | Unreadable declaration attribute metadata

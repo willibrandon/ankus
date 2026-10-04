@@ -25349,3 +25349,93 @@ platform-version **CI 37218985660** on **4c9cc43** passes all four complete cell
 No listed run is still active. The new revision requires replacement platform
 CI; imported SQL-enum/serialization strings and full supported-version/release
 requirements remain open.
+
+## Exact referenced enum and storage strings
+
+Roslyn's attribute importer trims trailing zero characters and replaces malformed
+UTF-8. This changed referenced SQL enum/base-type identities and persisted member
+keys, enum names and polymorphic discriminator names or values. The original
+serialization regression fails four emitted-reference cases while twenty source
+and ordinary-value controls pass. The original enum regression fails four
+emitted-reference cases while thirty controls pass. A separate assembly-alias
+regression proves that matching an attribute's metadata name alone can select
+another assembly's value.
+
+The shared exact reader uses the declaration's compiler-owned defining module,
+full attribute assembly identity, actual type forwarders and the selected
+semantic declaration ordinal. It validates the complete attribute blob with
+strict UTF-8 and preserves null, empty and zero-containing storage strings.
+It supports source and retargeted-source constants, linked modules, nested
+generic identities and cancellation without loading reference assemblies,
+disposing compiler-owned metadata or retaining symbols in detached models.
+Inherited property attributes are read from the overridden declaration that
+actually carries them. Invalid source UTF-16 remains available to specific
+contract validation; a serializer cannot persist replacement characters.
+
+SQL enum/base-type identities retain their nonempty, 63-byte, valid-Unicode and
+zero-character restrictions. Inherited schemas and custom null-input messages
+use exact values. Unreadable declaration or serialization metadata produces
+structured **ANKUS206**, with its failing attribute/member and a public help
+link. Diagnostics belong to current consuming source, including scalar, array,
+SETOF, TABLE and typed aggregate inputs. Invalid references supply no conversion
+or codec. Existing precise invalid-identifier diagnostics are preserved.
+
+All **153** added generator cases and the complete **3,760-case** generator
+module pass, zero failures/skips, in **52.340s** tests / **52.963s** command.
+The bounded requirements are exercised by these tests:
+
+| Contract | Named evidence |
+| --- | --- |
+| Exact executable storage, including inherited members | `ReferencedSerializationStringsPreserveExactStorage` compares literal model identities, parsed JSON and independent definite-map CBOR, then executes both generated codecs. |
+| SQL identity rejection and adjacent UTF-8 limits | `ReferencedEnumIdentitiesRejectTrailingZero`, `ReferencedEnumIdentitiesRespectUtf8Boundary`, `ReferencedEnumEmptyLabelsPreserveExactContract`, `ReferencedCustomTypeStringsRejectTrailingZero` and `ReferencedCustomTypeOptionsPreserveDefaultsAndExactText` cover source/PE, inherited schemas, empty labels and 62/63/64-byte boundaries. |
+| Current diagnostic ownership and composition | `ReferencedAttributeFailuresIdentifyCurrentSqlSlot`, `ReferencedSerializerFailureIdentifiesCurrentCustomType` and `ReferencedAttributeFailuresRemainPreciseThroughComposition` require the exact descriptor, help link, current source tree/slot and absence of invalid native output. |
+| Assembly/module identity and constructor selection | `ExactAttributeStringsPreserveDefiningAttributeAssembly`, `ExactAttributeStringsResolveForwardedAttributeAssembly`, `ExactAttributeStringsReadSameModuleConstructors`, linked-module and retargeted-source cases, and `ExactAttributeStringsPreserveSelectedConstructorAndOrdinal` prove actual selected ownership. |
+| Complete metadata, defaults and cancellation | Nullable-type and optional-property cases retain existing defaults; `ExactAttributeStringsRejectMalformedMetadata` rejects malformed UTF-8, incomplete named arguments and trailing bytes; `ExactAttributeStringsPropagateCancellation` requires `OperationCanceledException`. |
+
+An ordinary independently compiled fixture assembly supplies an inherited
+`é\0` member key, `ready\0` enum name, `kind\0` discriminator property and
+`child\0` variant tag. All **13** native cases pass on Linux x64/PostgreSQL
+**18.6** in **2m29.111s** tests / **2m29.838s** command. These include all eight
+direct/SPI ownership paths, SQL NULL and exact SQL type identity;
+`ImportedSerializationBinaryMatchesIndependentFixture` compares complete raw
+binary COPY bytes against an independent CBOR fixture. Four
+`ImportedSerializationBinaryErrorsRecoverSameSession` cases reject truncated
+keys/names/tags with **22P03**, insert no rows, then store valid bytes on the
+same backend. A matching writer/reader round trip alone is not the evidence.
+
+Final complete Linux x64/PostgreSQL **18.6** acceptance uses SDK **10.0.401**,
+LLVM **23.1.2** and runtime/compiler **10.0.12-ankus.4**. All six modules pass:
+
+| Module | Total | Passed | Platform skips |
+| --- | ---: | ---: | ---: |
+| Generators | 3,760 | 3,760 | 0 |
+| Build | 1,222 | 1,213 | 9 |
+| Runtime | 2,130 | 2,130 | 0 |
+| Hello | 5 | 5 | 0 |
+| Integration | 4,644 | 4,629 | 15 |
+| PgConfig | 483 | 459 | 24 |
+| Complete suite | **12,244** | **12,196** | **48** |
+
+There are zero failures. Complete test time is **39m27.245s**, command time
+**39m48.86s** and integration time **39m25.710s**. All six reports were
+independently verified after the terminal successful result. All **1,665**
+authored inputs match in both the tested snapshot and working composition;
+all **39** staged runtime files remain exact. Release passes with zero
+warnings/errors in **1m01.73s** build / **1m01.90s** command. API freshness
+verifies **244 pages / 2,791 members**; site checks report zero errors,
+warnings or hints and **293 pages** build in **2.80s**.
+
+Before committing, **CI 37236731631** on **a78be2c** passes quality, all runtime
+jobs and all three complete platform suites. All six reports are independently
+verified per platform: Linux/18 **12,078 total / 12,030 passed / 48 skips**
+(**37m58s** job), macOS ARM64/18 **12,078 / 12,018 / 60** (**34m45s**) and
+Windows/17 **12,078 / 12,050 / 28** (**35m30s**), with zero failures/timeouts.
+**Docs 37236731662** passes. Earlier **e456e92** and **bed79ab** CI/docs and
+all four **4c9cc43** platform-version cells also pass; no listed run is active.
+
+The new enum/serialization composition requires replacement platform CI.
+The follow-up datum/range and GUC audit reproduces defining-assembly selection
+and incomplete-label metadata defects; its proper fixes and sixteen regression
+cases remain in private validation and are not part of this acceptance.
+Complete supported-version/platform, source-case, ergonomic and release
+requirements remain open. No warning was suppressed or analyzer standard relaxed.
