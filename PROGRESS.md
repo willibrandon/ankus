@@ -248,6 +248,22 @@ passes.
   API freshness passes at **244 pages / 2,791 members**; site checks report zero
   diagnostics and the site builds **293 pages**. The final Windows compiler-name
   contract passes **4/4** after that complete run.
+- [Primary CI 37202027663](https://github.com/willibrandon/ankus/actions/runs/37202027663)
+  passes quality, all runtime jobs and macOS ARM64/18, then exposes three
+  independent acceptance defects. PostgreSQL 18 benchmarks attempted to copy
+  into a root-owned system installation on Linux; one generator test used an LF
+  replacement against CRLF source on Windows; and the benchmark fixture left
+  its persistent development server running before deleting the Windows test
+  home. PostgreSQL 18 benchmark artifacts now use a private
+  `extension_control_path` and `dynamic_library_path`, the source edit is
+  line-ending independent, and the fixture always stops its server. Focused
+  Linux/18.6 benchmark acceptance passes **1/1** in **3m58.489s** with no retained
+  server; complete generator acceptance passes **3,437/3,437**. The corrected
+  complete Linux/18.6 suite passes **11,903 total / 11,855 passed / 48 platform
+  skips / zero failures** in **33m55.690s**. The final Release build has zero
+  warnings/errors in **1m23.56s**; documentation checks have zero diagnostics,
+  API generation reports **244 pages / 2,791 members**, and the site builds
+  **293 pages**. Replacement primary CI remains required.
 - Remaining review work includes precise diagnostics and useful code fixes,
   remaining CLI/account contracts, representative samples and final platform
   acceptance. Detailed outcomes and superseded states belong in the

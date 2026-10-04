@@ -468,6 +468,12 @@ database, and `--resetdb` recreates it. `--cascade` controls extension refresh,
 PostgreSQL selection, configuration, server settings and repeatable MSBuild
 properties follow the other build commands.
 
+On PostgreSQL 18 or later, Ankus stages benchmark control and SQL files beside
+the benchmark publication and uses private server search paths. The selected
+PostgreSQL installation does not need to be writable. Earlier PostgreSQL
+versions require a writable local installation because they do not provide
+`extension_control_path`.
+
 Each benchmark invocation runs inside `BEGIN` and is rolled back before its
 result is retained in the runner-owned `ankus_bench` schema. `--report` reads the
 latest retained results without rebuilding the extension. See the

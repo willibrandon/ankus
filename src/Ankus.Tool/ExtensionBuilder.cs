@@ -51,17 +51,21 @@ internal static class ExtensionBuilder
         }
 
         var extensions = new List<string>();
+        var failures = new List<(string Project, string Output)>();
         foreach (string project in projects)
         {
             using var output = new MemoryStream();
+            using var errors = new MemoryStream();
             int code = await ToolProcess.RunAsync("dotnet",
                 ["msbuild", project, "-nologo", "-noAutoResponse", "-verbosity:quiet", "-getProperty:UsingAnkusSdk",
-                    .. PropertyArguments(properties), "-p:Configuration=" + EscapeProperty(configuration)], token, outputStream: output);
+                    .. PropertyArguments(properties), "-p:Configuration=" + EscapeProperty(configuration)], token,
+                outputStream: output, errorStream: errors);
             string evaluated = System.Text.Encoding.UTF8.GetString(output.ToArray());
             if (code != 0)
             {
-                Console.Error.Write(evaluated);
-                throw new InvalidOperationException($"Project evaluation failed ({code}).");
+                string error = System.Text.Encoding.UTF8.GetString(errors.ToArray());
+                failures.Add((project, evaluated + error));
+                continue;
             }
 
             if (string.Equals(evaluated.Trim(), "true", StringComparison.OrdinalIgnoreCase))
@@ -70,8 +74,18 @@ internal static class ExtensionBuilder
             }
         }
 
-        return extensions.Count == 1 ? extensions[0]
-            : throw new ArgumentException("Specify --project with one extension .csproj file; the selection must identify exactly one Ankus.Sdk project.");
+        if (extensions.Count == 1)
+        {
+            return extensions[0];
+        }
+
+        foreach ((string project, string output) in failures)
+        {
+            Console.Error.WriteLine($"Could not evaluate '{project}':");
+            Console.Error.Write(output);
+        }
+
+        throw new ArgumentException("Specify --project with one extension .csproj file; the selection must identify exactly one Ankus.Sdk project.");
     }
 
     /// <summary>

@@ -18,10 +18,11 @@ internal static class ToolProcess
     /// <param name="postgresClient">Whether to clear inherited PostgreSQL connection settings.</param>
     /// <param name="workingDirectory">An optional child working directory.</param>
     /// <param name="environment">Optional child-only environment overrides, applied after PostgreSQL connection isolation.</param>
+    /// <param name="errorStream">An optional destination for captured stderr.</param>
     /// <returns>The process exit code.</returns>
     internal static async Task<int> RunAsync(string executable, IReadOnlyList<string> arguments, CancellationToken token,
         bool diagnosticsToStandardError = false, Stream? outputStream = null, bool postgresClient = false,
-        string? workingDirectory = null, IReadOnlyDictionary<string, string?>? environment = null)
+        string? workingDirectory = null, IReadOnlyDictionary<string, string?>? environment = null, Stream? errorStream = null)
     {
         token.ThrowIfCancellationRequested();
         using var process = new Process
@@ -30,6 +31,7 @@ internal static class ToolProcess
             {
                 UseShellExecute = false,
                 RedirectStandardOutput = diagnosticsToStandardError || outputStream is not null,
+                RedirectStandardError = errorStream is not null,
                 WorkingDirectory = workingDirectory ?? Environment.CurrentDirectory,
             },
         };
@@ -62,7 +64,10 @@ internal static class ToolProcess
             Task output = process.StartInfo.RedirectStandardOutput
                 ? process.StandardOutput.BaseStream.CopyToAsync(outputStream ?? Console.OpenStandardError(), token)
                 : Task.CompletedTask;
-            await Task.WhenAll(output, process.WaitForExitAsync(token));
+            Task errors = process.StartInfo.RedirectStandardError
+                ? process.StandardError.BaseStream.CopyToAsync(errorStream!, token)
+                : Task.CompletedTask;
+            await Task.WhenAll(output, errors, process.WaitForExitAsync(token));
         }
         catch (OperationCanceledException)
         {

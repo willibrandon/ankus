@@ -161,9 +161,10 @@ public sealed partial class PgFunctionGeneratorTests
                 public static void Second(Ankus.PgBencher bencher) => bencher.Iterate(static () => 2);
             }
             """;
-        CSharpCompilation initial = ModuleCompilation(Source);
+        string normalizedSource = Source.ReplaceLineEndings("\n");
+        CSharpCompilation initial = ModuleCompilation(normalizedSource);
         GeneratorDriver driver = RunModule(BenchmarkDriver(), initial, out Compilation first);
-        string movedSource = Source.Replace("\n    [Ankus.PgBenchmark]\n    public static void Second", "\n\n    [Ankus.PgBenchmark]\n    public static void Second",
+        string movedSource = normalizedSource.Replace("\n    [Ankus.PgBenchmark]\n    public static void Second", "\n\n    [Ankus.PgBenchmark]\n    public static void Second",
             StringComparison.Ordinal);
         CSharpCompilation moved = initial.ReplaceSyntaxTree(initial.SyntaxTrees.Single(), CSharpSyntaxTree.ParseText(
             movedSource, path: "Module.cs", cancellationToken: context.CancellationToken));

@@ -68,6 +68,36 @@ public sealed partial class ToolCommandTests
     }
 
     /// <summary>
+    /// An unrelated project that cannot evaluate does not block selection of the one valid extension project.
+    /// </summary>
+    /// <param name="format">The solution format.</param>
+    [TestMethod]
+    [DataRow("sln")]
+    [DataRow("slnx")]
+    public async Task ExtensionIdentitySkipsUnrelatedUnevaluableSolutionProject(string format)
+    {
+        CancellationToken token = context.CancellationToken;
+        string directory = CreateDirectory();
+        string project = await CreateControlProjectAsync(
+            Directory.CreateDirectory(Path.Combine(directory, "extension")).FullName, token, "ankus_resolution_selected");
+        string broken = Path.Combine(directory, "Broken.csproj");
+        new XDocument(new XElement("Project", new XAttribute("Sdk", "Microsoft.NET.Sdk"),
+            new XElement("Import", new XAttribute("Project", "missing.props")))).Save(broken);
+        string solution = await WriteResolutionSolutionAsync(directory, format, [project, broken], token);
+        string home = Path.Combine(directory, "unregistered");
+
+        ProcessResult result = await InvokeAsync(
+            ["get", "extname", "--project", solution, "--home", home], token);
+
+        Assert.AreEqual(0, result.ExitCode, result.StandardError);
+        Assert.AreEqual("ankus_resolution_selected" + Environment.NewLine, result.StandardOutput);
+        Assert.IsEmpty(result.StandardError);
+        Assert.IsEmpty(Directory.GetDirectories(directory, "obj", SearchOption.AllDirectories));
+        Assert.IsEmpty(Directory.GetDirectories(directory, "bin", SearchOption.AllDirectories));
+        Assert.IsFalse(Directory.Exists(home));
+    }
+
+    /// <summary>
     /// Every extension command rejects multiple extension projects before compilation, installation or server mutation.
     /// </summary>
     /// <param name="command">The command using the shared resolver.</param>

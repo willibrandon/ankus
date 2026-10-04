@@ -81,6 +81,7 @@ internal static partial class ToolCommand
             var cluster = new PostgresDevelopmentCluster(installation, result.GetValue(home));
             string output = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(selection.Project)!, "bin", "ankus-bench",
                 installation.Label, RuntimeInformation.RuntimeIdentifier, selection.Configuration));
+            Dictionary<string, string> serverSettings = ParseServerSettings(result.GetValue(settings) ?? []);
             if (!result.GetValue(report))
             {
                 await cluster.StopAsync(token);
@@ -94,7 +95,20 @@ internal static partial class ToolCommand
                     }
                 }
 
-                foreach (string path in ExtensionInstaller.Install(output, installation, null, token))
+                IReadOnlyList<string> installed;
+                if (installation.Version.Major >= 18)
+                {
+                    string controlBase = StageBenchmarkExtension(output, token, out installed);
+                    char separator = OperatingSystem.IsWindows() ? ';' : ':';
+                    PrependSearchPath(serverSettings, "extension_control_path", controlBase, "$system", separator);
+                    PrependSearchPath(serverSettings, "dynamic_library_path", output, "$libdir", separator);
+                }
+                else
+                {
+                    installed = ExtensionInstaller.Install(output, installation, null, token);
+                }
+
+                foreach (string path in installed)
                 {
                     if (jsonOutput)
                     {
@@ -112,7 +126,7 @@ internal static partial class ToolCommand
                 Port = result.GetValue(port),
                 TimeoutSeconds = result.GetValue(timeout),
                 UseValgrind = result.GetValue<bool>("--valgrind"),
-                Settings = ParseServerSettings(result.GetValue(settings) ?? []),
+                Settings = serverSettings,
             };
             bool reportOnly = result.GetValue(report);
             await cluster.StartAsync(server, token);
@@ -212,6 +226,92 @@ internal static partial class ToolCommand
             return failures == 0 ? 0 : 1;
         });
         return command;
+    }
+
+    private static string StageBenchmarkExtension(string output, CancellationToken token,
+        out IReadOnlyList<string> installed)
+    {
+        PublishedExtension manifest = PublishedExtension.Read(output);
+        string source = Path.Combine(output, "extension");
+        string stage = Path.Combine(output, ".ankus-bench");
+        string temporary = stage + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        string controls = Path.Combine(temporary, "extension");
+        string scripts = manifest.ScriptDirectory is null ? controls : Path.Combine(temporary, "scripts");
+        string[] scriptNames = [manifest.Sql, .. manifest.UpgradeScripts, .. manifest.VersionControlFiles];
+        string[] sourceFiles =
+        [
+            Path.Combine(output, manifest.Library),
+            Path.Combine(source, manifest.Control),
+            .. scriptNames.Select(name => Path.Combine(source, name)),
+        ];
+        foreach (string path in sourceFiles)
+        {
+            if (!File.Exists(path))
+            {
+                throw new FileNotFoundException("The published extension is incomplete.", path);
+            }
+        }
+
+        _ = manifest.GetScriptDirectory(output, temporary);
+        IReadOnlyDictionary<string, string> authoredControl = ExtensionControlFile.Read(sourceFiles[1]);
+        string? stagedControl = null;
+        if (manifest.ScriptDirectory is not null)
+        {
+            var values = new Dictionary<string, string>(authoredControl, StringComparer.Ordinal)
+            {
+                ["directory"] = "scripts",
+            };
+            stagedControl = ExtensionControlFile.Format(values);
+        }
+
+        try
+        {
+            Directory.CreateDirectory(controls);
+            Directory.CreateDirectory(scripts);
+            var destinations = new List<string>(scriptNames.Length + 1);
+            foreach (string name in scriptNames)
+            {
+                token.ThrowIfCancellationRequested();
+                string destination = Path.Combine(scripts, name);
+                File.Copy(Path.Combine(source, name), destination);
+                destinations.Add(destination);
+            }
+
+            string control = Path.Combine(controls, manifest.Control);
+            if (stagedControl is null)
+            {
+                File.Copy(sourceFiles[1], control);
+            }
+            else
+            {
+                File.WriteAllText(control, stagedControl);
+            }
+
+            destinations.Add(control);
+            token.ThrowIfCancellationRequested();
+            if (Directory.Exists(stage))
+            {
+                Directory.Delete(stage, recursive: true);
+            }
+
+            Directory.Move(temporary, stage);
+            installed = [.. destinations.Select(path => Path.Combine(stage, Path.GetRelativePath(temporary, path)))];
+            return stage;
+        }
+        finally
+        {
+            if (Directory.Exists(temporary))
+            {
+                Directory.Delete(temporary, recursive: true);
+            }
+        }
+    }
+
+    private static void PrependSearchPath(Dictionary<string, string> settings, string name,
+        string path, string defaultValue, char separator)
+    {
+        string existing = settings.GetValueOrDefault(name, defaultValue);
+        settings[name] = path + separator + existing;
     }
 
     private static async Task EnsureBenchmarkStoreAsync(BenchmarkSqlSession sql, CancellationToken token)

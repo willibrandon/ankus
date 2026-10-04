@@ -23,135 +23,151 @@ public sealed partial class ToolCommandTests
         Assert.DoesNotContain("ankus_bench_", installationSql);
 
         const string Group = "integration-benchmark";
-        ProcessResult run = await InvokeAsync(
-            ["bench", "Success", "--home", s_home, "--pg", MajorText(), "--project", s_project,
-                "--configuration", "Release", "--group-name", Group, "--resetdb"], token);
-        Assert.AreEqual(0, run.ExitCode, run.StandardOutput + run.StandardError);
-        Assert.Contains("Benchmarking " + InsertBenchmark, run.StandardOutput);
-        Assert.Contains(" ns", run.StandardOutput);
-        Assert.IsEmpty(run.StandardError);
-
         var cluster = new PostgresDevelopmentCluster(s_installation, s_home);
-        string connectionString = await cluster.GetConnectionStringAsync("ankus_tool_probe_benches", token);
-        await using (Npgsql.NpgsqlConnection connection = BenchmarkConnection(connectionString, "ankus_tool_probe_benches"))
-        {
-            await connection.OpenAsync(token);
-            await using var command = new Npgsql.NpgsqlCommand(
-                "SELECT pg_catalog.to_regclass('public.ankus_benchmark_probe') IS NULL", connection);
-            Assert.IsTrue((bool)(await command.ExecuteScalarAsync(token))!);
-        }
-
-        const string EmptyDatabase = "ankus_tool_probe_empty_benches";
-        await cluster.DropDatabaseAsync(EmptyDatabase, force: true, token);
-        _ = await cluster.CreateDatabaseAsync(EmptyDatabase, token);
         try
         {
-            ProcessResult emptyReport = await InvokeAsync(
-                ["bench", "--home", s_home, "--pg", MajorText(), "--project", s_project,
-                    "--configuration", "Release", "--database", EmptyDatabase, "--report"], token);
-            Assert.AreEqual(1, emptyReport.ExitCode, emptyReport.StandardOutput + emptyReport.StandardError);
-            Assert.Contains("No benchmark history is available", emptyReport.StandardError);
-            string emptyConnection = await cluster.GetConnectionStringAsync(EmptyDatabase, token);
-            await using Npgsql.NpgsqlConnection empty = BenchmarkConnection(emptyConnection, EmptyDatabase);
-            await empty.OpenAsync(token);
-            await using var schema = new Npgsql.NpgsqlCommand(
-                "SELECT pg_catalog.to_regnamespace('ankus_bench') IS NULL", empty);
-            Assert.IsTrue((bool)(await schema.ExecuteScalarAsync(token))!);
-        }
-        finally
-        {
-            await cluster.DropDatabaseAsync(EmptyDatabase, force: true, CancellationToken.None);
-        }
-
-        using (var process = new Process
-        {
-            StartInfo = new ProcessStartInfo(s_tool)
+            ProcessResult run = await InvokeAsync(
+                ["bench", "Success", "--home", s_home, "--pg", MajorText(), "--project", s_project,
+                    "--configuration", "Release", "--group-name", Group, "--resetdb"], token);
+            Assert.AreEqual(0, run.ExitCode, run.StandardOutput + run.StandardError);
+            Assert.Contains("Benchmarking " + InsertBenchmark, run.StandardOutput);
+            Assert.Contains(" ns", run.StandardOutput);
+            Assert.IsEmpty(run.StandardError);
+            if (s_installation.Version.Major >= 18)
             {
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                WorkingDirectory = s_root,
-            },
-        })
-        {
-            string[] arguments = ["bench", "SuccessAddNumeric", "--home", s_home, "--pg", MajorText(),
-                "--project", s_project, "--configuration", "Release", "--group-name", "persistent-session",
-                "--no-build", "--wait", "10"];
-            foreach (string argument in arguments)
-            {
-                process.StartInfo.ArgumentList.Add(argument);
+                string benchmarkOutput = Path.Combine(Path.GetDirectoryName(s_project)!, "bin", "ankus-bench",
+                    s_installation.Label, System.Runtime.InteropServices.RuntimeInformation.RuntimeIdentifier, "Release");
+                string stagedControl = Path.Combine(benchmarkOutput, ".ankus-bench", "extension", "ankus_tool_probe.control");
+                Assert.IsTrue(File.Exists(stagedControl), stagedControl);
+                Assert.Contains(Path.GetDirectoryName(stagedControl)!, run.StandardOutput);
+                Assert.DoesNotContain(s_installation.LibraryDirectory, run.StandardOutput);
             }
 
-            foreach ((string name, string? value) in s_environment)
+            string connectionString = await cluster.GetConnectionStringAsync("ankus_tool_probe_benches", token);
+            await using (Npgsql.NpgsqlConnection connection = BenchmarkConnection(connectionString, "ankus_tool_probe_benches"))
             {
-                process.StartInfo.Environment[name] = value;
+                await connection.OpenAsync(token);
+                await using var command = new Npgsql.NpgsqlCommand(
+                    "SELECT pg_catalog.to_regclass('public.ankus_benchmark_probe') IS NULL", connection);
+                Assert.IsTrue((bool)(await command.ExecuteScalarAsync(token))!);
             }
 
-            Assert.IsTrue(process.Start());
-            Task<string> standardOutput = process.StandardOutput.ReadToEndAsync(token);
-            Task<string> standardError = process.StandardError.ReadToEndAsync(token);
+            const string EmptyDatabase = "ankus_tool_probe_empty_benches";
+            await cluster.DropDatabaseAsync(EmptyDatabase, force: true, token);
+            _ = await cluster.CreateDatabaseAsync(EmptyDatabase, token);
             try
             {
-                string observerConnection = await cluster.GetConnectionStringAsync("ankus_tool_probe_benches", token);
-                int backendPid = await WaitForBenchmarkBackendAsync(observerConnection, process, token);
-                Assert.IsFalse(process.HasExited, "The benchmark backend was observed only after the tool exited.");
-                await process.WaitForExitAsync(token);
-                string output = await standardOutput;
-                Assert.AreEqual(0, process.ExitCode, output + await standardError);
-                Assert.Contains("Benchmark backend PID: " + backendPid.ToString(CultureInfo.InvariantCulture), output);
+                ProcessResult emptyReport = await InvokeAsync(
+                    ["bench", "--home", s_home, "--pg", MajorText(), "--project", s_project,
+                        "--configuration", "Release", "--database", EmptyDatabase, "--report"], token);
+                Assert.AreEqual(1, emptyReport.ExitCode, emptyReport.StandardOutput + emptyReport.StandardError);
+                Assert.Contains("No benchmark history is available", emptyReport.StandardError);
+                string emptyConnection = await cluster.GetConnectionStringAsync(EmptyDatabase, token);
+                await using Npgsql.NpgsqlConnection empty = BenchmarkConnection(emptyConnection, EmptyDatabase);
+                await empty.OpenAsync(token);
+                await using var schema = new Npgsql.NpgsqlCommand(
+                    "SELECT pg_catalog.to_regnamespace('ankus_bench') IS NULL", empty);
+                Assert.IsTrue((bool)(await schema.ExecuteScalarAsync(token))!);
             }
             finally
             {
-                if (!process.HasExited)
+                await cluster.DropDatabaseAsync(EmptyDatabase, force: true, CancellationToken.None);
+            }
+
+            using (var process = new Process
+            {
+                StartInfo = new ProcessStartInfo(s_tool)
                 {
-                    process.Kill(entireProcessTree: true);
-                    await process.WaitForExitAsync(CancellationToken.None);
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    WorkingDirectory = s_root,
+                },
+            })
+            {
+                string[] arguments = ["bench", "SuccessAddNumeric", "--home", s_home, "--pg", MajorText(),
+                    "--project", s_project, "--configuration", "Release", "--group-name", "persistent-session",
+                    "--no-build", "--wait", "10"];
+                foreach (string argument in arguments)
+                {
+                    process.StartInfo.ArgumentList.Add(argument);
+                }
+
+                foreach ((string name, string? value) in s_environment)
+                {
+                    process.StartInfo.Environment[name] = value;
+                }
+
+                Assert.IsTrue(process.Start());
+                Task<string> standardOutput = process.StandardOutput.ReadToEndAsync(token);
+                Task<string> standardError = process.StandardError.ReadToEndAsync(token);
+                try
+                {
+                    string observerConnection = await cluster.GetConnectionStringAsync("ankus_tool_probe_benches", token);
+                    int backendPid = await WaitForBenchmarkBackendAsync(observerConnection, process, token);
+                    Assert.IsFalse(process.HasExited, "The benchmark backend was observed only after the tool exited.");
+                    await process.WaitForExitAsync(token);
+                    string output = await standardOutput;
+                    Assert.AreEqual(0, process.ExitCode, output + await standardError);
+                    Assert.Contains("Benchmark backend PID: " + backendPid.ToString(CultureInfo.InvariantCulture), output);
+                }
+                finally
+                {
+                    if (!process.HasExited)
+                    {
+                        process.Kill(entireProcessTree: true);
+                        await process.WaitForExitAsync(CancellationToken.None);
+                    }
                 }
             }
+
+            ProcessResult report = await InvokeAsync(
+                ["bench", "--home", s_home, "--pg", MajorText(), "--project", s_project,
+                    "--configuration", "Release", "--report", "--json"], token);
+            Assert.AreEqual(0, report.ExitCode, report.StandardOutput + report.StandardError);
+            using JsonDocument history = JsonDocument.Parse(report.StandardOutput);
+            JsonElement entry = history.RootElement.EnumerateArray().Single(value =>
+                value.GetProperty("benchmark_name").GetString() == InsertBenchmark);
+            Assert.AreEqual(Group, entry.GetProperty("group_name").GetString());
+            Assert.AreEqual(InsertBenchmark, entry.GetProperty("benchmark_name").GetString());
+            JsonElement result = entry.GetProperty("result");
+            Assert.AreEqual("ok", result.GetProperty("status").GetString());
+            Assert.IsGreaterThan(1, result.GetProperty("source_line").GetInt32());
+            Assert.AreEqual(2, result.GetProperty("samples").GetArrayLength());
+            Assert.IsNull(result.GetProperty("error_text").GetString());
+            Assert.HasCount(3, history.RootElement.EnumerateArray());
+            JsonElement automatic = history.RootElement.EnumerateArray().Single(value =>
+                value.GetProperty("group_name").GetString() == "persistent-session");
+            Assert.AreEqual(Group, automatic.GetProperty("compare_group_name").GetString());
+            Assert.AreEqual(JsonValueKind.Object,
+                automatic.GetProperty("result").GetProperty("comparison").ValueKind);
+
+            ProcessResult comparisonRun = await InvokeAsync(
+                ["bench", "SuccessAddNumeric", "--home", s_home, "--pg", MajorText(), "--project", s_project,
+                    "--configuration", "Release", "--group-name", "comparison", "--compare-group", Group,
+                    "--no-build", "--json"], token);
+            Assert.AreEqual(0, comparisonRun.ExitCode, comparisonRun.StandardOutput + comparisonRun.StandardError);
+            using JsonDocument comparisonOutput = JsonDocument.Parse(comparisonRun.StandardOutput);
+            JsonElement benchmark = Assert.ContainsSingle(comparisonOutput.RootElement.GetProperty("benchmarks").EnumerateArray());
+            JsonElement comparison = benchmark.GetProperty("comparison");
+            Assert.IsTrue(double.IsFinite(comparison.GetProperty("p_value").GetDouble()));
+            Assert.AreEqual(0.95, comparison.GetProperty("mean").GetProperty("confidence_level").GetDouble(), 0.000_001);
+
+            ProcessResult failureRun = await InvokeAsync(
+                ["bench", "Failure", "--home", s_home, "--pg", MajorText(), "--project", s_project,
+                    "--configuration", "Release", "--group-name", "failure", "--no-build", "--json"], token);
+            Assert.AreEqual(1, failureRun.ExitCode, failureRun.StandardOutput + failureRun.StandardError);
+            using JsonDocument failureOutput = JsonDocument.Parse(failureRun.StandardOutput);
+            JsonElement failed = Assert.ContainsSingle(failureOutput.RootElement.GetProperty("benchmarks").EnumerateArray());
+            Assert.AreEqual("failed", failed.GetProperty("status").GetString());
+            string? errorText = failed.GetProperty("error_text").GetString();
+            Assert.IsNotNull(errorText);
+            Assert.Contains("division by zero", errorText);
         }
-
-        ProcessResult report = await InvokeAsync(
-            ["bench", "--home", s_home, "--pg", MajorText(), "--project", s_project,
-                "--configuration", "Release", "--report", "--json"], token);
-        Assert.AreEqual(0, report.ExitCode, report.StandardOutput + report.StandardError);
-        using JsonDocument history = JsonDocument.Parse(report.StandardOutput);
-        JsonElement entry = history.RootElement.EnumerateArray().Single(value =>
-            value.GetProperty("benchmark_name").GetString() == InsertBenchmark);
-        Assert.AreEqual(Group, entry.GetProperty("group_name").GetString());
-        Assert.AreEqual(InsertBenchmark, entry.GetProperty("benchmark_name").GetString());
-        JsonElement result = entry.GetProperty("result");
-        Assert.AreEqual("ok", result.GetProperty("status").GetString());
-        Assert.IsGreaterThan(1, result.GetProperty("source_line").GetInt32());
-        Assert.AreEqual(2, result.GetProperty("samples").GetArrayLength());
-        Assert.IsNull(result.GetProperty("error_text").GetString());
-        Assert.HasCount(3, history.RootElement.EnumerateArray());
-        JsonElement automatic = history.RootElement.EnumerateArray().Single(value =>
-            value.GetProperty("group_name").GetString() == "persistent-session");
-        Assert.AreEqual(Group, automatic.GetProperty("compare_group_name").GetString());
-        Assert.AreEqual(JsonValueKind.Object,
-            automatic.GetProperty("result").GetProperty("comparison").ValueKind);
-
-        ProcessResult comparisonRun = await InvokeAsync(
-            ["bench", "SuccessAddNumeric", "--home", s_home, "--pg", MajorText(), "--project", s_project,
-                "--configuration", "Release", "--group-name", "comparison", "--compare-group", Group,
-                "--no-build", "--json"], token);
-        Assert.AreEqual(0, comparisonRun.ExitCode, comparisonRun.StandardOutput + comparisonRun.StandardError);
-        using JsonDocument comparisonOutput = JsonDocument.Parse(comparisonRun.StandardOutput);
-        JsonElement benchmark = Assert.ContainsSingle(comparisonOutput.RootElement.GetProperty("benchmarks").EnumerateArray());
-        JsonElement comparison = benchmark.GetProperty("comparison");
-        Assert.IsTrue(double.IsFinite(comparison.GetProperty("p_value").GetDouble()));
-        Assert.AreEqual(0.95, comparison.GetProperty("mean").GetProperty("confidence_level").GetDouble(), 0.000_001);
-
-        ProcessResult failureRun = await InvokeAsync(
-            ["bench", "Failure", "--home", s_home, "--pg", MajorText(), "--project", s_project,
-                "--configuration", "Release", "--group-name", "failure", "--no-build", "--json"], token);
-        Assert.AreEqual(1, failureRun.ExitCode, failureRun.StandardOutput + failureRun.StandardError);
-        using JsonDocument failureOutput = JsonDocument.Parse(failureRun.StandardOutput);
-        JsonElement failed = Assert.ContainsSingle(failureOutput.RootElement.GetProperty("benchmarks").EnumerateArray());
-        Assert.AreEqual("failed", failed.GetProperty("status").GetString());
-        string? errorText = failed.GetProperty("error_text").GetString();
-        Assert.IsNotNull(errorText);
-        Assert.Contains("division by zero", errorText);
+        finally
+        {
+            await cluster.StopAsync(CancellationToken.None);
+        }
     }
 
     private static Npgsql.NpgsqlConnection BenchmarkConnection(
