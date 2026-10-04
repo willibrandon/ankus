@@ -193,9 +193,9 @@ internal static partial class ToolCommand
         command.Options.Add(new Option<string?>("--output", "-o") { Description = "Publish directory." });
         command.SetAction(async (result, token) =>
         {
-            PostgresInstallation installation = await SelectAsync(result, home, token);
-            string output = await GetOutputDirectoryAsync(result, installation, token);
-            return await PublishAsync(result, installation, output, token);
+            ExtensionSelection selection = await SelectExtensionAsync(result, home, token);
+            string output = GetOutputDirectory(result, selection);
+            return await PublishAsync(selection, output, token);
         });
         return command;
     }
@@ -240,16 +240,22 @@ internal static partial class ToolCommand
                 ExtensionInstaller.GetPackagePrefix(result.GetValue(destination) ?? Environment.CurrentDirectory, prefixDirectory);
             }
 
-            PostgresInstallation installation = await SelectAsync(result, home, token);
+            PostgresInstallation installation;
             string? source = result.GetValue(from);
             if (source is null)
             {
-                source = await GetOutputDirectoryAsync(result, installation, token);
-                int exitCode = await PublishAsync(result, installation, source, token);
+                ExtensionSelection selection = await SelectExtensionAsync(result, home, token);
+                installation = selection.Installation;
+                source = GetOutputDirectory(result, selection);
+                int exitCode = await PublishAsync(selection, source, token);
                 if (exitCode != 0)
                 {
                     return exitCode;
                 }
+            }
+            else
+            {
+                installation = await SelectAsync(result, home, token);
             }
 
             string? root = result.GetValue(destination);
@@ -321,27 +327,22 @@ internal static partial class ToolCommand
     /// Places publication output beside the evaluated extension project unless the command selects an explicit destination.
     /// </summary>
     /// <param name="result">The parsed build command.</param>
-    /// <param name="installation">The selected PostgreSQL installation.</param>
-    /// <param name="token">Cancels solution candidate evaluation.</param>
+    /// <param name="selection">The invocation's resolved extension and build context.</param>
     /// <returns>The absolute publication directory.</returns>
-    private static async Task<string> GetOutputDirectoryAsync(ParseResult result, PostgresInstallation installation, CancellationToken token)
+    private static string GetOutputDirectory(ParseResult result, ExtensionSelection selection)
     {
         string? output = result.CommandResult.Command.Name is "install" or "package" or "run" or "regress" ? null : result.GetValue<string?>("--output");
-        string configuration = GetConfiguration(result);
-        string project = await ExtensionBuilder.ResolveProjectAsync(result.GetValue<string?>("--project"),
-            configuration, token, BuildProperties(result));
-        return Path.GetFullPath(output ?? Path.Combine(Path.GetDirectoryName(project)!, "bin", "ankus",
-            installation.Label, RuntimeInformation.RuntimeIdentifier, configuration));
+        return Path.GetFullPath(output ?? Path.Combine(Path.GetDirectoryName(selection.Project)!, "bin", "ankus",
+            selection.Installation.Label, RuntimeInformation.RuntimeIdentifier, selection.Configuration));
     }
 
-    private static async Task<int> PublishAsync(ParseResult result, PostgresInstallation installation,
-        string output, CancellationToken token)
+    private static async Task<int> PublishAsync(ExtensionSelection selection, string output, CancellationToken token)
     {
-        int code = await ExtensionBuilder.PublishAsync(result.GetValue<string?>("--project"),
-            GetConfiguration(result), installation, output, token, properties: BuildProperties(result));
+        int code = await ExtensionBuilder.PublishAsync(selection.Project,
+            selection.Configuration, selection.Installation, output, token, properties: selection.Properties);
         if (code == 0)
         {
-            Console.WriteLine($"Published {installation.Label} extension to {output}");
+            Console.WriteLine($"Published {selection.Installation.Label} extension to {output}");
         }
 
         return code;

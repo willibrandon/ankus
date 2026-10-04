@@ -86,16 +86,16 @@ internal static partial class ToolCommand
                     throw new ArgumentException("--pg-config requires a build; use --pg to select an existing publication.");
                 }
 
-                int major = await SelectMajorAsync(result, token);
                 string configuration = GetConfiguration(result);
                 string project = await ExtensionBuilder.ResolveProjectAsync(result.GetValue<string?>("--project"),
                     configuration, token, BuildProperties(result));
+                int major = await SelectMajorAsync(result, token, project);
                 string directory = Path.Combine(Path.GetDirectoryName(project)!, "bin", "ankus",
                     "pg" + major.ToString(System.Globalization.CultureInfo.InvariantCulture),
                     RuntimeInformation.RuntimeIdentifier, configuration);
                 if (!result.GetValue(skipBuild))
                 {
-                    PostgresInstallation installation = await SelectAsync(result, home, token);
+                    PostgresInstallation installation = await SelectAsync(result, home, token, resolvedProject: project);
                     int code = await ExtensionBuilder.PublishAsync(project, configuration, installation, directory, token,
                         diagnosticsToStandardError: true, properties: BuildProperties(result));
                     if (code != 0)

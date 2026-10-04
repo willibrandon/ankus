@@ -59,7 +59,7 @@ internal static partial class ToolCommand
                     return code;
                 }
 
-                int major = await SelectMajorAsync(result, token);
+                int major = await SelectMajorAsync(result, token, project);
                 string configuration = GetConfiguration(result);
                 if (name == "extname")
                 {
@@ -68,7 +68,7 @@ internal static partial class ToolCommand
                 }
                 else
                 {
-                    PostgresInstallation installation = await SelectAsync(result, home, token);
+                    PostgresInstallation installation = await SelectAsync(result, home, token, resolvedProject: project);
                     string temporary = Directory.CreateTempSubdirectory("ankus-control-query-").FullName;
                     try
                     {

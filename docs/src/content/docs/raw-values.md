@@ -412,6 +412,16 @@ still the installed head; replacing it after another extension has installed a
 hook would discard that extension's chain. Dropping SQL declarations does not
 unload the native module or automatically unregister hooks.
 
+An `emit_log_hook` handler receives borrowed `ErrorData*`. Copy any fields you
+need to retain before returning or invoking another hook. PostgreSQL permits
+the hook to disable `output_to_server`; other changes to the diagnostic are
+unsupported.
+
+Reporting from this hook invokes it again, so bound any recursive reporting.
+PostgreSQL's recursive reporter can reset its error memory context and replaces
+non-ASCII bytes with `?` when sending nested diagnostics to the client. The hook
+can still copy the original text before that client conversion.
+
 ## Raw SQL values
 
 Use `PgDatum` with `[PgSqlType]` for a type without a built-in C# mapping:

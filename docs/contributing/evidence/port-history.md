@@ -24894,3 +24894,153 @@ milestone's commit, the prior primary and documentation runs are checked again:
 **37169593738 / 37169593785** remain complete green. No GitHub run is active at
 that observation. The independently running combined logging-hook acceptance
 is outside this generator milestone.
+
+The generator milestone is committed as **811f8d0**. Immediately before its
+push, prior CI is checked again: primary **37169593738**, docs **37169593785**,
+Linux major refresh **37154140634** and platform-major **37145038020** remain
+complete green. No GitHub run is active at that observation.
+
+Primary **37174019108** on **811f8d0** currently passes quality and all three
+runtime jobs; its complete Linux, macOS and Windows suites are running.
+Documentation **37174019056** is complete green. These live suites are not yet
+recorded as complete platform acceptance.
+
+The complete macOS ARM64/18 job subsequently passes in **26m56s**. Its six
+downloaded reports independently verify **11,830 total / 11,770 passed /
+60 platform skips / zero failures** on **811f8d0 / runtime ankus.4**. Linux
+and Windows remain running at that observation.
+
+## CLI environment and invocation-selection acceptance
+
+The local pgrx command declarations apply `PG_VERSION` to version selection,
+`DBNAME` only to `connect`, and `PGRX_PGCLI` to `connect` and `run`. Ankus now
+supplies the corresponding `PG_VERSION`, `DBNAME` and `ANKUS_PGCLI` contracts.
+Explicit selectors and forwarded build properties retain precedence. Existing
+install/package publications retain their recorded major before environment
+defaults. Empty variables preserve project defaults; invalid or unavailable
+selections fail instead of silently choosing another installation. Client
+default validation precedes server preparation.
+
+Extension commands carry the resolved project, configuration and properties
+through one invocation instead of repeatedly scanning their solution. This
+does not add a process-wide cache or ignore candidate evaluation failures.
+Consumer projects and registry lookups still use ordinary MSBuild evaluation.
+
+The original process baseline passes **4 of 17** cases; the corrected draft
+passes all 17. The actual draft is packed and installed as a .NET tool. The
+published and installed managed binaries have identical SHA-256 identities.
+Its final isolated installed-tool acceptance passes **39/39**, zero skips or
+failures, in **27.502s** test-command duration on **Linux x64 / PostgreSQL 18.6**.
+This includes **25 environment/publication cases** and **14 existing solution
+resolution cases**, with independently checked individual TRX outcomes.
+
+| Boundary | Observable evidence |
+| --- | --- |
+| Major precedence | Exact installation version for project/environment/explicit selections; unchanged registry and absent build directories |
+| Invalid/unavailable defaults | Nonzero exit, exact diagnostic, empty information output and preserved registration |
+| Literal `DBNAME` | Real server reports exact Unicode/punctuation-bearing database name; explicit database overrides it and cleanup stops the owned server |
+| Client default | Missing selected pgcli fails instead of falling back; explicit psql override returns row `42`; invalid defaults create no server storage |
+| Existing publication | Installed or packaged native library, control and SQL bytes match the original publication under the actual platform layout |
+| Solution resolution | Existing SDK/solution forms and ambiguity/error assertions execute against the installed draft tool |
+
+An intermediate test-build failure came from an ambiguous null `DataRow`
+argument. Typing that single null value fixes the test declaration; no production
+code or analyzer standard changes for it. The original failed build is retained.
+Source, repository tests and public guides are now integrated. This isolated
+harness does not replace complete repository, freshly packed consumer/template
+or platform acceptance; those remain required before committing this milestone.
+
+The integrated environment cases pass again after removing fixture-only build
+overrides from their child processes: **39/39**, zero skips/failures, **35.976s**.
+Affected tool Release compilation passes with zero warnings/errors (**10.69s**).
+Current API generation checks **239 pages / 2,763 members**; site build passes
+**287 routes / 10.81s**, and site checks report zero errors, warnings or hints.
+These affected-tool/docs gates do not replace the pending complete repository
+and newly packed native consumer acceptance.
+
+## Portable CLI and template project names
+
+The CLI's former ASCII identifier validation rejects otherwise portable names
+that the .NET template accepts. A compiling nine-case installed-tool baseline
+passes **2** and fails **7** at that validation (**3.955s**). An earlier test
+build fails IDE0300; its collection initialization is corrected before the
+baseline, with analyzer standards unchanged.
+
+Namespace normalization now matches the Microsoft SDK's `safe_namespace` Unicode
+identifier categories and leading-character rules, followed by keyword escaping.
+SQL naming matches the template's ASCII snake-case and leading-digit rules.
+Path syntax, empty dot segments and Windows-reserved names remain invalid.
+Tests cover ASCII/Unicode digits, spaces/hyphens, Unicode letters/combining marks,
+acronym boundaries and keyword segments through both installed creation paths.
+Literal namespace and extension names, solution/project-reference XML paths,
+regression SQL/expectations and completed atomic output are independently checked.
+
+The corrected tool is packed and installed with a fresh cache; installed and
+published managed binaries have identical SHA-256 identities. Combined narrow
+acceptance passes **48/48**, zero skips/failures, **38.959s** on **Linux x64 /
+PostgreSQL 18.6**. This includes the 39 environment/solution cases and all nine
+creation cases. Each individual outcome and report counter is verified.
+Source is integrated with additional real regression consumer rows for leading
+digits, separators and Unicode through both entry points. Their native builds,
+backend installation/reuse and complete platform acceptance are pending; creation
+checks alone do not establish those boundaries.
+
+## Persistent reporting-hook root cause
+
+The refreshed local pgrx source contains `emit_log_hook` in its raw binding
+inventory but no reporting-hook chain or reentrancy test. Ankus crosses an
+additional managed callback boundary, so it now installs a persistent generated
+hook, chains two managed callbacks and the prior native hook, recursively reports,
+rejects outer and nested reports, retries in the same backend and restores the
+original hook. A persistent native prefix also raises ERROR before entering the
+managed handler and remains installed for a retry.
+
+Focused Linux/18.6 coverage initially passes all **52/52** selected cases, but a
+complete run exposes allocator corruption: **11,835 total / 11,765 passed /
+48 platform skips / 22 failures**, in **50m25.007s**. The hook rejection aborts
+one backend; adjacent cases then observe closed connections or server recovery.
+The focused result is therefore retained only as reproduction evidence.
+
+Native debugger evidence identifies the exact invalid free. PostgreSQL invokes
+`emit_log_hook` with `CurrentMemoryContext == ErrorContext`. The generated native
+callback dispatcher allocated its owned `AnkusError` header in that caller.
+When a managed rejection reports a recursive ERROR, PostgreSQL resets
+`ErrorContext`; `PG_FINALLY` then passed the invalidated header to `pfree`.
+Managed and native layout probes both report a 2,752-byte header, excluding an
+ABI-size mismatch. The generated source now allocates the short-lived header in
+`TopMemoryContext`, records the caller context identity and restores its live
+recovery context before allocator-matched field and header cleanup.
+
+One validator rerun initially reused stale generated C even though its generator
+source contained the fix. The private sync utility had preserved source
+timestamps older than the existing generator binary, so ordinary MSBuild
+incremental checks correctly considered the output current. The repository build
+graph already tracks generator sources and analyzer inputs. Advancing copied
+source timestamps corrects that private harness defect; an ordinary incremental
+publish then rebuilds the generator and emits the `TopMemoryContext` allocation.
+No repository MSBuild workaround is added.
+
+The isolated real-backend probe and all **5/5** persistent hook integration cases
+pass after the correction, including exact SQLSTATE/detail/hint transport, nested
+order, native-prefix failure, retry, restoration, zero holdoffs and same-backend
+reuse. A subsequent complete run has no allocator failure and reaches only three
+unrelated portable-name cases: Unicode project names retain a Unicode assembly
+filename rejected by the package boundary, while one old negative test still
+expects a leading digit to be invalid. Scaffolded projects now set `AssemblyName`
+to their normalized SQL extension identity; background-worker registration and
+preload documentation use the same name. All **17/17** affected cases pass with
+real Native AOT publication and PostgreSQL regression execution. Corrected
+complete acceptance remains in progress at this observation.
+
+The corrected complete Linux x64/PostgreSQL 18.6 run subsequently passes:
+**11,840 total / 11,792 passed / 48 platform skips / zero failures** in
+**51m13.968s**. Independent parsing verifies all six reports and their aggregate
+counters. All 1,650 recorded authored inputs match before and after the suite,
+Release and API gates. Release passes with zero warnings/errors in **2m05.832s**;
+API freshness passes in **10.037s**. The current site builds 287 pages, and its
+checks report zero errors, warnings or hints. No owned PostgreSQL process remains.
+
+Immediately before committing this milestone, the latest prior workflows for
+`811f8d0` are complete and green: CI run `37174019108` and Docs run
+`37174019056`. The required fresh pre-push check reports the same state, with no
+newer workflow running.

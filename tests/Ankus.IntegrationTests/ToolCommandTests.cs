@@ -87,6 +87,9 @@ public sealed partial class ToolCommandTests(TestContext context)
             ["AnkusPostgresMajor"] = s_installation.Version.Major.ToString(CultureInfo.InvariantCulture),
             ["AnkusPgConfigPath"] = s_installation.PgConfigPath,
             ["ANKUS_HOME"] = null,
+            ["PG_VERSION"] = null,
+            ["DBNAME"] = null,
+            ["ANKUS_PGCLI"] = null,
             // Each consumer selects its SDK through global.json, independently of the test runner's SDK.
             ["MSBuildSDKsPath"] = null,
             ["MSBuildExtensionsPath"] = null,
@@ -1018,7 +1021,6 @@ public sealed partial class ToolCommandTests(TestContext context)
     /// <param name="extension">The SQL extension override, or null.</param>
     [TestMethod]
     [DataRow("../outside", null)]
-    [DataRow("1Project", null)]
     [DataRow("Acme..Search", null)]
     [DataRow("CON.Tools", null)]
     [DataRow("Project", "BadName")]

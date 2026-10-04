@@ -91,7 +91,11 @@ extensions. Counts supplement the backend, ownership and recovery assertions.
 
 | Source | Platform / PostgreSQL | Result | Duration |
 | --- | --- | --- | --- |
+| Frozen CLI/template/reporting-hook composition / runtime **ankus.4** | Linux x64 / 18.6 | 11,840 total; 11,792 passed; 48 platform skips; zero failures | 51m13.968s command |
 | Frozen generator-discovery composition / runtime **ankus.4** | Linux x64 / 18.6 | 11,830 total; 11,782 passed; 48 platform skips; zero failures | 50m29.932s command |
+| [CI 37174019108](https://github.com/willibrandon/ankus/actions/runs/37174019108), 811f8d0 / runtime **ankus.4** | macOS ARM64 / 18 | 11,830 total; 11,770 passed; 60 platform skips; zero failures | 26m56s job |
+| Same CI / revision / runtime | Linux x64 / 18 | 11,830 total; 11,782 passed; 48 platform skips; zero failures | 36m27s job |
+| Same CI / revision / runtime | Windows x64 / 17 | 11,830 total; 11,802 passed; 28 platform skips; zero failures | 33m59s job |
 | [CI 37169593738](https://github.com/willibrandon/ankus/actions/runs/37169593738), 596a8af / runtime **ankus.4** | Linux x64 / 18 | 11,816 total; 11,768 passed; 48 platform skips; zero failures | 36m32s job |
 | Same CI / revision / runtime | macOS ARM64 / 18 | 11,816 total; 11,756 passed; 60 platform skips; zero failures | 26m44s job |
 | Same CI / revision / runtime | Windows x64 / 17 | 11,816 total; 11,788 passed; 28 platform skips; zero failures | 33m14s job |
@@ -174,21 +178,47 @@ passes.
   passes **11,830 total / 11,782 passed / 48 platform skips / zero failures**
   in **50m29.932s**. All six reports are independently verified; all 1,648
   recorded authored inputs remain unchanged. Release and API freshness pass.
-  This change is uncommitted; platform CI remains required.
-- CLI environment and invocation-selection drafts pass 17 real process cases
-  against PostgreSQL/18.6; 13 fail against the prior implementation. Packaged
-  publication, solution and template acceptance remain required before promotion.
+  Committed as **811f8d0**. [Primary CI 37174019108](https://github.com/willibrandon/ankus/actions/runs/37174019108)
+  passes quality, all runtime jobs and all three complete platform suites.
+  All six reports are independently verified for each platform.
+  [Docs CI 37174019056](https://github.com/willibrandon/ankus/actions/runs/37174019056)
+  passes.
+- CLI environment and invocation selection now follows pgrx's `PG_VERSION`,
+  `DBNAME` and SQL-client defaults while retaining explicit and publication
+  selections. The installed draft tool passes **39/39** process cases against
+  PostgreSQL/18.6, including existing solution cases and exact staged native/SQL
+  bytes; 13 of the original 17 cases fail before correction. The complete
+  Linux/18.6 repository, package and template composition passes with zero
+  failures.
+- Portable CLI project names now normalize namespaces and SQL identity like
+  the installed .NET templates. Seven creation cases fail before correction;
+  combined installed-tool acceptance passes **48/48**, including nine naming
+  cases. Full native regression consumers now cover leading digits, separators
+  and Unicode through both creation paths. Their native filenames use the
+  normalized extension identity, and complete acceptance passes.
 - Current-runtime Linux/13–17 and 19 acceptance is green on **c24297f** in
   [version CI 37154140634](https://github.com/willibrandon/ankus/actions/runs/37154140634).
   Later review fixes still require refreshed version/platform evidence.
 - Persistent generated `emit_log_hook` coverage exposed diagnostic cleanup
-  after PostgreSQL resets its error context. The callback header now survives
-  that reset and is released after unwinding. Focused Linux/18.6 acceptance
-  passes **52/52**, including chaining, nested reporting, managed failures,
-  native failure before the handler and same-session recovery. The first
-  combined complete run stopped before its integration report and is retained
-  as incomplete. Replacement complete Linux/18.6 acceptance is running against
-  1,650 recorded authored inputs; this fix remains uncommitted.
+  after PostgreSQL resets `ErrorContext`. The generated dispatcher allocated
+  its owned error header in that caller context; recursive ERROR reporting reset
+  the context before `PG_FINALLY` released the header. Native debugger evidence
+  identifies the resulting invalid `pfree`. The header now lives temporarily in
+  `TopMemoryContext`, and cleanup restores a verified live context after managed
+  frames unwind. Focused Linux/18.6 acceptance passes **52/52**, including
+  chaining, nested reporting, managed failures, native failure before the
+  handler and same-session recovery. A post-fix complete run has no allocator
+  failure and exposes three independent template cases instead: Unicode project
+  names retained an invalid native filename and one obsolete test rejected a
+  now-supported leading digit. Scaffolded assemblies now use the normalized SQL
+  extension identity; worker preload names follow it. All **17/17** affected
+  template cases pass with real Native AOT publication and PostgreSQL regression
+  runs. Corrected complete Linux/18.6 acceptance passes **11,840 total / 11,792
+  passed / 48 platform skips / zero failures** in **51m13.968s** against 1,650
+  verified authored inputs. All six reports are independently verified. Release
+  passes with zero warnings/errors in **2m05.832s**; API freshness passes in
+  **10.037s**. Site build produces 287 pages and site checks report zero errors,
+  warnings or hints.
 - Remaining review work includes precise diagnostics and useful code fixes,
   CLI environment/name contracts, appropriately guarded pure operations and
   permanent backend benchmarks, representative samples and final platform

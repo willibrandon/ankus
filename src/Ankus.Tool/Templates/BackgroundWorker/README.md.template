@@ -28,7 +28,7 @@ Add the library to `postgresql.conf`, preserving any other preloaded libraries,
 then restart PostgreSQL:
 
 ```ini
-shared_preload_libraries = '__PROJECT__'
+shared_preload_libraries = '__EXTENSION__'
 ```
 
 Install the SQL declarations and inspect the worker:

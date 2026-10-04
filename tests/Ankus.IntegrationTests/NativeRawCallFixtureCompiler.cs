@@ -32,6 +32,14 @@ internal static class NativeRawCallFixtureCompiler
         AS '{{ModuleFileName}}', 'ankus_test_log_arm' LANGUAGE c STRICT;
         CREATE FUNCTION tests.log_holdoff() RETURNS bigint
         AS '{{ModuleFileName}}', 'ankus_test_log_holdoff' LANGUAGE c STRICT;
+        CREATE FUNCTION tests.log_prefix_arm(text) RETURNS void
+        AS '{{ModuleFileName}}', 'ankus_test_log_prefix_arm' LANGUAGE c STRICT;
+        CREATE FUNCTION tests.log_prefix_calls() RETURNS bigint
+        AS '{{ModuleFileName}}', 'ankus_test_log_prefix_calls' LANGUAGE c STRICT;
+        CREATE FUNCTION tests.log_prefix_active() RETURNS boolean
+        AS '{{ModuleFileName}}', 'ankus_test_log_prefix_active' LANGUAGE c STRICT;
+        CREATE FUNCTION tests.log_prefix_restore() RETURNS boolean
+        AS '{{ModuleFileName}}', 'ankus_test_log_prefix_restore' LANGUAGE c STRICT;
         """;
 
     /// <summary>

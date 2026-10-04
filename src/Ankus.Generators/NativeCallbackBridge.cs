@@ -39,9 +39,13 @@ internal static class NativeCallbackBridge
             }
 
             MemoryContext caller = CurrentMemoryContext;
+            MemoryContext recovery = ankus_error_recovery_context(caller);
+            uint64 caller_identity = recovery == ErrorContext ? ankus_memory_context_id(caller) : 0;
             AnkusMemoryApi memory = {0};
             ankus_memory_initialize(&memory);
-            AnkusError *error = MemoryContextAllocZero(caller, sizeof(AnkusError));
+            /* Reporting callbacks enter from ErrorContext. A recursive ERROR can
+             * reset it before the dispatcher releases its owned diagnostics. */
+            AnkusError *error = MemoryContextAllocZero(TopMemoryContext, sizeof(AnkusError));
             AnkusNativeCallbackContext context = { error,
                 IsTransactionState() && !ankus_worker_restore_in_progress() ? ankus_spi_execute : NULL,
                 &memory, ankus_read_guc, ankus_initialization_log };
@@ -59,7 +63,8 @@ internal static class NativeCallbackBridge
             }
             PG_FINALLY();
             {
-                MemoryContextSwitchTo(caller);
+                MemoryContextSwitchTo(caller_identity != 0 && ankus_memory_context_by_id(caller_identity) == NULL
+                    ? recovery : caller);
                 ankus_release_error(error);
                 pfree(error);
                 if (entered)

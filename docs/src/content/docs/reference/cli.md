@@ -45,8 +45,14 @@ Each extension also contains `pg_regress/sql/setup.sql` and a matching
 `pg_regress/expected/setup.out`. They create the extension before your
 [SQL regression tests](#run-sql-regression-suites) run.
 
-Project names use C# identifier segments such as `Acme.Search`. SQL extension names
-default to snake case (`acme_search`); use `--extension-name` to choose one explicitly.
+Project names can contain Unicode identifier characters, spaces, hyphens and
+dot-separated segments, including names such as `1Ext` or `Acme.Search`.
+Both creation paths normalize the C# namespace using .NET template rules and
+escape C# keywords. SQL extension names use lowercase ASCII snake case,
+replacing separators and non-ASCII characters with underscores and prefixing
+leading digits with `_`: `1Ext` becomes `_1_ext` and `Acme.Search` becomes
+`acme_search`. The native library uses that extension identity as its filename.
+Use `ankus new --extension-name` to choose one explicitly.
 `--output` selects a new destination directory. Existing destinations are preserved.
 
 Creation needs no PostgreSQL installation. Running the generated backend tests
@@ -69,10 +75,10 @@ same PostgreSQL major for the managed build and the backend fixture's native
 publication. Use `--pg` for a registered version from 13 through 19, or
 `--pg-config /path/to/pg_config` for an explicit installation. When supplied
 together, the path must match the requested major. These options override
-project defaults.
+the `PG_VERSION` environment variable and project defaults.
 
-Without an explicit selection, project commands evaluate `AnkusPostgresMajor`
-and `AnkusPgConfigPath` with the selected configuration. `ankus test` also uses
+Without an explicit selection or `PG_VERSION`, project commands evaluate
+`AnkusPostgresMajor` and `AnkusPgConfigPath` with the selected configuration. `ankus test` also uses
 the project or `.sln`/`.slnx` selected by forwarded runner arguments. A test project
 without its own selection inherits one from its referenced extension projects.
 An empty selection falls back to PostgreSQL 18. Conflicting PostgreSQL majors or
@@ -300,6 +306,18 @@ override them. These defaults select which majors `init` registers. Later comman
 use the saved registrations and their ordinary PostgreSQL selectors. Invalid
 paths or mismatched versions fail before changing the registry.
 
+`PG_VERSION` selects the default major for commands that build an extension or
+use a PostgreSQL installation. Acceptable values are `13` through `19`, including
+labels such as `pg18`. Explicit command selectors and forwarded MSBuild properties
+take precedence; project defaults apply when the variable is absent or empty.
+An unavailable or invalid environment selection fails rather than selecting
+another version. `install --from` and `package --from` retain their publication's
+major unless you explicitly select another installation. `init` continues to use
+its individual `--pgNN` options and the defaults above.
+
+These environment defaults apply to `ankus` commands. Ordinary `dotnet build`,
+`dotnet publish` and `dotnet test` use their project and MSBuild selections.
+
 Save port bases when initializing or updating a registration:
 
 ```console
@@ -336,9 +354,9 @@ rather than splitting it on whitespace.
 The optional positional major accepts `13` through `19`, with or without a
 `pg` prefix. You can instead use `--pg` and `--pg-config`, before or after the
 subcommand. If both major selectors are given, they must agree, and an explicit
-executable must match that major. Without selectors, the current project's
-unambiguous PostgreSQL selection applies, otherwise PostgreSQL 18. Registry
-lookup honors `--home` and `ANKUS_HOME`.
+executable must match that major. Without selectors, `PG_VERSION` applies before
+the current project's unambiguous PostgreSQL selection, otherwise PostgreSQL 18.
+Registry lookup honors `--home` and `ANKUS_HOME`.
 
 These commands do not start a server or update registrations. Failed selection
 returns a nonzero exit code and writes its diagnostic to standard error without
@@ -528,15 +546,20 @@ ankus connect --pg 18 --database playground
 ```
 
 `connect` starts a stopped development server and creates or reuses the database.
-Without `--database`, it evaluates the selected project's extension name, including
-imported MSBuild properties. An explicit database name works outside a project.
+Without `--database`, it uses `DBNAME` when that variable is nonempty, otherwise
+the selected project's extension name, including imported MSBuild properties.
+An explicit database name or `DBNAME` works outside a project. `DBNAME` applies
+to `connect`; `run` retains its extension-name default unless you pass `--database`.
 Database names retain their exact spelling and must satisfy the selected server's
 rules. PostgreSQL 19 rejects names containing newline or carriage-return characters.
 Both commands leave the server running when the client exits; use `ankus stop`
 to shut it down. An already running server retains its actual port and settings.
 
 Both commands accept the startup options described above, and `--pgcli` selects
-an installed `pgcli` from PATH. Arguments after `--` go directly to the client:
+an installed `pgcli` from PATH. Set `ANKUS_PGCLI=true` to select it by default,
+or `false` to use the selected installation's psql. `--pgcli false` overrides
+the environment default. An invalid value fails before either command prepares
+its server. Arguments after `--` go directly to the client:
 
 ```console
 ankus connect --pg 18 --database playground -- -c "SELECT 19 + 23"

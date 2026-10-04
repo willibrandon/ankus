@@ -11,9 +11,14 @@ internal static partial class ToolCommand
         AddConnectionOptions(command);
         command.SetAction(async (result, token) =>
         {
-            PostgresInstallation installation = await SelectAsync(result, home, token);
+            _ = result.GetValue<bool>("--pgcli");
+            PostgresSelection selection = await SelectWithProjectAsync(result, home, token);
+            PostgresInstallation installation = selection.Installation;
+            string? environmentDatabase = Environment.GetEnvironmentVariable("DBNAME");
             string database = result.GetValue<string?>("--database") ??
-                await ExtensionBuilder.GetExtensionNameAsync(result.GetValue<string?>("--project"), GetConfiguration(result), installation, token, BuildProperties(result));
+                (environmentDatabase is { Length: > 0 } ? environmentDatabase : null) ??
+                await ExtensionBuilder.GetExtensionNameAsync(selection.ProjectPath ?? result.GetValue<string?>("--project"),
+                    GetConfiguration(result), installation, token, BuildProperties(result));
             var cluster = new PostgresDevelopmentCluster(installation, result.GetValue(home));
             await cluster.StartAsync(ReadServerOptions(result), token);
             return await OpenDatabaseAsync(result, installation, cluster, database, cancellation, token);
@@ -31,14 +36,16 @@ internal static partial class ToolCommand
         command.Options.Add(installOnly);
         command.SetAction(async (result, token) =>
         {
-            PostgresInstallation installation = await SelectAsync(result, home, token);
-            string output = await GetOutputDirectoryAsync(result, installation, token);
+            _ = result.GetValue<bool>("--pgcli");
+            ExtensionSelection selection = await SelectExtensionAsync(result, home, token);
+            PostgresInstallation installation = selection.Installation;
+            string output = GetOutputDirectory(result, selection);
             PostgresDevelopmentOptions options = ReadServerOptions(result);
             var cluster = new PostgresDevelopmentCluster(installation, result.GetValue(home));
             await cluster.StopAsync(token);
             if (!result.GetValue(noBuild))
             {
-                int code = await PublishAsync(result, installation, output, token);
+                int code = await PublishAsync(selection, output, token);
                 if (code != 0)
                 {
                     return code;
@@ -67,8 +74,16 @@ internal static partial class ToolCommand
         AddSelectionOptions(command);
         AddBuildOptions(command);
         AddValgrindOption(command);
-        command.Options.Add(new Option<string?>("--database", "-d") { Description = "Literal database name (default: the extension name)." });
-        command.Options.Add(new Option<bool>("--pgcli") { Description = "Use pgcli from PATH instead of the selected installation's psql." });
+        command.Options.Add(new Option<string?>("--database", "-d")
+        {
+            Description = command.Name == "connect" ? "Literal database name (default: DBNAME, otherwise the extension name)."
+                : "Literal database name (default: the extension name).",
+        });
+        command.Options.Add(new Option<bool>("--pgcli")
+        {
+            Description = "Use pgcli from PATH instead of the selected installation's psql (default: ANKUS_PGCLI).",
+            DefaultValueFactory = static _ => EnvironmentPgcli(),
+        });
         command.Options.Add(new Option<int?>("--port") { Description = "Port when starting a stopped server; an existing server keeps its actual port." });
         command.Options.Add(new Option<int>("--timeout") { Description = "Startup timeout in seconds (1–600).", DefaultValueFactory = _ => 60 });
         command.Options.Add(new Option<string[]>("--postgresql-conf") { Description = "Literal name=value setting; repeat for multiple settings." });
@@ -87,6 +102,22 @@ internal static partial class ToolCommand
             UseValgrind = result.GetValue<bool>("--valgrind"),
             Settings = ParseServerSettings(result.GetValue<string[]>("--postgresql-conf") ?? []),
         };
+
+    /// <summary>
+    /// Parses the optional environment choice without changing the process environment or overriding an explicit option.
+    /// </summary>
+    /// <returns>Whether pgcli is selected by default for interactive commands.</returns>
+    private static bool EnvironmentPgcli()
+    {
+        string? value = Environment.GetEnvironmentVariable("ANKUS_PGCLI");
+        if (string.IsNullOrEmpty(value))
+        {
+            return false;
+        }
+
+        return bool.TryParse(value, out bool selected) ? selected
+            : throw new ArgumentException("ANKUS_PGCLI must be true or false.");
+    }
 
     private static async Task<int> OpenDatabaseAsync(ParseResult result, PostgresInstallation installation,
         PostgresDevelopmentCluster cluster, string database, InteractiveCommandCancellation cancellation, CancellationToken token)

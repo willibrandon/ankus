@@ -133,6 +133,13 @@ deleted properties. A removed positional input can recreate the surviving entry;
 its exact source contract remains equal. Binding checks, native addresses and
 borrowed lifetimes remain runtime operations on every property access and call.
 
+The native callback's owned diagnostic header lives in `TopMemoryContext` and
+is released in `PG_FINALLY`. Reporting hooks enter from `ErrorContext`, which
+PostgreSQL resets during a recursive ERROR. Allocating the header there would
+invalidate it before callback cleanup could release its managed-owned fields.
+The dispatcher also retains the caller's context identity and restores a
+surviving context after unwinding instead of dereferencing a deleted child.
+
 Assembly SQL declarations also detach authored constants, graph policies and
 current diagnostic coordinates. Per-block file selection uses tracked
 AdditionalFiles and the compiler-visible project directory. Unchanged selected

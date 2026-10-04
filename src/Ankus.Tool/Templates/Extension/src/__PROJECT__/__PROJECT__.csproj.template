@@ -2,5 +2,6 @@
   <PropertyGroup>
     <AnkusExtensionName>__EXTENSION__</AnkusExtensionName>
     <AnkusExtensionVersion>0.1.0</AnkusExtensionVersion>
+    <AssemblyName>__EXTENSION__</AssemblyName>
   </PropertyGroup>
 </Project>

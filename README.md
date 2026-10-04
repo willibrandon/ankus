@@ -130,6 +130,12 @@ prerequisites and platform distribution availability.
 `PG13_PG_CONFIG` through `PG19_PG_CONFIG` provide defaults for `init`; explicit
 version options override them.
 
+For other tool commands, `PG_VERSION` selects a default major such as `18` or
+`pg18` before project defaults. Explicit selectors override it. `DBNAME` supplies
+`connect`'s default database, and `ANKUS_PGCLI=true` selects pgcli for `run` and
+`connect`. See [environment selection](docs/src/content/docs/reference/cli.md#install-or-register-postgresql)
+for precedence and publication behavior.
+
 Use `ankus start --pg 18`, `ankus status --pg 18`, and `ankus stop --pg 18`
 to manage a persistent local development server. Stopping it preserves its databases.
 On supported Unix systems, add `--valgrind` to inspect native memory under Memcheck;

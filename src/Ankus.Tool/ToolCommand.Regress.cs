@@ -69,7 +69,7 @@ internal static partial class ToolCommand
                 suite.RequireExpected(selected);
             }
 
-            int major = await SelectMajorAsync(result, token);
+            int major = await SelectMajorAsync(result, token, project);
             string name = await ExtensionBuilder.GetExtensionNameAsync(project, GetConfiguration(result), major,
                 result.GetValue<string?>("--pg-config"), token, BuildProperties(result));
             string targetDatabase = result.GetValue(database) ?? name + "_regress";
@@ -126,17 +126,18 @@ internal static partial class ToolCommand
                 return 0;
             }
 
-            PostgresInstallation installation = await SelectAsync(result, home, token);
+            ExtensionSelection selection = await SelectExtensionAsync(result, home, token, project);
+            PostgresInstallation installation = selection.Installation;
             string driver = await installation.GetRegressionDriverPathAsync(token);
             Directory.CreateDirectory(suite.DirectoryPath);
             using var suiteLock = new FileStream(Path.Combine(suite.DirectoryPath, ".ankus-regress.lock"), FileMode.OpenOrCreate,
                 FileAccess.ReadWrite, FileShare.None, 1, FileOptions.DeleteOnClose);
             var cluster = new PostgresDevelopmentCluster(installation, result.GetValue(home));
             await cluster.StopAsync(token);
-            string output = await GetOutputDirectoryAsync(result, installation, token);
+            string output = GetOutputDirectory(result, selection);
             if (!result.GetValue(noBuild))
             {
-                int buildCode = await PublishAsync(result, installation, output, token);
+                int buildCode = await PublishAsync(selection, output, token);
                 if (buildCode != 0)
                 {
                     return buildCode;

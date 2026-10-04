@@ -12,7 +12,7 @@ public static class Workers
     {
         PgSharedMemory.Initialize(ProcessId);
         PgSharedMemory.Initialize(Result);
-        PgBackgroundWorker.Register(new("__EXTENSION__ worker", "__PROJECT__", nameof(Run))
+        PgBackgroundWorker.Register(new("__EXTENSION__ worker", "__EXTENSION__", nameof(Run))
         {
             DatabaseAccess = true,
             Argument = 42,

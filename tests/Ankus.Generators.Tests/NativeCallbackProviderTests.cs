@@ -50,6 +50,9 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.AreEqual("1", ManifestValue(consumer, "Ankus.NativeCallbacks"));
         string native = ManifestValue(consumer, "Ankus.NativeSource");
         Assert.Contains("ankus_dispatch_native_callback(", native);
+        Assert.Contains("MemoryContext recovery = ankus_error_recovery_context(caller);", native);
+        Assert.Contains("AnkusError *error = MemoryContextAllocZero(TopMemoryContext, sizeof(AnkusError));", native);
+        Assert.Contains("caller_identity != 0 && ankus_memory_context_by_id(caller_identity) == NULL", native);
         Assert.Contains("ankus_fork_host_enter();", native);
         Assert.Contains("RhEnableForkSupport();", native);
         Assert.DoesNotContain(registration, native);

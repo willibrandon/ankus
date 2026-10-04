@@ -18,6 +18,12 @@ public sealed partial class ToolCommandTests
     [DataRow("class.select", "regression_named", "regression_named", false)]
     [DataRow("Acme.RegressProbe", null, "acme_regress_probe", true)]
     [DataRow("class.select", null, "class_select", true)]
+    [DataRow("1Ext", null, "_1_ext", false)]
+    [DataRow("1Ext", null, "_1_ext", true)]
+    [DataRow("Hello-World", null, "hello_world", false)]
+    [DataRow("Hello-World", null, "hello_world", true)]
+    [DataRow("Café.Δelta", null, "caf___elta", false)]
+    [DataRow("Café.Δelta", null, "caf___elta", true)]
     public async Task NewSolutionScaffoldsRunnableRegressionSetup(string projectName, string? extensionName, string expectedName, bool template)
     {
         CancellationToken token = context.CancellationToken;

@@ -20,6 +20,14 @@ PGDLLEXPORT Datum ankus_test_log_arm(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ankus_test_log_arm);
 PGDLLEXPORT Datum ankus_test_log_holdoff(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ankus_test_log_holdoff);
+PGDLLEXPORT Datum ankus_test_log_prefix_arm(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(ankus_test_log_prefix_arm);
+PGDLLEXPORT Datum ankus_test_log_prefix_calls(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(ankus_test_log_prefix_calls);
+PGDLLEXPORT Datum ankus_test_log_prefix_active(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(ankus_test_log_prefix_active);
+PGDLLEXPORT Datum ankus_test_log_prefix_restore(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(ankus_test_log_prefix_restore);
 
 static bool raw_holdoffs_saved = false;
 static uint32 raw_interrupt_holdoff;
@@ -31,6 +39,89 @@ static emit_log_hook_type log_previous_hook;
 static char log_marker[128];
 static int log_mode;
 static uint32 log_observed_holdoff;
+static emit_log_hook_type log_prefix_previous;
+static char log_prefix_marker[128];
+static bool log_prefix_fail;
+static bool log_prefix_installed;
+static uint32 log_prefix_attempts;
+static uint32 log_prefix_forwarded;
+
+/* Unlike log_probe, this hook remains installed when its native prefix fails. */
+static void
+log_prefix(ErrorData *data)
+{
+    if (data->message != NULL && strcmp(data->message, log_prefix_marker) == 0)
+    {
+        log_prefix_attempts++;
+        if (log_prefix_fail)
+        {
+            log_prefix_fail = false;
+            ereport(ERROR, (errcode(MAKE_SQLSTATE('P', '7', '5', '2', '1')),
+                errmsg("native failure before managed log handler"),
+                errdetail("owned native prefix detail"),
+                errhint("retry native prefix report")));
+        }
+
+        log_prefix_forwarded++;
+    }
+
+    if (log_prefix_previous != NULL)
+    {
+        log_prefix_previous(data);
+    }
+}
+
+PGDLLEXPORT Datum
+ankus_test_log_prefix_arm(PG_FUNCTION_ARGS)
+{
+    char *marker = text_to_cstring(PG_GETARG_TEXT_PP(0));
+    if (strlen(marker) >= sizeof(log_prefix_marker) || log_prefix_installed)
+    {
+        ereport(ERROR, (errmsg("invalid or already installed persistent log prefix")));
+    }
+
+    strlcpy(log_prefix_marker, marker, sizeof(log_prefix_marker));
+    pfree(marker);
+    log_prefix_fail = true;
+    log_prefix_attempts = 0;
+    log_prefix_forwarded = 0;
+    log_prefix_previous = emit_log_hook;
+    log_prefix_installed = true;
+    emit_log_hook = log_prefix;
+    PG_RETURN_VOID();
+}
+
+PGDLLEXPORT Datum
+ankus_test_log_prefix_calls(PG_FUNCTION_ARGS)
+{
+    (void) fcinfo;
+    PG_RETURN_INT64((int64) (((uint64) log_prefix_attempts << 32) | log_prefix_forwarded));
+}
+
+PGDLLEXPORT Datum
+ankus_test_log_prefix_active(PG_FUNCTION_ARGS)
+{
+    (void) fcinfo;
+    PG_RETURN_BOOL(emit_log_hook == log_prefix);
+}
+
+PGDLLEXPORT Datum
+ankus_test_log_prefix_restore(PG_FUNCTION_ARGS)
+{
+    (void) fcinfo;
+    if (log_prefix_installed)
+    {
+        if (emit_log_hook != log_prefix)
+        {
+            PG_RETURN_BOOL(false);
+        }
+
+        emit_log_hook = log_prefix_previous;
+        log_prefix_installed = false;
+    }
+
+    PG_RETURN_BOOL(emit_log_hook == log_prefix_previous);
+}
 
 /* A backend-local, one-report probe exercises the actual PostgreSQL reporter. */
 static void
