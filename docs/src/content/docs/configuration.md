@@ -161,6 +161,12 @@ Configuration diagnostics identify the setting argument, property type, enum
 label, or containing declaration that needs correction. An invalid setting
 produces a diagnostic before its getter or native registration is generated.
 
+Referenced enum labels come from their selected attribute's defining assembly
+and module. Ankus validates the entire encoded attribute, including named
+options, before registering the setting. Incomplete metadata or trailing
+attribute data produces `ANKUS197` at the consuming setting; rebuild the
+defining assembly with a complete valid attribute.
+
 | Diagnostic | Required correction |
 | --- | --- |
 | `ANKUS169` | Declare exactly one typed GUC attribute on the property. |
@@ -175,7 +181,8 @@ produces a diagnostic before its getter or native registration is generated.
 | `ANKUS191`, `ANKUS193` | Put the default within the declared bounds. Real defaults cannot be NaN. |
 | `ANKUS194`, `ANKUS195` | Use valid string default text. A null default requires `string?`. |
 | `ANKUS196` | Select a declared value of the property's enum type. |
-| `ANKUS197`, `ANKUS198` | Use valid enum labels that are distinct under PostgreSQL's ASCII case folding. |
+| `ANKUS197` | Use valid enum labels and complete, readable attribute metadata in referenced assemblies. |
+| `ANKUS198` | Give labels distinct names under PostgreSQL's ASCII case folding. |
 | `ANKUS199`–`ANKUS201` | Match the check, assignment, or display hook's exact typed signature. |
 | `ANKUS202` | Give each setting a distinct name under PostgreSQL's ASCII case folding. |
 

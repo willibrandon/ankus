@@ -791,6 +791,8 @@ and reason. A mapping supplied by another project or assembly reports errors at
 its consuming source declaration. Referenced names and schemas retain their
 exact text; zero characters and malformed UTF-8 are rejected before registration.
 C# namespaces with escaped identifiers, such as `@class`, work normally.
+The selected mapping is read from its actual defining assembly and module;
+an attribute with the same metadata name in another assembly cannot replace it.
 
 | Diagnostic | Required correction |
 | --- | --- |

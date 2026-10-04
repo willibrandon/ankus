@@ -1,195 +1,51 @@
-using System.Collections.Immutable;
-using System.Reflection.Metadata;
-using System.Text;
 using Microsoft.CodeAnalysis;
 
 namespace Ankus.Generators;
 
 /// <summary>
-/// Preserves imported GUC label strings before Roslyn trims trailing zero characters.
+/// Preserves imported GUC labels from their selected compiler-owned attributes.
 /// </summary>
 internal static class GucEnumMetadata
 {
     /// <summary>
-    /// Reads exact field labels from the compiler-owned reference without loading its assembly.
+    /// Reads complete exact field labels from the consumer's defining portable module.
     /// </summary>
     /// <param name="type">The referenced enum's exact semantic identity.</param>
     /// <param name="compilation">The current compilation owning reference images.</param>
     /// <param name="cancellationToken">Cancels metadata traversal.</param>
-    /// <returns>The exact serialized labels, or null when no portable image supplies the enum.</returns>
+    /// <returns>The exact labels, or null for a source reference or unreadable selected contract.</returns>
     internal static Dictionary<string, string?>? ReadLabels(INamedTypeSymbol type, Compilation compilation, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         MetadataReference? reference = compilation.GetMetadataReference(type.ContainingAssembly) ??
             compilation.References.FirstOrDefault(item => SymbolEqualityComparer.Default.Equals(
                 compilation.GetAssemblyOrModuleSymbol(item), type.ContainingModule));
-        if (reference is not PortableExecutableReference image)
+        if (reference is not PortableExecutableReference || type.ContainingModule.GetMetadata() is null)
         {
             return null;
         }
 
-        try
+        var labels = new Dictionary<string, string?>(StringComparer.Ordinal);
+        foreach (IFieldSymbol field in type.GetMembers().OfType<IFieldSymbol>().Where(static field => field.HasConstantValue))
         {
-            ImmutableArray<ModuleMetadata> modules = image.GetMetadata() switch
+            cancellationToken.ThrowIfCancellationRequested();
+            AttributeData? selected = field.GetAttributes().FirstOrDefault(static attribute =>
+                attribute.AttributeClass?.ToDisplayString() == "Ankus.PgGucLabelAttribute");
+            if (selected is null)
             {
-                AssemblyMetadata assembly => assembly.GetModules(),
-                ModuleMetadata module => [module],
-                _ => [],
-            };
-            string identity = MetadataTypeName.Create(type);
-            foreach (ModuleMetadata module in modules)
-            {
-                MetadataReader reader = module.GetMetadataReader();
-                foreach (TypeDefinitionHandle handle in reader.TypeDefinitions)
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    if (Identity(reader, handle) != identity)
-                    {
-                        continue;
-                    }
-
-                    var labels = new Dictionary<string, string?>(StringComparer.Ordinal);
-                    foreach (FieldDefinitionHandle fieldHandle in reader.GetTypeDefinition(handle).GetFields())
-                    {
-                        cancellationToken.ThrowIfCancellationRequested();
-                        FieldDefinition field = reader.GetFieldDefinition(fieldHandle);
-                        foreach (CustomAttributeHandle attributeHandle in field.GetCustomAttributes())
-                        {
-                            CustomAttribute attribute = reader.GetCustomAttribute(attributeHandle);
-                            if (!IsLabelConstructor(reader, attribute.Constructor))
-                            {
-                                continue;
-                            }
-
-                            BlobReader value = reader.GetBlobReader(attribute.Value);
-                            string fieldName = reader.GetString(field.Name);
-                            string? label = value.ReadUInt16() == 1 ? ReadLabel(ref value) : null;
-                            labels[fieldName] = labels.ContainsKey(fieldName) ? null : label;
-                        }
-                    }
-
-                    return labels;
-                }
-            }
-        }
-        catch (BadImageFormatException)
-        {
-            // An unreadable label cannot satisfy a valid imported setting declaration.
-            return null;
-        }
-        catch (IOException)
-        {
-            // The compiler owns reference I/O diagnostics; label validation still fails closed.
-            return null;
-        }
-        catch (DecoderFallbackException)
-        {
-            // Malformed UTF-8 must not become replacement characters in a native label.
-            return null;
-        }
-
-        return null;
-    }
-
-    /// <summary>
-    /// Decodes one ECMA-335 serialized string with exact bytes and strict UTF-8 validation.
-    /// </summary>
-    private static string? ReadLabel(ref BlobReader value)
-    {
-        if (value.TryReadCompressedInteger(out int length))
-        {
-            return new UTF8Encoding(false, true).GetString(value.ReadBytes(length));
-        }
-
-        if (value.ReadByte() == byte.MaxValue)
-        {
-            return null;
-        }
-
-        throw new BadImageFormatException("The GUC label does not contain a valid serialized string.");
-    }
-
-    /// <summary>
-    /// Forms the equivalent identity directly from a reference definition.
-    /// </summary>
-    private static string Identity(MetadataReader reader, TypeDefinitionHandle handle)
-    {
-        TypeDefinition type = reader.GetTypeDefinition(handle);
-        TypeDefinitionHandle parent = type.GetDeclaringType();
-        if (!parent.IsNil)
-        {
-            return Identity(reader, parent) + "+" + reader.GetString(type.Name);
-        }
-
-        string space = reader.GetString(type.Namespace);
-        return (space.Length == 0 ? string.Empty : space + ".") + reader.GetString(type.Name);
-    }
-
-    /// <summary>
-    /// Requires the exact label attribute and its one-string constructor before decoding metadata.
-    /// </summary>
-    private static bool IsLabelConstructor(MetadataReader reader, EntityHandle constructor)
-    {
-        EntityHandle owner;
-        BlobHandle signature;
-        StringHandle methodName;
-        if (constructor.Kind == HandleKind.MemberReference)
-        {
-            MemberReference member = reader.GetMemberReference((MemberReferenceHandle)constructor);
-            owner = member.Parent;
-            signature = member.Signature;
-            methodName = member.Name;
-        }
-        else if (constructor.Kind == HandleKind.MethodDefinition)
-        {
-            MethodDefinition method = reader.GetMethodDefinition((MethodDefinitionHandle)constructor);
-            owner = method.GetDeclaringType();
-            signature = method.Signature;
-            methodName = method.Name;
-        }
-        else
-        {
-            return false;
-        }
-
-        StringHandle name;
-        StringHandle space;
-        if (owner.Kind == HandleKind.TypeReference)
-        {
-            TypeReference type = reader.GetTypeReference((TypeReferenceHandle)owner);
-            if (type.ResolutionScope.Kind == HandleKind.TypeReference)
-            {
-                return false;
+                continue;
             }
 
-            name = type.Name;
-            space = type.Namespace;
-        }
-        else if (owner.Kind == HandleKind.TypeDefinition)
-        {
-            TypeDefinition type = reader.GetTypeDefinition((TypeDefinitionHandle)owner);
-            if (!type.GetDeclaringType().IsNil)
+            if (field.GetAttributes().Count(attribute => SymbolEqualityComparer.Default.Equals(attribute.AttributeClass, selected.AttributeClass)) != 1 ||
+                !ExactAttributeStrings.TryRead(field, selected, cancellationToken, out AttributeStrings? strings) || strings is null ||
+                !strings.Arguments.TryGetValue(0, out string? label))
             {
-                return false;
+                return null;
             }
 
-            name = type.Name;
-            space = type.Namespace;
-        }
-        else
-        {
-            return false;
+            labels.Add(field.MetadataName, label);
         }
 
-        if (!reader.StringComparer.Equals(methodName, ".ctor") || !reader.StringComparer.Equals(name, "PgGucLabelAttribute") ||
-            !reader.StringComparer.Equals(space, "Ankus"))
-        {
-            return false;
-        }
-
-        BlobReader parameters = reader.GetBlobReader(signature);
-        SignatureHeader header = parameters.ReadSignatureHeader();
-        return header.Kind == SignatureKind.Method && header.IsInstance && !header.IsGeneric &&
-            parameters.ReadCompressedInteger() == 1 && parameters.ReadSignatureTypeCode() == SignatureTypeCode.Void &&
-            parameters.ReadSignatureTypeCode() == SignatureTypeCode.String && parameters.RemainingBytes == 0;
+        return labels;
     }
 }

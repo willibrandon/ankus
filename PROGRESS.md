@@ -91,6 +91,10 @@ extensions. Counts supplement the backend, ownership and recovery assertions.
 
 | Source | Platform / PostgreSQL | Result | Duration |
 | --- | --- | --- | --- |
+| Frozen remaining-reader composition / runtime **ankus.4** | Linux x64 / 18.6 | 12,260 total; 12,212 passed; 48 platform skips; zero failures | 39m21.681s tests; 39m44.06s command |
+| [CI 37241377151](https://github.com/willibrandon/ankus/actions/runs/37241377151), dc48724 / runtime **ankus.4** | Linux x64 / 18 | 12,244 total; 12,196 passed; 48 platform skips; zero failures | 37m56s job |
+| Same CI / revision / runtime | Windows x64 / 17 | 12,244 total; 12,216 passed; 28 platform skips; zero failures | 34m39s job |
+| [CI 37241377151](https://github.com/willibrandon/ankus/actions/runs/37241377151), dc48724 / runtime **ankus.4** | macOS ARM64 / 18 | 12,244 total; 12,184 passed; 60 platform skips; zero failures | 28m58s job |
 | [CI 37236731631](https://github.com/willibrandon/ankus/actions/runs/37236731631), a78be2c / runtime **ankus.4** | Linux x64 / 18 | 12,078 total; 12,030 passed; 48 platform skips; zero failures | 37m58s job |
 | Same CI / revision / runtime | macOS ARM64 / 18 | 12,078 total; 12,018 passed; 60 platform skips; zero failures | 34m45s job |
 | Same CI / revision / runtime | Windows x64 / 17 | 12,078 total; 12,050 passed; 28 platform skips; zero failures | 35m30s job |
@@ -203,14 +207,30 @@ passes.
   **1,665** source inputs / **39** runtime files independently verified afterward.
   This result does not establish the new composition's other-platform acceptance.
 - The follow-up datum/range and GUC reader audit reproduces assembly collisions
-  and incomplete label metadata. Proper fixes and current-source diagnostic
-  regressions are in isolated validation; they are not yet promoted or accepted.
+  and incomplete label metadata. The shared exact reader replaces both older
+  parsers, with **16** regression cases and public guidance. Promoted-source
+  generator validation passes **3,776/3,776**. Complete Linux/18.6 acceptance
+  passes **12,260 total / 12,212 passed / 48 skips**, with zero failures; all six
+  reports, **1,669** source inputs and **39** runtime files are post-verified.
+  Release, API freshness and site checks/build pass. Replacement platform CI
+  remains required for this composition.
+- The cleanup audit reproduces iterator and aggregate errors while PL/pgSQL rolls
+  back an exception subtransaction, producing `AbortSubTransaction while in
+  ABORT state`. Ordinary savepoint probes pass, but do not cover this path.
+  A phase-aware native cleanup correction and regression coverage are pending.
 - [CI 37236731631](https://github.com/willibrandon/ankus/actions/runs/37236731631)
   on **a78be2c** passes quality, all runtime jobs and all three complete platform
   suites. All six reports are independently verified per platform, with counts
   and durations above; no timeouts.
   [Docs 37236731662](https://github.com/willibrandon/ankus/actions/runs/37236731662)
-  passes. This revision precedes the pending enum/serialization milestone.
+  passes. This revision precedes the enum/serialization milestone.
+- The enum/serialization milestone is committed as **dc48724**.
+  Replacement [CI 37241377151](https://github.com/willibrandon/ankus/actions/runs/37241377151)
+  passes quality, all runtime jobs and all three complete primary-platform
+  suites. All six reports are independently verified per platform; counts and
+  durations are above, with zero failures/timeouts.
+  [Docs 37241377228](https://github.com/willibrandon/ankus/actions/runs/37241377228)
+  passes. This revision precedes the pending reader/cleanup corrections.
 - [CI 37229162897](https://github.com/willibrandon/ankus/actions/runs/37229162897)
   on **e456e92** passes quality, all runtime jobs, macOS ARM64/18 and
   Windows/17 and Linux/18. All six reports are independently verified per

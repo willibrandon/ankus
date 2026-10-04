@@ -222,6 +222,8 @@ Invalid mappings prevent generation of partial SQL or native registration code.
 Names and schemas retain their exact text across project and assembly references;
 zero characters and malformed UTF-8 are rejected.
 C# namespaces with escaped identifiers, such as `@class`, work normally.
+The selected range attribute retains its actual defining assembly and module,
+including when another assembly declares an attribute with the same metadata name.
 
 | Diagnostic | Required correction |
 | --- | --- |

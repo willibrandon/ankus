@@ -25439,3 +25439,73 @@ and incomplete-label metadata defects; its proper fixes and sixteen regression
 cases remain in private validation and are not part of this acceptance.
 Complete supported-version/platform, source-case, ergonomic and release
 requirements remain open. No warning was suppressed or analyzer standard relaxed.
+
+## Selected datum, range and GUC metadata readers
+
+The remaining reader audit found two confirmed defects. Datum/range constructor
+selection compared attribute metadata names without their defining assembly,
+allowing a different aliased assembly's declaration to supply its strings. The
+GUC parser treated distinct equal-name attribute classes as a duplicate and
+accepted a label before validating the complete encoded attribute. Source-reference
+cancellation also returned a fallback instead of propagating cancellation.
+
+Both readers now adapt the shared exact decoder. They retain the actual selected
+attribute class, semantic ordinal and compiler-owned defining module, validate
+the entire blob, preserve exact strings, and reject unavailable image ownership.
+The GUC table is complete or rejected; it never registers a partial label table.
+Existing source-reference and unlabelled-enum fallback semantics remain intact.
+
+The original sixteen-case regression has **8 failures / 8 passing controls**.
+All sixteen cases and the complete promoted-source **3,776-case** generator
+module pass, with zero failures/skips, **53.570s** tests / **1m02.06s** command.
+
+| Requirement | Named evidence |
+| --- | --- |
+| Selected assembly and exact datum/range identities | `RemainingReaderMappingsPreserveAttributeAssembly` covers both mappings in source and emitted references with two independently aliased equal-name classes. |
+| GUC semantic selection | `RemainingReaderGucLabelsPreserveSelectedAttributeAssembly` preserves the selected defining class and does not fabricate a duplicate from another assembly. |
+| Complete imported blobs and current diagnostics | `RemainingReaderGucLabelsRejectIncompleteMetadata` and `RemainingReaderGucMetadataErrorsIdentifyCurrentSetting` reject incomplete named data/trailing bytes, require current **ANKUS197** and its help link, and emit no partial getter/registration. |
+| Exact module and consumer ownership | `RemainingReaderGucLabelsPreserveLinkedModules` checks ordinary and zero-containing labels; `RemainingReaderGucLabelsRejectUnownedImages` requires actual reference ownership. |
+| Cancellation and existing fallback | `RemainingReaderGucLabelsPropagateCancellation` covers source/PE; `RemainingReaderGucLabelsPreserveUnlabelledEnums` preserves source fallback and an empty emitted label table. |
+
+Final complete Linux x64/PostgreSQL **18.6** acceptance uses SDK **10.0.401**,
+LLVM **23.1.2** and compiler/runtime **10.0.12-ankus.4**. All six reports are
+independently verified after terminal exit zero:
+
+| Module | Total | Passed | Platform skips |
+| --- | ---: | ---: | ---: |
+| Generators | 3,776 | 3,776 | 0 |
+| Build | 1,222 | 1,213 | 9 |
+| Runtime | 2,130 | 2,130 | 0 |
+| Hello | 5 | 5 | 0 |
+| Integration | 4,644 | 4,629 | 15 |
+| PgConfig | 483 | 459 | 24 |
+| Complete suite | **12,260** | **12,212** | **48** |
+
+There are zero failures. Complete time is **39m21.681s** tests /
+**39m44.06s** command; integration time is **39m20.211s**. All **1,669**
+authored inputs match afterward in the working composition and tested snapshot;
+all **39** staged runtime files remain exact. Release has zero warnings/errors,
+**1m06.29s** build / **1m06.46s** command. API freshness verifies **244 pages /
+2,791 members**. Site checks report zero errors/warnings/hints; **293 pages**
+build in **2.78s**. Exact source, original regressions and complete evidence are
+archived; every ordinary archived file is independently verified before cleanup.
+
+Replacement **CI 37241377151** on enum/serialization revision **dc48724** passes
+quality, all runtime jobs and all three complete primary-platform suites. All six
+reports are independently verified per platform: Linux/18 **12,244 total /
+12,196 passed / 48 skips** (**37m56s** job), Windows/17 **12,244 / 12,216 / 28**
+(**34m39s**) and macOS ARM64/18 **12,244 / 12,184 / 60** (**28m58s**), with
+zero failures/timeouts. **Docs 37241377228** passes. This supersedes the earlier
+pending-CI note for dc48724 and establishes its primary-platform acceptance;
+the new reader composition still requires its own replacement platform CI.
+
+The independent cleanup audit confirms a separate remaining correctness issue:
+an iterator or aggregate callback raises **42704** while PL/pgSQL runs
+`RollbackAndReleaseCurrentSubTransaction`, bypassing its saved primary error's
+exception handler and producing `AbortSubTransaction while in ABORT state`.
+Ordinary cleanup controls and forty client savepoint cycles pass; they do not
+cover this internal exception-subtransaction path. The failure demonstrates
+interrupted rollback, not a measured resource leak. The phase-aware native
+correction and proper cross-platform regression acceptance remain pending.
+Complete supported-version/platform, source-case, ergonomic and release scope
+also remain open. No analyzer severity or warning mode was relaxed.
