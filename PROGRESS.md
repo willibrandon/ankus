@@ -219,6 +219,12 @@ passes.
   passes with zero warnings/errors in **2m05.832s**; API freshness passes in
   **10.037s**. Site build produces 287 pages and site checks report zero errors,
   warnings or hints.
+- Windows/17 in [primary CI 37183879367](https://github.com/willibrandon/ankus/actions/runs/37183879367)
+  and Windows/13 in [version CI 37183984954](https://github.com/willibrandon/ankus/actions/runs/37183984954)
+  fail the same two Unicode project-name cases. Generated C contains `Δ`, but
+  MSVC reads it with code page 1252 and promotes C4566 to an error. The native
+  compile command now selects UTF-8 explicitly; replacement Windows acceptance
+  is pending. Linux/18 and macOS ARM64/18 pass on the same primary revision.
 - Remaining review work includes precise diagnostics and useful code fixes,
   CLI environment/name contracts, appropriately guarded pure operations and
   permanent backend benchmarks, representative samples and final platform
