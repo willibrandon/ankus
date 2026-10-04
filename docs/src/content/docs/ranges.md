@@ -159,7 +159,12 @@ public sealed class CountConverter : IPgDatumReader<Count>, IPgDatumWriter<Count
     public Count Read(PgDatum value) => new(value.Read<int>());
 
     public PgDatum Write(Count value, uint typeOid, PgMemoryContext destination)
-        => PgDatum.DangerousCreate(unchecked((nuint)(nint)value.Value), typeOid, destination);
+    {
+        unsafe
+        {
+            return PgDatum.DangerousCreate(unchecked((nuint)(nint)value.Value), typeOid, destination);
+        }
+    }
 }
 
 public static class Functions

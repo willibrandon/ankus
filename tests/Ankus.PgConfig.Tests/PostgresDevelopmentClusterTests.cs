@@ -98,6 +98,7 @@ public sealed class PostgresDevelopmentClusterTests
     [DataRow("unix_socket_directories")]
     [DataRow("log_destination")]
     [DataRow("logging_collector")]
+    [DataRow("event_source")]
     [DataRow("include")]
     [DataRow("include_dir")]
     [DataRow("include_if_exists")]

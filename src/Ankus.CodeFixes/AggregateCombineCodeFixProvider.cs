@@ -18,18 +18,23 @@ namespace Ankus.CodeFixes;
 public sealed class AggregateCombineCodeFixProvider : CodeFixProvider
 {
     /// <summary>
+    /// Composes all selected aggregate capabilities before one compiler comparison per project.
+    /// </summary>
+    private static readonly FixAllProvider s_fixAll = new ProjectCodeFixAllProvider("Add missing typed aggregate combine interfaces", ApplyProjectAsync);
+
+    /// <summary>
     /// Gets the diagnostic for an aggregate callback without its capability.
     /// </summary>
     public override ImmutableArray<string> FixableDiagnosticIds => ["ANKUS111"];
 
     /// <summary>
-    /// Gets batch support for independent aggregate declarations.
+    /// Gets project batching for independent aggregate declarations.
     /// </summary>
-    /// <returns>The standard Roslyn batch provider.</returns>
-    public override FixAllProvider GetFixAllProvider() => WellKnownFixAllProviders.BatchFixer;
+    /// <returns>The provider that verifies the complete project correction once.</returns>
+    public override FixAllProvider GetFixAllProvider() => s_fixAll;
 
     /// <summary>
-    /// Registers compiler-verified additions of the existing callback's combine contract.
+    /// Registers additions of the existing callback's combine contract without collecting compiler diagnostics.
     /// </summary>
     /// <param name="context">The current document and diagnostic context.</param>
     /// <returns>The registration operation.</returns>
@@ -39,37 +44,119 @@ public sealed class AggregateCombineCodeFixProvider : CodeFixProvider
         SyntaxNode? root = await context.Document.GetSyntaxRootAsync(context.CancellationToken).ConfigureAwait(false);
         SemanticModel? model = await context.Document.GetSemanticModelAsync(context.CancellationToken).ConfigureAwait(false);
         if (root is null || model is null ||
-            root.FindNode(context.Span, getInnermostNodeForTie: true).FirstAncestorOrSelf<MethodDeclarationSyntax>() is not { } declaration ||
-            model.GetDeclaredSymbol(declaration, context.CancellationToken) is not { Name: "Combine" } method ||
+            FindCallback(root, model, context.Span, context.CancellationToken) is not { } method ||
             model.Compilation.GetTypeByMetadataName("Ankus.IPgCombinableAggregate`1") is not { } definition ||
             !IsRuntimeType(definition, "IPgCombinableAggregate", 1))
         {
             return;
         }
 
-        Solution? corrected = await AddCapabilitiesAsync(context.Document.Project, method, definition, context.CancellationToken).ConfigureAwait(false);
-        if (corrected is null)
+        if (!Types(model.Compilation.Assembly.GlobalNamespace).Any(type => CanAddCapability(type, method, model.Compilation)))
         {
             return;
         }
 
-        CodeAction action = CodeAction.Create("Add missing typed aggregate combine interfaces", token =>
-        {
-            token.ThrowIfCancellationRequested();
-            return Task.FromResult(corrected);
-        }, nameof(AggregateCombineCodeFixProvider));
+        CodeAction action = CodeAction.Create("Add missing typed aggregate combine interfaces", async token =>
+            await AddCapabilitiesAsync(context.Document.Project, [method], definition, token).ConfigureAwait(false)
+                ?? context.Document.Project.Solution, nameof(AggregateCombineCodeFixProvider));
         context.RegisterCodeFix(action, [.. context.Diagnostics.Where(static diagnostic => diagnostic.Id == "ANKUS111")]);
+    }
+
+    /// <summary>
+    /// Resolves source callbacks and editable aggregate anchors for inherited metadata callbacks.
+    /// </summary>
+    /// <param name="root">The editable syntax root.</param>
+    /// <param name="model">Its semantic binding.</param>
+    /// <param name="span">The diagnostic's current source anchor.</param>
+    /// <param name="cancellationToken">Cancels symbol binding.</param>
+    /// <returns>The actual reserved callback, or null for another diagnostic or stale source.</returns>
+    private static IMethodSymbol? FindCallback(SyntaxNode root, SemanticModel model, Microsoft.CodeAnalysis.Text.TextSpan span,
+        CancellationToken cancellationToken)
+    {
+        SyntaxNode node = root.FindNode(span, getInnermostNodeForTie: true);
+        if (node.FirstAncestorOrSelf<MethodDeclarationSyntax>() is { } method &&
+            model.GetDeclaredSymbol(method, cancellationToken) is { Name: "Combine" } callback)
+        {
+            return callback;
+        }
+
+        return node.FirstAncestorOrSelf<TypeDeclarationSyntax>() is { } declaration &&
+            model.GetDeclaredSymbol(declaration, cancellationToken) is { } type ? VisibleCombine(type, model.Compilation) : null;
+    }
+
+    /// <summary>
+    /// Checks a source aggregate's exact existing state and callback contract without changing the compilation.
+    /// </summary>
+    /// <param name="type">The attributed source aggregate.</param>
+    /// <param name="diagnosed">The callback selected by the diagnostic.</param>
+    /// <param name="compilation">The current accessibility context.</param>
+    /// <returns>Whether adding the actual runtime capability can preserve the existing implementation.</returns>
+    private static bool CanAddCapability(INamedTypeSymbol type, IMethodSymbol diagnosed, Compilation compilation)
+    {
+        if (!type.GetAttributes().Any(static attribute => attribute.AttributeClass is { } name && IsRuntimeType(name, "PgAggregateAttribute", 0)) ||
+            type.AllInterfaces.Any(static contract => IsRuntimeType(contract, "IPgCombinableAggregate", 1)))
+        {
+            return false;
+        }
+
+        INamedTypeSymbol[] contracts = [.. type.AllInterfaces.Where(static contract => IsRuntimeType(contract, "IPgAggregate", 2))];
+        IMethodSymbol? implementation = VisibleCombine(type, compilation);
+        return contracts.Length == 1 && implementation is not null &&
+            SymbolEqualityComparer.Default.Equals(implementation.OriginalDefinition, diagnosed.OriginalDefinition) &&
+            MatchesContract(implementation, contracts[0].TypeArguments[0]) && !type.DeclaringSyntaxReferences.IsEmpty;
+    }
+
+    /// <summary>
+    /// Collects all selected callbacks before applying and verifying their combined capability additions.
+    /// </summary>
+    /// <param name="project">The original editable project.</param>
+    /// <param name="diagnostics">The selected source diagnostics by document.</param>
+    /// <param name="cancellationToken">Cancels discovery, editing and final verification.</param>
+    /// <returns>The verified project correction or the original solution.</returns>
+    private static async Task<Solution> ApplyProjectAsync(Project project,
+        ImmutableDictionary<DocumentId, ImmutableArray<Diagnostic>> diagnostics, CancellationToken cancellationToken)
+    {
+        Compilation? compilation = await project.GetCompilationAsync(cancellationToken).ConfigureAwait(false);
+        if (compilation?.GetTypeByMetadataName("Ankus.IPgCombinableAggregate`1") is not { } definition ||
+            !IsRuntimeType(definition, "IPgCombinableAggregate", 1))
+        {
+            return project.Solution;
+        }
+
+        var methods = new List<IMethodSymbol>();
+        foreach (KeyValuePair<DocumentId, ImmutableArray<Diagnostic>> selection in diagnostics)
+        {
+            DocumentId identity = selection.Key;
+            ImmutableArray<Diagnostic> values = selection.Value;
+            Document document = project.GetDocument(identity)!;
+            SyntaxNode? root = await document.GetSyntaxRootAsync(cancellationToken).ConfigureAwait(false);
+            SemanticModel? model = await document.GetSemanticModelAsync(cancellationToken).ConfigureAwait(false);
+            if (root is null || model is null)
+            {
+                continue;
+            }
+
+            foreach (Diagnostic diagnostic in values.Where(static diagnostic => diagnostic.Id == "ANKUS111"))
+            {
+                if (FindCallback(root, model, diagnostic.Location.SourceSpan, cancellationToken) is { } method)
+                {
+                    methods.Add(method);
+                }
+            }
+        }
+
+        return await AddCapabilitiesAsync(project, methods, definition, cancellationToken).ConfigureAwait(false) ?? project.Solution;
     }
 
     /// <summary>
     /// Finds the attributed users of the diagnosed callback and validates the complete immutable correction with the compiler.
     /// </summary>
     /// <param name="project">The current editable project.</param>
-    /// <param name="diagnosed">The original callback, possibly declared by a generic base class.</param>
+    /// <param name="diagnosed">The selected callbacks, possibly declared by generic base classes.</param>
     /// <param name="definition">The actual runtime combine interface definition.</param>
     /// <param name="cancellationToken">The editor cancellation token.</param>
     /// <returns>The verified solution, or null when no valid correction exists.</returns>
-    private static async Task<Solution?> AddCapabilitiesAsync(Project project, IMethodSymbol diagnosed, INamedTypeSymbol definition,
+    private static async Task<Solution?> AddCapabilitiesAsync(Project project, IReadOnlyList<IMethodSymbol> diagnosed, INamedTypeSymbol definition,
         CancellationToken cancellationToken)
     {
         Compilation? compilation = await project.GetCompilationAsync(cancellationToken).ConfigureAwait(false);
@@ -91,7 +178,7 @@ public sealed class AggregateCombineCodeFixProvider : CodeFixProvider
             INamedTypeSymbol[] contracts = [.. type.AllInterfaces.Where(static contract => IsRuntimeType(contract, "IPgAggregate", 2))];
             IMethodSymbol? implementation = VisibleCombine(type, compilation);
             if (contracts.Length != 1 || implementation is null ||
-                !SymbolEqualityComparer.Default.Equals(implementation.OriginalDefinition, diagnosed.OriginalDefinition) ||
+                !diagnosed.Any(method => SymbolEqualityComparer.Default.Equals(implementation.OriginalDefinition, method.OriginalDefinition)) ||
                 !MatchesContract(implementation, contracts[0].TypeArguments[0]))
             {
                 continue;
@@ -131,7 +218,7 @@ public sealed class AggregateCombineCodeFixProvider : CodeFixProvider
         }
 
         Compilation? corrected = await solution.GetProject(project.Id)!.GetCompilationAsync(cancellationToken).ConfigureAwait(false);
-        if (corrected is null || corrected.GetDiagnostics(cancellationToken).Any(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
+        if (corrected is null || CompilerErrorComparison.IntroducesErrors(compilation, corrected, cancellationToken))
         {
             return null;
         }
@@ -189,8 +276,8 @@ public sealed class AggregateCombineCodeFixProvider : CodeFixProvider
     {
         for (INamedTypeSymbol? owner = type; owner is not null; owner = owner.BaseType)
         {
-            IMethodSymbol? method = owner.GetMembers("Combine").OfType<IMethodSymbol>().FirstOrDefault(candidate =>
-                SymbolEqualityComparer.Default.Equals(owner, type) || compilation.IsSymbolAccessibleWithin(candidate, type));
+            IMethodSymbol? method = owner.GetMembers("Combine").OfType<IMethodSymbol>().FirstOrDefault(candidate => candidate.IsStatic &&
+                (SymbolEqualityComparer.Default.Equals(owner, type) || compilation.IsSymbolAccessibleWithin(candidate, type)));
             if (method is not null)
             {
                 return method;

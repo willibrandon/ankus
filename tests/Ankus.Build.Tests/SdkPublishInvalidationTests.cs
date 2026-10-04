@@ -39,7 +39,7 @@ public sealed class SdkPublishInvalidationTests(TestContext context)
                 new XElement("Import", new XAttribute("Project", Path.Combine(AppContext.BaseDirectory, "Sdk", "Ankus.Native.targets"))),
                 new XElement("Target", new XAttribute("Name", "PrepareForBuild")))).Save(project);
             await NativeBindingLayoutCommand.RunProcessAsync("dotnet",
-                ["msbuild", project, "-nologo", "-target:PrepareForBuild"], directory, context.CancellationToken);
+                ["msbuild", project, "-nologo", "-nodeReuse:false", "-target:PrepareForBuild"], directory, context.CancellationToken);
             Assert.AreEqual(!publishing, File.Exists(manifest));
             Assert.AreEqual(publishing ? "current inventory" : "older inventory", File.ReadAllText(previous));
             if (!publishing)

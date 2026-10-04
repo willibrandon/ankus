@@ -59,7 +59,9 @@ internal static class AggregateContract
             {
                 if (FindVisibleRole(type, role, compilation) is { } uncontracted)
                 {
-                    return Invalid(AggregateDiagnostics.UncontractedRole, uncontracted.Locations.FirstOrDefault(), role);
+                    Location? location = uncontracted.Locations.FirstOrDefault(static candidate => candidate.IsInSource)
+                        ?? type.Locations.FirstOrDefault(static candidate => candidate.IsInSource);
+                    return Invalid(AggregateDiagnostics.UncontractedRole, location, role);
                 }
 
                 continue;
@@ -291,8 +293,8 @@ internal static class AggregateContract
     {
         for (INamedTypeSymbol? owner = type; owner is not null; owner = owner.BaseType)
         {
-            if (owner.GetMembers(role).OfType<IMethodSymbol>().FirstOrDefault(method =>
-                SymbolEqualityComparer.Default.Equals(owner, type) || compilation.IsSymbolAccessibleWithin(method, type)) is { } method)
+            if (owner.GetMembers(role).OfType<IMethodSymbol>().FirstOrDefault(method => method.IsStatic &&
+                (SymbolEqualityComparer.Default.Equals(owner, type) || compilation.IsSymbolAccessibleWithin(method, type))) is { } method)
             {
                 return method;
             }

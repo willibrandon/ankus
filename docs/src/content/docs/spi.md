@@ -61,24 +61,43 @@ int? optionalCount = null;
 int? count = Spi.ExecuteScalar<int?>(Spi.Sql($"SELECT {optionalCount}"));
 ```
 
-Each interpolation becomes a positional parameter with its declared C# type.
+Each interpolation becomes a parenthesized positional parameter with its declared C# type.
 SQL text, values and typed NULLs follow the same rules as `SpiParameter.Create`.
 An untyped null interpolation binds SQL NULL as `text`; use a typed nullable
 value when another SQL type is required. Pass an existing `SpiParameter` in an
 interpolation to retain an explicit composite, domain or raw datum identity.
 
-Do not quote interpolations or use them for object names or SQL fragments.
+Do not quote interpolations or put them inside SQL comments, identifiers or
+dollar-quoted strings. Construction rejects these contexts with
+`ArgumentException`. It also rejects literal positional parameter tokens such
+as `$1`; use interpolations for every binding in a `Spi.Sql` command. Dollar
+text inside literal strings, identifiers and comments remains unchanged.
+Separate SQL expressions with valid SQL syntax: a digit immediately after a
+hole does not become part of its parameter number.
+
+Do not use interpolations for object names or SQL fragments.
 Values are sent separately from SQL. Formatting and alignment specifiers are
 not supported; they would change a value's representation. String overloads take
 raw SQL text. Passing a nonconstant interpolated string directly to one of these
-overloads produces compiler error **ANKUS044**: wrap the interpolation in
-`Spi.Sql`, or use positional parameters with a literal command. Prepared
+overloads produces compiler error **ANKUS044** for unquoted runtime values:
+wrap value interpolations in `Spi.Sql`, or use positional parameters with a
+literal command. Interpolations containing only constants or unchanged results
+of `Spi.QuoteIdentifier`, `Spi.QuoteQualifiedIdentifier` and `Spi.QuoteLiteral`
+are permitted as raw SQL fragments. Insert those complete fragments outside
+SQL quotes; the helpers supply their own quoting. Prepared
 statements use positional parameters and explicit parameter types.
 
-The compiler check also covers direct casts and string concatenation. It does
-not track the contents of string variables or helper results; callers remain
-responsible for safely constructing raw SQL. Use the quoting APIs below when
-constructing dynamic identifiers.
+The compiler check also covers casts, concatenation, conditional and coalescing
+expressions, switch arms and `string.Format`. A quoted local must be initialized
+from constants or quoting helpers and remain unchanged; writes, reference aliases and
+formatting disable that exemption. The check does not perform general tracking
+of string variables or arbitrary helper results. Callers remain responsible for
+constructing raw SQL safely. Use the quoting APIs below for dynamic identifiers.
+
+Use explicit `E'...'` syntax for literal backslash escapes. `Spi.Sql` checks
+binding boundaries under both ordinary-string escape settings without a
+backend call and rejects text whose bindings depend on that setting. Bound
+values do not need SQL escaping.
 
 `Spi.Sql` returns a `SpiCommand`, whose owned SQL text and binding vector can be
 reused. It supports `Select`, `Query`, `Execute`, scalar and raw results, `Explain`
@@ -288,6 +307,10 @@ Spi.Execute($"INSERT INTO {table} ({column}) VALUES ($1)", SpiParameter.Create("
 `QuoteQualifiedIdentifier` quotes its two components independently; a null
 qualifier omits the prefix, while an empty qualifier represents an empty name.
 These functions use the server's keyword table and `quote_all_identifiers` setting.
+
+ANKUS044 accepts these direct helper calls and unchanged quoted locals. It
+continues to reject an unquoted runtime value mixed into the same raw command;
+bind values separately with positional parameters, as above.
 
 `Spi.QuoteLiteral(text)` produces a SQL text literal, escaping apostrophes and
 backslashes. Its output is valid with either `standard_conforming_strings`

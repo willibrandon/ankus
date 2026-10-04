@@ -24,11 +24,19 @@ public static class FunctionCallFunctions
 
         if (!raw)
         {
-            return PgFunctions.DangerousCall<int?>((nint)address, 0, call.Arguments[1], call.Arguments[2]);
+            unsafe
+            {
+                return PgFunctions.DangerousCall<int?>((nint)address, 0, call.Arguments[1], call.Arguments[2]);
+            }
         }
 
         using PgMemoryContext owner = PgMemoryContext.Create("direct native result");
-        PgDatum result = PgFunctions.DangerousCallRaw((nint)address, 23, owner, 0, call.Arguments[1], call.Arguments[2]);
+        PgDatum result;
+        unsafe
+        {
+            result = PgFunctions.DangerousCallRaw((nint)address, 23, owner, 0, call.Arguments[1], call.Arguments[2]);
+        }
+
         return result.Read<int?>();
     }
 
@@ -41,9 +49,17 @@ public static class FunctionCallFunctions
     [PgFunction]
     public static int CallNativeMany(long address, int count)
     {
-        PgDatum one = PgDatum.DangerousCreate(1, 23, PgMemoryContext.Current);
+        PgDatum one;
+        unsafe
+        {
+            one = PgDatum.DangerousCreate(1, 23, PgMemoryContext.Current);
+        }
+
         PgDatum[] arguments = [.. Enumerable.Repeat(one, count)];
-        return PgFunctions.DangerousCall<int>((nint)address, 0, arguments);
+        unsafe
+        {
+            return PgFunctions.DangerousCall<int>((nint)address, 0, arguments);
+        }
     }
 
     /// <summary>
@@ -62,7 +78,10 @@ public static class FunctionCallFunctions
             throw new InvalidOperationException("Native text operands differ from their managed values.");
         }
 
-        return PgFunctions.DangerousCall<string>((nint)address, 0, call.Arguments[1], call.Arguments[2]);
+        unsafe
+        {
+            return PgFunctions.DangerousCall<string>((nint)address, 0, call.Arguments[1], call.Arguments[2]);
+        }
     }
 
     /// <summary>

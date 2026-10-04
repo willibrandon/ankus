@@ -116,8 +116,14 @@ public static class SpiRawFunctions
     public static string SpiRawZero()
     {
         using PgMemoryContext owner = PgMemoryContext.Create("raw zero");
-        PgDatum zero = PgDatum.DangerousCreate(0, 23, owner);
-        PgDatum nil = PgDatum.DangerousCreate(0, 23, owner, isNull: true);
+        PgDatum zero;
+        PgDatum nil;
+        unsafe
+        {
+            zero = PgDatum.DangerousCreate(0, 23, owner);
+            nil = PgDatum.DangerousCreate(0, 23, owner, isNull: true);
+        }
+
         return zero.Read<int>().ToString(CultureInfo.InvariantCulture) + "|" + (nil.Read<int?>()?.ToString(CultureInfo.InvariantCulture) ?? "<null>");
     }
 

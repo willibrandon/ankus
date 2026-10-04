@@ -39,7 +39,10 @@ public static class RawDatumFunctions
             throw new PgException("22003", "value exceeds 24 bits");
         }
 
-        return PgDatum.DangerousCreate(value, call.ResultTypeOid, PgMemoryContext.Current);
+        unsafe
+        {
+            return PgDatum.DangerousCreate(value, call.ResultTypeOid, PgMemoryContext.Current);
+        }
     }
 
     /// <summary>
@@ -156,10 +159,16 @@ public static class RawDatumFunctions
         if (mode is 5 or 6)
         {
             using PgMemoryContext owner = PgMemoryContext.Create("expired raw result");
-            return PgDatum.DangerousCreate(42, type, owner, absent);
+            unsafe
+            {
+                return PgDatum.DangerousCreate(42, type, owner, absent);
+            }
         }
 
-        return PgDatum.DangerousCreate(mode == 7 ? 0U : 42U, type, PgMemoryContext.Current, absent);
+        unsafe
+        {
+            return PgDatum.DangerousCreate(mode == 7 ? 0U : 42U, type, PgMemoryContext.Current, absent);
+        }
     }
 
     /// <summary>

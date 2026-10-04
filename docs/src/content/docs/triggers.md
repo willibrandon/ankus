@@ -122,6 +122,10 @@ string name = context.NewTransitionTableName
 long count = Spi.ExecuteScalar<long>($"SELECT count(*) FROM {Spi.QuoteIdentifier(name)}");
 ```
 
+The quoting helper supplies the complete identifier fragment, so ANKUS044
+permits this raw command. Bind data values through `Spi.Sql` or positional
+parameters rather than formatting them into the command text.
+
 Stateless queries, `Spi.Connect` sessions, prepared statements, and cursors share
 this access. Nested triggers receive their own transition tables; the enclosing
 callback's tables remain available when the nested call returns.

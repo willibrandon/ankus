@@ -140,6 +140,12 @@ publishes the extensions, starts an isolated cluster, installs the extensions,
 and invokes their functions through SQL. Test transactions roll back before their
 connections close. The cluster shuts down after the run.
 
+The optional xUnit and NUnit consumer templates use their selected framework's
+own test packages. Those consumer test dependencies and their template
+acceptance tests are an approved exception to the Microsoft/.NET package rule.
+This exception does not expand the runtime, generator or tooling dependency
+policy. Repository tests continue to use MSTest and its enforced analyzers.
+
 The complete suite also publishes independent installed-package consumers in
 temporary directories. Allow disk space for concurrent native builds. On Linux,
 if `/tmp` is a small RAM-backed filesystem, set `TMPDIR` for the test process to
@@ -177,6 +183,12 @@ token. The test account needs Application-log read access. Collection selects
 the cluster's unique event source; it does not collect unrelated machine events.
 The installed-tool Valgrind test also retains its final server log there before
 removing its development cluster, including when a native query fails.
+The configuration package owns the shared `PostgresServerLog` collector used by
+test fixtures and persistent development clusters. Windows collection retains
+the original event messages and its cursor in an owned sidecar beside the log;
+later CLI processes reuse the cluster identity and serialize cursor updates.
+`PostgresDevelopmentCluster.ReadServerLog()` refreshes the retained snapshot.
+On Unix, it reads PostgreSQL's existing stderr log directly.
 
 Each fixture extension publish also writes a uniquely named MSBuild binary log
 under `artifacts/test-logs/publish`, including when Native AOT compilation fails

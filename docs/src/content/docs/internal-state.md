@@ -70,6 +70,9 @@ pointer and never copy or free its target. You must guarantee the target's
 layout and lifetime. Managed state uses an opaque identity, so it cannot be
 read with `DangerousBorrow<T>()`.
 
+`DangerousCreate` and `DangerousBorrow<T>()` require an explicit `unsafe` context.
+Use `Create` and `Get<T>` for managed state with a checked type and owner.
+
 A null `PgInternal?` means SQL NULL. A present wrapper containing zero is distinct.
 Access requires PostgreSQL's backend thread and a live owner.
 

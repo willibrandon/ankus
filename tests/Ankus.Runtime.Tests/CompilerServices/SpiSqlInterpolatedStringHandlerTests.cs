@@ -52,7 +52,7 @@ public sealed class SpiSqlInterpolatedStringHandlerTests
         Assert.AreEqual("value", literalError.ParamName);
         handler.AppendFormatted(42);
         SpiCommand command = Spi.Sql(handler);
-        Assert.AreEqual("SELECT $1", command.CommandText);
+        Assert.AreEqual("SELECT ($1)", command.CommandText);
         Assert.HasCount(1, command.Parameters);
         Assert.AreEqual(42, Assert.IsInstanceOfType<int>(command.Parameters[0].Value));
     }
@@ -66,7 +66,7 @@ public sealed class SpiSqlInterpolatedStringHandlerTests
         var descriptor = new PgTupleDescriptor(9200, -1, [], baseTypeOid: 9100);
         SpiParameter parameter = SpiParameter.Create(null, descriptor);
         SpiCommand command = Spi.Sql($"SELECT {parameter}");
-        Assert.AreEqual("SELECT $1", command.CommandText);
+        Assert.AreEqual("SELECT ($1)", command.CommandText);
         Assert.HasCount(1, command.Parameters);
         Assert.AreEqual(9200U, command.Parameters[0].TypeOid);
         Assert.IsNull(command.Parameters[0].Value);
@@ -85,7 +85,7 @@ public sealed class SpiSqlInterpolatedStringHandlerTests
         using MemoryContextTestFixture.Scope scope = MemoryContextTestFixture.Enter();
         PgDatum value = PgDatum.DangerousCreate(nuint.MaxValue, 98765, PgMemoryContext.Current, isNull);
         SpiCommand command = Spi.Sql($"SELECT {value}, {SpiParameter.Create(value)}");
-        Assert.AreEqual("SELECT $1, $2", command.CommandText);
+        Assert.AreEqual("SELECT ($1), ($2)", command.CommandText);
         Assert.HasCount(2, command.Parameters);
         foreach (SpiParameter parameter in command.Parameters)
         {

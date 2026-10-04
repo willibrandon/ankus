@@ -237,7 +237,12 @@ public sealed partial class ToolCommandTests
         {
             public OwnedKey Read(PgDatum value) => new(value.Read<int>() + 1000);
             public PgDatum Write(OwnedKey value, uint typeOid, PgMemoryContext destination)
-                => PgDatum.DangerousCreate(unchecked((nuint)(nint)(value.Number - 1000)), typeOid, destination);
+            {
+                unsafe
+                {
+                    return PgDatum.DangerousCreate(unchecked((nuint)(nint)(value.Number - 1000)), typeOid, destination);
+                }
+            }
         }
         [PgDatumType(typeof(GenericOwnedKey<int>), "package_key", typeof(GenericOwnedKeyConverter))]
         [PgDatumType(typeof(GenericOwnedKey<long>), "package_wide_key", typeof(GenericOwnedKeyConverter))]
@@ -249,9 +254,20 @@ public sealed partial class ToolCommandTests
             GenericOwnedKey<int> IPgDatumReader<GenericOwnedKey<int>>.Read(PgDatum value) => new(value.Read<int>() + 1000);
             GenericOwnedKey<long> IPgDatumReader<GenericOwnedKey<long>>.Read(PgDatum value) => new(value.Read<long>() + 10000000000L);
             public PgDatum Write(GenericOwnedKey<int> value, uint typeOid, PgMemoryContext destination)
-                => PgDatum.DangerousCreate(unchecked((nuint)(nint)(value.Number - 1000)), typeOid, destination);
+            {
+                unsafe
+                {
+                    return PgDatum.DangerousCreate(unchecked((nuint)(nint)(value.Number - 1000)), typeOid, destination);
+                }
+            }
+
             public PgDatum Write(GenericOwnedKey<long> value, uint typeOid, PgMemoryContext destination)
-                => PgDatum.DangerousCreate(unchecked((nuint)(value.Number - 10000000000L)), typeOid, destination);
+            {
+                unsafe
+                {
+                    return PgDatum.DangerousCreate(unchecked((nuint)(value.Number - 10000000000L)), typeOid, destination);
+                }
+            }
         }
         [PgDatumType("int4", typeof(ExternalKeyConverter), Schema = "pg_catalog", Origin = PgTypeOrigin.External)]
         public readonly record struct ExternalKey(int Number);
@@ -259,7 +275,12 @@ public sealed partial class ToolCommandTests
         {
             public ExternalKey Read(PgDatum value) => new(value.Read<int>() + 2000);
             public PgDatum Write(ExternalKey value, uint typeOid, PgMemoryContext destination)
-                => PgDatum.DangerousCreate(unchecked((nuint)(nint)(value.Number - 2000)), typeOid, destination);
+            {
+                unsafe
+                {
+                    return PgDatum.DangerousCreate(unchecked((nuint)(nint)(value.Number - 2000)), typeOid, destination);
+                }
+            }
         }
         public static class Functions
         {

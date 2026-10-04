@@ -130,7 +130,12 @@ public sealed class NativeOidWriter : IPgDatumWriter<NativeWriteOid>
 
     /// <inheritdoc />
     public PgDatum Write(NativeWriteOid value, uint typeOid, PgMemoryContext destination)
-        => PgDatum.DangerousCreate(value.Value, typeOid, destination);
+    {
+        unsafe
+        {
+            return PgDatum.DangerousCreate(value.Value, typeOid, destination);
+        }
+    }
 }
 
 /// <summary>

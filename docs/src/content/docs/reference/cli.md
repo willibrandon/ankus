@@ -365,6 +365,11 @@ the major version, or `28800` plus the major when no base is saved.
 Servers listen on `127.0.0.1` and use local trust authentication as the `postgres`
 database user. These are development clusters; other local processes can connect.
 Server logs live beside the data directories, such as `~/.ankus/clusters/pg18.log`.
+On Windows, Ankus also retains the server's own Application-event messages in
+that log when starting or stopping it. These include diagnostics that PostgreSQL
+routes to the event log under a service account. The account running Ankus needs
+Application-log read access. Retained messages survive later commands and server
+restarts; other servers' events are excluded.
 
 Choose a different port or pass literal PostgreSQL settings when starting:
 
@@ -384,7 +389,7 @@ Ankus manages data and authentication paths, loopback connection routing, and
 log routing. Those settings and configuration include directives cannot be
 overridden through `--postgresql-conf`. Existing unowned or incompatible data
 directories are rejected. A failed start preserves initialized data and reports
-the server log path so you can correct the setting and retry.
+the native diagnostic and server log path so you can correct the setting and retry.
 
 ### Inspect native memory with Valgrind
 

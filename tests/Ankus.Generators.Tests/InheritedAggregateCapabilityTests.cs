@@ -48,6 +48,36 @@ public sealed partial class PgFunctionGeneratorTests
     }
 
     /// <summary>
+    /// Instance helpers cannot implement static aggregate roles and do not require optional capabilities.
+    /// </summary>
+    /// <param name="role">The helper's otherwise reserved callback name.</param>
+    /// <param name="inherited">Whether the instance helper is inherited.</param>
+    [TestMethod]
+    [DataRow("Final", false)]
+    [DataRow("Combine", false)]
+    [DataRow("Serialize", false)]
+    [DataRow("Deserialize", false)]
+    [DataRow("MovingTransition", false)]
+    [DataRow("MovingInverse", false)]
+    [DataRow("MovingFinal", false)]
+    [DataRow("Combine", true)]
+    [DataRow("Serialize", true)]
+    public void AggregateInstanceHelpersRemainValid(string role, bool inherited)
+    {
+        string helper = "public int " + role + "(int value) => value;";
+        string source = "public abstract class Parent { " + (inherited ? helper : string.Empty) + " } " +
+            "[Ankus.PgAggregate(InitialCondition = \"0\")] public sealed class Typed : Parent, Ankus.IPgAggregate<int, int> { " +
+            "public static int Transition(Ankus.PgAggregateContext context, int state, int input) => state + input; " +
+            (inherited ? string.Empty : helper) + " }";
+        (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source);
+        AssertAggregateCompilation(compilation, diagnostics);
+        Assert.Contains("CREATE AGGREGATE", InstallationBody(compilation));
+        Assert.DoesNotContain("COMBINEFUNC", InstallationBody(compilation));
+        Assert.DoesNotContain("SERIALFUNC", InstallationBody(compilation));
+        Assert.DoesNotContain("FINALFUNC =", InstallationBody(compilation));
+    }
+
+    /// <summary>
     /// A private base helper is not an inherited member of an unrelated derived aggregate.
     /// </summary>
     [TestMethod]

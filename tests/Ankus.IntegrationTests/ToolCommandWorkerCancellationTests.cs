@@ -85,6 +85,20 @@ public sealed partial class ToolCommandTests
     /// </summary>
     [TestMethod]
     public async Task WorkerIdleWaitRecoversRepeatedCancellation()
+        => await WorkerIdleCancellationAsync(poll: false);
+
+    /// <summary>
+    /// Explicit checks during managed work recover cancellation twice without poisoning an idle worker's lifetime.
+    /// </summary>
+    [TestMethod]
+    public async Task WorkerIdleInterruptChecksRecoverRepeatedCancellation()
+        => await WorkerIdleCancellationAsync(poll: true);
+
+    /// <summary>
+    /// Cancels an idle worker at the requested native boundary and observes successful later logging and transactions.
+    /// </summary>
+    /// <param name="poll">Whether the worker checks interrupts while doing managed work instead of waiting on its latch.</param>
+    private async Task WorkerIdleCancellationAsync(bool poll)
     {
         CancellationToken token = context.CancellationToken;
         string output = await PublishPackageConsumerAsync("WorkerCancellation", "ankus_worker_cancellation", WorkerCancellationSource, token);
@@ -92,7 +106,7 @@ public sealed partial class ToolCommandTests
             additionalConfiguration: ["max_worker_processes = 4", "max_parallel_workers = 0", "max_logical_replication_workers = 0", "log_error_verbosity = verbose"]);
         await using NpgsqlConnection connection = await cluster.OpenConnectionAsync(token);
         await ExecutePackageGucAsync(connection, "CREATE EXTENSION ankus_worker_cancellation; CREATE TABLE worker_cancel_values(value integer)");
-        int process = Assert.IsInstanceOfType<int>(await PackageGucScalarAsync(connection, "SELECT cancellation_start(3)"));
+        int process = Assert.IsInstanceOfType<int>(await PackageGucScalarAsync(connection, poll ? "SELECT cancellation_start(5)" : "SELECT cancellation_start(3)"));
         Assert.IsGreaterThan(0, process);
         Assert.AreNotEqual(connection.ProcessID, process);
         string pid = process.ToString(CultureInfo.InvariantCulture);
@@ -105,7 +119,7 @@ public sealed partial class ToolCommandTests
                 string count = attempt.ToString(CultureInfo.InvariantCulture);
                 await WaitForCancellationWorkerAsync(connection, cluster, process,
                     "cancellation_waiting() = " + count + " AND EXISTS(SELECT FROM pg_stat_activity WHERE pid = " + pid +
-                    " AND wait_event = 'Extension' AND xact_start IS NULL)");
+                    (poll ? " AND wait_event IS NULL" : " AND wait_event = 'Extension'") + " AND xact_start IS NULL)");
                 Assert.IsTrue(Assert.IsInstanceOfType<bool>(await PackageGucScalarAsync(connection, "SELECT pg_cancel_backend(" + pid + ")")));
                 await WaitForCancellationWorkerAsync(connection, cluster, process, "(cancellation_status())[4] = " + count);
                 Assert.AreSequenceEqual([0, attempt, attempt, attempt],
@@ -235,9 +249,9 @@ public sealed partial class ToolCommandTests
                 {
                 }
 
-                if (mode == 3)
+                if (mode == 3 || mode == 5)
                 {
-                    RunIdleCancellation();
+                    RunIdleCancellation(mode == 5);
                     return;
                 }
 
@@ -310,7 +324,7 @@ public sealed partial class ToolCommandTests
                 }
             }
 
-            private static void RunIdleCancellation()
+            private static void RunIdleCancellation(bool poll)
             {
                 for (int attempt = 1; attempt <= 2; attempt++)
                 {
@@ -319,7 +333,18 @@ public sealed partial class ToolCommandTests
                     try
                     {
                         Waiting.Exchange(attempt);
-                        PgBackgroundWorker.Wait();
+                        if (poll)
+                        {
+                            while (PgBackgroundWorker.CanContinue)
+                            {
+                                PgInterrupts.Check();
+                                Thread.Sleep(1);
+                            }
+                        }
+                        else
+                        {
+                            PgBackgroundWorker.Wait();
+                        }
                     }
                     catch (PgQueryCanceledException exception) when (exception.Diagnostic.SqlState == "57014" &&
                         exception.Diagnostic.Message == "canceling statement due to user request")

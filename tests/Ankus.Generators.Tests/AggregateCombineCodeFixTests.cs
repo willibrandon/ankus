@@ -4,6 +4,7 @@ using Ankus.CodeFixes;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CodeActions;
 using Microsoft.CodeAnalysis.CodeFixes;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 
@@ -25,7 +26,8 @@ public sealed partial class PgFunctionGeneratorTests
 
         Assert.AreSequenceEqual([LanguageNames.CSharp], Assert.IsInstanceOfType<IEnumerable<string>>(export.Metadata["Languages"]));
         Assert.AreSequenceEqual(["ANKUS111"], provider.FixableDiagnosticIds);
-        Assert.AreSame(WellKnownFixAllProviders.BatchFixer, provider.GetFixAllProvider());
+        Assert.AreNotSame(WellKnownFixAllProviders.BatchFixer, provider.GetFixAllProvider());
+        Assert.AreSame(provider.GetFixAllProvider(), provider.GetFixAllProvider());
         Assert.AreSame(provider, Assert.ContainsSingle(container.GetExports<CodeFixProvider>().OfType<AggregateCombineCodeFixProvider>()));
     }
 
@@ -148,7 +150,6 @@ public sealed partial class PgFunctionGeneratorTests
     [TestMethod]
     [DataRow("public static long Combine(Ankus.PgAggregateContext context, long state, long other) => state;")]
     [DataRow("public static int? Combine(Ankus.PgAggregateContext context, int? state, int? other) => state;")]
-    [DataRow("public int Combine(Ankus.PgAggregateContext context, int state, int other) => state;")]
     [DataRow("private static int Combine(Ankus.PgAggregateContext context, int state, int other) => state;")]
     [DataRow("public static int Combine(Ankus.PgFunctionContext context, int state, int other) => state;")]
     [DataRow("public static int Combine<T>(Ankus.PgAggregateContext context, int state, int other) => state;")]
@@ -271,6 +272,78 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.Contains("COMBINEFUNC = \"first_combine\"", InstallationBody(output));
         Assert.Contains("COMBINEFUNC = \"second_combine\"", InstallationBody(output));
         Assert.AreEqual(Other, (await change.ChangedSolution.GetDocument(untouched.Id)!.GetTextAsync(context.CancellationToken)).ToString());
+    }
+
+    /// <summary>
+    /// An unrelated compiler error remains present while a valid aggregate gains its exact combine capability.
+    /// </summary>
+    [TestMethod]
+    public async Task AggregateCombineFixPreservesUnrelatedCompilerErrors()
+    {
+        using var workspace = new AdhocWorkspace();
+        Document document = CreateCodeFixDocument(workspace, AggregateCombineSource("First") +
+            "public static class Broken { public static int Value() => Missing; }");
+        (Compilation before, ImmutableArray<Diagnostic> diagnostics) = await GenerateCodeFixDocumentAsync(document);
+        Diagnostic original = Assert.ContainsSingle(before.GetDiagnostics(context.CancellationToken)
+            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error));
+        Assert.AreEqual("CS0103", original.Id);
+        Document corrected = await ApplyAggregateCombineFixAsync(document, Assert.ContainsSingle(diagnostics));
+        (Compilation output, ImmutableArray<Diagnostic> remaining) = await GenerateCodeFixDocumentAsync(corrected);
+        Assert.IsEmpty(remaining);
+        Diagnostic retained = Assert.ContainsSingle(output.GetDiagnostics(context.CancellationToken)
+            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error));
+        Assert.AreEqual(original.Id, retained.Id);
+        Assert.AreEqual(original.GetMessage(System.Globalization.CultureInfo.InvariantCulture),
+            retained.GetMessage(System.Globalization.CultureInfo.InvariantCulture));
+        Assert.AreEqual("Missing", retained.Location.SourceTree!.GetText(context.CancellationToken).ToString(retained.Location.SourceSpan));
+        INamedTypeSymbol aggregate = output.GetTypeByMetadataName("First")!;
+        INamedTypeSymbol capability = Assert.ContainsSingle(aggregate.AllInterfaces.Where(static value => value.Name == "IPgCombinableAggregate"));
+        IMethodSymbol implementation = Assert.IsInstanceOfType<IMethodSymbol>(aggregate.FindImplementationForInterfaceMember(
+            Assert.ContainsSingle(capability.GetMembers("Combine"))));
+        Assert.AreEqual("Combine", implementation.Name);
+        Assert.Contains("COMBINEFUNC = \"first_combine\"", InstallationBody(output));
+    }
+
+    /// <summary>
+    /// A callback inherited from actual metadata is diagnosed on its editable aggregate and repaired without changing the reference.
+    /// </summary>
+    [TestMethod]
+    public async Task AggregateCombineFixUsesEditableAnchorForMetadataCallback()
+    {
+        CSharpCompilation external = CSharpCompilation.Create("ExternalAggregateBase", [CSharpSyntaxTree.ParseText("""
+            public abstract class ExternalParent<T>
+            {
+                public static T Combine(Ankus.PgAggregateContext context, T state, T other) => state;
+            }
+            """, new CSharpParseOptions(LanguageVersion.CSharp14), cancellationToken: context.CancellationToken)], s_references,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
+        using var image = new MemoryStream();
+        Microsoft.CodeAnalysis.Emit.EmitResult emission = external.Emit(image, cancellationToken: context.CancellationToken);
+        Assert.IsTrue(emission.Success, string.Join(Environment.NewLine, emission.Diagnostics));
+        using var workspace = new AdhocWorkspace();
+        Document document = CreateCodeFixDocument(workspace, """
+            [Ankus.PgAggregate(InitialCondition = "0")]
+            public sealed class First : ExternalParent<int>, Ankus.IPgAggregate<int, int>
+            {
+                public static int Transition(Ankus.PgAggregateContext context, int state, int value) => state + value;
+            }
+            """);
+        document = document.Project.AddMetadataReference(MetadataReference.CreateFromImage(image.ToArray())).GetDocument(document.Id)!;
+        (_, ImmutableArray<Diagnostic> diagnostics) = await GenerateCodeFixDocumentAsync(document);
+        Diagnostic error = Assert.ContainsSingle(diagnostics);
+        Assert.AreEqual("ANKUS111", error.Id);
+        Assert.IsTrue(error.Location.IsInSource);
+        Assert.AreEqual("First", error.Location.SourceTree!.GetText(context.CancellationToken).ToString(error.Location.SourceSpan));
+        Document corrected = await ApplyAggregateCombineFixAsync(document, error);
+        (Compilation output, ImmutableArray<Diagnostic> remaining) = await GenerateCodeFixDocumentAsync(corrected);
+        Assert.IsEmpty(remaining);
+        Assert.IsEmpty(output.GetDiagnostics(context.CancellationToken).Where(static value => value.Severity == DiagnosticSeverity.Error));
+        INamedTypeSymbol aggregate = output.GetTypeByMetadataName("First")!;
+        INamedTypeSymbol capability = Assert.ContainsSingle(aggregate.AllInterfaces.Where(static value => value.Name == "IPgCombinableAggregate"));
+        IMethodSymbol implementation = Assert.IsInstanceOfType<IMethodSymbol>(aggregate.FindImplementationForInterfaceMember(
+            Assert.ContainsSingle(capability.GetMembers("Combine"))));
+        Assert.AreEqual("ExternalAggregateBase", implementation.ContainingAssembly.Name);
+        Assert.Contains("COMBINEFUNC = \"first_combine\"", InstallationBody(output));
     }
 
     /// <summary>

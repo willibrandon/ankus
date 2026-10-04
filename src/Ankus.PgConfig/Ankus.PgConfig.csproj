@@ -6,4 +6,8 @@
     <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="System.Diagnostics.EventLog" />
+  </ItemGroup>
+
 </Project>

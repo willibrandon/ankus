@@ -188,16 +188,20 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.AreEqual("ANKUS023", Assert.ContainsSingle(first).Id);
         SyntaxTree current = CSharpSyntaxTree.ParseText("\n\n" + source, path: "Current.cs", cancellationToken: context.CancellationToken);
         CSharpCompilation edited = initial.ReplaceSyntaxTree(initial.SyntaxTrees.Single(), current);
-        driver = driver.RunGeneratorsAndUpdateCompilation(edited, out _, out ImmutableArray<Diagnostic> errors, context.CancellationToken);
+        driver = driver.RunGeneratorsAndUpdateCompilation(edited, out Compilation partial, out ImmutableArray<Diagnostic> errors, context.CancellationToken);
         Diagnostic error = Assert.ContainsSingle(errors);
         Assert.AreEqual("ANKUS023", error.Id);
         Assert.AreSame(current, error.Location.SourceTree);
         Assert.AreEqual(Assert.ContainsSingle(first).Location.SourceSpan.Start + 2, error.Location.SourceSpan.Start);
-        Assert.IsNull(PgTestCatalogSource(driver));
+        string catalog = PgTestCatalogSource(driver)!;
+        Assert.EndsWith(".Second()", Assert.ContainsSingle(ReadBackendCatalog(partial, "Extension.Checks+PostgresTests")).Name);
+        Assert.EndsWith(".Independent()", Assert.ContainsSingle(ReadBackendCatalog(partial, "Extension.Other+PostgresTests")).Name);
+        Assert.IsEmpty(partial.GetDiagnostics(context.CancellationToken).Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error));
         SyntaxTree sameCoordinates = CSharpSyntaxTree.ParseText("\n\n" + source + "\n// unrelated", path: "Current.cs", cancellationToken: context.CancellationToken);
         edited = edited.ReplaceSyntaxTree(current, sameCoordinates);
         driver = driver.RunGeneratorsAndUpdateCompilation(edited, out _, out ImmutableArray<Diagnostic> cachedErrors, context.CancellationToken);
         Diagnostic cachedError = Assert.ContainsSingle(cachedErrors);
+        Assert.AreEqual(catalog, PgTestCatalogSource(driver));
         Assert.AreSame(sameCoordinates, cachedError.Location.SourceTree);
         Assert.AreEqual(error.Location.SourceSpan, cachedError.Location.SourceSpan);
         (object Value, IncrementalStepRunReason Reason) cached = Assert.ContainsSingle(Assert.ContainsSingle(driver.GetRunResult().Results)

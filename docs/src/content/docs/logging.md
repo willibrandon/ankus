@@ -115,6 +115,11 @@ cleanup, but the query still fails at the native boundary. Further server work
 is rejected until that boundary returns. This also applies inside
 `PgTransaction.RunInSubtransaction` and recursive SQL calls.
 
+Background workers have their own recovery boundaries. A canceled worker
+transaction must roll back before continuing. Outside a transaction, a worker
+can catch cancellation from `Wait` or `PgInterrupts.Check()` and continue after
+that operation finishes. See [worker cancellation](/background-workers/#database-work-and-errors).
+
 For long loops that stay in managed code, call `PgInterrupts.Check()` periodically:
 
 ```csharp

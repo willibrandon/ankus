@@ -17,18 +17,23 @@ namespace Ankus.CodeFixes;
 public sealed class NativeUnsafeAccessCodeFixProvider : CodeFixProvider
 {
     /// <summary>
+    /// Composes all selected native contexts before one compiler validation per project.
+    /// </summary>
+    private static readonly FixAllProvider s_fixAll = new ProjectCodeFixAllProvider("Use unsafe blocks", ApplyProjectAsync);
+
+    /// <summary>
     /// Gets the raw-access diagnostic corrected by this provider.
     /// </summary>
     public override ImmutableArray<string> FixableDiagnosticIds => ["ANKUS129"];
 
     /// <summary>
-    /// Gets Roslyn batch support for independent unsafe contexts.
+    /// Gets project batching for independent unsafe contexts.
     /// </summary>
-    /// <returns>The standard batch provider.</returns>
-    public override FixAllProvider GetFixAllProvider() => WellKnownFixAllProviders.BatchFixer;
+    /// <returns>The provider that validates each project's composed correction once.</returns>
+    public override FixAllProvider GetFixAllProvider() => s_fixAll;
 
     /// <summary>
-    /// Registers a correction only for the current runtime-owned native contract and a compilable context.
+    /// Registers a minimal correction for the current runtime-owned native contract without collecting compiler diagnostics.
     /// </summary>
     /// <param name="context">The editable document, diagnostics and cancellation token.</param>
     /// <returns>The registration operation.</returns>
@@ -37,57 +42,167 @@ public sealed class NativeUnsafeAccessCodeFixProvider : CodeFixProvider
         context.CancellationToken.ThrowIfCancellationRequested();
         SyntaxNode? root = await context.Document.GetSyntaxRootAsync(context.CancellationToken).ConfigureAwait(false);
         SemanticModel? model = await context.Document.GetSemanticModelAsync(context.CancellationToken).ConfigureAwait(false);
-        if (root is null || model is null)
-        {
-            return;
-        }
-
-        SyntaxNode expression = root.FindNode(context.Span, getInnermostNodeForTie: true);
-        ISymbol? symbol = model.GetSymbolInfo(expression, context.CancellationToken).Symbol;
-        INamedTypeSymbol? attribute = model.Compilation.GetTypeByMetadataName("Ankus.CompilerServices.NativeUnsafeAccessAttribute");
-        if (attribute?.ContainingAssembly.Name != "Ankus.Runtime" || symbol is null ||
-            !symbol.GetAttributes().Any(candidate => SymbolEqualityComparer.Default.Equals(candidate.AttributeClass, attribute)) ||
-            expression.AncestorsAndSelf().Any(static node => node is UnsafeStatementSyntax ||
-                node is MemberDeclarationSyntax member && member.Modifiers.Any(SyntaxKind.UnsafeKeyword) ||
-                node is LocalFunctionStatementSyntax local && local.Modifiers.Any(SyntaxKind.UnsafeKeyword)) ||
-            IsMetadataReference(model.GetOperation(expression, context.CancellationToken)))
-        {
-            return;
-        }
-
-        SyntaxNode? owner = expression.AncestorsAndSelf().FirstOrDefault(static node =>
-            node is BlockSyntax or ArrowExpressionClauseSyntax or LambdaExpressionSyntax);
-        SyntaxNode? replacement = owner switch
-        {
-            BlockSyntax block => block.WithStatements(SyntaxFactory.SingletonList<StatementSyntax>(
-                SyntaxFactory.UnsafeStatement(SyntaxFactory.Block(block.Statements)))),
-            ArrowExpressionClauseSyntax arrow => ConvertArrow(arrow, model, context.CancellationToken),
-            LambdaExpressionSyntax lambda when lambda.Body is ExpressionSyntax body => ConvertLambda(lambda, body, model, context.CancellationToken),
-            _ => null,
-        };
-        SyntaxNode? target = owner is ArrowExpressionClauseSyntax ? owner.Parent : owner;
-        if (replacement is null || target is null)
-        {
-            return;
-        }
-
-        Document corrected = context.Document.WithSyntaxRoot(root.ReplaceNode(target,
-            replacement.WithAdditionalAnnotations(Formatter.Annotation)));
-        Compilation? output = await corrected.Project.GetCompilationAsync(context.CancellationToken).ConfigureAwait(false);
-        if (output is null || IntroducesCompilerErrors(model.Compilation, output, context.CancellationToken))
+        if (root is null || model is null || model.Compilation.Options is not CSharpCompilationOptions { AllowUnsafe: true } ||
+            CreateEdit(root, model, context.Span, context.CancellationToken) is null)
         {
             return;
         }
 
         foreach (Diagnostic diagnostic in context.Diagnostics.Where(static value => value.Id == "ANKUS129"))
         {
-            context.RegisterCodeFix(CodeAction.Create("Use an unsafe block", token =>
+            context.RegisterCodeFix(CodeAction.Create("Use an unsafe block", async token =>
             {
-                token.ThrowIfCancellationRequested();
-                return Task.FromResult(corrected);
-            },
-                nameof(NativeUnsafeAccessCodeFixProvider)), diagnostic);
+                Solution corrected = await ApplyProjectAsync(context.Document.Project,
+                    ImmutableDictionary<DocumentId, ImmutableArray<Diagnostic>>.Empty.Add(context.Document.Id, [diagnostic]), token).ConfigureAwait(false);
+                return corrected.GetDocument(context.Document.Id)!;
+            }, nameof(NativeUnsafeAccessCodeFixProvider)), diagnostic);
         }
+    }
+
+    /// <summary>
+    /// Selects the smallest legal statement or expression body and preserves local declarations' enclosing scope.
+    /// </summary>
+    /// <param name="root">The current document root.</param>
+    /// <param name="model">The current bound source.</param>
+    /// <param name="span">The diagnosed runtime reference.</param>
+    /// <param name="cancellationToken">Cancels semantic inspection.</param>
+    /// <returns>The exact immutable edit, or null when an automatic correction cannot preserve the contract.</returns>
+    private static (SyntaxNode Target, ImmutableArray<SyntaxNode> Replacements)? CreateEdit(SyntaxNode root, SemanticModel model,
+        Microsoft.CodeAnalysis.Text.TextSpan span, CancellationToken cancellationToken)
+    {
+        SyntaxNode expression = root.FindNode(span, getInnermostNodeForTie: true);
+        ISymbol? symbol = model.GetSymbolInfo(expression, cancellationToken).Symbol;
+        INamedTypeSymbol? attribute = model.Compilation.GetTypeByMetadataName("Ankus.CompilerServices.NativeUnsafeAccessAttribute");
+        if (attribute?.ContainingAssembly.Name != "Ankus.Runtime" || symbol is null ||
+            !symbol.GetAttributes().Any(candidate => SymbolEqualityComparer.Default.Equals(candidate.AttributeClass, attribute)) ||
+            expression.AncestorsAndSelf().Any(static node => node is UnsafeStatementSyntax ||
+                node is MemberDeclarationSyntax member && member.Modifiers.Any(SyntaxKind.UnsafeKeyword) ||
+                node is LocalFunctionStatementSyntax local && local.Modifiers.Any(SyntaxKind.UnsafeKeyword)) ||
+            IsMetadataReference(model.GetOperation(expression, cancellationToken)))
+        {
+            return null;
+        }
+
+        SyntaxNode? owner = expression.AncestorsAndSelf().FirstOrDefault(static node =>
+            node is StatementSyntax and not BlockSyntax || node is ArrowExpressionClauseSyntax or LambdaExpressionSyntax);
+        if (owner is null || owner.DescendantTokens().Any(static token => token.IsKind(SyntaxKind.AwaitKeyword) || token.IsKind(SyntaxKind.YieldKeyword)))
+        {
+            return null;
+        }
+
+        if (owner is LocalDeclarationStatementSyntax local)
+        {
+            return HoistDeclaration(local, model, cancellationToken);
+        }
+
+        SyntaxNode? replacement = owner switch
+        {
+            StatementSyntax statement => SyntaxFactory.UnsafeStatement(SyntaxFactory.Block(statement.WithoutLeadingTrivia()))
+                .WithLeadingTrivia(statement.GetLeadingTrivia()),
+            ArrowExpressionClauseSyntax arrow => ConvertArrow(arrow, model, cancellationToken),
+            LambdaExpressionSyntax lambda when lambda.Body is ExpressionSyntax body => ConvertLambda(lambda, body, model, cancellationToken),
+            _ => null,
+        };
+        SyntaxNode? target = owner is ArrowExpressionClauseSyntax ? owner.Parent : owner;
+        return replacement is null || target is null ? null
+            : (target, [replacement.WithAdditionalAnnotations(Formatter.Annotation)]);
+    }
+
+    /// <summary>
+    /// Leaves a local's declaration in its original scope while acknowledging only its initializer assignments.
+    /// </summary>
+    /// <param name="declaration">The original local declaration.</param>
+    /// <param name="model">Its declared managed types.</param>
+    /// <param name="cancellationToken">Cancels binding.</param>
+    /// <returns>The declaration and unsafe assignments, or null for a contract requiring a broader manual edit.</returns>
+    private static (SyntaxNode Target, ImmutableArray<SyntaxNode> Replacements)? HoistDeclaration(LocalDeclarationStatementSyntax declaration,
+        SemanticModel model, CancellationToken cancellationToken)
+    {
+        if (declaration.UsingKeyword != default || declaration.AwaitKeyword != default ||
+            declaration.Modifiers.Any(SyntaxKind.ConstKeyword) || declaration.Declaration.Type is RefTypeSyntax ||
+            declaration.Parent is not (BlockSyntax or SwitchSectionSyntax))
+        {
+            return null;
+        }
+
+        TypeSyntax type = declaration.Declaration.Type;
+        if (type.IsVar)
+        {
+            if (model.GetDeclaredSymbol(declaration.Declaration.Variables[0], cancellationToken) is not ILocalSymbol local ||
+                !local.Type.CanBeReferencedByName)
+            {
+                return null;
+            }
+
+            type = SyntaxFactory.ParseTypeName(local.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat
+                .AddMiscellaneousOptions(SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier)))
+                .WithTriviaFrom(type);
+        }
+
+        if (declaration.Declaration.Variables.Any(static variable => variable.Initializer?.Value is RefExpressionSyntax))
+        {
+            return null;
+        }
+
+        LocalDeclarationStatementSyntax outer = declaration.WithDeclaration(declaration.Declaration.WithType(type)
+            .WithVariables(SyntaxFactory.SeparatedList(declaration.Declaration.Variables.Select(static variable => variable.WithInitializer(null)))))
+            .WithAdditionalAnnotations(Formatter.Annotation);
+        StatementSyntax[] assignments = [.. declaration.Declaration.Variables.Where(static variable => variable.Initializer is not null)
+            .Select(static variable => SyntaxFactory.ExpressionStatement(SyntaxFactory.AssignmentExpression(SyntaxKind.SimpleAssignmentExpression,
+                SyntaxFactory.IdentifierName(variable.Identifier.WithoutTrivia()), variable.Initializer!.Value)))];
+        return (declaration, [outer, SyntaxFactory.UnsafeStatement(SyntaxFactory.Block(assignments)).WithAdditionalAnnotations(Formatter.Annotation)]);
+    }
+
+    /// <summary>
+    /// Composes all selected edits without repeatedly compiling intermediate document corrections.
+    /// </summary>
+    /// <param name="project">The original project.</param>
+    /// <param name="diagnostics">The selected source diagnostics by document.</param>
+    /// <param name="cancellationToken">Cancels editing and the final compiler comparison.</param>
+    /// <returns>The verified correction, or the unchanged solution when the complete edit introduces an error.</returns>
+    private static async Task<Solution> ApplyProjectAsync(Project project,
+        ImmutableDictionary<DocumentId, ImmutableArray<Diagnostic>> diagnostics, CancellationToken cancellationToken)
+    {
+        Compilation? original = await project.GetCompilationAsync(cancellationToken).ConfigureAwait(false);
+        if (original?.Options is not CSharpCompilationOptions { AllowUnsafe: true })
+        {
+            return project.Solution;
+        }
+
+        Solution solution = project.Solution;
+        foreach (KeyValuePair<DocumentId, ImmutableArray<Diagnostic>> selection in diagnostics)
+        {
+            DocumentId identity = selection.Key;
+            ImmutableArray<Diagnostic> values = selection.Value;
+            Document document = project.GetDocument(identity)!;
+            SyntaxNode? root = await document.GetSyntaxRootAsync(cancellationToken).ConfigureAwait(false);
+            SemanticModel? model = await document.GetSemanticModelAsync(cancellationToken).ConfigureAwait(false);
+            if (root is null || model is null)
+            {
+                continue;
+            }
+
+            (SyntaxNode Target, ImmutableArray<SyntaxNode> Replacements)[] edits = [.. values
+                .Where(static diagnostic => diagnostic.Id == "ANKUS129")
+                .Select(diagnostic => CreateEdit(root, model, diagnostic.Location.SourceSpan, cancellationToken))
+                .Where(static edit => edit.HasValue).Select(static edit => edit!.Value)
+                .GroupBy(static edit => edit.Target).Select(static group => group.First())];
+            edits = [.. edits.Where(edit => !edits.Any(other => !ReferenceEquals(edit.Target, other.Target) &&
+                edit.Target.Ancestors().Contains(other.Target)))];
+            SyntaxNode correctedRoot = root.TrackNodes(edits.Select(static edit => edit.Target));
+            foreach ((SyntaxNode target, ImmutableArray<SyntaxNode> replacements) in edits)
+            {
+                SyntaxNode current = correctedRoot.GetCurrentNode(target)!;
+                correctedRoot = replacements.Length == 1 ? correctedRoot.ReplaceNode(current, replacements[0])
+                    : correctedRoot.ReplaceNode(current, replacements);
+            }
+
+            solution = solution.WithDocumentSyntaxRoot(identity, correctedRoot);
+        }
+
+        Compilation? corrected = await solution.GetProject(project.Id)!.GetCompilationAsync(cancellationToken).ConfigureAwait(false);
+        return corrected is null || CompilerErrorComparison.IntroducesErrors(original, corrected, cancellationToken)
+            ? project.Solution : solution;
     }
 
     /// <summary>
@@ -185,31 +300,4 @@ public sealed class NativeUnsafeAccessCodeFixProvider : CodeFixProvider
         return false;
     }
 
-    /// <summary>
-    /// Refuses invalid unsafe regions while allowing unrelated compiler errors to remain available for their own corrections.
-    /// </summary>
-    /// <param name="original">The current compilation, which may contain unrelated errors.</param>
-    /// <param name="corrected">The compilation after the proposed edit.</param>
-    /// <param name="cancellationToken">The editor cancellation token.</param>
-    /// <returns>Whether the proposed context introduces a compiler error.</returns>
-    private static bool IntroducesCompilerErrors(Compilation original, Compilation corrected, CancellationToken cancellationToken)
-    {
-        Dictionary<(string Id, string Message), int> allowed = original.GetDiagnostics(cancellationToken)
-            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
-            .GroupBy(static diagnostic => (diagnostic.Id, diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture)))
-            .ToDictionary(static group => group.Key, static group => group.Count());
-        foreach (Diagnostic diagnostic in corrected.GetDiagnostics(cancellationToken)
-            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
-        {
-            (string Id, string Message) key = (diagnostic.Id, diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture));
-            if (!allowed.TryGetValue(key, out int count) || count == 0)
-            {
-                return true;
-            }
-
-            allowed[key] = count - 1;
-        }
-
-        return false;
-    }
 }

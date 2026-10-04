@@ -84,12 +84,20 @@ public sealed class GenericBoxConverter : IPgDatumReader<GenericBox<int>>, IPgDa
             throw new PgException("P8602", "generic mapped writer failed", detail: "int-tagged result", hint: "use another result");
         }
 
-        return PgDatum.DangerousCreate(unchecked((nuint)(nint)(value.Number - 1000)), typeOid, destination);
+        unsafe
+        {
+            return PgDatum.DangerousCreate(unchecked((nuint)(nint)(value.Number - 1000)), typeOid, destination);
+        }
     }
 
     /// <inheritdoc />
     PgDatum IPgDatumWriter<GenericBox<long>>.Write(GenericBox<long> value, uint typeOid, PgMemoryContext destination)
-        => PgDatum.DangerousCreate(unchecked((nuint)(nint)(value.Number - 2000)), typeOid, destination);
+    {
+        unsafe
+        {
+            return PgDatum.DangerousCreate(unchecked((nuint)(nint)(value.Number - 2000)), typeOid, destination);
+        }
+    }
 }
 
 /// <summary>

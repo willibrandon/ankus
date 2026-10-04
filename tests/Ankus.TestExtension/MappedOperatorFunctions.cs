@@ -205,7 +205,10 @@ public sealed class MappedOperatorStorageConverter : IPgDatumReader<MappedOperat
     public PgDatum Write(MappedOperatorStorage value, uint typeOid, PgMemoryContext destination)
     {
         Writes++;
-        return PgDatum.DangerousCreate(unchecked((nuint)(nint)value.Word), typeOid, destination);
+        unsafe
+        {
+            return PgDatum.DangerousCreate(unchecked((nuint)(nint)value.Word), typeOid, destination);
+        }
     }
 }
 

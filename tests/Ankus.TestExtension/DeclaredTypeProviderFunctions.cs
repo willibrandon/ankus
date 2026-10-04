@@ -42,7 +42,10 @@ public static class DeclaredTypeProviderFunctions
             throw new PgException("22003", "provider value exceeds 24 bits");
         }
 
-        return PgDatum.DangerousCreate(value, call.ResultTypeOid, PgMemoryContext.Current);
+        unsafe
+        {
+            return PgDatum.DangerousCreate(value, call.ResultTypeOid, PgMemoryContext.Current);
+        }
     }
 
     /// <summary>
@@ -223,11 +226,17 @@ public static class DeclaredTypeProviderFunctions
     {
         if (mode < 2)
         {
-            return PgDatum.DangerousCreate(42, 23, PgMemoryContext.Current, isNull: mode == 1);
+            unsafe
+            {
+                return PgDatum.DangerousCreate(42, 23, PgMemoryContext.Current, isNull: mode == 1);
+            }
         }
 
         using PgMemoryContext owner = PgMemoryContext.Create("expired provider result");
-        return PgDatum.DangerousCreate(42, call.ResultTypeOid, owner, isNull: mode == 3);
+        unsafe
+        {
+            return PgDatum.DangerousCreate(42, call.ResultTypeOid, owner, isNull: mode == 3);
+        }
     }
 
     /// <summary>

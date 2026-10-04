@@ -67,7 +67,10 @@ public sealed class U24DatumConverter : IPgDatumReader<MappedU24>, IPgDatumWrite
             throw new PgException("22003", "mapped value exceeds 24 bits");
         }
 
-        return PgDatum.DangerousCreate(value.Value, typeOid, destination);
+        unsafe
+        {
+            return PgDatum.DangerousCreate(value.Value, typeOid, destination);
+        }
     }
 }
 
@@ -81,7 +84,12 @@ public sealed class U24AliasConverter : IPgDatumReader<MappedU24Alias>, IPgDatum
 
     /// <inheritdoc />
     public PgDatum Write(MappedU24Alias value, uint typeOid, PgMemoryContext destination)
-        => PgDatum.DangerousCreate(checked(value.Value - 1), typeOid, destination);
+    {
+        unsafe
+        {
+            return PgDatum.DangerousCreate(checked(value.Value - 1), typeOid, destination);
+        }
+    }
 }
 
 /// <summary>
@@ -131,7 +139,12 @@ public sealed class PositiveDatumConverter : IPgDatumReader<MappedPositive>, IPg
 
     /// <inheritdoc />
     public PgDatum Write(MappedPositive value, uint typeOid, PgMemoryContext destination)
-        => PgDatum.DangerousCreate(unchecked((nuint)value.Value), typeOid, destination);
+    {
+        unsafe
+        {
+            return PgDatum.DangerousCreate(unchecked((nuint)value.Value), typeOid, destination);
+        }
+    }
 }
 
 /// <summary>
@@ -213,7 +226,12 @@ public sealed class WriteIntConverter : IPgDatumWriter<WriteMappedInt>
 {
     /// <inheritdoc />
     public PgDatum Write(WriteMappedInt value, uint typeOid, PgMemoryContext destination)
-        => PgDatum.DangerousCreate(unchecked((nuint)checked(-value.Value)), typeOid, destination);
+    {
+        unsafe
+        {
+            return PgDatum.DangerousCreate(unchecked((nuint)checked(-value.Value)), typeOid, destination);
+        }
+    }
 }
 
 /// <summary>
@@ -233,16 +251,25 @@ public sealed class AdversarialIntConverter : IPgDatumWriter<AdversarialMappedIn
     {
         if (value.Mode < 2)
         {
-            return PgDatum.DangerousCreate(42, 20, destination, isNull: value.Mode == 1);
+            unsafe
+            {
+                return PgDatum.DangerousCreate(42, 20, destination, isNull: value.Mode == 1);
+            }
         }
 
         if (value.Mode < 4)
         {
             using PgMemoryContext expired = PgMemoryContext.Create("mapped expired result");
-            return PgDatum.DangerousCreate(42, typeOid, expired, isNull: value.Mode == 3);
+            unsafe
+            {
+                return PgDatum.DangerousCreate(42, typeOid, expired, isNull: value.Mode == 3);
+            }
         }
 
-        return PgDatum.DangerousCreate(42, typeOid, destination, isNull: value.Mode == 4);
+        unsafe
+        {
+            return PgDatum.DangerousCreate(42, typeOid, destination, isNull: value.Mode == 4);
+        }
     }
 }
 
@@ -263,7 +290,12 @@ public sealed class LiveDatumConverter : IPgDatumReader<LiveMappedInt>, IPgDatum
 
     /// <inheritdoc />
     public PgDatum Write(LiveMappedInt value, uint typeOid, PgMemoryContext destination)
-        => PgDatum.DangerousCreate(unchecked((nuint)value.Value), typeOid, destination);
+    {
+        unsafe
+        {
+            return PgDatum.DangerousCreate(unchecked((nuint)value.Value), typeOid, destination);
+        }
+    }
 }
 
 /// <summary>
@@ -298,7 +330,12 @@ public sealed class SignDatumConverter : IPgDatumReader<MappedSign>, IPgDatumWri
 
     /// <inheritdoc />
     public PgDatum Write(MappedSign value, uint typeOid, PgMemoryContext destination)
-        => PgDatum.DangerousCreate(unchecked((nuint)(int)value), typeOid, destination);
+    {
+        unsafe
+        {
+            return PgDatum.DangerousCreate(unchecked((nuint)(int)value), typeOid, destination);
+        }
+    }
 }
 
 /// <summary>
@@ -331,5 +368,10 @@ public sealed class RequiredDatumConverter : IPgDatumWriter<MappedRequired>
 {
     /// <inheritdoc />
     public PgDatum Write(MappedRequired value, uint typeOid, PgMemoryContext destination)
-        => PgDatum.DangerousCreate(42, typeOid, destination, isNull: value.Mode == 0);
+    {
+        unsafe
+        {
+            return PgDatum.DangerousCreate(42, typeOid, destination, isNull: value.Mode == 0);
+        }
+    }
 }

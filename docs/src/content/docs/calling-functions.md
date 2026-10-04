@@ -165,6 +165,9 @@ conversion error does not roll back the function's completed database changes.
 function address with `PgDatum` arguments and an explicit collation. SQL NULL
 remains separate from a zero datum. PostgreSQL errors still become `PgException`.
 
+Both APIs require an explicit `unsafe` context. ANKUS129 checks authored and
+generated callers; use the smallest block that contains the raw operation.
+
 These APIs require a valid address and exact argument/result representations.
 They supply null `flinfo`, `context`, and `resultinfo` fields to the native
 function. Use name or OID calls when the function needs catalog metadata.

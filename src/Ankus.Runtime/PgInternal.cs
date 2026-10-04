@@ -137,8 +137,14 @@ public sealed class PgInternal
     /// <remarks>
     /// The caller guarantees pointer validity and its representation. No earlier native free is detected.
     /// </remarks>
+    [NativeUnsafeAccess]
     public static PgInternal DangerousCreate(nuint bits, PgMemoryContext context)
-        => new(PgDatum.DangerousCreate(bits, 2281, context));
+    {
+        unsafe
+        {
+            return new(PgDatum.DangerousCreate(bits, 2281, context));
+        }
+    }
 
     /// <summary>
     /// Returns the native word after checking its owner and backend thread.
@@ -167,6 +173,7 @@ public sealed class PgInternal
     /// The caller guarantees at least sizeof(T) initialized, accessible bytes with the correct layout.
     /// This method rejects managed state, whose opaque identity is not a native value representation.
     /// </remarks>
+    [NativeUnsafeAccess]
     public PgNativeReference<T>? DangerousBorrow<T>() where T : unmanaged
     {
         nuint address = DangerousGetBits();

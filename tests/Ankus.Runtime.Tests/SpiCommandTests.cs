@@ -32,7 +32,7 @@ public sealed class SpiCommandTests
     {
         const string value = "雪'); DROP TABLE important; -- $2";
         SpiCommand command = Spi.Sql($"SELECT {value}, {42}, {true}, {4L}");
-        Assert.AreEqual("SELECT $1, $2, $3, $4", command.CommandText);
+        Assert.AreEqual("SELECT ($1), ($2), ($3), ($4)", command.CommandText);
         Assert.HasCount(4, command.Parameters);
         Assert.AreEqual(25U, command.Parameters[0].TypeOid);
         Assert.AreEqual(value, Assert.IsInstanceOfType<string>(command.Parameters[0].Value));
@@ -53,7 +53,7 @@ public sealed class SpiCommandTests
         int? number = null;
         string? text = null;
         SpiCommand command = Spi.Sql($"SELECT {number}, {text}, {null}, {(int?)7}");
-        Assert.AreEqual("SELECT $1, $2, $3, $4", command.CommandText);
+        Assert.AreEqual("SELECT ($1), ($2), ($3), ($4)", command.CommandText);
         Assert.HasCount(4, command.Parameters);
         Assert.AreEqual(23U, command.Parameters[0].TypeOid);
         Assert.AreEqual(25U, command.Parameters[1].TypeOid);
@@ -84,7 +84,7 @@ public sealed class SpiCommandTests
         int next = 0;
         SpiCommand command = Spi.Sql($"SELECT {++next}, {++next}, {++next}");
         Assert.AreEqual(3, next);
-        Assert.AreEqual("SELECT $1, $2, $3", command.CommandText);
+        Assert.AreEqual("SELECT ($1), ($2), ($3)", command.CommandText);
         Assert.HasCount(3, command.Parameters);
         for (int index = 0; index < command.Parameters.Length; index++)
         {
@@ -103,7 +103,7 @@ public sealed class SpiCommandTests
         {
             CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("ar-SA");
             SpiCommand command = Spi.Sql($"SELECT {1},{2},{3},{4},{5},{6},{7},{8},{9},{10},{11},{12}");
-            Assert.AreEqual("SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12", command.CommandText);
+            Assert.AreEqual("SELECT ($1),($2),($3),($4),($5),($6),($7),($8),($9),($10),($11),($12)", command.CommandText);
             Assert.HasCount(12, command.Parameters);
             for (int index = 0; index < command.Parameters.Length; index++)
             {
@@ -131,11 +131,11 @@ public sealed class SpiCommandTests
         handler.AppendLiteral(", ");
         handler.AppendFormatted(9);
         SpiCommand second = Spi.Sql(handler);
-        Assert.AreEqual("SELECT $1", first.CommandText);
+        Assert.AreEqual("SELECT ($1)", first.CommandText);
         Assert.HasCount(1, first.Parameters);
         Assert.AreEqual(1007U, first.Parameters[0].TypeOid);
         Assert.AreSame(values, first.Parameters[0].Value);
-        Assert.AreEqual("SELECT $1, $2", second.CommandText);
+        Assert.AreEqual("SELECT ($1), ($2)", second.CommandText);
         Assert.HasCount(2, second.Parameters);
         Assert.AreSame(values, second.Parameters[0].Value);
         Assert.AreEqual(9, Assert.IsInstanceOfType<int>(second.Parameters[1].Value));

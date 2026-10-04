@@ -190,7 +190,13 @@ public static partial class BorrowedArrayFunctions
                 SELECT tests.function_address(oid) FROM pg_proc
                 WHERE pronamespace='pg_catalog'::regnamespace AND proname='array_cat' AND pronargs=2
                 """));
-            using PgArrayView<T>? direct = PgFunctions.DangerousCall<PgArrayView<T>?>(address, 0, [raw[0][0], raw[0][0]]);
+            PgArrayView<T>? result;
+            unsafe
+            {
+                result = PgFunctions.DangerousCall<PgArrayView<T>?>(address, 0, [raw[0][0], raw[0][0]]);
+            }
+
+            using PgArrayView<T>? direct = result;
             return FormatTypedResult(direct, format);
         }
 

@@ -182,7 +182,12 @@ public static class MappedArrayFunctions
         using SpiRawResult raw = Spi.QueryRaw(sql);
         PgDatum original = raw[0][0].CopyTo(owner);
         uint expected = Spi.ExecuteScalar<uint>("SELECT typarray FROM pg_type WHERE oid='datum_mappings.positive'::regtype");
-        PgDatum forged = PgDatum.DangerousCreate(original.DangerousGetBits(), expected, owner);
+        PgDatum forged;
+        unsafe
+        {
+            forged = PgDatum.DangerousCreate(original.DangerousGetBits(), expected, owner);
+        }
+
         try
         {
             forged.Read<PgArray<ResultPositive?>>();

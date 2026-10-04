@@ -80,7 +80,12 @@ public sealed class ExplicitIntConverter : IPgDatumReader<ExplicitBox<int>>, IPg
 
     /// <inheritdoc />
     public PgDatum Write(ExplicitBox<int> value, uint typeOid, PgMemoryContext destination)
-        => PgDatum.DangerousCreate(unchecked((nuint)(nint)(value.Number ^ 0x40000000)), typeOid, destination);
+    {
+        unsafe
+        {
+            return PgDatum.DangerousCreate(unchecked((nuint)(nint)(value.Number ^ 0x40000000)), typeOid, destination);
+        }
+    }
 }
 
 /// <summary>
@@ -109,7 +114,12 @@ public sealed class ExplicitLongConverter : IPgDatumReader<ExplicitBox<long>>, I
 
     /// <inheritdoc />
     public PgDatum Write(ExplicitBox<long> value, uint typeOid, PgMemoryContext destination)
-        => PgDatum.DangerousCreate(unchecked((nuint)~value.Number), typeOid, destination);
+    {
+        unsafe
+        {
+            return PgDatum.DangerousCreate(unchecked((nuint)~value.Number), typeOid, destination);
+        }
+    }
 }
 
 /// <summary>

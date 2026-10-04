@@ -101,6 +101,7 @@ public sealed class PgDatum
     /// The caller must prove the representation matches the type and that referenced storage remains valid
     /// until the anchor resets or is deleted. The handle cannot detect an earlier free of that storage.
     /// </remarks>
+    [NativeUnsafeAccess]
     public static PgDatum DangerousCreate(nuint bits, uint typeOid, PgMemoryContext context, bool isNull = false)
     {
         ArgumentOutOfRangeException.ThrowIfZero(typeOid);

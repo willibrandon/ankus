@@ -94,7 +94,10 @@ public sealed class ArrayValueConverter : IPgDatumReader<ArrayValue>, IPgDatumWr
         if (value.Value == -444)
         {
             using PgMemoryContext expired = PgMemoryContext.Create("mapped array expired writer");
-            return PgDatum.DangerousCreate(0, typeOid, expired, isNull: true);
+            unsafe
+            {
+                return PgDatum.DangerousCreate(0, typeOid, expired, isNull: true);
+            }
         }
 
         if (value.Value == -333)
@@ -102,8 +105,11 @@ public sealed class ArrayValueConverter : IPgDatumReader<ArrayValue>, IPgDatumWr
             destination.Reset();
         }
 
-        return PgDatum.DangerousCreate(unchecked((nuint)value.Value), value.Value == -555 ? 20U : typeOid,
-            destination, isNull: value.Value is -666 or -555);
+        unsafe
+        {
+            return PgDatum.DangerousCreate(unchecked((nuint)value.Value), value.Value == -555 ? 20U : typeOid,
+                destination, isNull: value.Value is -666 or -555);
+        }
     }
 }
 
@@ -192,7 +198,12 @@ public sealed class ArrayByteConverter : IPgDatumReader<ArrayByte>, IPgDatumWrit
 
     /// <inheritdoc />
     public PgDatum Write(ArrayByte value, uint typeOid, PgMemoryContext destination)
-        => PgDatum.DangerousCreate((byte)value, typeOid, destination);
+    {
+        unsafe
+        {
+            return PgDatum.DangerousCreate((byte)value, typeOid, destination);
+        }
+    }
 }
 
 /// <summary>
@@ -223,7 +234,10 @@ public sealed class ArrayLiveConverter : IPgDatumReader<ArrayLive>, IPgDatumWrit
     public PgDatum Write(ArrayLive value, uint typeOid, PgMemoryContext destination)
     {
         Writes++;
-        return PgDatum.DangerousCreate(unchecked((nuint)value.Value), typeOid, destination);
+        unsafe
+        {
+            return PgDatum.DangerousCreate(unchecked((nuint)value.Value), typeOid, destination);
+        }
     }
 }
 

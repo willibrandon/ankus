@@ -15,6 +15,11 @@ public sealed partial class PostgresDevelopmentCluster
     private readonly string _root;
 
     /// <summary>
+    /// Collects this server's diagnostics when this instance starts or attaches to its retained identity.
+    /// </summary>
+    private PostgresServerLog? _log;
+
+    /// <summary>
     /// Describes a development cluster without creating directories or starting processes.
     /// </summary>
     /// <param name="installation">The PostgreSQL installation that runs the cluster.</param>
@@ -37,7 +42,8 @@ public sealed partial class PostgresDevelopmentCluster
     public string DataDirectory { get; }
 
     /// <summary>
-    /// Gets the server log path outside the data directory.
+    /// Gets the retained server log path outside the data directory.
+    /// On Windows, ReadServerLog refreshes the snapshot with stderr and this server's Application events.
     /// </summary>
     public string LogFilePath { get; }
 
@@ -119,9 +125,10 @@ public sealed partial class PostgresDevelopmentCluster
         }
 
         cancellationToken.ThrowIfCancellationRequested();
+        _log = PrepareLog();
         try
         {
-            string[] arguments = ["start", "-l", LogFilePath, "-w", "-t",
+            string[] arguments = ["start", "-l", _log.NativeFilePath, "-w", "-t",
                 (useValgrind ? timeout + 60 : timeout).ToString(CultureInfo.InvariantCulture)];
             Dictionary<string, string?>? environment = null;
             if (useValgrind)
@@ -144,6 +151,10 @@ public sealed partial class PostgresDevelopmentCluster
             else
             {
                 arguments = [.. arguments, "-D", DataDirectory];
+                if (OperatingSystem.IsWindows())
+                {
+                    arguments = [.. arguments, "-o", "-c event_source=" + _log.EventSource];
+                }
             }
 
             if (useValgrind)
@@ -168,10 +179,12 @@ public sealed partial class PostgresDevelopmentCluster
             }
 
             cancellationToken.ThrowIfCancellationRequested();
+            _ = ReadServerLog(cancellationToken);
             return true;
         }
         catch (Exception startupError)
         {
+            Exception? cleanupFailure = null;
             try
             {
                 if (await QueryRunningAsync(CancellationToken.None).ConfigureAwait(false))
@@ -193,8 +206,34 @@ public sealed partial class PostgresDevelopmentCluster
             }
             catch (Exception cleanupError)
             {
-                throw new AggregateException($"PostgreSQL startup and cleanup failed. Server log: {LogFilePath}",
-                    startupError, cleanupError);
+                cleanupFailure = cleanupError;
+            }
+
+            string diagnostics = string.Empty;
+            Exception? diagnosticFailure = null;
+            try
+            {
+                diagnostics = ReadServerLog(CancellationToken.None);
+            }
+            catch (Exception logError)
+            {
+                diagnosticFailure = logError;
+            }
+
+            if (cleanupFailure is not null || diagnosticFailure is not null)
+            {
+                var failures = new List<Exception> { startupError };
+                if (cleanupFailure is not null)
+                {
+                    failures.Add(cleanupFailure);
+                }
+
+                if (diagnosticFailure is not null)
+                {
+                    failures.Add(diagnosticFailure);
+                }
+
+                throw new AggregateException($"PostgreSQL startup, cleanup or diagnostic collection failed. Server log: {LogFilePath}\n{diagnostics}", failures);
             }
 
             if (startupError is OperationCanceledException)
@@ -202,7 +241,7 @@ public sealed partial class PostgresDevelopmentCluster
                 throw;
             }
 
-            throw new InvalidOperationException($"PostgreSQL startup failed. Server log: {LogFilePath}\n{startupError.Message}", startupError);
+            throw new InvalidOperationException($"PostgreSQL startup failed. Server log: {LogFilePath}\n{startupError.Message}\n{diagnostics}", startupError);
         }
     }
 
@@ -227,7 +266,76 @@ public sealed partial class PostgresDevelopmentCluster
         }
 
         await StopRunningAsync(cancellationToken).ConfigureAwait(false);
+        _ = ReadServerLog(CancellationToken.None);
         return true;
+    }
+
+    /// <summary>
+    /// Refreshes and reads this cluster's retained diagnostics without starting or stopping a server.
+    /// </summary>
+    /// <param name="cancellationToken">Cancels diagnostic collection.</param>
+    /// <returns>Native stderr and this server's retained Windows event messages, or an empty missing log.</returns>
+    public string ReadServerLog(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (_log is null && OperatingSystem.IsWindows() && Path.Exists(DataDirectory))
+        {
+            RequireOwnedCluster();
+            string identityPath = Path.Combine(DataDirectory, ".ankus-log-identity");
+            if (File.Exists(identityPath))
+            {
+                _log = new(LogFilePath, ReadLogIdentity(identityPath));
+            }
+        }
+
+        return _log?.Read(cancellationToken) ?? PostgresServerLog.ReadFile(LogFilePath);
+    }
+
+    /// <summary>
+    /// Reuses a cluster-owned provider identity across CLI invocations and server restarts.
+    /// </summary>
+    /// <returns>The native and retained diagnostic collector.</returns>
+    private PostgresServerLog PrepareLog()
+    {
+        Guid identity = Guid.NewGuid();
+        if (OperatingSystem.IsWindows())
+        {
+            string path = Path.Combine(DataDirectory, ".ankus-log-identity");
+            if (File.Exists(path))
+            {
+                identity = ReadLogIdentity(path);
+            }
+            else
+            {
+                string staging = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+                try
+                {
+                    File.WriteAllText(staging, identity.ToString("N"));
+                    File.Move(staging, path);
+                }
+                finally
+                {
+                    File.Delete(staging);
+                }
+            }
+        }
+
+        return new(LogFilePath, identity);
+    }
+
+    /// <summary>
+    /// Rejects a damaged owned identity instead of attaching to another server's event provider.
+    /// </summary>
+    /// <param name="path">The owned identity marker.</param>
+    /// <returns>The validated server identity.</returns>
+    private static Guid ReadLogIdentity(string path)
+    {
+        if (!Guid.TryParseExact(File.ReadAllText(path), "N", out Guid identity) || identity == Guid.Empty)
+        {
+            throw new InvalidDataException("The development cluster's diagnostic identity is invalid.");
+        }
+
+        return identity;
     }
 
     /// <summary>
@@ -255,7 +363,7 @@ public sealed partial class PostgresDevelopmentCluster
 
             if (name.ToLowerInvariant() is "data_directory" or "config_file" or "hba_file" or "ident_file" or
                 "external_pid_file" or "port" or "listen_addresses" or "unix_socket_directories" or
-                "log_destination" or "logging_collector" or "include" or "include_dir" or "include_if_exists")
+                "log_destination" or "logging_collector" or "event_source" or "include" or "include_dir" or "include_if_exists")
             {
                 throw new ArgumentException($"Ankus manages the PostgreSQL setting '{name}'. Use the port option to select a TCP port.", nameof(options));
             }

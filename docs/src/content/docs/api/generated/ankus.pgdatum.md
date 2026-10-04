@@ -52,6 +52,7 @@ The copied datum with its exact type and NULL state.
 Borrows a caller-supplied native Datum word using an explicit context lifetime anchor.
 
 ```csharp
+[NativeUnsafeAccess]
 public static PgDatum DangerousCreate(nuint bits, uint typeOid, PgMemoryContext context, bool isNull = false)
 ```
 

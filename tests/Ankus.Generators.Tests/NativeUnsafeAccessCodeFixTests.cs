@@ -41,7 +41,8 @@ public sealed partial class PgFunctionGeneratorTests
         using CompositionHost container = new ContainerConfiguration().WithAssembly(typeof(NativeUnsafeAccessCodeFixProvider).Assembly).CreateContainer();
         NativeUnsafeAccessCodeFixProvider provider = Assert.ContainsSingle(container.GetExports<CodeFixProvider>().OfType<NativeUnsafeAccessCodeFixProvider>());
         Assert.AreSequenceEqual(["ANKUS129"], provider.FixableDiagnosticIds);
-        Assert.AreSame(WellKnownFixAllProviders.BatchFixer, provider.GetFixAllProvider());
+        Assert.AreNotSame(WellKnownFixAllProviders.BatchFixer, provider.GetFixAllProvider());
+        Assert.AreSame(provider.GetFixAllProvider(), provider.GetFixAllProvider());
     }
 
     /// <summary>
@@ -84,9 +85,8 @@ public sealed partial class PgFunctionGeneratorTests
             correctedRoot.DescendantNodes().OfType<ClassDeclarationSyntax>().First().ToFullString());
         Assert.AreSequenceEqual(originalRoot.DescendantNodes().OfType<InvocationExpressionSyntax>().Select(static value => value.ToString()),
             correctedRoot.DescendantNodes().OfType<InvocationExpressionSyntax>().Select(static value => value.ToString()));
-        Assert.AreSequenceEqual(originalRoot.DescendantNodes().OfType<AssignmentExpressionSyntax>().Select(static value => value.ToString()),
-            correctedRoot.DescendantNodes().OfType<AssignmentExpressionSyntax>().Select(static value => value.ToString()));
-        Assert.ContainsSingle(correctedRoot.DescendantNodes().OfType<UnsafeStatementSyntax>());
+        UnsafeStatementSyntax region = Assert.ContainsSingle(correctedRoot.DescendantNodes().OfType<UnsafeStatementSyntax>());
+        Assert.ContainsSingle(region.Block.Statements);
     }
 
     /// <summary>
@@ -125,7 +125,6 @@ public sealed partial class PgFunctionGeneratorTests
     [DataRow("public static string Name => nameof(Raw.Read);", "Raw.Read")]
     [DataRow("public static int Run() { unsafe { return Raw.Read(); } }", "Raw.Read()")]
     [DataRow("public static int Value = Raw.Read();", "Raw.Read()")]
-    [DataRow("public static async System.Threading.Tasks.Task<int> Run() { await System.Threading.Tasks.Task.Yield(); return Raw.Read(); }", "Raw.Read()")]
     [DataRow("public static System.Collections.Generic.IEnumerable<int> Run() { yield return Raw.Read(); }", "Raw.Read()")]
     [DataRow("public static System.Linq.Expressions.Expression<System.Func<int>> Run() => () => Raw.Read();", "Raw.Read()")]
     [DataRow("public static int Run() => Foreign.Read();", "Foreign.Read()")]
@@ -240,9 +239,59 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.IsEmpty(remaining);
         Assert.AreEqual(43, ExecuteNativeConsumer(after));
         Assert.AreEqual(OtherSource, (await change.ChangedSolution.GetDocument(untouched.Id)!.GetTextAsync(context.CancellationToken)).ToString());
-        Assert.HasCount(2, (await corrected.GetSyntaxRootAsync(context.CancellationToken))!.DescendantNodes().OfType<UnsafeStatementSyntax>());
+        Assert.HasCount(3, (await corrected.GetSyntaxRootAsync(context.CancellationToken))!.DescendantNodes().OfType<UnsafeStatementSyntax>());
         Assert.ContainsSingle((await change.ChangedSolution.GetDocument(second.Id)!.GetSyntaxRootAsync(context.CancellationToken))!
             .DescendantNodes().OfType<UnsafeStatementSyntax>());
+    }
+
+    /// <summary>
+    /// Async callables acknowledge only the native statement while retaining awaits and locals in their ordinary scope.
+    /// </summary>
+    /// <param name="body">The compiler-valid asynchronous consumer body.</param>
+    [TestMethod]
+    [DataRow("await System.Threading.Tasks.Task.Yield(); return Raw.Read() + 1;")]
+    [DataRow("int value = Raw.Read(); await System.Threading.Tasks.Task.Yield(); return value + 1;")]
+    [DataRow("var read = Raw.Read; await System.Threading.Tasks.Task.Yield(); return read() + 1;")]
+    public async Task NativeUnsafeFixKeepsAwaitOutsideNativeStatement(string body)
+    {
+        using var workspace = new AdhocWorkspace();
+        Document document = CreateCodeFixDocument(workspace, NativeFixDeclarations +
+            "public sealed class Consumer { public static async System.Threading.Tasks.Task<int> Run() { " + body + " } }");
+        (Compilation before, ImmutableArray<Diagnostic> diagnostics) = await AnalyzeNativeCodeFixDocumentAsync(document);
+        Document corrected = await ApplyNativeCodeFixAsync(document, Assert.ContainsSingle(diagnostics));
+        (Compilation after, ImmutableArray<Diagnostic> remaining) = await AnalyzeNativeCodeFixDocumentAsync(corrected);
+        Assert.IsEmpty(remaining);
+        Assert.AreEqual(43, await ExecuteAsyncNativeConsumer(before));
+        Assert.AreEqual(43, await ExecuteAsyncNativeConsumer(after));
+        SyntaxNode root = (await corrected.GetSyntaxRootAsync(context.CancellationToken))!;
+        UnsafeStatementSyntax region = Assert.ContainsSingle(root.DescendantNodes().OfType<UnsafeStatementSyntax>());
+        Assert.ContainsSingle(region.Block.Statements);
+        Assert.IsEmpty(region.DescendantNodes().OfType<AwaitExpressionSyntax>());
+        Assert.ContainsSingle(root.DescendantNodes().OfType<AwaitExpressionSyntax>());
+    }
+
+    /// <summary>
+    /// Executes an emitted asynchronous consumer until its original result is available.
+    /// </summary>
+    /// <param name="compilation">The compiler-valid original or corrected consumer.</param>
+    /// <returns>The independently observed result after the continuation completes.</returns>
+    private static async Task<int> ExecuteAsyncNativeConsumer(Compilation compilation)
+    {
+        using var image = new MemoryStream();
+        Microsoft.CodeAnalysis.Emit.EmitResult emission = compilation.Emit(image);
+        Assert.IsTrue(emission.Success, string.Join(Environment.NewLine, emission.Diagnostics));
+        image.Position = 0;
+        var loadContext = new AssemblyLoadContext("AsyncNativeUnsafeCodeFixWitness", isCollectible: true);
+        try
+        {
+            System.Reflection.Assembly assembly = loadContext.LoadFromStream(image);
+            Func<Task<int>> execute = assembly.GetType("Consumer")!.GetMethod("Run")!.CreateDelegate<Func<Task<int>>>();
+            return await execute();
+        }
+        finally
+        {
+            loadContext.Unload();
+        }
     }
 
     /// <summary>

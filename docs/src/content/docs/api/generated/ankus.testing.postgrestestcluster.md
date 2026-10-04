@@ -94,6 +94,8 @@ Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
 
 Stops PostgreSQL in fast mode and removes owned data and socket directories, retaining logs.
 Shutdown uses its own timeout. If shutdown fails, directories remain available for recovery.
+A later disposal retries a faulted or canceled shutdown after the native server recovers.
+After successful shutdown, a diagnostic read failure is reported after owned directories are removed.
 
 ```csharp
 public ValueTask DisposeAsync()

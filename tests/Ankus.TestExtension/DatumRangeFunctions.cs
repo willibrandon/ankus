@@ -91,7 +91,10 @@ public sealed class RangeNumberConverter<T> : IPgDatumReader<RangeNumber<T>>, IP
             throw new PgException("P8612", "mapped range writer failed", detail: "bound 9012", hint: "choose another bound");
         }
 
-        return PgDatum.DangerousCreate(unchecked((nuint)checked(value.Number - 1000)), typeOid, destination, isNull: value.Number == 9013);
+        unsafe
+        {
+            return PgDatum.DangerousCreate(unchecked((nuint)checked(value.Number - 1000)), typeOid, destination, isNull: value.Number == 9013);
+        }
     }
 }
 

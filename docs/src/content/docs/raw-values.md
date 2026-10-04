@@ -513,7 +513,10 @@ public static class U24
             throw new PgException("22003", "Value must be between 0 and 16777215.");
         }
 
-        return PgDatum.DangerousCreate(value, call.ResultTypeOid, PgMemoryContext.Current);
+        unsafe
+        {
+            return PgDatum.DangerousCreate(value, call.ResultTypeOid, PgMemoryContext.Current);
+        }
     }
 
     [PgFunction(Name = "u24_out", Id = "u24-out", Requires = ["u24-shell"])]
@@ -533,7 +536,8 @@ requirements preserve shell → input/output → completion ordering for the two
 functions needed to define the type. Additional consumers do not need to repeat
 `Requires = ["u24-type"]`.
 
-`DangerousCreate` requires a representation that matches the SQL type. For a
+`DangerousCreate` requires an explicit `unsafe` context and a representation
+that matches the SQL type. For a
 pointer-based value, its native storage must remain valid for the chosen owner.
 Creating a handle does not copy that storage or take ownership of it.
 
@@ -561,7 +565,10 @@ public sealed class Unsigned24Converter :
             throw new PgException("22003", "Value exceeds 24 bits.");
         }
 
-        return PgDatum.DangerousCreate(value.Value, typeOid, destination);
+        unsafe
+        {
+            return PgDatum.DangerousCreate(value.Value, typeOid, destination);
+        }
     }
 }
 

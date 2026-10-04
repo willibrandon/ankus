@@ -106,6 +106,17 @@ public sealed partial class PgFunctionGeneratorTests
     {
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source);
         Assert.IsEmpty(diagnostics);
+        return ReadBackendCatalog(compilation, typeName);
+    }
+
+    /// <summary>
+    /// Executes a generated discovery catalog without invoking any native backend callback.
+    /// </summary>
+    /// <param name="compilation">The actual generated managed compilation.</param>
+    /// <param name="typeName">The fully qualified discovery owner.</param>
+    /// <returns>The immutable discovered cases.</returns>
+    private PgTestCase[] ReadBackendCatalog(Compilation compilation, string typeName)
+    {
         using var stream = new MemoryStream();
         Microsoft.CodeAnalysis.Emit.EmitResult emitted = compilation.Emit(stream, cancellationToken: context.CancellationToken);
         Assert.IsTrue(emitted.Success, string.Join(Environment.NewLine, emitted.Diagnostics));
@@ -125,6 +136,57 @@ public sealed partial class PgFunctionGeneratorTests
         {
             load.Unload();
         }
+    }
+
+    /// <summary>
+    /// Invalid test items retain their own diagnostic without dropping valid catalogs, ordinary exports or native artifacts.
+    /// </summary>
+    /// <param name="enabled">Whether valid backend tests are included in the native publication.</param>
+    /// <param name="invalid">The invalid declaration placed before its valid sibling.</param>
+    [TestMethod]
+    [DataRow("true", "[Ankus.PgTest] public static int AInvalid() => 1;")]
+    [DataRow("false", "[Ankus.PgTest] public static int AInvalid() => 1;")]
+    [DataRow("true", "[Ankus.PgTest] public static void AInvalid(int value) { }")]
+    [DataRow("false", "[Ankus.PgTest] public static void AInvalid(int value) { }")]
+    [DataRow("true", "[Ankus.PgTest, Ankus.PgFunction] public static void AInvalid() { }")]
+    [DataRow("false", "[Ankus.PgTest, Ankus.PgFunction] public static void AInvalid() { }")]
+    public void InvalidBackendTestDoesNotDropValidDeclarations(string enabled, string invalid)
+    {
+        string source = """
+            namespace Extension;
+            public static partial class Checks
+            {
+                INVALID
+                [Ankus.PgTest]
+                public static void ZValid() { }
+                [Ankus.PgFunction]
+                public static int Ordinary() => 42;
+            }
+            public static partial class Other
+            {
+                [Ankus.PgTest]
+                public static void Independent() { }
+            }
+            """.Replace("INVALID", invalid, StringComparison.Ordinal);
+        (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source, options: new BackendOptions(enabled));
+        Diagnostic error = Assert.ContainsSingle(diagnostics);
+        Assert.AreEqual("ANKUS023", error.Id);
+        Assert.IsTrue(error.Location.IsInSource);
+        Assert.Contains("AInvalid", error.Location.SourceTree!.GetText(context.CancellationToken).ToString(error.Location.SourceSpan));
+        Assert.IsEmpty(compilation.GetDiagnostics(context.CancellationToken)
+            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error));
+        PgTestCase sibling = Assert.ContainsSingle(ReadBackendCatalog(compilation, "Extension.Checks+PostgresTests"));
+        PgTestCase independent = Assert.ContainsSingle(ReadBackendCatalog(compilation, "Extension.Other+PostgresTests"));
+        Assert.EndsWith(".ZValid()", sibling.Name);
+        Assert.EndsWith(".Independent()", independent.Name);
+        IMethodSymbol[] callbacks = [.. compilation.GetTypeByMetadataName("Ankus.Generated.ExtensionDispatchers")!.GetMembers().OfType<IMethodSymbol>()];
+        Assert.HasCount(enabled == "true" ? 3 : 1, callbacks);
+        string sql = InstallationBody(compilation);
+        Assert.Contains("CREATE FUNCTION \"ordinary\"()", sql);
+        Assert.AreEqual(enabled == "true", sql.Contains(sibling.FunctionName, StringComparison.Ordinal));
+        Assert.AreEqual(enabled == "true", sql.Contains(independent.FunctionName, StringComparison.Ordinal));
+        Assert.DoesNotContain("a_invalid", sql);
+        Assert.IsNotEmpty(ManifestValue(compilation, "Ankus.NativeSource"));
     }
 
     /// <summary>

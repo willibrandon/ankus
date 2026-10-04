@@ -47,7 +47,10 @@ public sealed class TemplateNumberConverter<T> : IPgDatumReader<TemplateNumber<T
             throw new PgException("P8605", "inferred converter writer failed", detail: "number 9012", hint: "use another number");
         }
 
-        return PgDatum.DangerousCreate(unchecked((nuint)long.CreateChecked(~value.Number)), typeOid, destination);
+        unsafe
+        {
+            return PgDatum.DangerousCreate(unchecked((nuint)long.CreateChecked(~value.Number)), typeOid, destination);
+        }
     }
 }
 

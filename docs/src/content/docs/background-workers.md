@@ -173,11 +173,12 @@ Catch it around `RunTransaction` to continue the worker after rollback and start
 another transaction. FATAL and PANIC reports still terminate the worker, even
 when managed code catches the exception.
 
-Cancellation during `Wait` outside a transaction also raises
-`PgQueryCanceledException`. Catch it around that wait to continue: no transaction
-is active and the completed native wait has no transaction resources to roll
-back. A subsequent wait, log call or `RunTransaction` remains usable. Calling
-`Wait` inside a transaction keeps the transaction cancellation rules above.
+Cancellation during `Wait` or `PgInterrupts.Check()` outside a transaction also
+raises `PgQueryCanceledException`. Catch it around that operation to continue:
+no transaction is active and the completed interrupt check has no transaction
+resources to roll back. A subsequent interrupt check, wait, log call or
+`RunTransaction` remains usable. Inside a transaction, both operations keep the
+transaction cancellation rules above. FATAL and PANIC still terminate the worker.
 
 Worker transactions cannot nest. Do not retain transaction-owned native views
 or return asynchronous work from a transaction callback. Keep PostgreSQL calls

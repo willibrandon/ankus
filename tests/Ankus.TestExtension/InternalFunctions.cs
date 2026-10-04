@@ -35,7 +35,12 @@ public static class InternalFunctions
             return -1;
         }
 
-        PgNativeReference<long>? pointer = state.DangerousBorrow<long>();
+        PgNativeReference<long>? pointer;
+        unsafe
+        {
+            pointer = state.DangerousBorrow<long>();
+        }
+
         if (pointer is null)
         {
             return 0;

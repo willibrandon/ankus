@@ -109,7 +109,13 @@ public static partial class BorrowedBufferFunctions
         using PgTextView rawText = raw[0][0].Read<PgTextView>();
         using PgByteaView rawBytes = raw[0][1].Read<PgByteaView>();
         nint address = unchecked((nint)Spi.ExecuteScalar<long>("SELECT tests.function_address('pg_catalog.textcat(text,text)'::regprocedure)"));
-        using PgTextView direct = PgFunctions.DangerousCall<PgTextView>(address, 0, [text.Datum, echoed.Datum]);
+        PgTextView result;
+        unsafe
+        {
+            result = PgFunctions.DangerousCall<PgTextView>(address, 0, [text.Datum, echoed.Datum]);
+        }
+
+        using PgTextView direct = result;
         return [echoed.ToString(), Convert.ToHexString(appended.DangerousGetSpan()), rawText.ToString(),
             Convert.ToHexString(rawBytes.DangerousGetSpan()), direct.ToString(),
             (raw[0][2].Read<PgTextView?>() is null).ToString(),

@@ -15,6 +15,7 @@ public readonly ref struct SpiSqlInterpolatedStringHandler(int literalLength, in
 {
     private readonly StringBuilder? _command = new(literalLength);
     private readonly List<SpiParameter>? _parameters = new(formattedCount);
+    private readonly List<int>? _positions = new(formattedCount);
 
     /// <summary>
     /// Gets the initialized SQL builder, rejecting a default handler before any backend operation.
@@ -25,6 +26,11 @@ public readonly ref struct SpiSqlInterpolatedStringHandler(int literalLength, in
     /// Gets the initialized declared bindings.
     /// </summary>
     private List<SpiParameter> Parameters => _parameters ?? throw new InvalidOperationException("The SQL interpolation handler is not initialized.");
+
+    /// <summary>
+    /// Gets the dollar-token positions owned by this interpolation builder.
+    /// </summary>
+    private List<int> Positions => _positions ?? throw new InvalidOperationException("The SQL interpolation handler is not initialized.");
 
     /// <summary>
     /// Appends literal SQL without changing its quoting or statement structure.
@@ -62,12 +68,18 @@ public readonly ref struct SpiSqlInterpolatedStringHandler(int literalLength, in
         }
 
         Parameters.Add(value);
-        Command.Append('$').Append(Parameters.Count.ToString(CultureInfo.InvariantCulture));
+        Positions.Add(Command.Length + 1);
+        Command.Append("($").Append(Parameters.Count.ToString(CultureInfo.InvariantCulture)).Append(')');
     }
 
     /// <summary>
     /// Copies SQL and its binding vector so later handler changes cannot alter the command.
     /// </summary>
     /// <returns>The independent command with existing parameter-value lifetime requirements.</returns>
-    internal SpiCommand Build() => new(Command.ToString(), [.. Parameters]);
+    internal SpiCommand Build()
+    {
+        string command = Command.ToString();
+        SpiSqlInterpolation.Validate(command, Positions);
+        return new(command, [.. Parameters]);
+    }
 }

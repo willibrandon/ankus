@@ -1,0 +1,216 @@
+using Ankus.PgConfig;
+using Ankus.Testing;
+using Npgsql;
+
+namespace Ankus.IntegrationTests;
+
+/// <summary>
+/// Exercises persistent native diagnostics without publishing an extension or installing packages.
+/// </summary>
+/// <param name="context">The current test context.</param>
+[TestClass]
+public sealed class PostgresDevelopmentDiagnosticsTests(TestContext context)
+{
+    /// <summary>
+    /// Separate development-cluster instances retain the same isolated event diagnostics across reads, shutdown and restart.
+    /// </summary>
+    [TestMethod]
+    [OSCondition(OperatingSystems.Windows)]
+    public async Task DevelopmentDiagnosticsPersistAcrossCollectorsAndRestarts()
+    {
+        CancellationToken token = context.CancellationToken;
+        PostgresInstallation installation = await IntegrationEnvironment.GetInstallationAsync(token);
+        string home = Directory.CreateTempSubdirectory("ankus-cluster-diagnostics-").FullName;
+        var first = new PostgresDevelopmentCluster(installation, home);
+        var next = new PostgresDevelopmentCluster(installation, home);
+        using PortReservation reservation = PortReservation.Create();
+        var options = new PostgresDevelopmentOptions { Port = reservation.Port };
+        reservation.Dispose();
+        try
+        {
+            Assert.IsTrue(await first.StartAsync(options, token));
+            string message = "retained café 🐘 " + Guid.NewGuid().ToString("N");
+            await using (NpgsqlConnection connection = await OpenDevelopmentConnectionAsync(options.Port!.Value, token))
+            {
+                await using var setup = new NpgsqlCommand("CREATE TABLE retained_diagnostics(value integer); INSERT INTO retained_diagnostics VALUES (42)", connection);
+                await setup.ExecuteNonQueryAsync(token);
+                await using var destination = new NpgsqlCommand("ALTER SYSTEM SET log_destination = 'eventlog'", connection);
+                await destination.ExecuteNonQueryAsync(token);
+                await using var reload = new NpgsqlCommand("SELECT pg_reload_conf()", connection);
+                Assert.IsTrue(Assert.IsInstanceOfType<bool>(await reload.ExecuteScalarAsync(token)));
+                await WaitForEventDestinationAsync(connection, token);
+                await using var warning = new NpgsqlCommand(
+                    $"DO $test$ BEGIN RAISE WARNING '{message}' USING DETAIL = 'native detail café', HINT = 'native hint 🐘'; END $test$;", connection);
+                await warning.ExecuteNonQueryAsync(token);
+            }
+
+            string initial = next.ReadServerLog(token);
+            Assert.Contains("WARNING:  " + message, initial);
+            Assert.Contains("DETAIL:  native detail café", initial);
+            Assert.Contains("HINT:  native hint 🐘", initial);
+            string[] concurrent = await Task.WhenAll(Enumerable.Range(0, 4).Select(index =>
+                Task.Run(() => (index % 2 == 0 ? first : next).ReadServerLog(token), token)));
+            foreach (string text in concurrent)
+            {
+                Assert.AreEqual(1, text.Split(message, StringSplitOptions.None).Length - 1);
+            }
+
+            Assert.IsTrue(await next.StopAsync(token));
+            var stopped = new PostgresDevelopmentCluster(installation, home);
+            string retained = stopped.ReadServerLog(token);
+            Assert.AreEqual(1, retained.Split(message, StringSplitOptions.None).Length - 1);
+            Assert.Contains("database system is shut down", retained);
+            Assert.AreEqual(retained, await File.ReadAllTextAsync(first.LogFilePath, token));
+            Assert.IsTrue(await stopped.StartAsync(options, token));
+            await using NpgsqlConnection restored = await OpenDevelopmentConnectionAsync(options.Port.Value, token);
+            await using var query = new NpgsqlCommand("SELECT value FROM retained_diagnostics", restored);
+            Assert.AreEqual(42, await query.ExecuteScalarAsync(token));
+            Assert.AreEqual(1, stopped.ReadServerLog(token).Split(message, StringSplitOptions.None).Length - 1);
+        }
+        finally
+        {
+            await first.StopAsync(CancellationToken.None);
+            Directory.Delete(home, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// A native startup failure retains its reason and existing database, and a corrected restart recovers.
+    /// </summary>
+    [TestMethod]
+    public async Task DevelopmentDiagnosticsRetainNativeFailureAndRecover()
+    {
+        CancellationToken token = context.CancellationToken;
+        PostgresInstallation installation = await IntegrationEnvironment.GetInstallationAsync(token);
+        string home = Directory.CreateTempSubdirectory("ankus-cluster-diagnostics-").FullName;
+        var cluster = new PostgresDevelopmentCluster(installation, home);
+        using PortReservation reservation = PortReservation.Create();
+        var options = new PostgresDevelopmentOptions { Port = reservation.Port, TimeoutSeconds = 5 };
+        reservation.Dispose();
+        try
+        {
+            Assert.IsTrue(await cluster.StartAsync(options, token));
+            await using (NpgsqlConnection connection = await OpenDevelopmentConnectionAsync(options.Port!.Value, token))
+            {
+                await using var setup = new NpgsqlCommand("CREATE TABLE retained_failure(value integer); INSERT INTO retained_failure VALUES (42)", connection);
+                await setup.ExecuteNonQueryAsync(token);
+            }
+
+            Assert.IsTrue(await cluster.StopAsync(token));
+            string auto = Path.Combine(cluster.DataDirectory, "postgresql.auto.conf");
+            string original = await File.ReadAllTextAsync(auto, token);
+            string missing = "ankus_missing_diagnostic_library_" + Guid.NewGuid().ToString("N");
+            string destination = OperatingSystem.IsWindows() ? "log_destination = 'eventlog'\n" : string.Empty;
+            await File.AppendAllTextAsync(auto, destination + $"shared_preload_libraries = '{missing}'\n", token);
+            var next = new PostgresDevelopmentCluster(installation, home);
+            InvalidOperationException error = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => next.StartAsync(options, token));
+            Assert.Contains("FATAL:", error.Message);
+            Assert.Contains(missing, error.Message);
+            Assert.Contains(missing, next.ReadServerLog(token));
+            Assert.IsFalse(await next.IsRunningAsync(token));
+            Assert.IsTrue(File.Exists(Path.Combine(cluster.DataDirectory, "PG_VERSION")));
+            await File.WriteAllTextAsync(auto, original, token);
+            Assert.IsTrue(await next.StartAsync(options, token));
+            await using NpgsqlConnection recovered = await OpenDevelopmentConnectionAsync(options.Port.Value, token);
+            await using var query = new NpgsqlCommand("SELECT value FROM retained_failure", recovered);
+            Assert.AreEqual(42, await query.ExecuteScalarAsync(token));
+            Assert.Contains(missing, new PostgresDevelopmentCluster(installation, home).ReadServerLog(token));
+        }
+        finally
+        {
+            await cluster.StopAsync(CancellationToken.None);
+            Directory.Delete(home, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// A damaged cluster identity cannot attach to a different provider or overwrite retained diagnostics.
+    /// </summary>
+    /// <param name="identity">The damaged identity marker.</param>
+    [TestMethod]
+    [OSCondition(OperatingSystems.Windows)]
+    [DataRow("")]
+    [DataRow("not-a-guid")]
+    [DataRow("00000000000000000000000000000000")]
+    [DataRow("af312eb0-0a4c-44b4-af76-27c73f44db19")]
+    public async Task DevelopmentDiagnosticsRejectDamagedIdentityWithoutChangingFiles(string identity)
+    {
+        PostgresInstallation installation = await IntegrationEnvironment.GetInstallationAsync(context.CancellationToken);
+        string home = Directory.CreateTempSubdirectory("ankus-cluster-diagnostics-").FullName;
+        try
+        {
+            var cluster = new PostgresDevelopmentCluster(installation, home);
+            Directory.CreateDirectory(cluster.DataDirectory);
+            string ownership = Path.Combine(cluster.DataDirectory, ".ankus-cluster");
+            string version = Path.Combine(cluster.DataDirectory, "PG_VERSION");
+            string major = installation.Version.Major.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            await File.WriteAllTextAsync(ownership, installation.Label, context.CancellationToken);
+            await File.WriteAllTextAsync(version, major, context.CancellationToken);
+            string marker = Path.Combine(cluster.DataDirectory, ".ankus-log-identity");
+            await File.WriteAllTextAsync(marker, identity, context.CancellationToken);
+            const string Retained = "previous retained diagnostics café 🐘\n";
+            await File.WriteAllTextAsync(cluster.LogFilePath, Retained, context.CancellationToken);
+            InvalidDataException error = Assert.ThrowsExactly<InvalidDataException>(() => cluster.ReadServerLog(context.CancellationToken));
+            Assert.Contains("identity is invalid", error.Message);
+            Assert.AreEqual(identity, await File.ReadAllTextAsync(marker, context.CancellationToken));
+            Assert.AreEqual(installation.Label, await File.ReadAllTextAsync(ownership, context.CancellationToken));
+            Assert.AreEqual(major, await File.ReadAllTextAsync(version, context.CancellationToken));
+            Assert.AreEqual(Retained, await File.ReadAllTextAsync(cluster.LogFilePath, context.CancellationToken));
+            Assert.IsTrue(Directory.Exists(cluster.DataDirectory));
+            Assert.IsEmpty(Directory.GetFiles(Path.GetDirectoryName(cluster.LogFilePath)!, "*.json"));
+            Assert.IsEmpty(Directory.GetFiles(Path.GetDirectoryName(cluster.LogFilePath)!, "*.tmp"));
+        }
+        finally
+        {
+            Directory.Delete(home, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// Waits for PostgreSQL's asynchronous configuration reload before emitting an event-only witness.
+    /// </summary>
+    /// <param name="connection">The live backend whose configuration will reload.</param>
+    /// <param name="token">The current test cancellation token.</param>
+    private static async Task WaitForEventDestinationAsync(NpgsqlConnection connection, CancellationToken token)
+    {
+        DateTime deadline = DateTime.UtcNow.AddSeconds(5);
+        await using var setting = new NpgsqlCommand("SHOW log_destination", connection);
+        while (await setting.ExecuteScalarAsync(token) is not "eventlog")
+        {
+            if (DateTime.UtcNow >= deadline)
+            {
+                Assert.Fail("PostgreSQL did not apply the requested event-only destination.");
+            }
+
+            await Task.Delay(25, token);
+        }
+    }
+
+    /// <summary>
+    /// Connects only to this test's loopback development server without retaining pooled backend connections.
+    /// </summary>
+    /// <param name="port">The test's reserved native port.</param>
+    /// <param name="token">The current test cancellation token.</param>
+    /// <returns>The open native server connection.</returns>
+    private static async Task<NpgsqlConnection> OpenDevelopmentConnectionAsync(int port, CancellationToken token)
+    {
+        var connection = new NpgsqlConnection(new NpgsqlConnectionStringBuilder
+        {
+            Host = "127.0.0.1",
+            Port = port,
+            Username = "postgres",
+            Database = "postgres",
+            Pooling = false,
+        }.ConnectionString);
+        try
+        {
+            await connection.OpenAsync(token);
+            return connection;
+        }
+        catch
+        {
+            await connection.DisposeAsync();
+            throw;
+        }
+    }
+}

@@ -45,5 +45,10 @@ public sealed class RawReadNumberConverter : IPgDatumReader<RawReadNumber>, IPgD
 
     /// <inheritdoc />
     public PgDatum Write(RawReadNumber value, uint typeOid, PgMemoryContext destination)
-        => PgDatum.DangerousCreate(unchecked((nuint)value.Value), typeOid, destination, value.ReturnNull);
+    {
+        unsafe
+        {
+            return PgDatum.DangerousCreate(unchecked((nuint)value.Value), typeOid, destination, value.ReturnNull);
+        }
+    }
 }

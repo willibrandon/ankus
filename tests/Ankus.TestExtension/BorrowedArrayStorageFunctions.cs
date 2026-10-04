@@ -14,7 +14,12 @@ public static partial class BorrowedArrayFunctions
     [PgFunction]
     public static string?[] ArrayViewNative(long bits, uint type, string kind)
     {
-        PgDatum source = PgDatum.DangerousCreate(unchecked((nuint)bits), type, PgMemoryContext.Current);
+        PgDatum source;
+        unsafe
+        {
+            source = PgDatum.DangerousCreate(unchecked((nuint)bits), type, PgMemoryContext.Current);
+        }
+
         long before = OwnerCount();
         string?[]? snapshot = null;
         string owner = "borrowed";

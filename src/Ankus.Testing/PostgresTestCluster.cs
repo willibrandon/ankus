@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Runtime.ExceptionServices;
 using System.Text;
 using Ankus.PgConfig;
 using Npgsql;
@@ -16,7 +17,11 @@ public sealed class PostgresTestCluster : IAsyncDisposable
     private readonly PostgresTestLog _log;
     private readonly Lock _shutdownLock = new();
     private Task? _shutdownTask;
-    private bool _startAttempted;
+
+    /// <summary>
+    /// Requires definitive native shutdown until pg_ctl confirms the attempted server is stopped.
+    /// </summary>
+    private bool _requiresShutdown;
 
     private PostgresTestCluster(PostgresTestClusterOptions options, int port)
     {
@@ -127,14 +132,30 @@ public sealed class PostgresTestCluster : IAsyncDisposable
             }
             catch (Exception error)
             {
-                string log = cluster.ReadServerLog();
+                string log = string.Empty;
+                Exception? diagnosticFailure = null;
+                try
+                {
+                    log = cluster.ReadServerLog();
+                }
+                catch (Exception logError)
+                {
+                    diagnosticFailure = logError;
+                }
+
                 try
                 {
                     await cluster.DisposeAsync().ConfigureAwait(false);
                 }
                 catch (Exception cleanupError)
                 {
-                    throw new AggregateException($"Startup and cleanup failed. Log: {cluster.LogFilePath}\n{log}", error, cleanupError);
+                    Exception[] failures = diagnosticFailure is null ? [error, cleanupError] : [error, diagnosticFailure, cleanupError];
+                    throw new AggregateException($"Startup and cleanup failed. Log: {cluster.LogFilePath}\n{log}", failures);
+                }
+
+                if (diagnosticFailure is not null)
+                {
+                    throw new AggregateException($"Startup and diagnostic collection failed. Log: {cluster.LogFilePath}", error, diagnosticFailure);
                 }
 
                 if (error is OperationCanceledException)
@@ -243,13 +264,15 @@ public sealed class PostgresTestCluster : IAsyncDisposable
     /// <summary>
     /// Stops PostgreSQL in fast mode and removes owned data and socket directories, retaining logs.
     /// Shutdown uses its own timeout. If shutdown fails, directories remain available for recovery.
+    /// A later disposal retries a faulted or canceled shutdown after the native server recovers.
+    /// After successful shutdown, a diagnostic read failure is reported after owned directories are removed.
     /// </summary>
     /// <returns>A task that completes after shutdown and cleanup.</returns>
     public ValueTask DisposeAsync()
     {
         lock (_shutdownLock)
         {
-            if (_shutdownTask is null || _shutdownTask.IsFaulted)
+            if (_shutdownTask is null || _shutdownTask.IsFaulted || _shutdownTask.IsCanceled)
             {
                 _shutdownTask = StopAsync();
             }
@@ -301,7 +324,7 @@ public sealed class PostgresTestCluster : IAsyncDisposable
         beforeStart?.Invoke(this, reservation);
         reservation?.Dispose();
         cancellationToken.ThrowIfCancellationRequested();
-        _startAttempted = true;
+        _requiresShutdown = true;
         string[] startupArguments =
         [
             "start", "-D", DataDirectory, "-l", _log.NativeFilePath, "-w", "-t", GetTimeoutSeconds(_options.StartupTimeout),
@@ -363,7 +386,7 @@ public sealed class PostgresTestCluster : IAsyncDisposable
     private async Task StopAsync()
     {
         AppDomain.CurrentDomain.ProcessExit -= OnProcessExit;
-        if (_startAttempted)
+        if (_requiresShutdown)
         {
             using var timeout = new CancellationTokenSource(_options.ShutdownTimeout);
             ProcessResult status = await ProcessRunner.RunAsync(
@@ -416,15 +439,51 @@ public sealed class PostgresTestCluster : IAsyncDisposable
             }
         }
 
-        _ = ReadServerLog();
-        if (Directory.Exists(DataDirectory))
+        _requiresShutdown = false;
+        var failures = new List<Exception>();
+        try
         {
-            Directory.Delete(DataDirectory, recursive: true);
+            _ = ReadServerLog();
+        }
+        catch (Exception error)
+        {
+            failures.Add(error);
         }
 
-        if (SocketDirectory is not null && Directory.Exists(SocketDirectory))
+        DeleteOwnedDirectory(DataDirectory, failures);
+        if (SocketDirectory is not null)
         {
-            Directory.Delete(SocketDirectory, recursive: true);
+            DeleteOwnedDirectory(SocketDirectory, failures);
+        }
+
+        if (failures.Count == 1)
+        {
+            ExceptionDispatchInfo.Capture(failures[0]).Throw();
+        }
+
+        if (failures.Count > 1)
+        {
+            throw new AggregateException("PostgreSQL stopped, but diagnostic collection or owned-directory cleanup failed.", failures);
+        }
+    }
+
+    /// <summary>
+    /// Removes one stopped invocation's directory while allowing its other owned resources to be reclaimed.
+    /// </summary>
+    /// <param name="path">The invocation's data or socket directory.</param>
+    /// <param name="failures">Receives original cleanup exceptions without replacing diagnostic failures.</param>
+    private static void DeleteOwnedDirectory(string path, List<Exception> failures)
+    {
+        try
+        {
+            if (Directory.Exists(path))
+            {
+                Directory.Delete(path, recursive: true);
+            }
+        }
+        catch (Exception error)
+        {
+            failures.Add(error);
         }
     }
 

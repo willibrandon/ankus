@@ -1,102 +1,30 @@
-using System.Diagnostics.Eventing.Reader;
-using System.Globalization;
-using System.Runtime.Versioning;
-using System.Text;
+using Ankus.PgConfig;
 
 namespace Ankus.Testing;
 
 /// <summary>
-/// Retains only this cluster's native file and Windows event diagnostics in one readable log.
+/// Supplies a distinct server identity to the shared PostgreSQL diagnostic collector.
 /// </summary>
-/// <param name="filePath">The retained diagnostic file outside the cluster's data directory.</param>
+/// <param name="filePath">The retained log outside this invocation's data directory.</param>
 internal sealed class PostgresTestLog(string filePath)
 {
     /// <summary>
-    /// Serializes event cursors and retained snapshots across parallel backend tests.
+    /// Owns this invocation's diagnostics through the configuration package's deliberate public boundary.
     /// </summary>
-    private readonly Lock _readLock = new();
+    private readonly PostgresServerLog _log = new(filePath, Guid.NewGuid());
 
     /// <summary>
-    /// Retains original event insertion strings without depending on a registered message resource.
+    /// Gets the stderr target held open by PostgreSQL.
     /// </summary>
-    private readonly StringBuilder _events = new();
+    internal string NativeFilePath => _log.NativeFilePath;
 
     /// <summary>
-    /// Identifies the last consumed Application record without rereading earlier diagnostics.
+    /// Gets this invocation's isolated event provider.
     /// </summary>
-    private long _lastRecord;
+    internal string EventSource => _log.EventSource;
 
     /// <summary>
-    /// Gets the file held open by PostgreSQL, separately from the combined Windows snapshot.
+    /// Reads and retains this invocation's diagnostic snapshot.
     /// </summary>
-    internal string NativeFilePath { get; } = OperatingSystem.IsWindows() ? filePath + ".stderr.log" : filePath;
-
-    /// <summary>
-    /// Gets this invocation's distinct native provider name, without registry changes or machine identifiers.
-    /// </summary>
-    internal string EventSource { get; } = "Ankus-" + Guid.NewGuid().ToString("N");
-
-    /// <summary>
-    /// Reads current native diagnostics and retains a combined Windows snapshot for later inspection.
-    /// </summary>
-    internal string Read()
-    {
-        if (!OperatingSystem.IsWindows())
-        {
-            return ReadFile(NativeFilePath);
-        }
-
-        lock (_readLock)
-        {
-            ReadEvents();
-            string text = ReadFile(NativeFilePath) + _events;
-            if (text.Length != 0 || File.Exists(NativeFilePath))
-            {
-                File.WriteAllText(filePath, text);
-            }
-
-            return text;
-        }
-    }
-
-    /// <summary>
-    /// Reads only this cluster's provider and new record identities from the native Application log.
-    /// </summary>
-    [SupportedOSPlatform("windows")]
-    private void ReadEvents()
-    {
-        string query = string.Create(CultureInfo.InvariantCulture,
-            $"*[System[Provider[@Name='{EventSource}'] and EventRecordID > {_lastRecord}]]");
-        using var reader = new EventLogReader(new EventLogQuery("Application", PathType.LogName, query));
-        for (EventRecord? entry = reader.ReadEvent(); entry is not null; entry = reader.ReadEvent())
-        {
-            using (entry)
-            {
-                foreach (EventProperty property in entry.Properties)
-                {
-                    if (property.Value is string message)
-                    {
-                        _events.Append(message);
-                    }
-                }
-
-                _lastRecord = entry.RecordId ?? throw new InvalidOperationException("A PostgreSQL event has no record identity.");
-            }
-        }
-    }
-
-    /// <summary>
-    /// Reads a live native log while preserving the server's write and cleanup handles.
-    /// </summary>
-    private static string ReadFile(string path)
-    {
-        if (!File.Exists(path))
-        {
-            return string.Empty;
-        }
-
-        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-        using var reader = new StreamReader(stream);
-        return reader.ReadToEnd();
-    }
+    internal string Read() => _log.Read();
 }

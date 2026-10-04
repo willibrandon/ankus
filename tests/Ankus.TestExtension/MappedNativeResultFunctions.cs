@@ -102,7 +102,12 @@ public static class MappedNativeResultFunctions
     public static string Create(long address, uint requested, int mode)
     {
         NativeOidConverter.Mode = mode;
-        PgDatum argument = PgDatum.DangerousCreate(requested, 26, PgMemoryContext.Current);
+        PgDatum argument;
+        unsafe
+        {
+            argument = PgDatum.DangerousCreate(requested, 26, PgMemoryContext.Current);
+        }
+
         try
         {
             uint value = mode switch
@@ -134,12 +139,22 @@ public static class MappedNativeResultFunctions
     public static string Stale(long address, uint requested)
     {
         using PgMemoryContext owner = PgMemoryContext.Create("native stale argument");
-        PgDatum stale = PgDatum.DangerousCreate(requested, 26, owner);
-        PgDatum live = PgDatum.DangerousCreate(73, 26, PgMemoryContext.Current);
+        PgDatum stale;
+        PgDatum live;
+        unsafe
+        {
+            stale = PgDatum.DangerousCreate(requested, 26, owner);
+            live = PgDatum.DangerousCreate(73, 26, PgMemoryContext.Current);
+        }
+
         owner.Reset();
         try
         {
-            _ = PgFunctions.DangerousCall<NativeOid>((nint)address, 0, stale);
+            unsafe
+            {
+                _ = PgFunctions.DangerousCall<NativeOid>((nint)address, 0, stale);
+            }
+
             throw new InvalidOperationException("An expired native argument was accepted.");
         }
         catch (ObjectDisposedException)
@@ -236,7 +251,10 @@ public static class MappedNativeResultFunctions
         Exception? primary = null;
         try
         {
-            value = PgFunctions.DangerousCall<T>(address, collation, arguments);
+            unsafe
+            {
+                value = PgFunctions.DangerousCall<T>(address, collation, arguments);
+            }
         }
         catch (Exception error)
         {

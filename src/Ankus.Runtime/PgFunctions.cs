@@ -37,6 +37,7 @@ public static class PgFunctions
     /// A PgArrayView&lt;T&gt; result uses the array type of T as that asserted contract and retains callback-owned storage.
     /// PostgreSQL errors remain guarded, but invalid pointers or ABI contracts can crash the backend.
     /// </remarks>
+    [NativeUnsafeAccess]
     public static T DangerousCall<T>(nint function, uint collationOid, params ReadOnlySpan<PgDatum> arguments)
         => NativeBackend.CallNativeFunction<T>(function, collationOid, arguments);
 
@@ -53,6 +54,7 @@ public static class PgFunctions
     /// The caller owns ABI correctness and pointer validity. FmgrInfo, context, and resultinfo are null.
     /// Pointer-bearing types such as internal retain their bits; copying them does not clone their pointees.
     /// </remarks>
+    [NativeUnsafeAccess]
     public static PgDatum DangerousCallRaw(nint function, uint resultTypeOid, PgMemoryContext context,
         uint collationOid, params ReadOnlySpan<PgDatum> arguments)
         => NativeBackend.CallRawNativeFunction(function, resultTypeOid, context, collationOid, arguments);

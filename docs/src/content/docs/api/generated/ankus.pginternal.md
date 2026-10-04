@@ -82,6 +82,7 @@ The native address is an opaque identity and does not point to the managed objec
 Borrows a native pointee with an explicit unmanaged representation and checked context lifetime.
 
 ```csharp
+[NativeUnsafeAccess]
 public PgNativeReference<T>? DangerousBorrow<T>() where T : unmanaged
 ```
 
@@ -105,6 +106,7 @@ This method rejects managed state, whose opaque identity is not a native value r
 Borrows a native internal word under an explicit lifetime anchor without acquiring ownership.
 
 ```csharp
+[NativeUnsafeAccess]
 public static PgInternal DangerousCreate(nuint bits, PgMemoryContext context)
 ```
 

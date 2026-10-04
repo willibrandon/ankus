@@ -142,6 +142,26 @@ Returns: [Task&lt;bool&gt;](https://learn.microsoft.com/dotnet/api/system.thread
 
 True when pg_ctl reports a running server.
 
+<a id="member-b979375727d0d6af"></a>
+
+### ReadServerLog(CancellationToken)
+
+Refreshes and reads this cluster's retained diagnostics without starting or stopping a server.
+
+```csharp
+public string ReadServerLog(CancellationToken cancellationToken = default)
+```
+
+Parameters:
+
+`cancellationToken` — [CancellationToken](https://learn.microsoft.com/dotnet/api/system.threading.cancellationtoken)
+
+Cancels diagnostic collection.
+
+Returns: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+Native stderr and this server's retained Windows event messages, or an empty missing log.
+
 <a id="member-6ea3ea68506443d8"></a>
 
 ### StartAsync(PostgresDevelopmentOptions?, CancellationToken)
@@ -206,7 +226,8 @@ Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
 
 ### LogFilePath
 
-Gets the server log path outside the data directory.
+Gets the retained server log path outside the data directory.
+On Windows, ReadServerLog refreshes the snapshot with stderr and this server's Application events.
 
 ```csharp
 public string LogFilePath { get; }

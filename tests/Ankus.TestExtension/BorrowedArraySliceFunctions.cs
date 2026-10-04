@@ -112,7 +112,12 @@ public static partial class BorrowedArrayFunctions
     [PgFunction]
     public static string[] ArraySliceNative(long bits, uint type, string kind)
     {
-        PgDatum source = PgDatum.DangerousCreate(unchecked((nuint)bits), type, PgMemoryContext.Current);
+        PgDatum source;
+        unsafe
+        {
+            source = PgDatum.DangerousCreate(unchecked((nuint)bits), type, PgMemoryContext.Current);
+        }
+
         long before = OwnerCount();
         string owner = "borrowed";
         bool copied = false;

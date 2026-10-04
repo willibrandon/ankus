@@ -1560,12 +1560,14 @@ internal static class NativeMemoryBridge
                     ErrorData *data = ankus_copy_error_data();
                     FlushErrorState();
                     ankus_capture_error(data, error);
-                    if (request->operation == ANKUS_MEMORY_WORKER && request->flags == 10 &&
+                    if (ankus_worker_active &&
+                        ((request->operation == ANKUS_MEMORY_WORKER && request->flags == 10) ||
+                            request->operation == ANKUS_MEMORY_CHECK_INTERRUPTS) &&
                         data->elevel == ERROR && data->sqlerrcode == ERRCODE_QUERY_CANCELED && !IsTransactionState())
                     {
-                        /* WaitLatch owns no transaction resources. The native wait
-                         * and interrupt check have ended, so an idle cancellation
-                         * needs no transaction abort before the worker can resume. */
+                        /* An idle worker wait or explicit interrupt check owns
+                         * no transaction resources. The native operation has
+                         * ended, so cancellation needs no transaction abort. */
                         *recovered = true;
                     }
 
@@ -1649,12 +1651,14 @@ internal static class NativeMemoryBridge
             volatile bool recovered = false;
             AnkusRecoveryFrame transaction = {0};
             bool worker_transaction = request->operation == ANKUS_MEMORY_WORKER && request->flags == 13;
-            bool worker_idle_wait = request->operation == ANKUS_MEMORY_WORKER && request->flags == 10 && !IsTransactionState();
-            bool worker_boundary = worker_transaction || worker_idle_wait;
+            bool worker_idle_interrupt = ankus_worker_active && !IsTransactionState() &&
+                ((request->operation == ANKUS_MEMORY_WORKER && request->flags == 10) ||
+                    request->operation == ANKUS_MEMORY_CHECK_INTERRUPTS);
+            bool worker_boundary = worker_transaction || worker_idle_interrupt;
             if (worker_boundary)
             {
                 /* Transactions own a complete commit/abort boundary. An idle
-                 * latch wait owns only its wait/interrupt boundary. Keep failures
+                 * worker owns only its wait/interrupt boundary. Keep failures
                  * here until that operation ends instead of the worker lifetime. */
                 transaction.previous = ankus_recovery_frame;
                 ankus_recovery_frame = &transaction;

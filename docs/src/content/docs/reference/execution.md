@@ -180,3 +180,8 @@ Query cancellation, `Fatal` and `Panic` remain pending across managed catches
 and subtransaction rollback. Handle them for cleanup, without treating the
 current call as successful. Managed static mutations and external side effects
 are not undone by a PostgreSQL rollback.
+
+A background worker can recover cancellation after its transaction has rolled
+back, or after an idle `Wait` or `PgInterrupts.Check()` outside a transaction has
+finished. FATAL and PANIC still end the worker. See
+[worker recovery](/background-workers/#database-work-and-errors).

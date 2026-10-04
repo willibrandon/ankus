@@ -370,6 +370,7 @@ An independent managed copy or callback-owned polymorphic result.
 Calls a native PostgreSQL version-1 entry point and copies its raw result to a selected owner.
 
 ```csharp
+[NativeUnsafeAccess]
 public static PgDatum DangerousCallRaw(nint function, uint resultTypeOid, PgMemoryContext context, uint collationOid, params ReadOnlySpan<PgDatum> arguments)
 ```
 
@@ -409,6 +410,7 @@ Pointer-bearing types such as internal retain their bits; copying them does not 
 Calls a native PostgreSQL version-1 entry point and copies a supported result or invokes its registered reader.
 
 ```csharp
+[NativeUnsafeAccess]
 public static T DangerousCall<T>(nint function, uint collationOid, params ReadOnlySpan<PgDatum> arguments)
 ```
 

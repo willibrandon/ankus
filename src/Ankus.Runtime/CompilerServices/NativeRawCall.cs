@@ -56,6 +56,7 @@ public static unsafe class NativeRawCall
     /// <exception cref="ArgumentOutOfRangeException">The body address is zero.</exception>
     /// <exception cref="InvalidOperationException">No usable callback is active, or the generated body rejects its storage contract.</exception>
     /// <exception cref="PgException">PostgreSQL raises an error inside the native body.</exception>
+    [NativeUnsafeAccess]
     public static void Invoke(nint body, ReadOnlySpan<NativeCallArgument> arguments, nint result, nuint resultSize)
     {
         ArgumentOutOfRangeException.ThrowIfZero(body);
