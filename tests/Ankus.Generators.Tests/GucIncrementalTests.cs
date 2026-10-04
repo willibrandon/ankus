@@ -229,15 +229,15 @@ public sealed partial class PgFunctionGeneratorTests
         CSharpCompilation initial = ModuleCompilation(source);
         GeneratorDriver driver = ModuleDriver().RunGeneratorsAndUpdateCompilation(initial, out _,
             out ImmutableArray<Diagnostic> first, context.CancellationToken);
-        Assert.AreEqual("ANKUS014", Assert.ContainsSingle(first).Id);
+        Assert.AreEqual("ANKUS181", Assert.ContainsSingle(first).Id);
         SyntaxTree current = CSharpSyntaxTree.ParseText(source, path: "Current.cs", cancellationToken: context.CancellationToken);
         CSharpCompilation moved = initial.ReplaceSyntaxTree(initial.SyntaxTrees.Single(), current);
         driver = driver.RunGeneratorsAndUpdateCompilation(moved, out _, out ImmutableArray<Diagnostic> second, context.CancellationToken);
         Diagnostic error = Assert.ContainsSingle(second);
 
-        Assert.AreEqual("ANKUS014", error.Id);
+        Assert.AreEqual("ANKUS181", error.Id);
         Assert.AreSame(current, error.Location.SourceTree);
-        Assert.AreEqual("Value", current.GetText(context.CancellationToken).ToString(error.Location.SourceSpan));
+        Assert.AreEqual("\"invalid\"", current.GetText(context.CancellationToken).ToString(error.Location.SourceSpan));
         Assert.AreEqual(IncrementalStepRunReason.Cached, ModuleStep(driver, "GucEmission"));
         CSharpCompilation repaired = moved.ReplaceSyntaxTree(current, CSharpSyntaxTree.ParseText(GucCacheSource("integer"),
             path: "Current.cs", cancellationToken: context.CancellationToken));

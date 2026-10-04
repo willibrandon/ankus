@@ -9,15 +9,6 @@ namespace Ankus.Generators;
 /// </summary>
 internal sealed class GucDeclaration
 {
-    private static readonly DiagnosticDescriptor s_invalid = new(
-        "ANKUS014", "Invalid PostgreSQL configuration declaration", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true,
-        helpLinkUri: "https://willibrandon.github.io/ankus/configuration/#types-and-metadata");
-
-    /// <summary>
-    /// Identifies invalid setting contracts and current duplicate-name constraints.
-    /// </summary>
-    internal static DiagnosticDescriptor InvalidDiagnostic => s_invalid;
-
     /// <summary>
     /// Gets the defining partial property.
     /// </summary>
@@ -173,39 +164,108 @@ internal sealed class GucDeclaration
     /// Reads a property contract and reports a precise diagnostic before generating code or native registration.
     /// </summary>
     /// <param name="property">The candidate property.</param>
+    /// <param name="compilation">The compilation owning imported enum metadata.</param>
     /// <param name="context">The generator diagnostic context.</param>
     /// <returns>A validated native declaration, or null on failure.</returns>
-    internal static GucDeclaration? Create(IPropertySymbol property, GeneratorDiagnostics context)
+    internal static GucDeclaration? Create(IPropertySymbol property, Compilation compilation, GeneratorDiagnostics context)
     {
+        CancellationToken cancellationToken = context.CancellationToken;
         AttributeData[] attributes = [.. property.GetAttributes().Where(IsGucAttribute)];
         if (attributes.Length != 1)
         {
-            return Invalid("A property must declare exactly one typed GUC attribute.");
+            return Invalid(GucDeclarationDiagnostics.AttributeCount,
+                attributes.Skip(1).FirstOrDefault()?.ApplicationSyntaxReference?.GetSyntax(cancellationToken).GetLocation());
         }
 
-        if (!property.IsStatic || property.IsIndexer || property.RefKind != RefKind.None || property.GetMethod is null || property.SetMethod is not null ||
-            !property.IsPartialDefinition || property.PartialImplementationPart is not null ||
-            property.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal or Accessibility.ProtectedOrInternal))
+        AttributeData attribute = attributes[0];
+        BasePropertyDeclarationSyntax? syntax = property.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax(cancellationToken) as BasePropertyDeclarationSyntax;
+        if (property.IsIndexer)
         {
-            return Invalid("A GUC requires an accessible static partial getter-only property without an existing implementation.");
+            return Invalid(GucDeclarationDiagnostics.Indexer);
+        }
+
+        if (!property.IsStatic)
+        {
+            return Invalid(GucDeclarationDiagnostics.Static);
+        }
+
+        if (property.RefKind != RefKind.None)
+        {
+            return Invalid(GucDeclarationDiagnostics.Reference, syntax?.Type.GetLocation());
+        }
+
+        if (property.GetMethod is null || property.SetMethod is not null)
+        {
+            return Invalid(GucDeclarationDiagnostics.Accessors,
+                syntax?.AccessorList?.Accessors.FirstOrDefault(static accessor => accessor.IsKind(SyntaxKind.SetAccessorDeclaration) ||
+                    accessor.IsKind(SyntaxKind.InitAccessorDeclaration))?.Keyword.GetLocation());
+        }
+
+        if (!property.IsPartialDefinition)
+        {
+            return Invalid(GucDeclarationDiagnostics.Partial);
+        }
+
+        if (property.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal or Accessibility.ProtectedOrInternal))
+        {
+            return Invalid(GucDeclarationDiagnostics.Access);
+        }
+
+        if (property.PartialImplementationPart is not null)
+        {
+            return Invalid(GucDeclarationDiagnostics.Implementation, property.PartialImplementationPart.Locations.FirstOrDefault());
         }
 
         for (INamedTypeSymbol? type = property.ContainingType; type is not null; type = type.ContainingType)
         {
-            if (type.TypeKind != TypeKind.Class || type.IsGenericType || type.IsFileLocal ||
-                type.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal or Accessibility.ProtectedOrInternal) ||
-                type.DeclaringSyntaxReferences.Any(static reference => reference.GetSyntax() is not TypeDeclarationSyntax declaration ||
-                    !declaration.Modifiers.Any(SyntaxKind.PartialKeyword)))
+            Location? location = type.Locations.FirstOrDefault(static item => item.IsInSource);
+            if (type.TypeKind != TypeKind.Class)
             {
-                return Invalid("GUC properties require accessible, non-generic, non-file-local partial classes, including every containing class.");
+                return Invalid(GucDeclarationDiagnostics.ContainerKind, location);
+            }
+
+            if (type.IsGenericType)
+            {
+                return Invalid(GucDeclarationDiagnostics.GenericContainer, location);
+            }
+
+            if (type.IsFileLocal)
+            {
+                return Invalid(GucDeclarationDiagnostics.FileContainer, location);
+            }
+
+            if (type.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal or Accessibility.ProtectedOrInternal))
+            {
+                return Invalid(GucDeclarationDiagnostics.ContainerAccess, location);
+            }
+
+            foreach (SyntaxReference reference in type.DeclaringSyntaxReferences)
+            {
+                if (reference.GetSyntax(cancellationToken) is not TypeDeclarationSyntax declaration)
+                {
+                    return Invalid(GucDeclarationDiagnostics.ContainerPartial, location);
+                }
+
+                if (!declaration.Modifiers.Any(SyntaxKind.PartialKeyword))
+                {
+                    return Invalid(GucDeclarationDiagnostics.ContainerPartial, declaration.Identifier.GetLocation());
+                }
             }
         }
 
-        AttributeData attribute = attributes[0];
-        if (attribute.ConstructorArguments.Length != 3 || attribute.ConstructorArguments[0].Value is not string name ||
-            !IsName(name) || attribute.ConstructorArguments[2].Value is not string description || !SqlText.IsText(description))
+        if (attribute.ConstructorArguments.Length != 3)
         {
-            return Invalid("The name must be a valid dotted custom setting name, and its description must be nonnull valid text without zero characters.");
+            return Invalid(GucDeclarationDiagnostics.AttributeCount, attribute.ApplicationSyntaxReference?.GetSyntax(cancellationToken).GetLocation());
+        }
+
+        if (attribute.ConstructorArguments[0].Value is not string name || !IsName(name))
+        {
+            return Invalid(GucDeclarationDiagnostics.Name, Argument(0));
+        }
+
+        if (attribute.ConstructorArguments[2].Value is not string description || !SqlText.IsText(description))
+        {
+            return Invalid(GucDeclarationDiagnostics.Description, Argument(2));
         }
 
         int kind = attribute.AttributeClass!.Name switch
@@ -226,7 +286,7 @@ internal sealed class GucDeclaration
         };
         if (kind == 4 ? property.Type.TypeKind != TypeKind.Enum : property.Type.SpecialType != expected)
         {
-            return Invalid("The property type must match its Boolean, Int32, Double, String, or enum GUC attribute exactly.");
+            return Invalid(GucDeclarationDiagnostics.Type, syntax?.Type.GetLocation(), attribute.AttributeClass.Name);
         }
 
         var result = new GucDeclaration
@@ -241,11 +301,34 @@ internal sealed class GucDeclaration
             Flags = AttributeValues.Get(attribute, "Flags", 0),
             Unit = AttributeValues.Get(attribute, "Unit", 0),
         };
-        if (result.LongDescription is not null && !SqlText.IsText(result.LongDescription) || result.Context is < 0 or > 6 ||
-            result.Flags < 0 || (result.Flags & ~1023) != 0 || result.Unit is < 0 or > 8 ||
-            (result.Flags & 32) != 0 && kind != 3 || result.Unit != 0 && kind is not (1 or 2))
+        if (result.LongDescription is not null && !SqlText.IsText(result.LongDescription))
         {
-            return Invalid("GUC context, flags, units, and description must be valid; IsName requires a string and units require an integer or real.");
+            return Invalid(GucDeclarationDiagnostics.LongDescription, Option("LongDescription"));
+        }
+
+        if (result.Context is < 0 or > 6)
+        {
+            return Invalid(GucDeclarationDiagnostics.Context, Option("Context"));
+        }
+
+        if (result.Flags < 0 || (result.Flags & ~1023) != 0)
+        {
+            return Invalid(GucDeclarationDiagnostics.Flags, Option("Flags"));
+        }
+
+        if (result.Unit is < 0 or > 8)
+        {
+            return Invalid(GucDeclarationDiagnostics.Unit, Option("Unit"));
+        }
+
+        if ((result.Flags & 32) != 0 && kind != 3)
+        {
+            return Invalid(GucDeclarationDiagnostics.NameFlag, Option("Flags"));
+        }
+
+        if (result.Unit != 0 && kind is not (1 or 2))
+        {
+            return Invalid(GucDeclarationDiagnostics.UnitKind, Option("Unit"));
         }
 
         switch (kind)
@@ -253,9 +336,14 @@ internal sealed class GucDeclaration
             case 1:
                 int minimum = AttributeValues.Get(attribute, "Minimum", int.MinValue);
                 int maximum = AttributeValues.Get(attribute, "Maximum", int.MaxValue);
-                if (result.Default is not int integer || integer < minimum || integer > maximum || minimum > maximum)
+                if (minimum > maximum)
                 {
-                    return Invalid("Integer bounds must satisfy Minimum <= Default <= Maximum.");
+                    return Invalid(GucDeclarationDiagnostics.IntegerBounds, Option("Minimum") ?? Option("Maximum"));
+                }
+
+                if (result.Default is not int integer || integer < minimum || integer > maximum)
+                {
+                    return Invalid(GucDeclarationDiagnostics.IntegerDefault, Argument(1));
                 }
 
                 result.Minimum = minimum;
@@ -264,27 +352,41 @@ internal sealed class GucDeclaration
             case 2:
                 double lower = AttributeValues.Get(attribute, "Minimum", double.MinValue);
                 double upper = AttributeValues.Get(attribute, "Maximum", double.MaxValue);
-                if (result.Default is not double real || double.IsNaN(real) || double.IsNaN(lower) || double.IsNaN(upper) ||
-                    real < lower || real > upper || lower > upper)
+                if (double.IsNaN(lower) || double.IsNaN(upper) || lower > upper)
                 {
-                    return Invalid("Real bounds must satisfy Minimum <= Default <= Maximum and cannot contain NaN.");
+                    return Invalid(GucDeclarationDiagnostics.RealBounds,
+                        double.IsNaN(upper) ? Option("Maximum") : Option("Minimum") ?? Option("Maximum"));
+                }
+
+                if (result.Default is not double real || double.IsNaN(real) || real < lower || real > upper)
+                {
+                    return Invalid(GucDeclarationDiagnostics.RealDefault, Argument(1));
                 }
 
                 result.Minimum = lower;
                 result.Maximum = upper;
                 break;
             case 3:
-                if (result.Default is string text && !SqlText.IsText(text) ||
-                    result.Default is null && property.NullableAnnotation != NullableAnnotation.Annotated)
+                if (result.Default is string text && !SqlText.IsText(text))
                 {
-                    return Invalid("String defaults must be valid text without zero characters; a null default requires a nullable string property.");
+                    return Invalid(GucDeclarationDiagnostics.StringDefault, Argument(1));
+                }
+
+                if (result.Default is null && property.NullableAnnotation != NullableAnnotation.Annotated)
+                {
+                    return Invalid(GucDeclarationDiagnostics.NullableDefault, syntax?.Type.GetLocation());
                 }
 
                 break;
             case 4:
-                if (!SymbolEqualityComparer.Default.Equals(attribute.ConstructorArguments[1].Type, property.Type) || !result.ReadEnum())
+                if (!SymbolEqualityComparer.Default.Equals(attribute.ConstructorArguments[1].Type, property.Type))
                 {
-                    return Invalid("An enum default must be a declared value of the property's enum; labels must be valid and distinct under ASCII case folding.");
+                    return Invalid(GucDeclarationDiagnostics.EnumDefault, Argument(1));
+                }
+
+                if (!result.ReadEnum(attribute, compilation, context))
+                {
+                    return null;
                 }
 
                 break;
@@ -301,7 +403,13 @@ internal sealed class GucDeclaration
             IMethodSymbol[] candidates = [.. property.ContainingType.GetMembers(hookName).OfType<IMethodSymbol>()];
             if (candidates.Length != 1 || !result.ValidateHook(candidates[0], role))
             {
-                return Invalid(role + " must name one accessible synchronous non-generic static method with the exact typed hook signature.");
+                DiagnosticDescriptor descriptor = role switch
+                {
+                    "Check" => GucDeclarationDiagnostics.Check,
+                    "Assign" => GucDeclarationDiagnostics.Assign,
+                    _ => GucDeclarationDiagnostics.Show,
+                };
+                return Invalid(descriptor, Option(role), result.ManagedType);
             }
 
             switch (role)
@@ -320,21 +428,16 @@ internal sealed class GucDeclaration
 
         return result;
 
-        GucDeclaration? Invalid(string reason)
+        Location? Argument(int index) => DatumMappingDiagnostics.Argument(attribute, index, cancellationToken);
+
+        Location? Option(string name) => FunctionDeclarationDiagnostics.Option(attribute, name, cancellationToken);
+
+        GucDeclaration? Invalid(DiagnosticDescriptor descriptor, Location? location = null, params string[] arguments)
         {
-            Error(property, context, reason);
+            context.Report(descriptor, location ?? property.Locations.FirstOrDefault(static item => item.IsInSource), arguments);
             return null;
         }
     }
-
-    /// <summary>
-    /// Reports an invalid setting name or cross-declaration constraint.
-    /// </summary>
-    /// <param name="property">The offending declaration.</param>
-    /// <param name="context">The generator diagnostic context.</param>
-    /// <param name="reason">The actionable contract failure.</param>
-    internal static void Error(IPropertySymbol property, GeneratorDiagnostics context, string reason)
-        => context.Report(InvalidDiagnostic, property.Locations.FirstOrDefault(), property.Name, reason);
 
     /// <summary>
     /// Maps PostgreSQL's ASCII-only case folding without changing high-bit Unicode characters.
@@ -370,16 +473,33 @@ internal sealed class GucDeclaration
     /// <summary>
     /// Builds a dense native enum table without narrowing the underlying managed values.
     /// </summary>
-    private bool ReadEnum()
+    private bool ReadEnum(AttributeData attribute, Compilation compilation, GeneratorDiagnostics context)
     {
         var values = new Dictionary<object, int>();
         var names = new HashSet<string>(StringComparer.Ordinal);
+        Dictionary<string, string?>? imported = Property.Type is INamedTypeSymbol type && type.DeclaringSyntaxReferences.Length == 0 ?
+            GucEnumMetadata.ReadLabels(type, compilation, context.CancellationToken) : null;
         foreach (IFieldSymbol field in Property.Type.GetMembers().OfType<IFieldSymbol>().Where(static field => field.HasConstantValue))
         {
             AttributeData? label = field.GetAttributes().FirstOrDefault(static attribute => attribute.AttributeClass?.ToDisplayString() == "Ankus.PgGucLabelAttribute");
             string? name = label is null ? field.Name : label.ConstructorArguments.FirstOrDefault().Value as string;
-            if (name is null || !SqlText.IsText(name) || !names.Add(Fold(name)))
+            if (label is not null && label.ApplicationSyntaxReference is null)
             {
+                name = imported is not null && imported.TryGetValue(field.MetadataName, out string? exact) ? exact : null;
+            }
+
+            Location? location = (label is null ? field.Locations.FirstOrDefault(static item => item.IsInSource) :
+                DatumMappingDiagnostics.Argument(label, 0, context.CancellationToken)) ??
+                (Property.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax(context.CancellationToken) as BasePropertyDeclarationSyntax)?.Type.GetLocation();
+            if (name is null || !SqlText.IsText(name))
+            {
+                context.Report(GucDeclarationDiagnostics.EnumLabel, location);
+                return false;
+            }
+
+            if (!names.Add(Fold(name)))
+            {
+                context.Report(GucDeclarationDiagnostics.DuplicateLabel, location);
                 return false;
             }
 
@@ -394,6 +514,7 @@ internal sealed class GucDeclaration
 
         if (Default is null || !values.TryGetValue(Default, out int boot))
         {
+            context.Report(GucDeclarationDiagnostics.EnumDefault, DatumMappingDiagnostics.Argument(attribute, 1, context.CancellationToken));
             return false;
         }
 

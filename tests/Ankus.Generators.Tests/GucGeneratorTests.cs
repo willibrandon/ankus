@@ -331,80 +331,83 @@ public sealed partial class PgFunctionGeneratorTests
     /// </summary>
     /// <param name="attribute">The invalid typed attribute.</param>
     /// <param name="type">The declared property type.</param>
+    /// <param name="id">The independently correctable diagnostic.</param>
     [TestMethod]
-    [DataRow("Ankus.PgGucBool(\"nodot\", true, \"Description\")", "bool")]
-    [DataRow("Ankus.PgGucBool(\".demo\", true, \"Description\")", "bool")]
-    [DataRow("Ankus.PgGucBool(\"demo.\", true, \"Description\")", "bool")]
-    [DataRow("Ankus.PgGucBool(\"demo..value\", true, \"Description\")", "bool")]
-    [DataRow("Ankus.PgGucBool(\"demo.2value\", true, \"Description\")", "bool")]
-    [DataRow("Ankus.PgGucBool(\"demo.$value\", true, \"Description\")", "bool")]
-    [DataRow("Ankus.PgGucBool(\"demo.bad-name\", true, \"Description\")", "bool")]
-    [DataRow("Ankus.PgGucBool(\"demo.value\\0\", true, \"Description\")", "bool")]
-    [DataRow("Ankus.PgGucBool(\"demo.value\\uD800\", true, \"Description\")", "bool")]
-    [DataRow("Ankus.PgGucBool(\"demo.value\", true, null!)", "bool")]
-    [DataRow("Ankus.PgGucBool(\"demo.value\", true, \"bad\\0\")", "bool")]
-    [DataRow("Ankus.PgGucBool(\"demo.value\", true, \"Description\", LongDescription = \"bad\\uD800\")", "bool")]
-    [DataRow("Ankus.PgGucBool(\"demo.value\", true, \"Description\", Context = (Ankus.PgGucContext)(-1))", "bool")]
-    [DataRow("Ankus.PgGucBool(\"demo.value\", true, \"Description\", Context = (Ankus.PgGucContext)7)", "bool")]
-    [DataRow("Ankus.PgGucBool(\"demo.value\", true, \"Description\", Flags = (Ankus.PgGucOptions)1024)", "bool")]
-    [DataRow("Ankus.PgGucBool(\"demo.value\", true, \"Description\", Flags = (Ankus.PgGucOptions)(-1))", "bool")]
-    [DataRow("Ankus.PgGucBool(\"demo.value\", true, \"Description\", Flags = Ankus.PgGucOptions.IsName)", "bool")]
-    [DataRow("Ankus.PgGucBool(\"demo.value\", true, \"Description\", Unit = Ankus.PgGucUnit.Bytes)", "bool")]
-    [DataRow("Ankus.PgGucInt(\"demo.value\", 1, \"Description\", Unit = (Ankus.PgGucUnit)9)", "int")]
-    [DataRow("Ankus.PgGucInt(\"demo.value\", 1, \"Description\", Unit = (Ankus.PgGucUnit)(-1))", "int")]
-    [DataRow("Ankus.PgGucInt(\"demo.value\", 1, \"Description\", Minimum = 2)", "int")]
-    [DataRow("Ankus.PgGucInt(\"demo.value\", 1, \"Description\", Maximum = 0)", "int")]
-    [DataRow("Ankus.PgGucInt(\"demo.value\", 1, \"Description\", Minimum = 2, Maximum = 0)", "int")]
-    [DataRow("Ankus.PgGucReal(\"demo.value\", double.NaN, \"Description\")", "double")]
-    [DataRow("Ankus.PgGucReal(\"demo.value\", 1.0, \"Description\", Minimum = double.NaN)", "double")]
-    [DataRow("Ankus.PgGucReal(\"demo.value\", 1.0, \"Description\", Maximum = double.NaN)", "double")]
-    [DataRow("Ankus.PgGucReal(\"demo.value\", double.PositiveInfinity, \"Description\")", "double")]
-    [DataRow("Ankus.PgGucReal(\"demo.value\", 1.0, \"Description\", Minimum = 2.0)", "double")]
-    [DataRow("Ankus.PgGucReal(\"demo.value\", 1.0, \"Description\", Maximum = 0.0)", "double")]
-    [DataRow("Ankus.PgGucString(\"demo.value\", null, \"Description\")", "string")]
-    [DataRow("Ankus.PgGucString(\"demo.value\", \"bad\\0\", \"Description\")", "string?")]
-    [DataRow("Ankus.PgGucString(\"demo.value\", \"bad\\uD800\", \"Description\")", "string")]
-    [DataRow("Ankus.PgGucBool(\"demo.value\", true, \"Description\")", "int")]
-    [DataRow("Ankus.PgGucInt(\"demo.value\", 1, \"Description\")", "long")]
-    [DataRow("Ankus.PgGucReal(\"demo.value\", 1.0, \"Description\")", "float")]
-    [DataRow("Ankus.PgGucBool(\"demo.value\", true, \"Description\")", "bool?")]
-    public void InvalidGucMetadataIsDiagnosed(string attribute, string type)
-        => AssertInvalidGuc("public static partial class Settings { [" + attribute + "] public static partial " + type + " Value { get; } }");
+    [DataRow("Ankus.PgGucBool(\"nodot\", true, \"Description\")", "bool", "ANKUS181")]
+    [DataRow("Ankus.PgGucBool(\".demo\", true, \"Description\")", "bool", "ANKUS181")]
+    [DataRow("Ankus.PgGucBool(\"demo.\", true, \"Description\")", "bool", "ANKUS181")]
+    [DataRow("Ankus.PgGucBool(\"demo..value\", true, \"Description\")", "bool", "ANKUS181")]
+    [DataRow("Ankus.PgGucBool(\"demo.2value\", true, \"Description\")", "bool", "ANKUS181")]
+    [DataRow("Ankus.PgGucBool(\"demo.$value\", true, \"Description\")", "bool", "ANKUS181")]
+    [DataRow("Ankus.PgGucBool(\"demo.bad-name\", true, \"Description\")", "bool", "ANKUS181")]
+    [DataRow("Ankus.PgGucBool(\"demo.value\\0\", true, \"Description\")", "bool", "ANKUS181")]
+    [DataRow("Ankus.PgGucBool(\"demo.value\\uD800\", true, \"Description\")", "bool", "ANKUS181")]
+    [DataRow("Ankus.PgGucBool(\"demo.value\", true, null!)", "bool", "ANKUS182")]
+    [DataRow("Ankus.PgGucBool(\"demo.value\", true, \"bad\\0\")", "bool", "ANKUS182")]
+    [DataRow("Ankus.PgGucBool(\"demo.value\", true, \"Description\", LongDescription = \"bad\\uD800\")", "bool", "ANKUS184")]
+    [DataRow("Ankus.PgGucBool(\"demo.value\", true, \"Description\", Context = (Ankus.PgGucContext)(-1))", "bool", "ANKUS185")]
+    [DataRow("Ankus.PgGucBool(\"demo.value\", true, \"Description\", Context = (Ankus.PgGucContext)7)", "bool", "ANKUS185")]
+    [DataRow("Ankus.PgGucBool(\"demo.value\", true, \"Description\", Flags = (Ankus.PgGucOptions)1024)", "bool", "ANKUS186")]
+    [DataRow("Ankus.PgGucBool(\"demo.value\", true, \"Description\", Flags = (Ankus.PgGucOptions)(-1))", "bool", "ANKUS186")]
+    [DataRow("Ankus.PgGucBool(\"demo.value\", true, \"Description\", Flags = Ankus.PgGucOptions.IsName)", "bool", "ANKUS188")]
+    [DataRow("Ankus.PgGucBool(\"demo.value\", true, \"Description\", Unit = Ankus.PgGucUnit.Bytes)", "bool", "ANKUS189")]
+    [DataRow("Ankus.PgGucInt(\"demo.value\", 1, \"Description\", Unit = (Ankus.PgGucUnit)9)", "int", "ANKUS187")]
+    [DataRow("Ankus.PgGucInt(\"demo.value\", 1, \"Description\", Unit = (Ankus.PgGucUnit)(-1))", "int", "ANKUS187")]
+    [DataRow("Ankus.PgGucInt(\"demo.value\", 1, \"Description\", Minimum = 2)", "int", "ANKUS191")]
+    [DataRow("Ankus.PgGucInt(\"demo.value\", 1, \"Description\", Maximum = 0)", "int", "ANKUS191")]
+    [DataRow("Ankus.PgGucInt(\"demo.value\", 1, \"Description\", Minimum = 2, Maximum = 0)", "int", "ANKUS190")]
+    [DataRow("Ankus.PgGucReal(\"demo.value\", double.NaN, \"Description\")", "double", "ANKUS193")]
+    [DataRow("Ankus.PgGucReal(\"demo.value\", 1.0, \"Description\", Minimum = double.NaN)", "double", "ANKUS192")]
+    [DataRow("Ankus.PgGucReal(\"demo.value\", 1.0, \"Description\", Maximum = double.NaN)", "double", "ANKUS192")]
+    [DataRow("Ankus.PgGucReal(\"demo.value\", double.PositiveInfinity, \"Description\")", "double", "ANKUS193")]
+    [DataRow("Ankus.PgGucReal(\"demo.value\", 1.0, \"Description\", Minimum = 2.0)", "double", "ANKUS193")]
+    [DataRow("Ankus.PgGucReal(\"demo.value\", 1.0, \"Description\", Maximum = 0.0)", "double", "ANKUS193")]
+    [DataRow("Ankus.PgGucString(\"demo.value\", null, \"Description\")", "string", "ANKUS195")]
+    [DataRow("Ankus.PgGucString(\"demo.value\", \"bad\\0\", \"Description\")", "string?", "ANKUS194")]
+    [DataRow("Ankus.PgGucString(\"demo.value\", \"bad\\uD800\", \"Description\")", "string", "ANKUS194")]
+    [DataRow("Ankus.PgGucBool(\"demo.value\", true, \"Description\")", "int", "ANKUS183")]
+    [DataRow("Ankus.PgGucInt(\"demo.value\", 1, \"Description\")", "long", "ANKUS183")]
+    [DataRow("Ankus.PgGucReal(\"demo.value\", 1.0, \"Description\")", "float", "ANKUS183")]
+    [DataRow("Ankus.PgGucBool(\"demo.value\", true, \"Description\")", "bool?", "ANKUS183")]
+    public void InvalidGucMetadataIsDiagnosed(string attribute, string type, string id)
+        => AssertInvalidGuc("public static partial class Settings { [" + attribute + "] public static partial " + type + " Value { get; } }", id);
 
     /// <summary>
     /// A valid setting property must be a supported, accessible partial declaration in partial classes.
     /// </summary>
     /// <param name="source">The unsupported property or container.</param>
+    /// <param name="id">The independently correctable diagnostic.</param>
     [TestMethod]
-    [DataRow("public partial class Settings { [Ankus.PgGucBool(\"demo.value\", true, \"Value\")] public partial bool Value { get; } }")]
-    [DataRow("public partial class Settings { [Ankus.PgGucBool(\"demo.value\", true, \"Value\")] private static partial bool Value { get; } }")]
-    [DataRow("public partial class Settings { [Ankus.PgGucBool(\"demo.value\", true, \"Value\")] public static bool Value { get; } }")]
-    [DataRow("public partial class Settings { [Ankus.PgGucBool(\"demo.value\", true, \"Value\")] public bool this[int index] => true; }")]
-    [DataRow("public partial class Settings { [Ankus.PgGucBool(\"demo.value\", true, \"Value\")] public static partial bool Value { get; set; } }")]
-    [DataRow("public partial class Settings { [Ankus.PgGucBool(\"demo.value\", true, \"Value\")] public static partial bool Value { get; } public static partial bool Value => true; }")]
-    [DataRow("public partial class Settings<T> { [Ankus.PgGucBool(\"demo.value\", true, \"Value\")] public static partial bool Value { get; } }")]
-    [DataRow("public partial struct Settings { [Ankus.PgGucBool(\"demo.value\", true, \"Value\")] public static partial bool Value { get; } }")]
-    [DataRow("file partial class Settings { [Ankus.PgGucBool(\"demo.value\", true, \"Value\")] public static partial bool Value { get; } }")]
-    [DataRow("public partial class Outer { private partial class Settings { [Ankus.PgGucBool(\"demo.value\", true, \"Value\")] public static partial bool Value { get; } } }")]
-    [DataRow("public partial class Settings { [Ankus.PgGucBool(\"demo.value\", true, \"Value\"), Ankus.PgGucInt(\"demo.value\", 1, \"Value\")] public static partial bool Value { get; } }")]
-    public void InvalidGucPropertyDeclarationsAreDiagnosed(string source) => AssertInvalidGuc(source);
+    [DataRow("public partial class Settings { [Ankus.PgGucBool(\"demo.value\", true, \"Value\")] public partial bool Value { get; } }", "ANKUS170")]
+    [DataRow("public partial class Settings { [Ankus.PgGucBool(\"demo.value\", true, \"Value\")] private static partial bool Value { get; } }", "ANKUS174")]
+    [DataRow("public partial class Settings { [Ankus.PgGucBool(\"demo.value\", true, \"Value\")] public static bool Value { get; } }", "ANKUS173")]
+    [DataRow("public partial class Settings { [Ankus.PgGucBool(\"demo.value\", true, \"Value\")] public bool this[int index] => true; }", "ANKUS203")]
+    [DataRow("public partial class Settings { [Ankus.PgGucBool(\"demo.value\", true, \"Value\")] public static partial bool Value { get; set; } }", "ANKUS171")]
+    [DataRow("public partial class Settings { [Ankus.PgGucBool(\"demo.value\", true, \"Value\")] public static partial bool Value { get; } public static partial bool Value => true; }", "ANKUS175")]
+    [DataRow("public partial class Settings<T> { [Ankus.PgGucBool(\"demo.value\", true, \"Value\")] public static partial bool Value { get; } }", "ANKUS177")]
+    [DataRow("public partial struct Settings { [Ankus.PgGucBool(\"demo.value\", true, \"Value\")] public static partial bool Value { get; } }", "ANKUS176")]
+    [DataRow("file partial class Settings { [Ankus.PgGucBool(\"demo.value\", true, \"Value\")] public static partial bool Value { get; } }", "ANKUS178")]
+    [DataRow("public partial class Outer { private partial class Settings { [Ankus.PgGucBool(\"demo.value\", true, \"Value\")] public static partial bool Value { get; } } }", "ANKUS179")]
+    [DataRow("public partial class Settings { [Ankus.PgGucBool(\"demo.value\", true, \"Value\"), Ankus.PgGucInt(\"demo.value\", 1, \"Value\")] public static partial bool Value { get; } }", "ANKUS169")]
+    public void InvalidGucPropertyDeclarationsAreDiagnosed(string source, string id) => AssertInvalidGuc(source, id);
 
     /// <summary>
     /// Enum validation is specific to GUC label comparison and exact declared defaults.
     /// </summary>
     /// <param name="members">The enum declarations.</param>
     /// <param name="value">The proposed enum default.</param>
+    /// <param name="id">The independently correctable diagnostic.</param>
     [TestMethod]
-    [DataRow("First, first", "Mode.First")]
-    [DataRow("[Ankus.PgGucLabel(\"same\")] First, [Ankus.PgGucLabel(\"SAME\")] Last", "Mode.First")]
-    [DataRow("[Ankus.PgGucLabel(\"bad\\0\")] First", "Mode.First")]
-    [DataRow("[Ankus.PgGucLabel(\"bad\\uD800\")] First", "Mode.First")]
-    [DataRow("First = 42", "(Mode)43")]
-    [DataRow("", "(Mode)0")]
-    [DataRow("First", "0")]
-    public void InvalidGucEnumMappingsAreDiagnosed(string members, string value)
+    [DataRow("First, first", "Mode.First", "ANKUS198")]
+    [DataRow("[Ankus.PgGucLabel(\"same\")] First, [Ankus.PgGucLabel(\"SAME\")] Last", "Mode.First", "ANKUS198")]
+    [DataRow("[Ankus.PgGucLabel(\"bad\\0\")] First", "Mode.First", "ANKUS197")]
+    [DataRow("[Ankus.PgGucLabel(\"bad\\uD800\")] First", "Mode.First", "ANKUS197")]
+    [DataRow("First = 42", "(Mode)43", "ANKUS196")]
+    [DataRow("", "(Mode)0", "ANKUS196")]
+    [DataRow("First", "0", "ANKUS196")]
+    public void InvalidGucEnumMappingsAreDiagnosed(string members, string value, string id)
         => AssertInvalidGuc("public enum Mode { " + members + " } public static partial class Settings { [Ankus.PgGucEnum(\"demo.mode\", " +
-            value + ", \"Mode\")] public static partial Mode Value { get; } }");
+            value + ", \"Mode\")] public static partial Mode Value { get; } }", id);
 
     /// <summary>
     /// Hooks resolve one exact, callable typed contract instead of relying on overload choice or nullable conversions.
@@ -433,7 +436,13 @@ public sealed partial class PgFunctionGeneratorTests
     [DataRow("Show", "public static string Hook(long value, Ankus.PgGucExtra? extra) => \"shown\";")]
     public void InvalidGucHookContractsAreDiagnosed(string role, string declaration)
         => AssertInvalidGuc("public partial class Settings { [Ankus.PgGucInt(\"demo.value\", 1, \"Value\", " + role +
-            " = \"Hook\")] public static partial int Value { get; } " + declaration + " }");
+            " = \"Hook\")] public static partial int Value { get; } " + declaration + " }",
+            role switch
+            {
+                "Check" => "ANKUS199",
+                "Assign" => "ANKUS200",
+                _ => "ANKUS201",
+            });
 
     /// <summary>
     /// Duplicate native names use ASCII folding, while non-ASCII labels remain distinct.
@@ -447,7 +456,7 @@ public sealed partial class PgFunctionGeneratorTests
                 [Ankus.PgGucBool("DEMO.Value", true, "First")] public static partial bool First { get; }
                 [Ankus.PgGucBool("demo.value", false, "Second")] public static partial bool Second { get; }
             }
-            """);
+            """, "ANKUS202");
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate("""
             public enum Mode { [Ankus.PgGucLabel("É")] Upper, [Ankus.PgGucLabel("é")] Lower }
             public static partial class Settings
@@ -606,11 +615,11 @@ public sealed partial class PgFunctionGeneratorTests
     /// <summary>
     /// Requires the dedicated declaration error and excludes unrelated parser or binding failures.
     /// </summary>
-    private void AssertInvalidGuc(string source)
+    private void AssertInvalidGuc(string source, string id)
     {
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source);
         Diagnostic error = Assert.ContainsSingle(diagnostics);
-        Assert.AreEqual("ANKUS014", error.Id);
+        Assert.AreEqual(id, error.Id);
         Assert.AreEqual(DiagnosticSeverity.Error, error.Severity);
         Assert.IsFalse(string.IsNullOrWhiteSpace(error.GetMessage(CultureInfo.InvariantCulture)));
         Assert.IsEmpty(compilation.GetDiagnostics(context.CancellationToken).Where(static diagnostic =>

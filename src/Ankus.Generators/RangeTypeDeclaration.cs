@@ -7,10 +7,6 @@ namespace Ankus.Generators;
 /// </summary>
 internal static class RangeTypeDeclaration
 {
-    private static readonly DiagnosticDescriptor s_invalid = new(
-        "ANKUS020", "Invalid PostgreSQL range mapping", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true,
-        helpLinkUri: "https://willibrandon.github.io/ankus/ranges/#mapped-bounds");
-
     /// <summary>
     /// Finds a mapped scalar bound inside the exact Ankus range container.
     /// </summary>
@@ -21,13 +17,13 @@ internal static class RangeTypeDeclaration
     /// <summary>
     /// Validates default and exact targets independently of which finite roots are subsequently selected.
     /// </summary>
-    internal static AttributeData[]? Declarations(INamedTypeSymbol type, GeneratorDiagnostics? context)
+    internal static AttributeData[]? Declarations(INamedTypeSymbol type, GeneratorDiagnostics? context, Location? usage = null)
     {
         AttributeData[] attributes = [.. type.GetAttributes().Where(static item =>
             item.AttributeClass?.ToDisplayString() == "Ankus.PgRangeTypeAttribute")];
         if (attributes.Length != 0 && (!type.IsValueType || type.IsRefLikeType || !DatumTypeDeclaration.IsMapped(type)))
         {
-            return Invalid("PgRangeType requires a non-ref-like value type carrying PgDatumType for its scalar bounds.");
+            return Invalid(RangeMappingDiagnostics.Carrier, type.Locations.FirstOrDefault(static item => item.IsInSource));
         }
 
         var targets = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
@@ -38,7 +34,7 @@ internal static class RangeTypeDeclaration
             {
                 if (hasDefault)
                 {
-                    return Invalid("A managed scalar type may have only one default PgRangeType declaration.");
+                    return Invalid(RangeMappingDiagnostics.DuplicateDefault, attribute.ApplicationSyntaxReference?.GetSyntax(context?.CancellationToken ?? default).GetLocation());
                 }
 
                 hasDefault = true;
@@ -47,21 +43,21 @@ internal static class RangeTypeDeclaration
                 attribute.ConstructorArguments[0].Value is not INamedTypeSymbol target || !DatumTypeDeclaration.IsClosed(target) ||
                 !SymbolEqualityComparer.Default.Equals(target.OriginalDefinition, type.OriginalDefinition))
             {
-                return Invalid("An explicit PgRangeType target must be a closed construction of the annotated scalar bound type.");
+                return Invalid(RangeMappingDiagnostics.Target, DatumMappingDiagnostics.Argument(attribute, 0, context?.CancellationToken ?? default));
             }
             else if (!targets.Add(target))
             {
-                return Invalid("A closed scalar bound type may have only one exact PgRangeType declaration.");
+                return Invalid(RangeMappingDiagnostics.DuplicateExact, attribute.ApplicationSyntaxReference?.GetSyntax(context?.CancellationToken ?? default).GetLocation());
             }
         }
 
         return attributes;
 
-        AttributeData[]? Invalid(string message)
+        AttributeData[]? Invalid(DiagnosticDescriptor descriptor, Location? location)
         {
             if (context is { } output)
             {
-                Error(type, message, output);
+                output.Report(descriptor, location ?? usage ?? type.Locations.FirstOrDefault(static item => item.IsInSource));
             }
 
             return null;
@@ -71,10 +67,10 @@ internal static class RangeTypeDeclaration
     /// <summary>
     /// Creates an optional closed range contract from a previously validated scalar mapping.
     /// </summary>
-    internal static bool TryCreate(DatumTypeDeclaration scalar, out DatumTypeDeclaration? range, GeneratorDiagnostics? context = null)
+    internal static bool TryCreate(DatumTypeDeclaration scalar, out DatumTypeDeclaration? range, GeneratorDiagnostics? context = null, Location? usage = null)
     {
         range = null;
-        AttributeData[]? attributes = Declarations(scalar.Type, context);
+        AttributeData[]? attributes = Declarations(scalar.Type, context, usage);
         if (attributes is null)
         {
             return false;
@@ -95,46 +91,47 @@ internal static class RangeTypeDeclaration
 
         string? name = attribute.ConstructorArguments[attribute.ConstructorArguments.Length - 1].Value as string;
         string? schema = AttributeValues.Get<string?>(attribute, "Schema", null);
-        if (!SqlText.IsIdentifier(name) || schema is not null && !SqlText.IsIdentifier(schema))
+        CancellationToken cancellationToken = context?.CancellationToken ?? default;
+        if (!SqlText.IsIdentifier(name))
         {
-            return Invalid("Range type and schema names must be nonempty identifiers of at most 63 UTF-8 bytes, without zero characters or invalid Unicode.");
+            return Invalid(RangeMappingDiagnostics.Name, DatumMappingDiagnostics.Argument(attribute, attribute.ConstructorArguments.Length - 1, cancellationToken));
+        }
+
+        if (schema is not null && !SqlText.IsIdentifier(schema))
+        {
+            return Invalid(RangeMappingDiagnostics.Schema, FunctionDeclarationDiagnostics.Option(attribute, "Schema", cancellationToken));
         }
 
         int origin = AttributeValues.Get(attribute, "Origin", 0);
         if (origin is not (0 or 1))
         {
-            return Invalid("Range Origin must be ThisExtension or External.");
+            return Invalid(RangeMappingDiagnostics.Origin, FunctionDeclarationDiagnostics.Option(attribute, "Origin", cancellationToken));
         }
 
         if (origin == 1 && schema is null)
         {
-            return Invalid("External range mappings require an explicit Schema.");
+            return Invalid(RangeMappingDiagnostics.ExternalSchema, FunctionDeclarationDiagnostics.Option(attribute, "Origin", cancellationToken));
         }
 
         INamedTypeSymbol? definition = attribute.AttributeClass!.ContainingAssembly.GetTypeByMetadataName("Ankus.PgRange`1");
         if (definition is null)
         {
-            return Invalid("The range declaration must resolve the Ankus PgRange<T> runtime type.");
+            return Invalid(RangeMappingDiagnostics.RuntimeType, attribute.ApplicationSyntaxReference?.GetSyntax(cancellationToken).GetLocation());
         }
 
         range = new(definition.Construct(scalar.Type), scalar.Converter, name!, schema, origin == 1,
             scalar.CanRead, scalar.CanWrite, inferred: false, rangeBound: scalar);
         return true;
 
-        bool Invalid(string message)
+        bool Invalid(DiagnosticDescriptor descriptor, Location? location)
         {
             if (context is { } output)
             {
-                Error(scalar.Type, message, output);
+                output.Report(descriptor, location ?? usage ?? scalar.Type.Locations.FirstOrDefault(static item => item.IsInSource));
             }
 
             return false;
         }
     }
 
-    /// <summary>
-    /// Reports a precise source-located range contract error before generated output.
-    /// </summary>
-    internal static void Error(ISymbol symbol, string message, GeneratorDiagnostics context)
-        => context.Report(s_invalid, symbol.Locations.FirstOrDefault(), symbol.Name, message);
 }

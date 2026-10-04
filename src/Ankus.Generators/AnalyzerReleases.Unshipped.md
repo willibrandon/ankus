@@ -11,12 +11,10 @@ ANKUS009 | Ankus | Error | Invalid named composite type or TABLE column binding
 ANKUS010 | Ankus | Error | Invalid PostgreSQL trigger declaration
 ANKUS011 | Ankus | Error | Invalid PostgreSQL event trigger declaration
 ANKUS013 | Ankus | Error | Invalid PostgreSQL initialization declaration
-ANKUS014 | Ankus | Error | Invalid PostgreSQL configuration declaration
 ANKUS015 | Ankus | Error | Invalid PostgreSQL configuration prefix
 ANKUS016 | Ankus | Error | Invalid raw PostgreSQL type or TABLE column binding
 ANKUS017 | Ankus | Error | Invalid PostgreSQL base type or storage codec
 ANKUS018 | Ankus | Error | Invalid generated PostgreSQL operators
-ANKUS020 | Ankus | Error | Invalid mapped PostgreSQL range declaration
 ANKUS021 | Ankus | Error | Invalid static native callback declaration or handler
 ANKUS022 | Ankus | Error | Invalid PostgreSQL background-worker entry
 ANKUS023 | Ankus | Error | Invalid PostgreSQL backend test declaration or catalog
@@ -154,3 +152,49 @@ ANKUS154 | Ankus | Error | Unsupported mapped datum container
 ANKUS155 | Ankus | Error | Duplicate default datum mapping
 ANKUS156 | Ankus | Error | Invalid explicit datum mapping target
 ANKUS157 | Ankus | Error | Duplicate exact datum mapping
+ANKUS158 | Ankus | Error | Invalid mapped range bound
+ANKUS159 | Ankus | Error | Duplicate default range mapping
+ANKUS160 | Ankus | Error | Invalid exact range mapping target
+ANKUS161 | Ankus | Error | Duplicate exact range mapping
+ANKUS162 | Ankus | Error | Invalid mapped range name
+ANKUS163 | Ankus | Error | Invalid mapped range schema
+ANKUS164 | Ankus | Error | Invalid mapped range origin
+ANKUS165 | Ankus | Error | External range mapping requires a schema
+ANKUS166 | Ankus | Error | Missing range runtime contract
+ANKUS167 | Ankus | Error | Ambiguous mapped range identity
+ANKUS168 | Ankus | Error | Missing closed range mapping
+ANKUS169 | Ankus | Error | Conflicting GUC declarations
+ANKUS170 | Ankus | Error | GUC property must be static
+ANKUS171 | Ankus | Error | GUC requires a getter-only property
+ANKUS172 | Ankus | Error | GUC cannot return by reference
+ANKUS173 | Ankus | Error | GUC property must be partial
+ANKUS174 | Ankus | Error | Inaccessible GUC property
+ANKUS175 | Ankus | Error | GUC property has an implementation
+ANKUS176 | Ankus | Error | GUC requires a class
+ANKUS177 | Ankus | Error | GUC container has type parameters
+ANKUS178 | Ankus | Error | GUC container is file-local
+ANKUS179 | Ankus | Error | Inaccessible GUC container
+ANKUS180 | Ankus | Error | GUC container must be partial
+ANKUS181 | Ankus | Error | Invalid custom setting name
+ANKUS182 | Ankus | Error | Invalid GUC description
+ANKUS183 | Ankus | Error | GUC attribute and property types differ
+ANKUS184 | Ankus | Error | Invalid GUC long description
+ANKUS185 | Ankus | Error | Invalid GUC context
+ANKUS186 | Ankus | Error | Invalid GUC flags
+ANKUS187 | Ankus | Error | Invalid GUC unit
+ANKUS188 | Ankus | Error | Identifier GUC requires a string
+ANKUS189 | Ankus | Error | GUC units require a numeric setting
+ANKUS190 | Ankus | Error | Reversed integer GUC bounds
+ANKUS191 | Ankus | Error | Integer GUC default exceeds bounds
+ANKUS192 | Ankus | Error | Invalid real GUC bounds
+ANKUS193 | Ankus | Error | Invalid real GUC default
+ANKUS194 | Ankus | Error | Invalid string GUC default
+ANKUS195 | Ankus | Error | Null GUC default requires nullable string
+ANKUS196 | Ankus | Error | Invalid enum GUC default
+ANKUS197 | Ankus | Error | Invalid GUC enum label
+ANKUS198 | Ankus | Error | Duplicate GUC enum label
+ANKUS199 | Ankus | Error | Invalid GUC check hook
+ANKUS200 | Ankus | Error | Invalid GUC assignment hook
+ANKUS201 | Ankus | Error | Invalid GUC display hook
+ANKUS202 | Ankus | Error | Duplicate custom setting name
+ANKUS203 | Ankus | Error | GUC cannot be an indexer

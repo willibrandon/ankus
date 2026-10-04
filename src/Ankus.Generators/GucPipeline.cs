@@ -45,9 +45,9 @@ internal static class GucPipeline
         var problems = new List<GeneratorProblem>();
         var diagnostics = new GeneratorDiagnostics((descriptor, location, arguments) =>
             problems.Add(new(descriptor, GeneratorLocation.Create(location, compilation), new(arguments))), cancellationToken);
-        GucDeclaration? declaration = GucDeclaration.Create(property, diagnostics);
+        GucDeclaration? declaration = GucDeclaration.Create(property, compilation, diagnostics);
         return new(DeclarationIdentity.Create(property), property.Name, declaration is null ? null : GucModel.Create(declaration),
-            new(problems), GeneratorLocation.Create(property.Locations.FirstOrDefault(), compilation));
+            new(problems), GeneratorLocation.Create(DatumMappingDiagnostics.Argument(syntax.Attributes[0], 0, cancellationToken), compilation));
     }
 
     /// <summary>
@@ -95,8 +95,7 @@ internal static class GucPipeline
             if (!names.Add(GucDeclaration.Fold(model.Name)))
             {
                 GeneratorDiagnostics diagnostics = context;
-                diagnostics.Report(GucDeclaration.InvalidDiagnostic, analysis.Location?.Resolve(compilation), analysis.Name,
-                    "GUC names must be unique under PostgreSQL's ASCII case-insensitive comparison.");
+                diagnostics.Report(GucDeclarationDiagnostics.DuplicateName, analysis.Location?.Resolve(compilation), model.Name);
                 continue;
             }
 

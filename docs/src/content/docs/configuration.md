@@ -102,7 +102,7 @@ shared-preload prefixes currently must be ASCII.
 Every declaration accepts a name, a constant default value, and a short
 description. Optional properties include `LongDescription`, `Context`, `Flags`,
 `Unit`, `Check`, `Assign`, and `Show`. Names must be qualified PostgreSQL parameter
-names, such as `my_extension.limit`. Invalid declarations report `ANKUS014`.
+names, such as `my_extension.limit`. Invalid declarations report a [declaration diagnostic](#declaration-diagnostics).
 
 Strings are owned managed copies. A null boot/reset string remains distinct from
 an empty string in the typed getter, although ordinary `SHOW` displays both as
@@ -150,6 +150,30 @@ PostgreSQL 18, `DisallowInFile` blocks `ALTER SYSTEM` and affects configuration
 help, but does not itself reject a custom `UserSet` parameter supplied manually
 in a configuration file. Choose the appropriate context and check hook for
 additional restrictions.
+
+## Declaration diagnostics
+
+Configuration diagnostics identify the setting argument, property type, enum
+label, or containing declaration that needs correction. An invalid setting
+produces a diagnostic before its getter or native registration is generated.
+
+| Diagnostic | Required correction |
+| --- | --- |
+| `ANKUS169` | Declare exactly one typed GUC attribute on the property. |
+| `ANKUS170`–`ANKUS175`, `ANKUS203` | Use an accessible static partial getter-only property, without an indexer, reference return, or authored implementation. |
+| `ANKUS176`–`ANKUS180` | Put the property in accessible, non-generic, non-file-local partial classes, including every enclosing class. |
+| `ANKUS181` | Use a valid dotted custom setting name. |
+| `ANKUS182`, `ANKUS184` | Use valid description text without zero characters. The short description cannot be null. |
+| `ANKUS183` | Match the property type to its typed GUC attribute. |
+| `ANKUS185`–`ANKUS187` | Use declared context, flag, and unit values. |
+| `ANKUS188`, `ANKUS189` | Apply `IsName` only to strings, and units only to integer or real settings. |
+| `ANKUS190`, `ANKUS192` | Order the minimum and maximum bounds. Real bounds cannot be NaN. |
+| `ANKUS191`, `ANKUS193` | Put the default within the declared bounds. Real defaults cannot be NaN. |
+| `ANKUS194`, `ANKUS195` | Use valid string default text. A null default requires `string?`. |
+| `ANKUS196` | Select a declared value of the property's enum type. |
+| `ANKUS197`, `ANKUS198` | Use valid enum labels that are distinct under PostgreSQL's ASCII case folding. |
+| `ANKUS199`–`ANKUS201` | Match the check, assignment, or display hook's exact typed signature. |
+| `ANKUS202` | Give each setting a distinct name under PostgreSQL's ASCII case folding. |
 
 ## Hooks
 

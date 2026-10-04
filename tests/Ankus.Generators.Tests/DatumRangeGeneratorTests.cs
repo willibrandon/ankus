@@ -147,24 +147,26 @@ public sealed partial class PgFunctionGeneratorTests
     /// </summary>
     /// <param name="options">The malformed range attribute arguments.</param>
     /// <param name="reason">The actionable diagnostic reason.</param>
+    /// <param name="id">The independently correctable diagnostic.</param>
     [TestMethod]
-    [DataRow("\"\"", "63 UTF-8 bytes")]
-    [DataRow("\"name\", Schema=\"\"", "63 UTF-8 bytes")]
-    [DataRow("\"name\", Origin=(Ankus.PgTypeOrigin)2", "Origin")]
-    [DataRow("\"name\", Origin=Ankus.PgTypeOrigin.External", "explicit Schema")]
-    [DataRow("typeof(int), \"name\"", "closed construction")]
-    public void DatumRangesRejectInvalidMetadata(string options, string reason)
-        => AssertDatumMappingError(DatumRangeSource(options), "ANKUS020", reason);
+    [DataRow("\"\"", "63 UTF-8 bytes", "ANKUS162")]
+    [DataRow("\"name\", Schema=\"\"", "63 UTF-8 bytes", "ANKUS163")]
+    [DataRow("\"name\", Origin=(Ankus.PgTypeOrigin)2", "Origin", "ANKUS164")]
+    [DataRow("\"name\", Origin=Ankus.PgTypeOrigin.External", "explicit Schema", "ANKUS165")]
+    [DataRow("typeof(int), \"name\"", "closed construction", "ANKUS160")]
+    public void DatumRangesRejectInvalidMetadata(string options, string reason, string id)
+        => AssertDatumMappingError(DatumRangeSource(options), id, reason);
 
     /// <summary>
     /// Duplicate defaults, duplicate exact targets and an absent range selection have precise declaration diagnostics.
     /// </summary>
     /// <param name="extra">The additional range declaration.</param>
+    /// <param name="id">The independently correctable diagnostic.</param>
     [TestMethod]
-    [DataRow("[Ankus.PgRangeType(\"second\")]")]
-    [DataRow("[Ankus.PgRangeType(typeof(Value), \"one\")][Ankus.PgRangeType(typeof(Value), \"two\")]")]
-    public void DatumRangesRejectDuplicateSelections(string extra)
-        => AssertDatumMappingError(extra + DatumRangeSource(), "ANKUS020", "only one");
+    [DataRow("[Ankus.PgRangeType(\"second\")]", "ANKUS159")]
+    [DataRow("[Ankus.PgRangeType(typeof(Value), \"one\")][Ankus.PgRangeType(typeof(Value), \"two\")]", "ANKUS161")]
+    public void DatumRangesRejectDuplicateSelections(string extra, string id)
+        => AssertDatumMappingError(extra + DatumRangeSource(), id, "only one");
 
     /// <summary>
     /// A scalar mapping alone does not imply a matching catalog range or permit a built-in fallback.
@@ -172,7 +174,7 @@ public sealed partial class PgFunctionGeneratorTests
     [TestMethod]
     public void DatumRangesRejectMissingRangeSelection()
         => AssertDatumMappingError(DatumMappingSource() + DatumMappingMethods("Ankus.PgRange<Value>", string.Empty),
-            "ANKUS020", "No valid PgRangeType declaration");
+            "ANKUS168", "No valid PgRangeType declaration");
 
     /// <summary>
     /// Range attributes cannot silently decorate unsupported scalar declarations even without a consuming function.
@@ -180,9 +182,9 @@ public sealed partial class PgFunctionGeneratorTests
     [TestMethod]
     public void DatumRangesRequireMappedValueBounds()
     {
-        AssertDatumMappingError("[Ankus.PgRangeType(\"range\")] public struct Value { }", "ANKUS020", "carrying PgDatumType");
+        AssertDatumMappingError("[Ankus.PgRangeType(\"range\")] public struct Value { }", "ANKUS158", "carrying PgDatumType");
         AssertDatumMappingError("[Ankus.PgRangeType(\"range\")] " + DatumMappingSource("public sealed class Value { }"),
-            "ANKUS020", "value type");
+            "ANKUS158", "value type");
     }
 
     /// <summary>

@@ -25044,3 +25044,210 @@ Immediately before committing this milestone, the latest prior workflows for
 `811f8d0` are complete and green: CI run `37174019108` and Docs run
 `37174019056`. The required fresh pre-push check reports the same state, with no
 newer workflow running.
+
+## Status snapshot before range and configuration diagnostics
+
+- **596a8af** fixes persistent diagnostic collection and cluster cleanup,
+  canceled shutdown retry, idle interrupt cancellation, SPI quoting and parameter
+  boundaries, raw caller checks, editor fixes and per-item backend-test rejection.
+  Complete Linux/18.6 acceptance passes **11,816 total / 11,768 passed /
+  48 platform skips / zero failures** in **50m23s**. All 137 recorded authored
+  inputs remain unchanged. Corrected Windows/13.23 generator, build and native
+  lifecycle modules pass; Release, API freshness and site checks pass.
+  [Primary CI 37169593738](https://github.com/willibrandon/ankus/actions/runs/37169593738)
+  passes quality, all runtime jobs and all three complete platform suites.
+  All six report modules were independently verified for each platform.
+  [Docs CI 37169593785](https://github.com/willibrandon/ankus/actions/runs/37169593785)
+  passes. Original failed attempts and subsequent corrections remain archived.
+- Generator discovery now uses semantic attribute indexes and independently
+  cached reference metadata. Physical SQL line attribution is separate from
+  semantic composition; unchanged trees retain their declaration indexes.
+  Four source-edit regressions fail before correction. Complete repository
+  generator acceptance passes **3,427/3,427**; complete Linux/18.6 acceptance
+  passes **11,830 total / 11,782 passed / 48 platform skips / zero failures**
+  in **50m29.932s**. All six reports are independently verified; all 1,648
+  recorded authored inputs remain unchanged. Release and API freshness pass.
+  Committed as **811f8d0**. [Primary CI 37174019108](https://github.com/willibrandon/ankus/actions/runs/37174019108)
+  passes quality, all runtime jobs and all three complete platform suites.
+  All six reports are independently verified for each platform.
+  [Docs CI 37174019056](https://github.com/willibrandon/ankus/actions/runs/37174019056)
+  passes.
+- CLI environment and invocation selection now follows pgrx's `PG_VERSION`,
+  `DBNAME` and SQL-client defaults while retaining explicit and publication
+  selections. The installed draft tool passes **39/39** process cases against
+  PostgreSQL/18.6, including existing solution cases and exact staged native/SQL
+  bytes; 13 of the original 17 cases fail before correction. The complete
+  Linux/18.6 repository, package and template composition passes with zero
+  failures.
+- Portable CLI project names now normalize namespaces and SQL identity like
+  the installed .NET templates. Seven creation cases fail before correction;
+  combined installed-tool acceptance passes **48/48**, including nine naming
+  cases. Full native regression consumers now cover leading digits, separators
+  and Unicode through both creation paths. Their native filenames use the
+  normalized extension identity, and complete acceptance passes.
+- Current-runtime Linux/13–17 and 19 acceptance is green on **c24297f** in
+  [version CI 37154140634](https://github.com/willibrandon/ankus/actions/runs/37154140634).
+  Later review fixes still require refreshed version/platform evidence.
+- Persistent generated `emit_log_hook` coverage exposed diagnostic cleanup
+  after PostgreSQL resets `ErrorContext`. The generated dispatcher allocated
+  its owned error header in that caller context; recursive ERROR reporting reset
+  the context before `PG_FINALLY` released the header. Native debugger evidence
+  identifies the resulting invalid `pfree`. The header now lives temporarily in
+  `TopMemoryContext`, and cleanup restores a verified live context after managed
+  frames unwind. Focused Linux/18.6 acceptance passes **52/52**, including
+  chaining, nested reporting, managed failures, native failure before the
+  handler and same-session recovery. A post-fix complete run has no allocator
+  failure and exposes three independent template cases instead: Unicode project
+  names retained an invalid native filename and one obsolete test rejected a
+  now-supported leading digit. Scaffolded assemblies now use the normalized SQL
+  extension identity; worker preload names follow it. All **17/17** affected
+  template cases pass with real Native AOT publication and PostgreSQL regression
+  runs. Corrected complete Linux/18.6 acceptance passes **11,840 total / 11,792
+  passed / 48 platform skips / zero failures** in **51m13.968s** against 1,650
+  verified authored inputs. All six reports are independently verified. Release
+  passes with zero warnings/errors in **2m05.832s**; API freshness passes in
+  **10.037s**. Site build produces 287 pages and site checks report zero errors,
+  warnings or hints.
+- Windows/17 in [primary CI 37183879367](https://github.com/willibrandon/ankus/actions/runs/37183879367)
+  and Windows/13 in [version CI 37183984954](https://github.com/willibrandon/ankus/actions/runs/37183984954)
+  exposed MSVC reading generated Unicode C with code page 1252. **b602b32**
+  selects UTF-8 and compiles the native library. Replacement
+  [CI 37188103763](https://github.com/willibrandon/ankus/actions/runs/37188103763)
+  passes Linux/18 and macOS ARM64/18, then exposes PostgreSQL's Windows
+  `pg_regress` converting its Unicode working directory through the active ANSI
+  code page. The driver now runs only that native boundary in an ASCII staging
+  directory and copies native results back to the authored suite. A cold local
+  Windows/17 run passes all **10/10** scaffolded regression cases, including both
+  Unicode creation paths, in **7m43s**. That cold run also exposed Clang 21
+  diagnosing casing defects inside PostgreSQL and Windows SDK headers; Ankus now
+  classifies those vendor directories as system headers while retaining
+  warnings-as-errors for generated and Ankus-owned C. Native binding tests pass
+  **1,061**, with nine platform skips. Replacement primary CI remains required.
+- [Additional-platform CI 37183985269](https://github.com/willibrandon/ankus/actions/runs/37183985269)
+  completes the macOS x64/PostgreSQL 18 full suite on **7b65e23**. Its test step
+  passes in **4h25m01s**. Later benchmark and recovery work still requires
+  replacement platform evidence.
+- In-backend benchmarks implement pgrx-style persisted groups, named baselines,
+  batching and transaction modes. Pure numeric, temporal, network, geometry,
+  built-in range and array-cell operations use a native recovery guard without
+  creating a PostgreSQL subtransaction; user callbacks and custom range code
+  retain full subtransaction recovery. Complete Linux/18.6 acceptance passes
+  **11,900 total / 11,852 passed / 48 platform skips / zero failures** in
+  **35m02.980s**. Release builds with zero warnings/errors in **1m33.89s**;
+  API freshness passes at **244 pages / 2,791 members**; site checks report zero
+  diagnostics and the site builds **293 pages**. The final Windows compiler-name
+  contract passes **4/4** after that complete run.
+- [Primary CI 37202027663](https://github.com/willibrandon/ankus/actions/runs/37202027663)
+  passes quality, all runtime jobs and macOS ARM64/18, then exposes three
+  independent acceptance defects. PostgreSQL 18 benchmarks attempted to copy
+  into a root-owned system installation on Linux; one generator test used an LF
+  replacement against CRLF source on Windows; and the benchmark fixture left
+  its persistent development server running before deleting the Windows test
+  home. PostgreSQL 18 benchmark artifacts now use a private
+  `extension_control_path` and `dynamic_library_path`, the source edit is
+  line-ending independent, and the fixture always stops its server. Focused
+  Linux/18.6 benchmark acceptance passes **1/1** in **3m58.489s** with no retained
+  server; complete generator acceptance passes **3,437/3,437**. The corrected
+  complete Linux/18.6 suite passes **11,903 total / 11,855 passed / 48 platform
+  skips / zero failures** in **33m55.690s**. The final Release build has zero
+  warnings/errors in **1m23.56s**; documentation checks have zero diagnostics,
+  API generation reports **244 pages / 2,791 members**, and the site builds
+  **293 pages**. [Replacement primary CI 37209084748](https://github.com/willibrandon/ankus/actions/runs/37209084748)
+  passes quality, all runtime jobs and all three complete platform suites;
+  [docs CI 37209084764](https://github.com/willibrandon/ankus/actions/runs/37209084764)
+  passes build and deployment.
+- The pgrx `errors` example now has a runnable C# sample and real PostgreSQL
+  coverage for nullable arrays, managed exceptions, guarded native errors,
+  client reports, ERROR, FATAL, PANIC, backend continuity and crash recovery.
+  That work exposed `PgRelation.Open` replacing PostgreSQL's name parser and
+  lookup diagnostics with a generic `42P01`. `Open` now calls PostgreSQL's
+  `regclassin` inside the native guard, preserving exact SQLSTATE and message;
+  `TryOpen` retains `to_regclass` null-on-missing behavior. Focused Linux/18.6
+  terminal acceptance passes **2/2**; the corrected relation-diagnostic case
+  passes **1/1** in **2m42.417s**. Complete Linux/18.6 acceptance passes
+  **11,906 total / 11,858 passed / 48 platform skips / zero failures** in
+  **35m19.441s**. Release passes with zero warnings/errors in **43.84s**; API
+  generation reports **244 pages / 2,791 members**, site checks have zero
+  diagnostics, and the site builds **293 pages**.
+- Datum mapping validation now reports **ANKUS134–157** for independently
+  correctable carrier, metadata, converter, inference, signature and duplicate
+  declaration contracts, replacing the broad **ANKUS019**. Diagnostics navigate
+  to attribute values, consuming types or the duplicate declaration; referenced
+  mappings retain an authored usage location. All **328/328** affected generator
+  cases pass, including `DatumMappingMetadataDiagnosticsIdentifyAuthoredValues`,
+  `DatumMappingSignatureDiagnosticsIdentifyConsumedTypes`,
+  `DuplicateDatumMappingDiagnosticsIdentifyTheSecondDeclaration`,
+  `DatumConverterConstraintDiagnosticsIdentifyTheAuthoredConverter` and
+  `DatumMappingValueDiagnosticsRemainCachedAcrossSourceMovement`.
+  Complete Linux/18.6 acceptance passes **11,927 total / 11,879 passed /
+  48 platform skips / zero failures** in **42m37.991s**. All six report modules
+  were independently verified; all **1,593** recorded authored build inputs
+  remain unchanged. Release passes with zero warnings/errors in **50.63s**;
+  API freshness reports **244 pages / 2,791 members**, and site checks have zero
+  errors, warnings or hints. The site builds **293 pages** in **3.41s**.
+  Before this milestone, [CI 37214601834](https://github.com/willibrandon/ankus/actions/runs/37214601834)
+  passes quality, all runtime jobs and all three complete platform suites.
+  All six report modules were independently verified for each platform.
+  [Docs 37214601835](https://github.com/willibrandon/ankus/actions/runs/37214601835)
+  passes build and deployment.
+- Remaining review work includes precise diagnostics and useful code fixes,
+  remaining CLI/account contracts, representative samples and final platform
+  acceptance. Detailed outcomes and superseded states belong in the
+  [evidence archive](docs/contributing/evidence/port-history.md#status-snapshot-before-the-23-commit-follow-up-review).
+
+## Range mapping and configuration diagnostics
+
+The composition based on **4c9cc43** replaces broad range **ANKUS020** and
+configuration **ANKUS014** errors with **ANKUS158–203**. Range diagnostics
+distinguish carrier, finite target, duplicate, identifier, origin, runtime
+identity and missing-selection failures. Configuration diagnostics distinguish
+property/container shape, typed values, descriptions, flags, units, bounds,
+defaults, labels, hooks and duplicate names. They identify authored arguments,
+types or declarations; imported contracts identify their consuming signature.
+An invalid range does not also produce a misleading missing-selection error.
+Invalid settings produce neither a getter nor a native registration, while
+valid module scaffolding remains available.
+
+Regression tests check exact IDs, severity, help links and source spans,
+including named constructor arguments and second-declaration duplicates.
+Tracked drivers verify cached rendering with current navigation after body
+edits and source movement. Existing declaration-validation tests retain their
+constraints and now assert the specific diagnostic. No analyzer mode, warning
+severity or suppression changed.
+
+A referenced enum regression exposed a separate correctness defect. Roslyn's
+metadata import trims trailing zero characters from serialized attribute
+strings. A referenced `PgGucLabel("bad\0")` therefore appeared as `"bad"` and
+incorrectly passed validation. The complete generator attempt reproduced that
+failure before correction. Imported GUC enum labels now come from exact
+ECMA-335 field-attribute bytes, decoded with strict UTF-8, without loading a
+reference assembly. The reader matches constructor signatures and nested or
+generic metadata identities, and unreadable labels fail validation.
+
+Tests prove rejection of imported trailing/interior zero characters, null labels
+and malformed UTF-8. Valid Unicode, hidden aliases, dense default ordinals and
+nested generic enums retain their exact generated contracts and compile.
+The remaining imported-string declaration families still require an audit;
+this GUC fix does not establish their acceptance.
+
+Complete generator acceptance passes **3,522/3,522**, zero failures, in
+**54.443s** test time (**58.175s** command). Complete Linux x64/PostgreSQL 18.6
+acceptance passes **11,991 total / 11,943 passed / 48 platform skips / zero
+failures** in **39m29.371s** test time (**40m40.23s** command), with SDK
+**10.0.401** and runtime/compiler **10.0.12-ankus.4**. All six reports were
+independently verified. All **1,642** authored build inputs remain unchanged
+in both the tested snapshot and the working composition. All **39** staged
+payload files match the successful primary CI artifact. Release passes with
+zero warnings/errors in **1m10.70s** (**1m10.87s** command). API freshness passes with
+**244 pages / 2,791 members**; site checks report zero errors, warnings or hints,
+and the site builds **293 pages** in **3.86s**. Both new help anchors are present
+in the built pages.
+
+Before committing, primary **CI 37218726638** and **Docs 37218726655** pass
+on **4c9cc43**, as do the earlier **37214601834/835** and **37209084748/764**
+replacements. Platform-version **CI 37218985660** passes Windows/18
+(**11,927 total / 11,899 passed / 28 skips / zero failures**, **33m02s** job)
+and macOS ARM64/15 (**11,927 total / 11,867 passed / 60 skips / zero failures**,
+**28m01s** job). All six reports were independently verified per completed
+platform. Windows/13 and macOS ARM64/16 remain in progress. These version
+reports prove **4c9cc43**, not the new diagnostic composition.

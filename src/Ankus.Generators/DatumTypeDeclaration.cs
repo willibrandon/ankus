@@ -295,6 +295,7 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
         }
 
         bool valid = true;
+        var invalidRangeBounds = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
         var declarations = new List<DatumTypeDeclaration>();
         foreach (INamedTypeSymbol type in candidates.OrderBy(static item => item.ToDisplayString(), StringComparer.Ordinal))
         {
@@ -302,10 +303,12 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
             DatumTypeDeclaration? declaration = Create(type, compilation.Assembly, context, usage);
             if (declaration is null)
             {
+                invalidRangeBounds.Add(type);
                 valid = false;
             }
             else if (!Resolves(type) || !Resolves(declaration.Converter))
             {
+                invalidRangeBounds.Add(type);
                 context.Report(DatumMappingDiagnostics.GlobalIdentity, declaration.ConverterLocation ?? usage ??
                     type.Locations.FirstOrDefault(static item => item.IsInSource));
                 valid = false;
@@ -319,15 +322,18 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
         valid &= DatumConverterTemplate.Validate(compilation, declarations, context);
         foreach (DatumTypeDeclaration scalar in declarations.ToArray())
         {
-            if (!RangeTypeDeclaration.TryCreate(scalar, out DatumTypeDeclaration? range, context))
+            usages.TryGetValue(scalar.Type, out Location? usage);
+            if (!RangeTypeDeclaration.TryCreate(scalar, out DatumTypeDeclaration? range, context, usage))
             {
+                invalidRangeBounds.Add(scalar.Type);
                 valid = false;
             }
             else if (range is not null)
             {
                 if (!Resolves(range.Type))
                 {
-                    RangeTypeDeclaration.Error(scalar.Type, "The constructed range must resolve unambiguously through its global qualified name.", context);
+                    context.Report(RangeMappingDiagnostics.GlobalIdentity, usage ?? scalar.Type.Locations.FirstOrDefault(static item => item.IsInSource),
+                        range.Type.ToDisplayString());
                     valid = false;
                 }
                 else
@@ -339,10 +345,12 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
 
         foreach (INamedTypeSymbol requested in requestedRanges)
         {
-            if (!declarations.Any(item => SymbolEqualityComparer.Default.Equals(item.Type, requested)))
+            if (!invalidRangeBounds.Contains(RangeTypeDeclaration.Bound(requested)!) &&
+                !declarations.Any(item => SymbolEqualityComparer.Default.Equals(item.Type, requested)))
             {
-                RangeTypeDeclaration.Error(RangeTypeDeclaration.Bound(requested)!,
-                    "No valid PgRangeType declaration selects this exact closed scalar bound type.", context);
+                usages.TryGetValue(requested, out Location? usage);
+                context.Report(RangeMappingDiagnostics.MissingSelection, usage ??
+                    RangeTypeDeclaration.Bound(requested)!.Locations.FirstOrDefault(static item => item.IsInSource), requested.ToDisplayString());
                 valid = false;
             }
         }

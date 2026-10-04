@@ -55,8 +55,8 @@ public sealed partial class PgFunctionGeneratorTests
         GeneratorDriver driver = ModuleDriver().RunGeneratorsAndUpdateCompilation(initial, out _,
             out ImmutableArray<Diagnostic> diagnostics, context.CancellationToken);
         Diagnostic error = Assert.ContainsSingle(diagnostics);
-        Assert.AreEqual("ANKUS014", error.Id);
-        Assert.AreEqual("OtherValue", error.Location.SourceTree!.GetText(context.CancellationToken).ToString(error.Location.SourceSpan));
+        Assert.AreEqual("ANKUS202", error.Id);
+        Assert.AreEqual("\"demo.VALUE\"", error.Location.SourceTree!.GetText(context.CancellationToken).ToString(error.Location.SourceSpan));
         string survivor = secondSource.Replace("demo.VALUE", "demo.other", StringComparison.Ordinal);
         CSharpCompilation repaired = initial.ReplaceSyntaxTree(initial.SyntaxTrees.Single(), CSharpSyntaxTree.ParseText(
             Marker + firstSource + survivor, path: "Module.cs", cancellationToken: context.CancellationToken));

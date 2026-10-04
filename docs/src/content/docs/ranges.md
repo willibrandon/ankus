@@ -210,6 +210,23 @@ Generic bounds follow the same finite selection rules as scalar mappings.
 `PgRangeType(typeof(NumberBox<int>), "number_range")` selects an exact closed
 bound and overrides an optional default declaration. An exact local declaration
 also registers a raw-only root. Open converter definitions are inferred from
-the scalar contract. Invalid range metadata produces `ANKUS020` without partial
+the scalar contract. Invalid range metadata produces a [mapping diagnostic](#mapping-diagnostics) without partial
 generated output. Reference-type bounds, automatically derived range metadata
 for `PgType`/`PgEnum`, and multiranges are not supported.
+
+## Mapping diagnostics
+
+Range diagnostics identify the argument or declaration that needs correction.
+For a mapping in another assembly, they identify the consuming function's type.
+Invalid mappings prevent generation of partial SQL or native registration code.
+
+| Diagnostic | Required correction |
+| --- | --- |
+| `ANKUS158` | Apply `PgRangeType` to a non-ref-like value type with a scalar `PgDatumType` mapping. |
+| `ANKUS159`, `ANKUS161` | Keep one default declaration and at most one declaration for each exact closed bound type. |
+| `ANKUS160` | Use a closed construction of the annotated bound type as the exact target. |
+| `ANKUS162`, `ANKUS163` | Use valid range and schema identifiers of at most 63 UTF-8 bytes, without zero characters. |
+| `ANKUS164` | Select `ThisExtension` or `External` as the origin. |
+| `ANKUS165` | Supply an explicit schema for an external range. |
+| `ANKUS166`, `ANKUS167` | Reference a matching Ankus runtime and resolve the range's managed type unambiguously. |
+| `ANKUS168` | Add a default or exact `PgRangeType` declaration for the consumed bound type. |
