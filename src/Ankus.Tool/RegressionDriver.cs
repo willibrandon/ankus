@@ -34,8 +34,11 @@ internal static class RegressionDriver
         }
 
         string status = Directory.CreateTempSubdirectory("ankus-regression-status-").FullName;
+        WindowsRegressionWorkspace? workspace = null;
         try
         {
+            workspace = WindowsRegressionWorkspace.Create(directory);
+            string nativeDirectory = workspace?.DirectoryPath ?? directory;
             string executable = Environment.ProcessPath ?? throw new InvalidOperationException("Cannot locate the Ankus executable.");
             bool hosted = string.Equals(Path.GetFileNameWithoutExtension(executable), "dotnet", StringComparison.OrdinalIgnoreCase);
             var environment = new Dictionary<string, string?>
@@ -61,11 +64,20 @@ internal static class RegressionDriver
 
             // PostgreSQL normalizes these suite paths before invoking its comparator.
             // The managed launcher supplies the actual psql and connection as individual native arguments.
-            int code = await ToolProcess.RunAsync(driver,
-                ["--use-existing", "--host=127.0.0.1", "--port=" + new Uri(connection).Port.ToString(CultureInfo.InvariantCulture),
-                    "--user=postgres", "--dbname=regression", "--bindir=.", "--inputdir=.", "--outputdir=.",
-                    "--launcher=" + launcher, "--", .. names], token, postgresClient: true,
-                workingDirectory: directory, environment: environment);
+            int code;
+            try
+            {
+                code = await ToolProcess.RunAsync(driver,
+                    ["--use-existing", "--host=127.0.0.1", "--port=" + new Uri(connection).Port.ToString(CultureInfo.InvariantCulture),
+                        "--user=postgres", "--dbname=regression", "--bindir=.", "--inputdir=.", "--outputdir=.",
+                        "--launcher=" + launcher, "--", .. names], token, postgresClient: true,
+                    workingDirectory: nativeDirectory, environment: environment);
+            }
+            finally
+            {
+                workspace?.CopyOutputsTo(directory);
+            }
+
             foreach (string name in names)
             {
                 string completion = StatusFile(status, "pg_regress/" + name);
@@ -80,7 +92,14 @@ internal static class RegressionDriver
         }
         finally
         {
-            Directory.Delete(status, recursive: true);
+            try
+            {
+                workspace?.Dispose();
+            }
+            finally
+            {
+                Directory.Delete(status, recursive: true);
+            }
         }
     }
 

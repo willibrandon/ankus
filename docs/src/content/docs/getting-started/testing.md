@@ -164,8 +164,8 @@ including a schema supplied by its control file.
 
 Normal `dotnet publish` excludes test functions. The fixture explicitly sets
 `AnkusIncludeTests=true` only when `IncludeTests` is enabled. Other test hosts
-can consume the same framework-neutral catalog and fixture. Backend benchmarks
-remain unimplemented.
+can consume the same framework-neutral catalog and fixture. Use
+[`[PgBenchmark]` and `ankus bench`](/benchmarks/) for measured backend work.
 
 ## Use the fixture
 

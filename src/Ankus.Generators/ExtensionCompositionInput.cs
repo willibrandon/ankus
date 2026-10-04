@@ -19,7 +19,8 @@ namespace Ankus.Generators;
 /// <param name="NativeCompilation">The detached assembly and ABI capabilities.</param>
 internal sealed record ExtensionCompositionInput(FunctionPipeline.MethodInputs Methods,
     EquatableArray<SchemaPipeline.SchemaOutput> Schemas, EquatableArray<SqlProviderModel> Providers,
-    EquatableArray<CustomSqlPipeline.Output> CustomBlocks, (string Directory, bool IncludeTests, string? Version) Settings,
+    EquatableArray<CustomSqlPipeline.Output> CustomBlocks,
+    (string Directory, bool IncludeTests, bool IncludeBenchmarks, string? Version) Settings,
     EquatableArray<EnumPipeline.EnumOutput> Enums, EquatableArray<AggregatePipeline.Output> Aggregates,
     GucPipeline.PropertyInputs Properties, GucPrefixPipeline.Output Prefixes, EquatableArray<CustomTypePipeline.Output> CustomTypes,
     DatumPipeline.Output Mappings, EquatableArray<SqlReferenceModel> References, NativeModuleMagic.ModuleOutput Module,
@@ -85,6 +86,15 @@ internal sealed record ExtensionCompositionInput(FunctionPipeline.MethodInputs M
         {
             yield return output.Analysis.Location;
             foreach (GeneratorProblem problem in output.Analysis.Problems)
+            {
+                yield return problem.Location;
+            }
+        }
+
+        foreach (PgBenchmarkPipeline.Output output in Methods.Benchmarks)
+        {
+            yield return output.Location;
+            foreach (GeneratorProblem problem in output.Problems)
             {
                 yield return problem.Location;
             }

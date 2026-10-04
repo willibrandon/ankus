@@ -3,6 +3,23 @@ namespace Ankus.Build.Tests;
 public sealed partial class NativeBindingNativeTests
 {
     /// <summary>
+    /// Clang treats PostgreSQL and platform headers as external inputs while MSVC retains its native include form.
+    /// </summary>
+    /// <param name="compiler">The selected Windows C frontend.</param>
+    /// <param name="expected">The exact expected argument sequence.</param>
+    [TestMethod]
+    [DataRow("clang-cl", new[] { "/imsvc", "first", "/imsvc", "second" })]
+    [DataRow("clang-cl.exe", new[] { "/imsvc", "first", "/imsvc", "second" })]
+    [DataRow("C:\\LLVM\\bin\\CLANG-CL.EXE", new[] { "/imsvc", "first", "/imsvc", "second" })]
+    [DataRow("cl.exe", new[] { "/Ifirst", "/Isecond" })]
+    public void WindowsHeaderIncludesPreserveTheSelectedCompilerContract(string compiler, string[] expected)
+    {
+        var options = new List<string>();
+        NativeBindingHeaderCommand.AddWindowsIncludes(options, compiler, ["first", "second"]);
+        Assert.AreSequenceEqual(expected, options);
+    }
+
+    /// <summary>
     /// Actual preprocessing observes same-timestamp edits, unused macros, include precedence and target options.
     /// </summary>
     [TestMethod]

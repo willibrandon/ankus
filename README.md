@@ -76,6 +76,11 @@ Use `ankus test --pg 17` for another registered PostgreSQL major, or
 `ankus test --all` for every registered version. Pass ordinary test filters and
 report options after `--`. See [test command options](docs/src/content/docs/reference/cli.md#run-extension-tests).
 
+Use `[PgBenchmark]` with `PgBencher` and run `ankus bench --pg 18` to measure
+extension code inside PostgreSQL. Benchmark entry points remain outside normal
+publications. See [benchmarks](docs/src/content/docs/benchmarks.md) and the
+[benchmark sample](samples/Ankus.Examples.Benchmarks/Benchmarks.cs).
+
 For scripts, `ankus info path 18`, `ankus info pg-config 18` and
 `ankus info version 18` print individual installation values. See
 [installation information](docs/src/content/docs/reference/cli.md#read-installation-values-in-scripts).

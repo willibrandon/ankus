@@ -149,6 +149,49 @@ public sealed partial class ToolCommandTests(TestContext context)
                 public static string? ToolGcRegionSetting() => Environment.GetEnvironmentVariable("DOTNET_GCRegionRange");
             }
             """, token);
+        await File.WriteAllTextAsync(Path.Combine(projectDirectory, "BenchmarkProbe.cs"), """
+            namespace Ankus.Examples.Hello;
+
+            /// <summary>
+            /// Exercises benchmark-only publication and transaction rollback through the installed tool.
+            /// </summary>
+            public static class BenchmarkProbe
+            {
+                internal static void Prepare()
+                    => Spi.Execute("CREATE TABLE public.ankus_benchmark_probe(value integer NOT NULL)");
+
+                /// <summary>
+                /// Measures a real backend write whose enclosing benchmark transaction must roll back.
+                /// </summary>
+                /// <param name="bencher">The PostgreSQL benchmark timing boundary.</param>
+                [PgBenchmark(Setup = nameof(Prepare), SampleSize = 2, MeasurementTimeMilliseconds = 1,
+                    WarmupTimeMilliseconds = 0, ResampleCount = 10)]
+                public static void SuccessInsertRow(PgBencher bencher)
+                    => bencher.Iterate(static () => Spi.Execute("INSERT INTO public.ankus_benchmark_probe VALUES (42)"));
+
+                /// <summary>
+                /// Measures PostgreSQL numeric addition through the managed value API.
+                /// </summary>
+                /// <param name="bencher">The PostgreSQL benchmark timing boundary.</param>
+                [PgBenchmark(SampleSize = 2, MeasurementTimeMilliseconds = 1,
+                    WarmupTimeMilliseconds = 0, ResampleCount = 10)]
+                public static void SuccessAddNumeric(PgBencher bencher)
+                {
+                    PgNumeric left = PgNumeric.Parse("123.45");
+                    PgNumeric right = PgNumeric.Parse("67.89");
+                    bencher.Iterate(() => left + right);
+                }
+
+                /// <summary>
+                /// Proves PostgreSQL errors become retained failed results after native recovery.
+                /// </summary>
+                /// <param name="bencher">The PostgreSQL benchmark timing boundary.</param>
+                [PgBenchmark(SampleSize = 2, MeasurementTimeMilliseconds = 1,
+                    WarmupTimeMilliseconds = 0, ResampleCount = 10)]
+                public static void Failure(PgBencher bencher)
+                    => bencher.Iterate(static () => Spi.Execute("SELECT 1 / 0"));
+            }
+            """, token);
         (await InvokeAsync(
             ["publish", "--home", s_home, "--pg", MajorText(), "--project", s_project, "--output", s_published], token))
             .EnsureSuccess(s_tool, ["publish"]);
@@ -196,6 +239,7 @@ public sealed partial class ToolCommandTests(TestContext context)
     [DataRow("status", "--pg-config")]
     [DataRow("connect", "--database")]
     [DataRow("run", "--install-only")]
+    [DataRow("bench", "--group-name")]
     public async Task InstalledToolProvidesHelp(string command, string expected)
     {
         string[] arguments = command.Length == 0 ? ["--help"] : [command, "--help"];

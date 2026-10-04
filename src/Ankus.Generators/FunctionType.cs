@@ -18,6 +18,14 @@ internal sealed record FunctionType
     internal static FunctionType IndexSupportResult() => new("int", "integer", "INT32", "Int32", "Integral", false, false);
 
     /// <summary>
+    /// Creates the JSONB transport used by generated benchmark wrappers.
+    /// </summary>
+    /// <param name="nullable">Whether SQL NULL is accepted.</param>
+    /// <returns>The built-in JSONB conversion contract.</returns>
+    internal static FunctionType Jsonb(bool nullable = false)
+        => new("global::Ankus.PgJsonb", "jsonb", "jsonb", "jsonb", string.Empty, nullable, false);
+
+    /// <summary>
     /// Creates an already validated custom type's non-null I/O conversion without repeating semantic analysis.
     /// </summary>
     /// <param name="type">The detached payload and catalog identity.</param>

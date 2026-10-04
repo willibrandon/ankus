@@ -127,3 +127,7 @@ ANKUS126 | Ankus | Error | Repeated aggregate input metadata
 ANKUS127 | Ankus | Error | Aggregate input has a SQL default
 ANKUS128 | Ankus | Error | Scalar aggregate input selects a tuple element
 ANKUS129 | Ankus | Error | Raw PostgreSQL access requires an unsafe context
+ANKUS130 | Ankus | Error | Invalid PostgreSQL benchmark declaration
+ANKUS131 | Ankus | Error | Invalid PostgreSQL benchmark setup
+ANKUS132 | Ankus | Error | Invalid PostgreSQL benchmark configuration
+ANKUS133 | Ankus | Error | Conflicting PostgreSQL benchmark role

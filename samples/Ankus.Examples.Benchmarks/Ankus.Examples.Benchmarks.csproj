@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>In-backend PostgreSQL benchmarks with retained statistical comparisons.</Description>
+    <AnkusExtensionName>ankus_benchmarks</AnkusExtensionName>
+  </PropertyGroup>
+
+  <Import Project="../../src/Ankus.Sdk/Ankus.Sdk.targets" />
+
+</Project>

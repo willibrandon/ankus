@@ -14,6 +14,23 @@ internal static class GuardedBackend
         #include "utils/memutils.h"
         #include "utils/resowner.h"
 
+        static bool
+        ankus_is_builtin_range(Oid type)
+        {
+            return type == INT4RANGEOID || type == INT8RANGEOID || type == NUMRANGEOID ||
+                type == DATERANGEOID || type == TSRANGEOID || type == TSTZRANGEOID;
+        }
+
+        static bool
+        ankus_uses_builtin_range(const AnkusRequest *request)
+        {
+            if (ankus_is_builtin_range(request->scalar_result_oid))
+                return true;
+
+            return request->parameter_count > 0 && request->parameters != NULL &&
+                ankus_is_builtin_range(request->parameters[0].type_oid);
+        }
+
         static int
         ankus_spi_execute(AnkusRequest *request, AnkusResult *result, AnkusError *error)
         {
@@ -100,8 +117,15 @@ internal static class GuardedBackend
             bool function_context = request->operation == ANKUS_SPI_FUNCTION_CONTEXT;
             bool function_call = request->operation == ANKUS_SPI_FUNCTION_CALL;
             bool subtransaction = request->operation == ANKUS_SPI_SUBTRANSACTION;
+            /* These allowlisted operations only compute values in a disposable memory
+             * context. They do not run SQL, retain resources, or invoke user-defined
+             * code, so PG_TRY plus context deletion is a complete recovery boundary. */
+            bool lightweight = numeric || temporal || network || geometry || (range && ankus_uses_builtin_range(request)) ||
+                (datum && request->scalar_operation == 6);
             bool direct = quote || reporting || temporal || numeric || network || geometry || range || enumeration || tuple ||
                 transaction_callbacks || transaction_id || datum || function_context || function_call || custom_type || datum_type || array || lookup || relation || subtransaction;
+            bool recovery_subtransaction = !direct_spi && !lightweight;
+            volatile MemoryContext operation_context = NULL;
             result->release = ankus_release_result;
 
             if (request->operation == ANKUS_SPI_GUC_READ)
@@ -148,7 +172,6 @@ internal static class GuardedBackend
                     uint64 caller_identity = recovery_context == ErrorContext
                         ? ankus_memory_context_id(caller_context) : 0;
                     int code;
-                    MemoryContext operation_context = NULL;
                     if (subtransaction && transaction_frame != NULL)
                         ereport(ERROR, (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
                             errmsg("Explicit recovery scopes are unavailable during transaction callbacks")));
@@ -211,7 +234,7 @@ internal static class GuardedBackend
                         /* Keep a recovery subtransaction until close whenever PostgreSQL permits
                          * it. Transaction callbacks and older parallel operations instead retain
                          * the first failure until their managed entry has completely unwound. */
-                        if (!direct_spi)
+                        if (recovery_subtransaction)
                         {
                             ankus_internal_subtransaction_depth++;
                             BeginInternalSubTransaction(NULL);
@@ -229,7 +252,7 @@ internal static class GuardedBackend
                     }
                     else
                     {
-                        if (!direct_spi)
+                        if (recovery_subtransaction)
                         {
                             ankus_internal_subtransaction_depth++;
                             BeginInternalSubTransaction(NULL);
@@ -409,7 +432,8 @@ internal static class GuardedBackend
                         if (operation_context != NULL)
                         {
                             MemoryContextSwitchTo(CurTransactionContext);
-                            MemoryContextDelete(operation_context);
+                            MemoryContextDelete((MemoryContext) operation_context);
+                            operation_context = NULL;
                         }
 
                         if ((standalone && !direct) || request->operation == ANKUS_SPI_CLOSE_SESSION)
@@ -426,7 +450,7 @@ internal static class GuardedBackend
                             }
                         }
 
-                        if (!direct_spi)
+                        if (recovery_subtransaction)
                         {
                             ReleaseCurrentSubTransaction();
                             ankus_internal_subtransaction_depth--;
@@ -457,7 +481,7 @@ internal static class GuardedBackend
                     MemoryContextSwitchTo(diagnostic_context);
                     data = ankus_copy_error_data();
                     FlushErrorState();
-                    bool recovered = false;
+                    bool recovered = lightweight;
                     while (GetCurrentTransactionNestLevel() > caller_nest_level)
                     {
                         RollbackAndReleaseCurrentSubTransaction();
@@ -468,6 +492,12 @@ internal static class GuardedBackend
 
                     MemoryContextSwitchTo(diagnostic_context);
                     CurrentResourceOwner = caller_owner;
+                    if (lightweight && operation_context != NULL)
+                    {
+                        MemoryContextDelete((MemoryContext) operation_context);
+                        operation_context = NULL;
+                    }
+
                     if (relation && result->cursor_id != 0)
                     {
                         ankus_relation_close(result->cursor_id);

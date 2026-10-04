@@ -124,6 +124,7 @@ export default defineConfig({
             { label: 'Ranges', slug: 'ranges' },
             { label: 'Enumerated types', slug: 'enums' },
             { label: 'Logging and errors', slug: 'logging' },
+            { label: 'Benchmarks', slug: 'benchmarks' },
           ],
         },
         {

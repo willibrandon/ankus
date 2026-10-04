@@ -116,10 +116,17 @@ internal static class NativeBindingHeaderCommand
         var options = new List<string>();
         if (OperatingSystem.IsWindows())
         {
-            options.AddRange(["/nologo", "/std:c11", "/WX", "/I" + installation.ServerIncludeDirectory, "/I" + installation.IncludeDirectory,
-                "/I" + Path.Combine(installation.ServerIncludeDirectory, "port", "win32"), "/I" + Path.Combine(installation.ServerIncludeDirectory, "port", "win32_msvc")]);
+            string compiler = arguments.Length >= 5 && arguments[4].Length != 0 ? arguments[4] : "clang-cl.exe";
+            options.AddRange(["/nologo", "/std:c11", "/WX"]);
+            AddWindowsIncludes(options, compiler,
+            [
+                installation.ServerIncludeDirectory,
+                installation.IncludeDirectory,
+                Path.Combine(installation.ServerIncludeDirectory, "port", "win32"),
+                Path.Combine(installation.ServerIncludeDirectory, "port", "win32_msvc"),
+            ]);
             string libraries = arguments.Length >= 6 ? arguments[5] : "";
-            options.AddRange(WindowsToolchain.GetIncludeDirectories(libraries).Select(static path => "/I" + path));
+            AddWindowsIncludes(options, compiler, WindowsToolchain.GetIncludeDirectories(libraries));
         }
         else
         {
@@ -135,6 +142,29 @@ internal static class NativeBindingHeaderCommand
         }
 
         return options;
+    }
+
+    /// <summary>
+    /// Treats vendor headers as system inputs for Clang while retaining ordinary MSVC include syntax for helper compilation.
+    /// </summary>
+    internal static void AddWindowsIncludes(ICollection<string> options, string compiler, IEnumerable<string> directories)
+    {
+        int separator = compiler.LastIndexOfAny(['/', '\\']);
+        string name = compiler[(separator + 1)..];
+        bool clang = string.Equals(name, "clang-cl", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(name, "clang-cl.exe", StringComparison.OrdinalIgnoreCase);
+        foreach (string directory in directories)
+        {
+            if (clang)
+            {
+                options.Add("/imsvc");
+                options.Add(directory);
+            }
+            else
+            {
+                options.Add("/I" + directory);
+            }
+        }
     }
 
     /// <summary>

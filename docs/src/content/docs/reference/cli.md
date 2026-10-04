@@ -444,6 +444,36 @@ Native Windows PostgreSQL cannot run under Valgrind. Other systems require a
 working Valgrind build for their architecture. Missing tools and unsupported
 startup fail explicitly, preserving initialized cluster data.
 
+## Run backend benchmarks
+
+`ankus bench` builds a benchmark-only publication, installs it into a persistent
+development cluster and measures `[PgBenchmark]` methods inside PostgreSQL:
+
+```console
+ankus bench --pg 18
+ankus bench Numeric --group-name optimized --compare-group baseline
+ankus bench --report --json
+```
+
+An optional positional filter selects managed benchmark names by ordinal
+substring. `--list` discovers matching declarations without measuring them.
+`--group-name` names the retained run. Otherwise, Ankus uses a timestamp and the
+current Git commit. The latest retained group from the same build configuration
+is the default baseline; `--compare-group` selects a named group instead.
+
+The default database is `<extension>_benches`. `--database` selects another
+database, and `--resetdb` recreates it. `--cascade` controls extension refresh,
+`--wait` pauses after printing the backend PID for debugger attachment, and
+`--no-build` reuses the existing benchmark publication. Project selection,
+PostgreSQL selection, configuration, server settings and repeatable MSBuild
+properties follow the other build commands.
+
+Each benchmark invocation runs inside `BEGIN` and is rolled back before its
+result is retained in the runner-owned `ankus_bench` schema. `--report` reads the
+latest retained results without rebuilding the extension. See the
+[benchmark authoring guide](/benchmarks/) for timing loops, transaction modes and
+comparison statistics.
+
 ## Run SQL regression suites
 
 Place SQL files under `pg_regress/sql/` beside your extension project. Expected

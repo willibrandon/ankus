@@ -119,7 +119,7 @@ internal static class SqlProvenance
     /// <summary>
     /// Removes machine-specific roots using lexical paths, including Windows inputs on other hosts.
     /// </summary>
-    private static string RelativePath(string path, string projectDirectory)
+    internal static string RelativePath(string path, string projectDirectory)
     {
         string normalized = Normalize(path);
         if (RootLength(normalized) != 0)

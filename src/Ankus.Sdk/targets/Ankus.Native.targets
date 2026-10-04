@@ -18,6 +18,10 @@
   <Target Name="_ValidateAnkusSchemaOptions" BeforeTargets="PrepareForBuild">
     <Error Condition="'$(AnkusReuseSchema)' != 'true' and '$(AnkusReuseSchema)' != 'false'"
            Text="AnkusReuseSchema must be true or false." />
+    <Error Condition="'$(AnkusIncludeBenchmarks)' != '' and '$(AnkusIncludeBenchmarks)' != 'true' and '$(AnkusIncludeBenchmarks)' != 'false'"
+           Text="AnkusIncludeBenchmarks must be true or false." />
+    <Error Condition="'$(AnkusIncludeTests)' == 'true' and '$(AnkusIncludeBenchmarks)' == 'true'"
+           Text="AnkusIncludeTests and AnkusIncludeBenchmarks cannot both be true." />
   </Target>
 
   <Target Name="_InvalidateAnkusPublication" BeforeTargets="PrepareForBuild" Condition="'$(_IsPublishing)' == 'true'"
@@ -43,6 +47,7 @@
       <_AnkusArtifacts>$(NativeIntermediateOutputPath)ankus/</_AnkusArtifacts>
       <_AnkusSchemaMode>normal</_AnkusSchemaMode>
       <_AnkusSchemaMode Condition="'$(AnkusIncludeTests)' == 'true'">tests</_AnkusSchemaMode>
+      <_AnkusSchemaMode Condition="'$(AnkusIncludeBenchmarks)' == 'true'">benchmarks</_AnkusSchemaMode>
       <_AnkusSchemaSnapshot>$(_AnkusArtifacts)schema-pg$(AnkusPostgresMajor)-$(_AnkusSchemaMode).json</_AnkusSchemaSnapshot>
       <_AnkusSchemaInput Condition="'$(AnkusReuseSchema)' == 'true'">$(_AnkusSchemaSnapshot)</_AnkusSchemaInput>
       <_AnkusSchemaInput Condition="'$(AnkusReuseSchema)' != 'true'"></_AnkusSchemaInput>

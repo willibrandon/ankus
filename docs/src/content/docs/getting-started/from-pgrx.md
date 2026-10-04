@@ -28,6 +28,7 @@ separate .NET installation.
 | `_PG_init` | `[PgModuleLoad]` for early registration; `[PgInitialize]` for backend initialization | [Initialization](/initialization/) |
 | `pg_module_magic!` | Generated module magic; `[PgModule]` or project settings for identity | [Build settings](/reference/build-settings/#native-module-identity) |
 | `#[pg_test]` | `[PgTest]` with generated backend test cases | [Testing](/getting-started/testing/) |
+| `#[pg_bench]`, `Bencher`, `BatchSize` | `[PgBenchmark]`, `PgBencher`, `PgBenchmarkBatchSize` | [Benchmarks](/benchmarks/) |
 
 Execution options such as volatility, parallel safety and NULL policy are enum
 properties on the attributes. SQL names can differ from C# names. Ankus generates
@@ -149,6 +150,7 @@ attribute. Their phase and SQL-access restrictions still apply. See
 | Create an extension | `ankus new Hello` |
 | Register or install PostgreSQL | `ankus init --pg18 download`, or supply `pg_config` |
 | Run tests | `dotnet test`, or `ankus test --pg 18` |
+| Run in-backend benchmarks | `ankus bench --pg 18` |
 | Build and enter the development database | `ankus run --pg 18` |
 | Connect without rebuilding | `ankus connect --pg 18` |
 | Install or package the extension | `ankus install`, `ankus package` |

@@ -39,6 +39,7 @@ internal static partial class ToolCommand
         root.Subcommands.Add(CreateGet(home));
         root.Subcommands.Add(CreateRegress(home));
         root.Subcommands.Add(CreateTest(home));
+        root.Subcommands.Add(CreateBench(home));
         root.Subcommands.Add(CreateUpgrade());
         try
         {
@@ -48,7 +49,7 @@ internal static partial class ToolCommand
             }
 
             ParseResult result = root.Parse(arguments);
-            bool interactive = result.CommandResult.Command.Name is "run" or "connect" or "test";
+            bool interactive = result.CommandResult.Command.Name is "run" or "connect" or "test" or "bench";
             if (interactive)
             {
                 interactiveCancellation.Enable();
@@ -331,16 +332,22 @@ internal static partial class ToolCommand
     /// <returns>The absolute publication directory.</returns>
     private static string GetOutputDirectory(ParseResult result, ExtensionSelection selection)
     {
-        string? output = result.CommandResult.Command.Name is "install" or "package" or "run" or "regress" ? null : result.GetValue<string?>("--output");
+        string? output = result.CommandResult.Command.Name is "install" or "package" or "run" or "regress" or "bench"
+            ? null : result.GetValue<string?>("--output");
         return Path.GetFullPath(output ?? Path.Combine(Path.GetDirectoryName(selection.Project)!, "bin", "ankus",
             selection.Installation.Label, RuntimeInformation.RuntimeIdentifier, selection.Configuration));
     }
 
-    private static async Task<int> PublishAsync(ExtensionSelection selection, string output, CancellationToken token)
+    private static async Task<int> PublishAsync(
+        ExtensionSelection selection,
+        string output,
+        CancellationToken token,
+        bool diagnosticsToStandardError = false,
+        bool announce = true)
     {
         int code = await ExtensionBuilder.PublishAsync(selection.Project,
-            selection.Configuration, selection.Installation, output, token, properties: selection.Properties);
-        if (code == 0)
+            selection.Configuration, selection.Installation, output, token, diagnosticsToStandardError, selection.Properties);
+        if (code == 0 && announce)
         {
             Console.WriteLine($"Published {selection.Installation.Label} extension to {output}");
         }

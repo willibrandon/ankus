@@ -10,6 +10,7 @@ namespace Ankus.Generators;
 /// <param name="Name">The method's unqualified managed name used for item selection.</param>
 /// <param name="Owner">The containing type's original managed display.</param>
 /// <param name="Test">Whether the method declares a backend test.</param>
+/// <param name="Benchmark">Whether the method declares a backend benchmark.</param>
 /// <param name="Trigger">Whether the row-trigger marker is present.</param>
 /// <param name="EventTrigger">Whether the event-trigger marker is present.</param>
 /// <param name="Initializer">Whether either initialization phase marker is present.</param>
@@ -19,7 +20,7 @@ namespace Ankus.Generators;
 /// <param name="Options">The optional authored ordinary-function SQL policy.</param>
 /// <param name="Location">The current method source coordinates, outside its rendering contracts.</param>
 internal sealed record MethodInventoryModel(DeclarationIdentity Identity, string Display, string Name, string Owner,
-    bool Test, bool Trigger, bool EventTrigger, bool Initializer, bool Worker, bool Sequence, bool RawTransport,
+    bool Test, bool Benchmark, bool Trigger, bool EventTrigger, bool Initializer, bool Worker, bool Sequence, bool RawTransport,
     SqlDeclarationOptions? Options, GeneratorLocation? Location)
 {
     /// <summary>
@@ -33,7 +34,9 @@ internal sealed record MethodInventoryModel(DeclarationIdentity Identity, string
     {
         cancellationToken.ThrowIfCancellationRequested();
         return new(DeclarationIdentity.Create(method), method.ToDisplayString(), method.Name, method.ContainingType.ToDisplayString(),
-            PgTestDeclaration.IsTest(method), TriggerDeclaration.IsTrigger(method), EventTriggerDeclaration.IsEventTrigger(method),
+            PgTestDeclaration.IsTest(method), method.GetAttributes().Any(static attribute =>
+                attribute.AttributeClass?.ToDisplayString() == "Ankus.PgBenchmarkAttribute"),
+            TriggerDeclaration.IsTrigger(method), EventTriggerDeclaration.IsEventTrigger(method),
             InitializeDeclaration.IsInitializer(method), BackgroundWorkerDeclaration.IsWorker(method), SetResult.IsSequence(method.ReturnType),
             FunctionParameter.Create(method).Any(static parameter => parameter.Type?.UsesRawTransport == true),
             SqlDeclarationOptions.Read(method.GetAttributes().FirstOrDefault(static attribute =>

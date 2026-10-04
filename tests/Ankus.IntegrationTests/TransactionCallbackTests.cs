@@ -123,6 +123,28 @@ public sealed class TransactionCallbackTests(TestContext context)
     }
 
     /// <summary>
+    /// Pure built-in value operations use native error recovery without opening hidden PostgreSQL subtransactions.
+    /// </summary>
+    [TestMethod]
+    public async Task PureValueOperationsDoNotCreateGuardSubtransactions()
+    {
+        CancellationToken token = context.CancellationToken;
+        await using NpgsqlConnection connection = await PostgresFixture.Cluster.OpenConnectionAsync(token);
+        await ResetAsync(connection, token);
+        await using NpgsqlTransaction transaction = await connection.BeginTransactionAsync(token);
+        await ExecuteAsync(connection, transaction,
+            "SELECT datatype.transaction_callback_register_subtransactions(false)", token);
+
+        Assert.AreEqual("3", await ScalarAsync<string>(connection, transaction,
+            "SELECT datatype.numeric_apply('add', 1, 2, 0, 0)::text", token));
+        Assert.AreEqual("22012:3", await ScalarAsync<string>(connection, transaction,
+            "SELECT datatype.transaction_callback_recover_pure_value_error()", token));
+        Assert.AreEqual("|null,null,null,null,null,null,True,True,True,True",
+            await StateAsync(connection, transaction, token));
+        await transaction.RollbackAsync(token);
+    }
+
+    /// <summary>
     /// Rolling back to a savepoint reports its abort and the replacement subtransaction with exact IDs.
     /// </summary>
     [TestMethod]

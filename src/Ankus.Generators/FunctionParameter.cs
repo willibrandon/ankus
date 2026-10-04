@@ -54,6 +54,16 @@ internal sealed record FunctionParameter(string Name, string DeclaredTypeName, S
     }
 
     /// <summary>
+    /// Creates one generated SQL parameter that has no authored symbol or metadata.
+    /// </summary>
+    /// <param name="name">The managed and SQL parameter name.</param>
+    /// <param name="type">The validated conversion contract.</param>
+    /// <param name="sqlIndex">The zero-based SQL argument index.</param>
+    /// <returns>The generated parameter contract.</returns>
+    internal static FunctionParameter Synthetic(string name, FunctionType type, int sqlIndex)
+        => new(name, type.Managed, SpecialType.None, RefKind.None, false, false, type, sqlIndex, false, null, new([]), null);
+
+    /// <summary>
     /// Emits a managed argument expression from validated values after entry into the memory capability.
     /// </summary>
     /// <param name="borrowVarlena">Whether native-layout values may use their checked borrowed view.</param>

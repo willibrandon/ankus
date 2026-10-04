@@ -66,8 +66,9 @@ internal static class DatumPipeline
         var problems = new List<GeneratorProblem>();
         var diagnostics = new GeneratorDiagnostics((descriptor, location, arguments) => problems.Add(new(descriptor,
             GeneratorLocation.Create(location, compilation), new(arguments))), cancellationToken);
-        ImmutableArray<IMethodSymbol> methods = input.IncludeTests ? input.Methods :
-            [.. input.Methods.Where(static method => !PgTestDeclaration.IsTest(method))];
+        ImmutableArray<IMethodSymbol> methods = [.. input.Methods.Where(method =>
+            (input.IncludeTests || !PgTestDeclaration.IsTest(method)) && !method.GetAttributes().Any(static attribute =>
+                attribute.AttributeClass?.ToDisplayString() == "Ankus.PgBenchmarkAttribute"))];
         ImmutableArray<INamedTypeSymbol> aggregates = [.. input.Aggregates.Select(value =>
             compilation.Assembly.GetTypeByMetadataName(value.Analysis.MetadataName)).OfType<INamedTypeSymbol>()];
         List<DatumTypeDeclaration>? declarations = DatumTypeDeclaration.Discover(compilation, input.Local, input.Ranges,

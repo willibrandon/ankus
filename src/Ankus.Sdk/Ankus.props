@@ -14,6 +14,7 @@
   <ItemGroup>
     <CompilerVisibleProperty Include="MSBuildProjectDirectory" />
     <CompilerVisibleProperty Include="AnkusIncludeTests" />
+    <CompilerVisibleProperty Include="AnkusIncludeBenchmarks" />
     <CompilerVisibleProperty Include="Version" />
     <AnkusUpgradeScript Include="sql/$(AnkusExtensionName)--*--*.sql"
                         Condition="'$(EnableDefaultAnkusUpgradeScripts)' != 'false' and '$(AnkusExtensionName)' != ''" />

@@ -136,6 +136,27 @@ public static class TransactionCallbackFunctions
     }
 
     /// <summary>
+    /// Catches a native numeric error and performs another pure operation without an internal subtransaction.
+    /// </summary>
+    /// <returns>The recovered SQLSTATE and subsequent result.</returns>
+    [PgFunction]
+    public static string TransactionCallbackRecoverPureValueError()
+    {
+        string failure;
+        try
+        {
+            _ = PgNumeric.Parse("1") / default(PgNumeric);
+            failure = "no error";
+        }
+        catch (PgException error)
+        {
+            failure = error.SqlState;
+        }
+
+        return failure + ":" + (PgNumeric.Parse("1") + PgNumeric.Parse("2")).Text;
+    }
+
+    /// <summary>
     /// Registers a subtransaction callback that catches a guarded SPI error to verify native rethrow after managed unwind.
     /// </summary>
     [PgFunction]

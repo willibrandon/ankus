@@ -35,6 +35,10 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             "Ankus.PgTestAttribute",
             static (node, _) => node is MethodDeclarationSyntax,
             static (attributeContext, _) => (IMethodSymbol)attributeContext.TargetSymbol);
+        IncrementalValuesProvider<IMethodSymbol> benchmarkMethods = context.SyntaxProvider.ForAttributeWithMetadataName(
+            "Ankus.PgBenchmarkAttribute",
+            static (node, _) => node is MethodDeclarationSyntax,
+            static (attributeContext, _) => (IMethodSymbol)attributeContext.TargetSymbol);
         IncrementalValuesProvider<IMethodSymbol> operators = context.SyntaxProvider.ForAttributeWithMetadataName(
             "Ankus.PgOperatorAttribute",
             static (node, _) => node is MethodDeclarationSyntax or OperatorDeclarationSyntax or ConversionOperatorDeclarationSyntax,
@@ -57,9 +61,19 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                 .AddRange(input.Left.Right).AddRange(input.Right)
                 .Distinct<IMethodSymbol>(SymbolEqualityComparer.Default).ToImmutableArray())
             .Combine(tests.Collect()).Select(static (input, _) => input.Left.AddRange(input.Right)
+                .Distinct<IMethodSymbol>(SymbolEqualityComparer.Default).ToImmutableArray())
+            .Combine(benchmarkMethods.Collect()).Select(static (input, _) => input.Left.AddRange(input.Right)
                 .Distinct<IMethodSymbol>(SymbolEqualityComparer.Default).ToImmutableArray());
-        IncrementalValueProvider<FunctionPipeline.MethodInputs> methodInputs = MethodInventoryPipeline.Register(context, methods).Combine(FunctionPipeline.Register(context)).Combine(TriggerPipeline.Register(context)).Combine(BackgroundWorkerPipeline.Register(context)).Combine(LifecyclePipeline.Register(context)).Combine(OperatorCastPipeline.Register(context)).Combine(PgTestPipeline.Register(context))
-            .Select(static (value, _) => new FunctionPipeline.MethodInputs(value.Left.Left.Left.Left.Left.Left, value.Left.Left.Left.Left.Left.Right, value.Left.Left.Left.Left.Right, value.Left.Left.Left.Right, value.Left.Left.Right, value.Left.Right, value.Right));
+        IncrementalValueProvider<EquatableArray<PgBenchmarkPipeline.Output>> benchmarks = PgBenchmarkPipeline.Register(context);
+        IncrementalValueProvider<FunctionPipeline.MethodInputs> methodInputs = MethodInventoryPipeline.Register(context, methods)
+            .Combine(FunctionPipeline.Register(context)).Combine(TriggerPipeline.Register(context))
+            .Combine(BackgroundWorkerPipeline.Register(context)).Combine(LifecyclePipeline.Register(context))
+            .Combine(OperatorCastPipeline.Register(context)).Combine(PgTestPipeline.Register(context))
+            .Combine(benchmarks)
+            .Select(static (value, _) => new FunctionPipeline.MethodInputs(value.Left.Left.Left.Left.Left.Left.Left,
+                value.Left.Left.Left.Left.Left.Left.Right, value.Left.Left.Left.Left.Left.Right,
+                value.Left.Left.Left.Left.Right, value.Left.Left.Left.Right, value.Left.Left.Right,
+                value.Left.Right, value.Right));
         IncrementalValueProvider<EquatableArray<EnumPipeline.EnumOutput>> enums = EnumPipeline.Register(context);
         IncrementalValueProvider<EquatableArray<CustomTypePipeline.Output>> customTypes = CustomTypePipeline.Register(context);
         IncrementalValuesProvider<INamedTypeSymbol> datumTypes = context.SyntaxProvider.ForAttributeWithMetadataName(
@@ -91,10 +105,11 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             .Select(static (value, _) => new GucPipeline.PropertyInputs(value.Left, value.Right));
         IncrementalValueProvider<EquatableArray<SqlProviderModel>> providers = SqlProviderPipeline.Register(context);
         IncrementalValueProvider<GucPrefixPipeline.Output> prefixes = GucPrefixPipeline.Register(context);
-        IncrementalValueProvider<(string Directory, bool IncludeTests, string? Version)> projectDirectory =
+        IncrementalValueProvider<(string Directory, bool IncludeTests, bool IncludeBenchmarks, string? Version)> projectDirectory =
             context.AnalyzerConfigOptionsProvider.Select(static (options, _) =>
                 (BuildProperty(options.GlobalOptions, "MSBuildProjectDirectory") ?? string.Empty,
                     string.Equals(BuildProperty(options.GlobalOptions, "AnkusIncludeTests"), "true", StringComparison.OrdinalIgnoreCase),
+                    string.Equals(BuildProperty(options.GlobalOptions, "AnkusIncludeBenchmarks"), "true", StringComparison.OrdinalIgnoreCase),
                     BuildProperty(options.GlobalOptions, "Version")));
         IncrementalValueProvider<NativeModuleMagic.ModuleOutput> module = NativeModuleMagic.Register(context,
             projectDirectory.Select(static (settings, _) => settings.Version));
@@ -113,6 +128,17 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         IncrementalValueProvider<ImmutableArray<GeneratorSourceTree>> trees = context.CompilationProvider
             .SelectMany(static (compilation, _) => compilation.SyntaxTrees)
             .Select(static (tree, token) => GeneratorSourceTree.Create(tree, token)).WithTrackingName("ExtensionSourceTree").Collect();
+        IncrementalValueProvider<string?> benchmarkSourceLines = benchmarks.Combine(projectDirectory).Combine(trees)
+            .Select(static (value, token) => value.Left.Right.IncludeBenchmarks
+                ? RenderBenchmarkSourceLines(value.Left.Left, value.Right, token) : null)
+            .WithTrackingName("BenchmarkSourceLineEmission");
+        context.RegisterSourceOutput(benchmarkSourceLines, static (output, source) =>
+        {
+            if (source is not null)
+            {
+                output.AddSource("BenchmarkSourceLines.g.cs", source);
+            }
+        });
         IncrementalValueProvider<GeneratorSourceMap> sources = inputs.Combine(trees)
             .Select(static (value, token) => GeneratorSourceMap.Create(value.Left.Locations(), value.Right, token))
             .WithTrackingName("ExtensionSourceMap");
@@ -216,7 +242,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
 
     private static void Generate(GeneratorCompositionContext context, FunctionPipeline.MethodInputs methodInputs, EquatableArray<SchemaPipeline.SchemaOutput> schemaTypes,
         EquatableArray<SqlProviderModel> providers, EquatableArray<CustomSqlPipeline.Output> customBlocks,
-        (string Directory, bool IncludeTests, string? Version) settings,
+        (string Directory, bool IncludeTests, bool IncludeBenchmarks, string? Version) settings,
         EquatableArray<EnumPipeline.EnumOutput> enumTypes, EquatableArray<AggregatePipeline.Output> aggregateOutputs, GucPipeline.PropertyInputs propertyInputs,
         GucPrefixPipeline.Output prefixOutput, EquatableArray<CustomTypePipeline.Output> customTypes, DatumPipeline.Output mappingOutput, GeneratorSourceResolver compilation,
         EquatableArray<SqlReferenceModel> references, NativeModuleMagic.ModuleOutput module, NativeCompilationPipeline.Output nativeCompilation)
@@ -261,6 +287,23 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         methods = new(methods.Where(method => !invalidTests.Contains(method) &&
             (settings.IncludeTests || !tests.ContainsKey(method))));
 
+        var benchmarks = new List<PgBenchmarkPipeline.Output>();
+        foreach (PgBenchmarkPipeline.Output benchmark in methodInputs.Benchmarks.OrderBy(static value =>
+            value.Model?.Display, StringComparer.Ordinal))
+        {
+            foreach (GeneratorProblem problem in benchmark.Problems)
+            {
+                problem.Report(compilation, context);
+            }
+
+            if (settings.IncludeBenchmarks && benchmark.Model is not null)
+            {
+                benchmarks.Add(benchmark);
+            }
+        }
+
+        methods = new(methods.Where(static method => !method.Benchmark));
+
         foreach (GeneratorProblem problem in mappingOutput.Analysis.Problems)
         {
             problem.Report(compilation, context);
@@ -301,11 +344,14 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         bool hasNativeCallbacks = callbacks.Count != 0 || referencedCallbacks;
         List<BackgroundWorkerPipeline.WorkerOutput> workers = BackgroundWorkerPipeline.Select(methodInputs.Workers, compilation, context);
         bool hasWorkers = workers.Count != 0;
-        bool hasFunctionCallbacks = !methodInputs.Lifecycle.IsEmpty || hasWorkers || hasNativeCallbacks || !methods.IsEmpty || !aggregateOutputs.IsEmpty || !customTypes.IsEmpty || !selectedDerivedTypes.IsEmpty;
+        bool hasFunctionCallbacks = !methodInputs.Lifecycle.IsEmpty || hasWorkers || hasNativeCallbacks || !methods.IsEmpty ||
+            benchmarks.Count != 0 || !aggregateOutputs.IsEmpty || !customTypes.IsEmpty || !selectedDerivedTypes.IsEmpty;
         bool hasBackend = hasFunctionCallbacks || hasGucCheck;
         bool hasDispatchers = hasFunctionCallbacks || hasGucHooks;
         var aggregateMethods = new HashSet<DeclarationIdentity>(aggregateOutputs.SelectMany(static value => value.Analysis.Selected));
-        bool hasMemoryFunctionCallbacks = !methodInputs.Lifecycle.IsEmpty || hasWorkers || hasNativeCallbacks || hasGucHooks || !aggregateOutputs.IsEmpty || !customTypes.IsEmpty || !selectedDerivedTypes.IsEmpty || methods.Any(method => !aggregateMethods.Contains(method.Identity));
+        bool hasMemoryFunctionCallbacks = !methodInputs.Lifecycle.IsEmpty || hasWorkers || hasNativeCallbacks || hasGucHooks ||
+            benchmarks.Count != 0 || !aggregateOutputs.IsEmpty || !customTypes.IsEmpty || !selectedDerivedTypes.IsEmpty ||
+            methods.Any(method => !aggregateMethods.Contains(method.Identity));
         if (hasMemoryFunctionCallbacks)
         {
             native.AppendLine(nativeCompilation.Binding);
@@ -862,6 +908,48 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             }
         }
 
+        if (benchmarks.Count != 0)
+        {
+            fixedSchema = true;
+            if (!schemas.TryGetValue("benches", out SqlEntity? benchmarkSchema))
+            {
+                benchmarkSchema = new("0:schema:benches", "CREATE SCHEMA benches;\n", null) { Kind = "schema" };
+                benchmarkSchema.SelectionNames.UnionWith(["benches", "\"benches\""]);
+                benchmarkSchema.Attachments.Add("SCHEMA \"benches\"");
+                schemas.Add("benches", benchmarkSchema);
+                graph.Add(benchmarkSchema);
+            }
+
+            foreach (PgBenchmarkPipeline.Output output in benchmarks)
+            {
+                PgBenchmarkPipeline.Model benchmark = output.Model!;
+                Location? location = output.Location?.Resolve(compilation);
+                FileLinePositionSpan span = location?.GetLineSpan() ?? default;
+                string sourceFile = BenchmarkSourcePath(span.Path, settings.Directory);
+                (FunctionEmission run, FunctionEmission describe) = EmitBenchmark(benchmark, sourceFile);
+                run.AppendTo(managed, native, exports, ensureManagedReady);
+                describe.AppendTo(managed, native, exports, ensureManagedReady);
+
+                string runQualified = "benches." + SqlText.Identifier(benchmark.RunName);
+                string describeQualified = "benches." + SqlText.Identifier(benchmark.DescribeName);
+                string options = "VOLATILE PARALLEL UNSAFE CALLED ON NULL INPUT SECURITY INVOKER NOT LEAKPROOF COST 1";
+                string runSql = "CREATE FUNCTION " + runQualified + "(baseline jsonb DEFAULT NULL)\nRETURNS jsonb AS 'MODULE_PATHNAME', '" +
+                    run.NativeName + "' LANGUAGE c " + options + ";\n";
+                string describeSql = "CREATE FUNCTION " + describeQualified + "()\nRETURNS jsonb AS 'MODULE_PATHNAME', '" +
+                    describe.NativeName + "' LANGUAGE c " + options + ";\n";
+                var runEntity = new SqlEntity("1:benchmark:" + benchmark.Display + ":run", runSql, location) { Kind = "function" };
+                runEntity.SelectionNames.UnionWith([benchmark.RunName, runQualified, benchmark.Display]);
+                runEntity.Attachments.Add("FUNCTION " + runQualified + "(jsonb)");
+                runEntity.Dependencies.Add(benchmarkSchema);
+                graph.Add(runEntity);
+                var describeEntity = new SqlEntity("1:benchmark:" + benchmark.Display + ":describe", describeSql, location) { Kind = "function" };
+                describeEntity.SelectionNames.UnionWith([benchmark.DescribeName, describeQualified, benchmark.Display]);
+                describeEntity.Attachments.Add("FUNCTION " + describeQualified + "()");
+                describeEntity.Dependencies.Add(benchmarkSchema);
+                graph.Add(describeEntity);
+            }
+        }
+
         bool validOperators = true;
         foreach (DerivedOperatorModel model in selectedDerivedTypes)
         {
@@ -998,6 +1086,105 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Renders the generated run and describe entry points for one validated benchmark.
+    /// </summary>
+    private static (FunctionEmission Run, FunctionEmission Describe) EmitBenchmark(
+        PgBenchmarkPipeline.Model benchmark,
+        string sourceFile)
+    {
+        FunctionType jsonb = FunctionType.Jsonb();
+        FunctionType nullableJsonb = FunctionType.Jsonb(nullable: true);
+        FunctionParameter baseline = FunctionParameter.Synthetic("baseline", nullableJsonb, 0);
+        string definition = "new global::Ankus.CompilerServices.PgBenchmarkDefinition(" +
+            string.Join(", ",
+            [
+                SymbolDisplay.FormatLiteral("benches", quote: true),
+                SymbolDisplay.FormatLiteral(benchmark.Display, quote: true),
+                SymbolDisplay.FormatLiteral(benchmark.RunName, quote: true),
+                benchmark.SetupName is null ? "null" : SymbolDisplay.FormatLiteral(benchmark.SetupName, quote: true),
+                "(global::Ankus.PgBenchmarkTransactionMode)" + benchmark.Transaction.ToString(CultureInfo.InvariantCulture),
+                SymbolDisplay.FormatLiteral(sourceFile, quote: true),
+                "global::Ankus.CompilerServices.AnkusGeneratedBenchmarkSources.Line(" +
+                    SymbolDisplay.FormatLiteral(benchmark.RunName, quote: true) + ")",
+                "new global::Ankus.CompilerServices.PgBenchmarkConfiguration(" + string.Join(", ",
+                [
+                    benchmark.SampleSize.ToString(CultureInfo.InvariantCulture),
+                    benchmark.MeasurementTimeMilliseconds.ToString(CultureInfo.InvariantCulture),
+                    benchmark.WarmupTimeMilliseconds.ToString(CultureInfo.InvariantCulture),
+                    benchmark.ResampleCount.ToString(CultureInfo.InvariantCulture),
+                    benchmark.NoiseThreshold.ToString("R", CultureInfo.InvariantCulture),
+                    benchmark.SignificanceLevel.ToString("R", CultureInfo.InvariantCulture),
+                ]) + ")",
+            ]) + ")";
+        string setup = benchmark.SetupTarget is null ? "null" : "static () => " + benchmark.SetupTarget + "()";
+        string benchmarkCall = "static bencher => " + benchmark.Target + "(bencher)";
+        string runInvocation = "global::Ankus.CompilerServices.PgBenchmarkRunner.Run(" + definition + ", " + setup + ", " +
+            benchmarkCall + ", " + baseline.ReadExpression() + ")";
+        var runManaged = new StringBuilder();
+        PgFunctionEmitter.EmitManaged(benchmark.RunCallback, jsonb, runInvocation, string.Empty, false, runManaged);
+        string runNativeName = benchmark.RunCallback.Replace("ankus_managed_", "ankus_fn_");
+        var run = new FunctionEmission(runManaged.ToString(),
+            PgFunctionEmitter.CreateNative(runNativeName, benchmark.RunCallback, [nullableJsonb], jsonb),
+            new StringBuilder().AppendLine(runNativeName).AppendLine("pg_finfo_" + runNativeName).ToString(), runNativeName, false);
+
+        string describeInvocation = "global::Ankus.CompilerServices.PgBenchmarkRunner.Describe(" + definition + ")";
+        var describeManaged = new StringBuilder();
+        PgFunctionEmitter.EmitManaged(benchmark.DescribeCallback, jsonb, describeInvocation, string.Empty, false, describeManaged);
+        string describeNativeName = benchmark.DescribeCallback.Replace("ankus_managed_", "ankus_fn_");
+        var describe = new FunctionEmission(describeManaged.ToString(),
+            PgFunctionEmitter.CreateNative(describeNativeName, benchmark.DescribeCallback, [], jsonb),
+            new StringBuilder().AppendLine(describeNativeName).AppendLine("pg_finfo_" + describeNativeName).ToString(), describeNativeName, false);
+        return (run, describe);
+    }
+
+    /// <summary>
+    /// Keeps benchmark descriptors portable across developer and CI workspaces.
+    /// </summary>
+    private static string BenchmarkSourcePath(string path, string projectDirectory)
+        => SqlProvenance.RelativePath(path, projectDirectory);
+
+    /// <summary>
+    /// Renders physical benchmark lines independently from semantic extension composition.
+    /// </summary>
+    private static string? RenderBenchmarkSourceLines(
+        EquatableArray<PgBenchmarkPipeline.Output> benchmarks,
+        ImmutableArray<GeneratorSourceTree> trees,
+        CancellationToken cancellationToken)
+    {
+        PgBenchmarkPipeline.Output[] selected = [.. benchmarks.Where(static value => value.Model is not null)];
+        if (selected.Length == 0)
+        {
+            return null;
+        }
+
+        GeneratorSourceMap sources = GeneratorSourceMap.Create(selected.Select(static value => value.Location), trees,
+            cancellationToken);
+        var resolver = new GeneratorSourceResolver(sources);
+        var source = new StringBuilder("""
+            // <auto-generated />
+            #nullable enable
+            namespace Ankus.CompilerServices;
+            internal static class AnkusGeneratedBenchmarkSources
+            {
+                internal static int Line(string functionName)
+                    => functionName switch
+                    {
+
+            """);
+        foreach (PgBenchmarkPipeline.Output output in selected.OrderBy(static value => value.Model!.RunName, StringComparer.Ordinal))
+        {
+            int line = output.Location?.Resolve(resolver).GetLineSpan().StartLinePosition.Line + 1 ?? 0;
+            source.Append("            ").Append(SymbolDisplay.FormatLiteral(output.Model!.RunName, quote: true))
+                .Append(" => ").Append(line.ToString(CultureInfo.InvariantCulture)).AppendLine(",");
+        }
+
+        source.AppendLine("            _ => 0,")
+            .AppendLine("        };")
+            .AppendLine("}");
+        return source.ToString();
     }
 
     /// <summary>

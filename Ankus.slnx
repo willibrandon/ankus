@@ -2,6 +2,7 @@
   <Folder Name="/samples/">
     <Project Path="samples/Ankus.Examples.Aggregates/Ankus.Examples.Aggregates.csproj" />
     <Project Path="samples/Ankus.Examples.BackgroundWorkers/Ankus.Examples.BackgroundWorkers.csproj" />
+    <Project Path="samples/Ankus.Examples.Benchmarks/Ankus.Examples.Benchmarks.csproj" />
     <Project Path="samples/Ankus.Examples.Composites/Ankus.Examples.Composites.csproj" />
     <Project Path="samples/Ankus.Examples.Configuration/Ankus.Examples.Configuration.csproj" />
     <Project Path="samples/Ankus.Examples.CustomScans/Ankus.Examples.CustomScans.csproj" />

@@ -147,5 +147,9 @@ internal static class FunctionPipeline
     /// <param name="Lifecycle">The canonical initialization phases with independently rendered callbacks.</param>
     /// <param name="OperatorCasts">The attached operator and cast catalog declarations and fragments.</param>
     /// <param name="Tests">The independently analyzed tests, discovery catalogs and native boundaries.</param>
-    internal sealed record MethodInputs(EquatableArray<MethodInventoryModel> Methods, EquatableArray<FunctionOutput> Functions, EquatableArray<TriggerPipeline.TriggerOutput> Triggers, EquatableArray<BackgroundWorkerPipeline.WorkerOutput> Workers, EquatableArray<LifecyclePipeline.LifecycleOutput> Lifecycle, EquatableArray<OperatorCastPipeline.Output> OperatorCasts, PgTestPipeline.Output Tests);
+    /// <param name="Benchmarks">The independently analyzed benchmark declarations.</param>
+    internal sealed record MethodInputs(EquatableArray<MethodInventoryModel> Methods, EquatableArray<FunctionOutput> Functions,
+        EquatableArray<TriggerPipeline.TriggerOutput> Triggers, EquatableArray<BackgroundWorkerPipeline.WorkerOutput> Workers,
+        EquatableArray<LifecyclePipeline.LifecycleOutput> Lifecycle, EquatableArray<OperatorCastPipeline.Output> OperatorCasts,
+        PgTestPipeline.Output Tests, EquatableArray<PgBenchmarkPipeline.Output> Benchmarks);
 }

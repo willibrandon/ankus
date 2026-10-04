@@ -67,7 +67,7 @@ public sealed partial class PgFunctionGeneratorTests
         string native = ManifestValue(compilation, "Ankus.NativeSource").ReplaceLineEndings("\n");
         Assert.Contains("&error, sql ? ankus_spi_execute : NULL, (intptr_t) ankus_transaction_log, &memory));", native);
         Assert.Contains("bool direct_spi = transaction_direct_spi || ankus_parallel_without_subtransactions();", native);
-        int callbackGuard = native.IndexOf("if (!direct_spi)", StringComparison.Ordinal);
+        int callbackGuard = native.IndexOf("if (recovery_subtransaction)", StringComparison.Ordinal);
         int guardedSubtransaction = native.IndexOf("ankus_internal_subtransaction_depth++;", callbackGuard,
             StringComparison.Ordinal);
         Assert.IsGreaterThanOrEqualTo(0, callbackGuard);
@@ -78,5 +78,27 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.Contains("ankus_transaction_report(&error, reversible ? ERROR : PANIC);", native);
         Assert.Contains("PG_FINALLY();\n    {\n        ankus_release_error(error);\n    }", native);
         Assert.Contains("Transaction callbacks require an active PostgreSQL transaction", native);
+    }
+
+    /// <summary>
+    /// Pure built-in value operations recover through a disposable context without opening an internal subtransaction.
+    /// </summary>
+    [TestMethod]
+    public void PureValueOperationsUseLightweightRecovery()
+    {
+        (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(
+            "public static class Functions { [Ankus.PgFunction] public static decimal Value(decimal value) => value + 1; }");
+        AssertMemoryCompilationSucceeds(compilation, diagnostics);
+        string native = ManifestValue(compilation, "Ankus.NativeSource").ReplaceLineEndings("\n");
+        Assert.Contains("ankus_uses_builtin_range(const AnkusRequest *request)", native);
+        Assert.Contains("type == INT4RANGEOID || type == INT8RANGEOID || type == NUMRANGEOID", native);
+        Assert.Contains("request->parameter_count > 0 && request->parameters != NULL", native);
+        Assert.Contains("ankus_is_builtin_range(request->parameters[0].type_oid)", native);
+        Assert.Contains("bool lightweight = numeric || temporal || network || geometry || (range && ankus_uses_builtin_range(request)) ||", native);
+        Assert.Contains("(datum && request->scalar_operation == 6);", native);
+        Assert.Contains("bool recovery_subtransaction = !direct_spi && !lightweight;", native);
+        Assert.Contains("bool recovered = lightweight;", native);
+        Assert.Contains("if (lightweight && operation_context != NULL)", native);
+        Assert.Contains("MemoryContextDelete((MemoryContext) operation_context);", native);
     }
 }

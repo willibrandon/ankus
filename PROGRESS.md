@@ -70,13 +70,13 @@ defines the full scope; family-level implementation is not API-by-API completion
 | Aggregates and SQL graph | Static abstract aggregate capabilities, typed Requires/Before/SupportFunction references, deterministic SQL provenance and extended module magic. | Remaining inventoried contracts and complete version/platform acceptance. |
 | Generator caching | Detached equatable declaration/provider/reference models, declaration-relative locations and cached dispatcher/C/SQL artifacts across multi-declaration body edits and unrelated file insertion. Only selected SQL files are read, with the complete path catalog retained. | Broader precise diagnostics, useful semantic code fixes and final inventory audit remain required. |
 | Values and ownership | Documented scalar, array, composite, temporal, JSON, network, geometry, custom codec and raw datum contracts. Interval equality, hashing and ordering agree with PostgreSQL while retaining exact components; complete primary-platform CI passes. | Remaining mapped/container contracts, parsing/formatting ergonomics and complete source-case mapping remain required. |
-| Runtime performance | Owned binary PgNumeric, direct decimal coefficient encoding, native recovery/allocator tests and measured query comparisons. | Appropriately guarded pure operations, array costs and permanent benchmarks. Never weaken error recovery to reduce overhead. |
+| Runtime performance | Owned binary PgNumeric, direct decimal coefficient encoding, constant-time fixed-width array indexing, and a measured native recovery guard for allowlisted pure built-ins. Persistent in-backend benchmarks provide batching, transaction modes and statistical baseline comparisons. | Extend the lighter guard only where ownership proofs and measurements justify it, and complete supported-platform acceptance. Never weaken error recovery to reduce overhead. |
 | Native bindings | pgrx 0.19.3 inventories, matching PostgreSQL 19 beta 4 inputs and target-compiler ABI checks; typed pointers and ANKUS129 make raw caller obligations explicit. Complete current primary-platform compositions pass, with focused binding checks on all seven majors. | Full supported-major/platform tests and final inventory audit. |
-| Development CLI | Version/project selection, installation/registration, cluster lifecycle, run/connect, test/regress, property forwarding, environment selection, scriptable info and package prefixes. | Persistent Windows diagnostic collection, account/privilege selection, in-backend benchmarking and remaining inventoried CLI/platform contracts. |
+| Development CLI | Version/project selection, installation/registration, cluster lifecycle, run/connect, test/regress/bench, property forwarding, environment selection, scriptable info and package prefixes. Benchmarks are measured inside PostgreSQL and retained in named comparison groups. | Persistent Windows diagnostic collection, account/privilege selection and remaining inventoried CLI/platform contracts. |
 | .NET templates | Version-matched ordinary extension and worker templates reuse the CLI assets and pin local tools. Optional xUnit/NUnit consumers exercise managed and named backend cases, ignore reasons, worker processes and cleanup alongside default MSTest consumers. Complete primary-platform CI passes. | Remaining discovery contracts and complete version/platform acceptance. |
 | API discoverability | Idiomatic attributed declarations, documented runtime APIs, named logging helpers and typed SPI interpolation. Compiler transport helpers are isolated in Ankus.CompilerServices and hidden from IntelliSense; complete primary-platform CI passes. | Remaining value/assertion helpers and final inventory audit. |
 | Packages and release | MIT license, Brandon Williams copyright, author/repository/project metadata and deliberate SDK/runtime boundaries. | Full release gates and supported-platform packages before publishing 0.1.0. |
-| Documentation and samples | Public guides, generated API pages, pgrx migration and backend-execution guidance; current status separated from historical evidence. | Every inventoried representative sample and final usage/limitation review. |
+| Documentation and samples | Public guides, generated API pages, pgrx migration and backend-execution guidance; current status separated from historical evidence. SPI and in-backend benchmark samples cover their complete authoring loops. | Every remaining inventoried representative sample and final usage/limitation review. |
 
 The custom-type alignment review found no defect: variable-length PostgreSQL
 types require at least four-byte datum alignment. Managed codec payload layout
@@ -221,13 +221,35 @@ passes.
   warnings or hints.
 - Windows/17 in [primary CI 37183879367](https://github.com/willibrandon/ankus/actions/runs/37183879367)
   and Windows/13 in [version CI 37183984954](https://github.com/willibrandon/ankus/actions/runs/37183984954)
-  fail the same two Unicode project-name cases. Generated C contains `Δ`, but
-  MSVC reads it with code page 1252 and promotes C4566 to an error. The native
-  compile command now selects UTF-8 explicitly; replacement Windows acceptance
-  is pending. Linux/18 and macOS ARM64/18 pass on the same primary revision.
+  exposed MSVC reading generated Unicode C with code page 1252. **b602b32**
+  selects UTF-8 and compiles the native library. Replacement
+  [CI 37188103763](https://github.com/willibrandon/ankus/actions/runs/37188103763)
+  passes Linux/18 and macOS ARM64/18, then exposes PostgreSQL's Windows
+  `pg_regress` converting its Unicode working directory through the active ANSI
+  code page. The driver now runs only that native boundary in an ASCII staging
+  directory and copies native results back to the authored suite. A cold local
+  Windows/17 run passes all **10/10** scaffolded regression cases, including both
+  Unicode creation paths, in **7m43s**. That cold run also exposed Clang 21
+  diagnosing casing defects inside PostgreSQL and Windows SDK headers; Ankus now
+  classifies those vendor directories as system headers while retaining
+  warnings-as-errors for generated and Ankus-owned C. Native binding tests pass
+  **1,061**, with nine platform skips. Replacement primary CI remains required.
+- [Additional-platform CI 37183985269](https://github.com/willibrandon/ankus/actions/runs/37183985269)
+  completes the macOS x64/PostgreSQL 18 full suite on **7b65e23**. Its test step
+  passes in **4h25m01s**. Later benchmark and recovery work still requires
+  replacement platform evidence.
+- In-backend benchmarks implement pgrx-style persisted groups, named baselines,
+  batching and transaction modes. Pure numeric, temporal, network, geometry,
+  built-in range and array-cell operations use a native recovery guard without
+  creating a PostgreSQL subtransaction; user callbacks and custom range code
+  retain full subtransaction recovery. Complete Linux/18.6 acceptance passes
+  **11,900 total / 11,852 passed / 48 platform skips / zero failures** in
+  **35m02.980s**. Release builds with zero warnings/errors in **1m33.89s**;
+  API freshness passes at **244 pages / 2,791 members**; site checks report zero
+  diagnostics and the site builds **293 pages**. The final Windows compiler-name
+  contract passes **4/4** after that complete run.
 - Remaining review work includes precise diagnostics and useful code fixes,
-  CLI environment/name contracts, appropriately guarded pure operations and
-  permanent backend benchmarks, representative samples and final platform
+  remaining CLI/account contracts, representative samples and final platform
   acceptance. Detailed outcomes and superseded states belong in the
   [evidence archive](docs/contributing/evidence/port-history.md#status-snapshot-before-the-23-commit-follow-up-review).
 
@@ -242,8 +264,8 @@ disconnect and remaining version/platform acceptance are still required.
 1. Resolve discovered correctness and CI failures before accepting affected work.
 2. Finish the Intel timing milestone and complete supported-major/platform coverage, including Intel macOS and the macOS 15/16 library-suffix boundary.
 3. Complete declaration diagnostics/code fixes, API discoverability and unsafe raw-call contracts.
-4. Establish faithful in-backend benchmarks, then finish appropriate guard/array improvements with recovery tests and measured comparisons.
-5. Close remaining CLI, account/privilege, benchmark and platform-installation contracts.
+4. Use the in-backend baseline to finish measured hot-path improvements that preserve recovery and ownership guarantees.
+5. Close remaining CLI, account/privilege and platform-installation contracts.
 6. Complete framework/discovery support, parsing/formatting helpers, representative samples and documentation.
 7. Complete .NET servicing and every release requirement in the full inventory before publishing 0.1.0. If .NET 11 reaches GA first, complete its acceptance for that release; preview validation does not block the initial .NET 10 release.
 
