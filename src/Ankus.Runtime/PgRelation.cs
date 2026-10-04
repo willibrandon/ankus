@@ -134,7 +134,7 @@ public sealed class PgRelation : IDisposable
     }
 
     /// <summary>
-    /// Resolves a relation using native to_regclass syntax and search-path rules, then opens and locks it.
+    /// Resolves a relation using native regclass syntax and search-path rules, then opens and locks it.
     /// </summary>
     /// <param name="name">The PostgreSQL relation name or numeric OID syntax.</param>
     /// <param name="lockMode">The required lock, defaulting to AccessShare.</param>

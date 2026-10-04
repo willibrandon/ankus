@@ -10,6 +10,7 @@
     <ProjectReference Include="../../src/Ankus.Testing/Ankus.Testing.csproj" />
     <ProjectReference Include="../../src/Ankus.Tool/Ankus.Tool.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../../samples/Ankus.Examples.Enums/Ankus.Examples.Enums.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../samples/Ankus.Examples.Errors/Ankus.Examples.Errors.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../../samples/Ankus.Examples.CustomTypes/Ankus.Examples.CustomTypes.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../../samples/Ankus.Examples.CustomScans/Ankus.Examples.CustomScans.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../../samples/Ankus.Examples.Composites/Ankus.Examples.Composites.csproj" ReferenceOutputAssembly="false" />

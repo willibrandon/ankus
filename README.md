@@ -30,6 +30,9 @@ managed-to-native error boundary.
 The [SPI sample](samples/Ankus.Examples.Spi/) demonstrates parameterized queries,
 inserts, cursors, and table functions using named C# tuples.
 
+The [errors sample](samples/Ankus.Examples.Errors/) ports pgrx's managed-failure
+and PostgreSQL reporting scenarios, including ERROR, FATAL, and PANIC recovery.
+
 PostgreSQL 18 and later can report the library's name and version through
 `pg_get_loaded_modules()`. See [native module identity](docs/src/content/docs/reference/build-settings.md#native-module-identity)
 for project defaults and attribute overrides.

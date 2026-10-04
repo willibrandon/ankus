@@ -76,7 +76,7 @@ defines the full scope; family-level implementation is not API-by-API completion
 | .NET templates | Version-matched ordinary extension and worker templates reuse the CLI assets and pin local tools. Optional xUnit/NUnit consumers exercise managed and named backend cases, ignore reasons, worker processes and cleanup alongside default MSTest consumers. Complete primary-platform CI passes. | Remaining discovery contracts and complete version/platform acceptance. |
 | API discoverability | Idiomatic attributed declarations, documented runtime APIs, named logging helpers and typed SPI interpolation. Compiler transport helpers are isolated in Ankus.CompilerServices and hidden from IntelliSense; complete primary-platform CI passes. | Remaining value/assertion helpers and final inventory audit. |
 | Packages and release | MIT license, Brandon Williams copyright, author/repository/project metadata and deliberate SDK/runtime boundaries. | Full release gates and supported-platform packages before publishing 0.1.0. |
-| Documentation and samples | Public guides, generated API pages, pgrx migration and backend-execution guidance; current status separated from historical evidence. SPI and in-backend benchmark samples cover their complete authoring loops. | Every remaining inventoried representative sample and final usage/limitation review. |
+| Documentation and samples | Public guides, generated API pages, pgrx migration and backend-execution guidance; current status separated from historical evidence. SPI, error/reporting and in-backend benchmark samples cover their complete authoring loops. | Every remaining inventoried representative sample and final usage/limitation review. |
 
 The custom-type alignment review found no defect: variable-length PostgreSQL
 types require at least four-byte datum alignment. Managed codec payload layout
@@ -263,7 +263,23 @@ passes.
   skips / zero failures** in **33m55.690s**. The final Release build has zero
   warnings/errors in **1m23.56s**; documentation checks have zero diagnostics,
   API generation reports **244 pages / 2,791 members**, and the site builds
-  **293 pages**. Replacement primary CI remains required.
+  **293 pages**. [Replacement primary CI 37209084748](https://github.com/willibrandon/ankus/actions/runs/37209084748)
+  passes quality, all runtime jobs and all three complete platform suites;
+  [docs CI 37209084764](https://github.com/willibrandon/ankus/actions/runs/37209084764)
+  passes build and deployment.
+- The pgrx `errors` example now has a runnable C# sample and real PostgreSQL
+  coverage for nullable arrays, managed exceptions, guarded native errors,
+  client reports, ERROR, FATAL, PANIC, backend continuity and crash recovery.
+  That work exposed `PgRelation.Open` replacing PostgreSQL's name parser and
+  lookup diagnostics with a generic `42P01`. `Open` now calls PostgreSQL's
+  `regclassin` inside the native guard, preserving exact SQLSTATE and message;
+  `TryOpen` retains `to_regclass` null-on-missing behavior. Focused Linux/18.6
+  terminal acceptance passes **2/2**; the corrected relation-diagnostic case
+  passes **1/1** in **2m42.417s**. Complete Linux/18.6 acceptance passes
+  **11,906 total / 11,858 passed / 48 platform skips / zero failures** in
+  **35m19.441s**. Release passes with zero warnings/errors in **43.84s**; API
+  generation reports **244 pages / 2,791 members**, site checks have zero
+  diagnostics, and the site builds **293 pages**.
 - Remaining review work includes precise diagnostics and useful code fixes,
   remaining CLI/account contracts, representative samples and final platform
   acceptance. Detailed outcomes and superseded states belong in the

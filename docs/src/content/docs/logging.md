@@ -145,3 +145,7 @@ boundary. Their severity and diagnostics remain pending even if a
 rolls back. `Fatal` ends the backend connection.
 `Panic` aborts the backend and causes PostgreSQL to terminate peer backends and
 perform crash recovery.
+
+The [errors sample](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.Errors)
+provides complete runnable functions for managed failures, guarded native errors,
+INFO, WARNING, ERROR, FATAL, and PANIC.

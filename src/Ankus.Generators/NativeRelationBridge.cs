@@ -122,19 +122,24 @@ internal static class NativeRelationBridge
             {
                 if (request->parameter_count != 1)
                     ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg("invalid relation name request")));
-                LOCAL_FCINFO(info, 1);
-                InitFunctionCallInfoData(*info, NULL, 1, InvalidOid, NULL, NULL);
-                info->args[0].value = ankus_write_typed_buffer(&request->parameters[0].value, TEXTOID);
-                info->args[0].isnull = false;
-                Datum resolved = to_regclass(info);
-                if (info->isnull)
+                Datum input = ankus_write_typed_buffer(&request->parameters[0].value, TEXTOID);
+                if (request->read_only)
                 {
-                    if (request->read_only)
+                    LOCAL_FCINFO(info, 1);
+                    InitFunctionCallInfoData(*info, NULL, 1, InvalidOid, NULL, NULL);
+                    info->args[0].value = input;
+                    info->args[0].isnull = false;
+                    Datum resolved = to_regclass(info);
+                    if (info->isnull)
                         return;
-                    ereport(ERROR, (errcode(ERRCODE_UNDEFINED_TABLE), errmsg("relation does not exist")));
-                }
 
-                oid = DatumGetObjectId(resolved);
+                    oid = DatumGetObjectId(resolved);
+                }
+                else
+                {
+                    oid = DatumGetObjectId(DirectFunctionCall1(regclassin,
+                        CStringGetDatum(TextDatumGetCString(input))));
+                }
             }
 
             if (wrapping && request->callback == 0)

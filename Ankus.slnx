@@ -8,6 +8,7 @@
     <Project Path="samples/Ankus.Examples.CustomScans/Ankus.Examples.CustomScans.csproj" />
     <Project Path="samples/Ankus.Examples.CustomTypes/Ankus.Examples.CustomTypes.csproj" />
     <Project Path="samples/Ankus.Examples.Enums/Ankus.Examples.Enums.csproj" />
+    <Project Path="samples/Ankus.Examples.Errors/Ankus.Examples.Errors.csproj" />
     <Project Path="samples/Ankus.Examples.EventTriggers/Ankus.Examples.EventTriggers.csproj" />
     <Project Path="samples/Ankus.Examples.Hello/Ankus.Examples.Hello.csproj" />
     <Project Path="samples/Ankus.Examples.Initialization/Ankus.Examples.Initialization.csproj" />

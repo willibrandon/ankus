@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>Managed exceptions and PostgreSQL ERROR, FATAL, PANIC, INFO, and WARNING reports.</Description>
+    <AnkusExtensionName>ankus_errors</AnkusExtensionName>
+  </PropertyGroup>
+
+  <Import Project="../../src/Ankus.Sdk/Ankus.Sdk.targets" />
+
+</Project>

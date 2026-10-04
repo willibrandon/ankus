@@ -159,8 +159,9 @@ All example directories in `pgrx-examples/` require a corresponding working .NET
   `versioned_so`. Rust-specific mechanisms require an explicit idiomatic .NET capability mapping and tests.
 
 The `samples/Ankus.Examples.Hello`, `samples/Ankus.Examples.Enums`, `samples/Ankus.Examples.Operators`,
-`samples/Ankus.Examples.Sets`, `samples/Ankus.Examples.Composites` and
-`samples/Ankus.Examples.Ranges` samples are validated. Full example parity is pending.
+`samples/Ankus.Examples.Sets`, `samples/Ankus.Examples.Composites`,
+`samples/Ankus.Examples.Ranges` and `samples/Ankus.Examples.Errors` samples are
+validated. Full example parity is pending.
 
 The `samples/Ankus.Examples.Spi` sample combines `spi` and `spi_srf`. Its nine
 published-native cases and complete composed suites pass on Linux x64 and macOS

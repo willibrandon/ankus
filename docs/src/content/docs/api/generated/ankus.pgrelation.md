@@ -298,7 +298,7 @@ A read-only list of independent owners; dispose every element when finished.
 
 ### Open(string, PgLockMode)
 
-Resolves a relation using native to_regclass syntax and search-path rules, then opens and locks it.
+Resolves a relation using native regclass syntax and search-path rules, then opens and locks it.
 
 ```csharp
 public static PgRelation Open(string name, PgLockMode lockMode = PgLockMode.AccessShare)
