@@ -787,8 +787,10 @@ rejected. A type cannot combine
 
 Mapping errors identify the failed contract and the authored value or signature
 that needs correction. Converter constraint errors retain the C# diagnostic ID
-and reason. A mapping supplied by a referenced assembly reports errors at its
-consuming source declaration when its original source is unavailable.
+and reason. A mapping supplied by another project or assembly reports errors at
+its consuming source declaration. Referenced names and schemas retain their
+exact text; zero characters and malformed UTF-8 are rejected before registration.
+C# namespaces with escaped identifiers, such as `@class`, work normally.
 
 | Diagnostic | Required correction |
 | --- | --- |
@@ -798,6 +800,7 @@ consuming source declaration when its original source is unavailable.
 | `ANKUS137` | Add a mapping for the selected closed managed type or declare a default mapping. |
 | `ANKUS138` | Supply a valid PostgreSQL type identifier of at most 63 UTF-8 bytes. |
 | `ANKUS139` | Supply a valid PostgreSQL schema identifier of at most 63 UTF-8 bytes. |
+| `ANKUS204` | Rebuild the defining assembly so its mapping attribute contains complete, valid UTF-8 metadata. |
 | `ANKUS140` | Set `Origin` to `ThisExtension` or `External`. |
 | `ANKUS141` | Specify `Schema` for an external SQL type. |
 | `ANKUS142` | Supply a concrete converter class or struct with a finite closed construction. |

@@ -85,23 +85,23 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
     /// Resolves an attributed type and optionally reports its invalid contract.
     /// </summary>
     internal static DatumTypeDeclaration? Create(INamedTypeSymbol type, IAssemblySymbol? assembly = null,
-        GeneratorDiagnostics? context = null, Location? usage = null)
+        GeneratorDiagnostics? context = null, Location? usage = null, Compilation? compilation = null)
     {
         type = (INamedTypeSymbol)type.WithNullableAnnotation(NullableAnnotation.NotAnnotated);
         if (RangeTypeDeclaration.Bound(type) is { } bound)
         {
-            DatumTypeDeclaration? scalar = Create(bound, assembly, context, usage);
-            return scalar is not null && RangeTypeDeclaration.TryCreate(scalar, out DatumTypeDeclaration? range, context) ? range : null;
+            DatumTypeDeclaration? scalar = Create(bound, assembly, context, usage, compilation);
+            return scalar is not null && RangeTypeDeclaration.TryCreate(scalar, out DatumTypeDeclaration? range, context, usage, compilation) ? range : null;
         }
 
-        AttributeData[]? attributes = Declarations(type, context, usage);
+        AttributeData[]? attributes = Declarations(type, context, usage, compilation);
         if (attributes is null || attributes.Length == 0)
         {
             return null;
         }
 
         assembly ??= type.ContainingAssembly;
-        Location? root = type.Locations.FirstOrDefault(static item => item.IsInSource) ?? usage;
+        Location? root = DatumMappingDiagnostics.CurrentLocation(type.Locations.FirstOrDefault(static item => item.IsInSource), compilation, usage);
         if (type.TypeKind is not (TypeKind.Class or TypeKind.Struct or TypeKind.Enum) || type.IsStatic || type.IsAbstract ||
             type.IsRefLikeType || !IsClosed(type))
         {
@@ -133,7 +133,13 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
         string? name = attribute.ConstructorArguments[offset].Value as string;
         string? schema = AttributeValues.Get<string?>(attribute, "Schema", null);
         CancellationToken cancellationToken = context?.CancellationToken ?? default;
-        Location? converterSource = DatumMappingDiagnostics.Argument(attribute, offset + 1, cancellationToken) ?? usage ?? root;
+        if (compilation is not null && !MappedIdentityMetadata.TryRead(type, attribute, compilation, cancellationToken, out name, out schema))
+        {
+            return Invalid(DatumMappingDiagnostics.Metadata, usage ?? root);
+        }
+
+        Location? converterSource = DatumMappingDiagnostics.CurrentLocation(
+            DatumMappingDiagnostics.Argument(attribute, offset + 1, cancellationToken), compilation, usage ?? root);
         if (!SqlText.IsIdentifier(name))
         {
             return Invalid(DatumMappingDiagnostics.Name, DatumMappingDiagnostics.Argument(attribute, offset, cancellationToken));
@@ -218,7 +224,7 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
         {
             if (context is { } output)
             {
-                output.Report(descriptor, location ?? usage ?? root, arguments);
+                output.Report(descriptor, DatumMappingDiagnostics.CurrentLocation(location, compilation, usage ?? root), arguments);
             }
 
             return null;
@@ -238,7 +244,7 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
         var usages = new Dictionary<INamedTypeSymbol, Location>(SymbolEqualityComparer.Default);
         foreach (INamedTypeSymbol type in rangeTypes.Distinct<INamedTypeSymbol>(SymbolEqualityComparer.Default))
         {
-            AttributeData[]? declared = RangeTypeDeclaration.Declarations(type, context);
+            AttributeData[]? declared = RangeTypeDeclaration.Declarations(type, context, compilation: compilation);
             if (declared is null)
             {
                 return null;
@@ -257,7 +263,7 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
 
         foreach (INamedTypeSymbol type in local.Distinct<INamedTypeSymbol>(SymbolEqualityComparer.Default))
         {
-            AttributeData[]? declared = Declarations(type, context);
+            AttributeData[]? declared = Declarations(type, context, compilation: compilation);
             if (declared is null)
             {
                 return null;
@@ -300,7 +306,7 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
         foreach (INamedTypeSymbol type in candidates.OrderBy(static item => item.ToDisplayString(), StringComparer.Ordinal))
         {
             usages.TryGetValue(type, out Location? usage);
-            DatumTypeDeclaration? declaration = Create(type, compilation.Assembly, context, usage);
+            DatumTypeDeclaration? declaration = Create(type, compilation.Assembly, context, usage, compilation);
             if (declaration is null)
             {
                 invalidRangeBounds.Add(type);
@@ -323,7 +329,7 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
         foreach (DatumTypeDeclaration scalar in declarations.ToArray())
         {
             usages.TryGetValue(scalar.Type, out Location? usage);
-            if (!RangeTypeDeclaration.TryCreate(scalar, out DatumTypeDeclaration? range, context, usage))
+            if (!RangeTypeDeclaration.TryCreate(scalar, out DatumTypeDeclaration? range, context, usage, compilation))
             {
                 invalidRangeBounds.Add(scalar.Type);
                 valid = false;
@@ -452,12 +458,7 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
                 return false;
             }
 
-            string metadata = string.Join("+", Containers(named).Reverse().Select(static item => item.MetadataName));
-            if (!named.ContainingNamespace.IsGlobalNamespace)
-            {
-                metadata = named.ContainingNamespace.ToDisplayString() + "." + metadata;
-            }
-
+            string metadata = MetadataTypeName.Create(named);
             return SymbolEqualityComparer.Default.Equals(compilation.GetTypeByMetadataName(metadata), named.OriginalDefinition) &&
                 named.TypeArguments.All(Resolves) && (named.ContainingType is null || Resolves(named.ContainingType));
         }
@@ -519,7 +520,8 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
     /// <summary>
     /// Validates deterministic exact and default declarations without instantiating open generic roots.
     /// </summary>
-    private static AttributeData[]? Declarations(INamedTypeSymbol type, GeneratorDiagnostics? context, Location? usage = null)
+    private static AttributeData[]? Declarations(INamedTypeSymbol type, GeneratorDiagnostics? context, Location? usage = null,
+        Compilation? compilation = null)
     {
         AttributeData[] attributes = [.. type.GetAttributes().Where(static item =>
             item.AttributeClass?.ToDisplayString() == "Ankus.PgDatumTypeAttribute")];
@@ -527,6 +529,11 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
         bool hasDefault = false;
         foreach (AttributeData attribute in attributes)
         {
+            if (attribute.ConstructorArguments.IsEmpty && type.DeclaringSyntaxReferences.Length == 0)
+            {
+                return Invalid(DatumMappingDiagnostics.Metadata, attribute);
+            }
+
             if (attribute.ConstructorArguments.Length == 2)
             {
                 if (hasDefault)
@@ -554,9 +561,10 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
         {
             if (context is { } output)
             {
-                output.Report(descriptor, descriptor == DatumMappingDiagnostics.Target
-                    ? DatumMappingDiagnostics.Argument(attribute, 0, output.CancellationToken) ?? usage
-                    : attribute.ApplicationSyntaxReference?.GetSyntax(output.CancellationToken).GetLocation() ?? usage);
+                Location? location = descriptor == DatumMappingDiagnostics.Target
+                    ? DatumMappingDiagnostics.Argument(attribute, 0, output.CancellationToken)
+                    : attribute.ApplicationSyntaxReference?.GetSyntax(output.CancellationToken).GetLocation();
+                output.Report(descriptor, DatumMappingDiagnostics.CurrentLocation(location, compilation, usage));
             }
 
             return null;

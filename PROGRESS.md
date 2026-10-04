@@ -91,6 +91,7 @@ extensions. Counts supplement the backend, ownership and recovery assertions.
 
 | Source | Platform / PostgreSQL | Result | Duration |
 | --- | --- | --- | --- |
+| Frozen referenced-identity/namespace composition / runtime **ankus.4** | Linux x64 / 18.6 | 12,078 total; 12,030 passed; 48 platform skips; zero failures | 39m27.651s tests; 39m50.14s command |
 | Frozen cold-editor/reload composition / runtime **ankus.4** | Linux x64 / 18.6 | 11,993 total; 11,945 passed; 48 platform skips; zero failures | 39m16.950s tests; 39m40.34s command |
 | [CI 37224209715](https://github.com/willibrandon/ankus/actions/runs/37224209715), bed79ab / runtime **ankus.4** | Linux x64 / 18 | 11,991 total; 11,943 passed; 48 platform skips; zero failures | 37m52s job |
 | Same CI / revision / runtime | macOS ARM64 / 18 | 11,991 total; 11,931 passed; 60 platform skips; zero failures | 28m08s job |
@@ -169,85 +170,51 @@ passes.
 
 ## Active validation and work
 
-- **4c9cc43** replaces broad datum mapping errors with **ANKUS134–157** and
-  precise attribute/signature locations. Complete Linux/18.6 acceptance passes
-  **11,927 total / 11,879 passed / 48 platform skips / zero failures**. Current
-  [CI 37218726638](https://github.com/willibrandon/ankus/actions/runs/37218726638)
-  passes quality, all runtime jobs and all three complete platform suites.
-  All six reports are independently verified per platform. [Docs 37218726655](https://github.com/willibrandon/ankus/actions/runs/37218726655)
-  passes. Earlier primary [CI 37214601834](https://github.com/willibrandon/ankus/actions/runs/37214601834)
-  passes all three complete platform suites.
-- Range and configuration declarations now use **ANKUS158–203** instead of
-  broad **ANKUS020/014**, with distinct carrier, shape, type, metadata, bounds,
-  hook and duplicate diagnostics. Attribute values and referenced usage sites
-  retain current navigation while declaration rendering remains cached.
-  Complete generator acceptance passes **3,522/3,522** in **54.443s** test time
-  (**58.175s** command). The public range and configuration guides document
-  each diagnostic family. Complete Linux/18.6 acceptance passes **11,991 total /
-  11,943 passed / 48 platform skips / zero failures** in **39m29.371s** test time
-  (**40m40.23s** command). All six reports and **1,642** authored build inputs
-  are independently verified. Release passes with zero warnings/errors in
-  **1m10.70s**; API freshness reports **244 pages / 2,791 members**, site checks
-  have zero diagnostics, and the site builds **293 pages** in **3.86s**.
-- Reference tests reproduced Roslyn trimming trailing zero characters from
-  imported attribute strings: a `PgGucLabel("bad\0")` appeared as `"bad"` and
-  escaped validation. Imported enum labels now use exact ECMA-335 metadata
-  decoding with strict UTF-8. Tests cover trailing/interior zeros, null labels,
-  malformed UTF-8, Unicode, hidden aliases and nested generic enum identities.
-  The remaining imported-string declaration families still require an audit.
-  The next audit reproduces the same loss in referenced datum type names and
-  schemas: source references reject trailing zeros, but emitted references
-  currently trim and accept them. Exact metadata validation for mapped types
-  remains open; the editor milestone does not claim this fix.
-  A source-reference probe also reproduces a GUC regression: retargeting a
-  project with an unused dependency removes an attribute's syntax reference,
-  causing its valid exact enum label to be rejected as imported metadata.
-  Correct source-reference handling and consuming-property navigation remain
-  required in the next metadata milestone.
-- Editor loading now builds the repository helper, runtime and analyzers before
-  native binding resolution. The original missing-helper failure left compiler
-  arguments empty, which disabled nullable analysis in the editor despite the
-  project's enabled setting. Fresh Debug and Release editor regressions pass,
-  preserve consumer nullable options, and compile against real dependency
-  assemblies. A subsequent load reproduced an unqualified binding-metadata
-  check failing when the editor requested existing project outputs first;
-  the qualified check now retains the extension output and exactly one binding
-  companion across fresh loads and reloads. The current editor diagnostics
-  are clear of CS8632.
-  **IDE0042 and CS8632 are errors** across repository source, including samples;
-  eligible tuple locals are deconstructed without imposing repository policy on
-  consumer templates. Final Release passes with zero warnings/errors in **1m07.27s**.
-  Site checks have zero diagnostics; **293 pages** build in **5.18s**, and API
-  freshness passes for **244 pages / 2,791 members**. Complete Linux/18.6
-  acceptance passes **11,993 total / 11,945 passed / 48 skips / zero failures**
-  in **39m16.950s** test time (**39m40.34s** command). All six reports,
-  **1,645** authored inputs and **39** runtime/compiler payload files are
-  independently verified. The final result replaces the stopped pre-reload run.
-- Previous [CI 37224209715](https://github.com/willibrandon/ankus/actions/runs/37224209715)
-  on **bed79ab** passes quality, all runtime jobs and all three complete
-  platform suites. All six reports are verified per platform; measured totals
-  and durations appear above. [Docs 37224209725](https://github.com/willibrandon/ankus/actions/runs/37224209725)
-  passes.
+- **e456e92** fixes cold editor loading and reloads by resolving real build
+  dependencies before native bindings and qualifying companion metadata.
+  Repository **IDE0042 and CS8632 remain errors**, including samples, without
+  imposing these standards on consumers. Complete Linux/18.6 acceptance and
+  Release/docs/API checks pass. The editor diagnostics are now clear.
+- Referenced datum/range identities now use exact compiler-owned attribute
+  bytes with strict UTF-8 and complete-blob validation (**ANKUS204/205**).
+  Source GUC labels retain exact values during Roslyn retargeting. Diagnostics
+  identify current consuming source. The original **65** regression cases pass.
+  A further namespace audit exposed display-name escaping in metadata lookup;
+  the raw-name correction passes all **20** added cases and the complete
+  **3,607-case** generator module. Final complete Linux/18.6 acceptance passes
+  **12,078 total / 12,030 passed / 48 skips**, with all six reports and
+  **1,650** source inputs / **39** runtime files independently verified.
+  Release has zero warnings/errors; API freshness and site checks/build pass.
+- The continuing imported-string audit reproduces loss in SQL enum names,
+  schemas and labels, and in serializer member keys, enum names and polymorphic
+  discriminators. Proposed exact-reader/factory fixes pass **97** focused cases
+  and the complete **3,704-case** generator module. Promotion, precise metadata
+  diagnostics, public guidance and full real-backend acceptance remain required;
+  valid serialization keys must be preserved rather than rejected.
+- [CI 37229162897](https://github.com/willibrandon/ankus/actions/runs/37229162897)
+  on **e456e92** passes quality, all runtime jobs, macOS ARM64/18 and
+  Windows/17 and Linux/18. All six reports are independently verified per
+  platform: **11,993 total / 11,933 passed / 60 skips** on macOS,
+  **11,993 total / 11,965 passed / 28 skips** on Windows, and
+  **11,993 total / 11,945 passed / 48 skips** on Linux. Job durations are
+  **28m03s**, **34m33s** and **37m53s**, respectively; no timeouts.
+  [Docs 37229162983](https://github.com/willibrandon/ankus/actions/runs/37229162983)
+  passes. Previous **CI 37224209715** and its docs run pass all required jobs.
 - [Platform-version CI 37218985660](https://github.com/willibrandon/ankus/actions/runs/37218985660)
-  runs on **4c9cc43** to refresh Windows/13 and 18 and macOS ARM64/15 and 16
-  after the prior Windows Unicode failures. All four cells pass with zero
-  failures: **11,927 total / 11,899 passed / 28 skips** on Windows/13 and 18,
-  and **11,927 total / 11,867 passed / 60 skips** on macOS/15 and 16.
-  All six reports are verified per cell. Windows/13 takes **40m08s**, Windows/18
-  **33m02s**, macOS/15 **28m01s** and macOS/16 **28m05s**, without timeouts.
-  Complete supported-major/platform coverage remains required.
+  passes Windows/13 and 18 and macOS ARM64/15 and 16 on **4c9cc43**.
+  All six reports are verified per cell; durations and results appear above.
+  These older revisions do not establish current-source acceptance for every
+  supported combination.
 
-Earlier implementation, failure corrections and exact acceptance results remain
-in the [retained snapshot](docs/contributing/evidence/port-history.md#status-snapshot-before-range-and-configuration-diagnostics).
-Remaining review work includes declaration diagnostics and useful code fixes,
-CLI/account contracts, representative samples and final platform acceptance.
+Detailed implementation, failures and corrections remain in the
+[evidence archive](docs/contributing/evidence/port-history.md).
 
 ## Remaining work order
 
 The accepted declaration milestones have complete primary-platform CI evidence.
 The earlier editor composition passes its full native suite and replacement primary CI.
 The current cold-load/reload correction also passes complete Linux/18.6 acceptance;
-its replacement primary CI remains to be run.
+its replacement primary CI passes all three complete platform suites.
 The Intel diagnostic retry exposed six path-related failures; the corrected
 complete Intel suite now passes. An explanation of the earlier hosted-runner
 disconnect and remaining version/platform acceptance are still required.

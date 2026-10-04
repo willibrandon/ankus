@@ -25251,3 +25251,101 @@ and macOS ARM64/15 (**11,927 total / 11,867 passed / 60 skips / zero failures**,
 **28m01s** job). All six reports were independently verified per completed
 platform. Windows/13 and macOS ARM64/16 remain in progress. These version
 reports prove **4c9cc43**, not the new diagnostic composition.
+
+## Cold editor binding resolution and nullable diagnostics
+
+**e456e92** fixes initial editor loads and subsequent output-resolution reloads.
+The cold design-time native target previously ran without a compiled build helper.
+The resulting target failure left C# compiler arguments empty, so the editor
+reported nullable annotations outside an enabled context. Repository development
+targets now compile the helper, runtime and analyzers with normal build settings
+before native binding resolution. A second load reproduced an unqualified item
+metadata condition failing when existing project outputs were requested first;
+the qualified condition preserves the extension output and exactly one companion
+binding assembly on both initial loading and reloads.
+
+The two Debug/Release regressions compile against real dependency assemblies,
+check the editor's compiler arguments, and preserve consumer nullable options.
+Repository **IDE0042 and CS8632** are errors, including samples. Eligible tuple
+locals are deconstructed; no repository coding policy is added to templates and
+no warnings are suppressed.
+
+Complete Linux x64/PostgreSQL 18.6 acceptance passes **11,993 total / 11,945
+passed / 48 platform skips / zero failures** in **39m16.950s** test time
+(**39m40.34s** command), using SDK **10.0.401** and runtime/compiler
+**10.0.12-ankus.4**. All six report modules, **1,645** authored inputs and
+**39** staged payload files were independently verified. This terminal result
+replaces the stopped pre-reload attempt. Release passes with zero warnings/errors
+in **1m07.27s**; API freshness reports **244 pages / 2,791 members**, site checks
+have zero errors, warnings or hints, and **293 pages** build in **5.18s**.
+
+Before committing and pushing, **CI 37224209715** on **bed79ab** passes every
+quality, runtime and complete platform job, and **Docs 37224209725** passes.
+Platform-version **CI 37218985660** on **4c9cc43** also passes all four complete
+cells: Windows/13 and 18, and macOS ARM64/15 and 16. All six reports were
+independently checked per platform. Windows/13 takes **40m08s**, Windows/18
+**33m02s**, macOS/15 **28m01s** and macOS/16 **28m05s**, without timeouts.
+
+Replacement **CI 37229162897** on **e456e92** passes every job. Complete
+Linux/18 reports **11,993 total / 11,945 passed / 48 skips**, **37m53s** job;
+macOS ARM64/18 reports **11,993 total / 11,933 passed / 60 skips**, **28m03s**;
+Windows/17 reports **11,993 total / 11,965 passed / 28 skips**, **34m33s**.
+All six report modules are independently verified for each platform, with zero
+failures. **Docs 37229162983** passes. These results establish this editor
+revision's primary-platform acceptance; remaining imported-metadata and
+supported-version/release requirements remain open.
+
+## Exact referenced mapping identities and namespace lookup
+
+Roslyn's portable-attribute importer trims trailing zero characters and replaces
+malformed UTF-8. Datum/range declarations now decode their selected mapping
+attribute from compiler-owned metadata, retaining exact names and nullable
+schemas, constructor overloads and declaration ordinals. The bounded reader
+checks complete blobs and the exact defining module without loading assemblies
+or disposing compiler-owned metadata. Invalid encoded attributes report
+**ANKUS204/205** with help links; ordinary invalid identifiers retain their
+specific diagnostics. Referenced errors navigate to current consuming source.
+
+Source GUC enums remain source contracts when Roslyn retargeting removes an
+attribute's syntax reference. The generator preserves their exact labels rather
+than requiring an unavailable portable image. Metadata identities also use raw
+namespace segments, nested separators and generic arity instead of C# display
+escaping. This corrects mapped-type and GUC lookup under escaped namespaces.
+
+The original GUC implementation fails four of eight regression cases; the
+original mapped factories fail ten of fourteen initial cases. The namespace
+baseline fails five of twenty cases, with fifteen controls passing. The final
+**85** cases additionally cover malformed UTF-8 and incomplete blobs, adjacent
+62/63/64-byte limits, null/empty/interior-zero identities, selected nested generic
+mappings, nullable and enum-valued options, linked modules, cancellation,
+current source-tree identity and actual emitted compilation. The complete local
+generator module passes **3,607/3,607** in **45.263s** tests / **45.954s** command.
+
+Final Linux x64/PostgreSQL **18.6** acceptance uses SDK **10.0.401**, LLVM
+**23.1.2** and runtime/compiler **10.0.12-ankus.4**. All six modules pass:
+
+| Module | Total | Passed | Platform skips |
+| --- | ---: | ---: | ---: |
+| Generators | 3,607 | 3,607 | 0 |
+| Build | 1,222 | 1,213 | 9 |
+| Runtime | 2,130 | 2,130 | 0 |
+| Hello | 5 | 5 | 0 |
+| Integration | 4,631 | 4,616 | 15 |
+| PgConfig | 483 | 459 | 24 |
+| Complete suite | **12,078** | **12,030** | **48** |
+
+There are zero failures. Complete test time is **39m27.651s**, command time
+**39m50.14s** and integration time **39m26.179s**. All **1,650** authored inputs
+and **39** staged runtime files remain exact after execution. Release passes
+with zero warnings/errors in **1m26.02s** build / **1m26.18s** command. API
+freshness verifies **244 pages / 2,791 members**; site checks report zero errors,
+warnings or hints and **293 pages** build in **2.79s**. The earlier 12,058-case
+composition is retained as prior evidence, superseded by this final namespace
+acceptance. No analyzer standards were relaxed and no warnings suppressed.
+
+Before committing, **CI 37229162897** and **Docs 37229162983** on **e456e92**
+pass every required job. The previous **bed79ab** CI/docs runs also pass, and
+platform-version **CI 37218985660** on **4c9cc43** passes all four complete cells.
+No listed run is still active. The new revision requires replacement platform
+CI; imported SQL-enum/serialization strings and full supported-version/release
+requirements remain open.

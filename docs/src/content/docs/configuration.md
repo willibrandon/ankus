@@ -132,6 +132,10 @@ Generated ordinal mappings preserve the managed enum's underlying values.
 Aliases share an ordinal, and the first declared label is the canonical display
 name. Native label matching is case insensitive. Hidden labels remain accepted
 inputs but are omitted from available-value hints and `pg_settings.enumvals`.
+The enum may come from another project or assembly. Labels retain their exact
+text in both cases. Invalid referenced labels report the error at the consuming
+setting's property type. C# namespaces with escaped identifiers, such as `@class`,
+work normally.
 
 `PgGucContext` expresses PostgreSQL's seven contexts: `Internal`, `Postmaster`,
 `Sighup`, `SuperuserBackend`, `Backend`, `SuperuserSet`, and `UserSet`. Native

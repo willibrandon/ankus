@@ -107,4 +107,13 @@ internal static class RangeMappingDiagnostics
     /// Gets the missing closed range selection diagnostic.
     /// </summary>
     internal static DiagnosticDescriptor MissingSelection => s_missingSelection;
+
+    private static readonly DiagnosticDescriptor s_metadata = new("ANKUS205", "Unreadable range mapping metadata",
+        "The referenced PgRangeType metadata must contain a complete attribute with exact valid UTF-8 strings; rebuild the defining assembly",
+        "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLink);
+
+    /// <summary>
+    /// Gets the unreadable imported range diagnostic.
+    /// </summary>
+    internal static DiagnosticDescriptor Metadata => s_metadata;
 }

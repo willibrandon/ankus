@@ -226,6 +226,32 @@ internal static class DatumMappingDiagnostics
     /// </summary>
     internal static DiagnosticDescriptor DuplicateExact => s_duplicateExact;
 
+    private static readonly DiagnosticDescriptor s_metadata = new("ANKUS204", "Unreadable datum mapping metadata",
+        "The referenced PgDatumType metadata must contain a complete attribute with exact valid UTF-8 strings; rebuild the defining assembly",
+        "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLink);
+
+    /// <summary>
+    /// Gets the unreadable imported mapping diagnostic.
+    /// </summary>
+    internal static DiagnosticDescriptor Metadata => s_metadata;
+
+    /// <summary>
+    /// Keeps referenced declarations' diagnostics on source owned by the current compilation.
+    /// </summary>
+    /// <param name="location">The original declaration or argument location.</param>
+    /// <param name="compilation">The current compilation, when performing mapping preflight.</param>
+    /// <param name="fallback">The consuming source location.</param>
+    /// <returns>The owned source location, or null when neither location belongs to this compilation.</returns>
+    internal static Location? CurrentLocation(Location? location, Compilation? compilation, Location? fallback = null)
+    {
+        if (location?.SourceTree is { } tree && (compilation is null || compilation.ContainsSyntaxTree(tree)))
+        {
+            return location;
+        }
+
+        return fallback?.SourceTree is { } source && (compilation is null || compilation.ContainsSyntaxTree(source)) ? fallback : null;
+    }
+
     /// <summary>
     /// Locates a positional or named constructor value without retaining source syntax.
     /// </summary>

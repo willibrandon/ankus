@@ -35,7 +35,7 @@ internal static class GucEnumMetadata
                 ModuleMetadata module => [module],
                 _ => [],
             };
-            string identity = Identity(type);
+            string identity = MetadataTypeName.Create(type);
             foreach (ModuleMetadata module in modules)
             {
                 MetadataReader reader = module.GetMetadataReader();
@@ -107,13 +107,6 @@ internal static class GucEnumMetadata
 
         throw new BadImageFormatException("The GUC label does not contain a valid serialized string.");
     }
-
-    /// <summary>
-    /// Forms the exact definition identity, including nested and generic container metadata names.
-    /// </summary>
-    private static string Identity(INamedTypeSymbol type)
-        => type.ContainingType is { } container ? Identity(container) + "+" + type.MetadataName :
-            (type.ContainingNamespace.IsGlobalNamespace ? string.Empty : type.ContainingNamespace.ToDisplayString() + ".") + type.MetadataName;
 
     /// <summary>
     /// Forms the equivalent identity directly from a reference definition.

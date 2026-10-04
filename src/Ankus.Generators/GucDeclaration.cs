@@ -477,20 +477,27 @@ internal sealed class GucDeclaration
     {
         var values = new Dictionary<object, int>();
         var names = new HashSet<string>(StringComparer.Ordinal);
-        Dictionary<string, string?>? imported = Property.Type is INamedTypeSymbol type && type.DeclaringSyntaxReferences.Length == 0 ?
+        bool metadataEnum = Property.Type.DeclaringSyntaxReferences.Length == 0;
+        Dictionary<string, string?>? imported = Property.Type is INamedTypeSymbol type && metadataEnum ?
             GucEnumMetadata.ReadLabels(type, compilation, context.CancellationToken) : null;
+        Location? propertyLocation = (Property.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax(context.CancellationToken) as
+            BasePropertyDeclarationSyntax)?.Type.GetLocation();
         foreach (IFieldSymbol field in Property.Type.GetMembers().OfType<IFieldSymbol>().Where(static field => field.HasConstantValue))
         {
             AttributeData? label = field.GetAttributes().FirstOrDefault(static attribute => attribute.AttributeClass?.ToDisplayString() == "Ankus.PgGucLabelAttribute");
             string? name = label is null ? field.Name : label.ConstructorArguments.FirstOrDefault().Value as string;
-            if (label is not null && label.ApplicationSyntaxReference is null)
+            if (label is not null && metadataEnum)
             {
                 name = imported is not null && imported.TryGetValue(field.MetadataName, out string? exact) ? exact : null;
             }
 
             Location? location = (label is null ? field.Locations.FirstOrDefault(static item => item.IsInSource) :
-                DatumMappingDiagnostics.Argument(label, 0, context.CancellationToken)) ??
-                (Property.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax(context.CancellationToken) as BasePropertyDeclarationSyntax)?.Type.GetLocation();
+                DatumMappingDiagnostics.Argument(label, 0, context.CancellationToken));
+            if (location?.SourceTree is not { } tree || !compilation.ContainsSyntaxTree(tree))
+            {
+                location = propertyLocation;
+            }
+
             if (name is null || !SqlText.IsText(name))
             {
                 context.Report(GucDeclarationDiagnostics.EnumLabel, location);

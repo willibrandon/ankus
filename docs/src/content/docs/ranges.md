@@ -219,6 +219,9 @@ for `PgType`/`PgEnum`, and multiranges are not supported.
 Range diagnostics identify the argument or declaration that needs correction.
 For a mapping in another assembly, they identify the consuming function's type.
 Invalid mappings prevent generation of partial SQL or native registration code.
+Names and schemas retain their exact text across project and assembly references;
+zero characters and malformed UTF-8 are rejected.
+C# namespaces with escaped identifiers, such as `@class`, work normally.
 
 | Diagnostic | Required correction |
 | --- | --- |
@@ -230,3 +233,4 @@ Invalid mappings prevent generation of partial SQL or native registration code.
 | `ANKUS165` | Supply an explicit schema for an external range. |
 | `ANKUS166`, `ANKUS167` | Reference a matching Ankus runtime and resolve the range's managed type unambiguously. |
 | `ANKUS168` | Add a default or exact `PgRangeType` declaration for the consumed bound type. |
+| `ANKUS205` | Rebuild the defining assembly so its range attribute contains complete, valid UTF-8 metadata. |

@@ -17,7 +17,8 @@ internal static class RangeTypeDeclaration
     /// <summary>
     /// Validates default and exact targets independently of which finite roots are subsequently selected.
     /// </summary>
-    internal static AttributeData[]? Declarations(INamedTypeSymbol type, GeneratorDiagnostics? context, Location? usage = null)
+    internal static AttributeData[]? Declarations(INamedTypeSymbol type, GeneratorDiagnostics? context, Location? usage = null,
+        Compilation? compilation = null)
     {
         AttributeData[] attributes = [.. type.GetAttributes().Where(static item =>
             item.AttributeClass?.ToDisplayString() == "Ankus.PgRangeTypeAttribute")];
@@ -30,6 +31,11 @@ internal static class RangeTypeDeclaration
         bool hasDefault = false;
         foreach (AttributeData attribute in attributes)
         {
+            if (attribute.ConstructorArguments.IsEmpty && type.DeclaringSyntaxReferences.Length == 0)
+            {
+                return Invalid(RangeMappingDiagnostics.Metadata, attribute.ApplicationSyntaxReference?.GetSyntax(context?.CancellationToken ?? default).GetLocation());
+            }
+
             if (attribute.ConstructorArguments.Length == 1)
             {
                 if (hasDefault)
@@ -57,7 +63,8 @@ internal static class RangeTypeDeclaration
         {
             if (context is { } output)
             {
-                output.Report(descriptor, location ?? usage ?? type.Locations.FirstOrDefault(static item => item.IsInSource));
+                output.Report(descriptor, DatumMappingDiagnostics.CurrentLocation(location, compilation,
+                    usage ?? type.Locations.FirstOrDefault(static item => item.IsInSource)));
             }
 
             return null;
@@ -67,10 +74,11 @@ internal static class RangeTypeDeclaration
     /// <summary>
     /// Creates an optional closed range contract from a previously validated scalar mapping.
     /// </summary>
-    internal static bool TryCreate(DatumTypeDeclaration scalar, out DatumTypeDeclaration? range, GeneratorDiagnostics? context = null, Location? usage = null)
+    internal static bool TryCreate(DatumTypeDeclaration scalar, out DatumTypeDeclaration? range, GeneratorDiagnostics? context = null,
+        Location? usage = null, Compilation? compilation = null)
     {
         range = null;
-        AttributeData[]? attributes = Declarations(scalar.Type, context, usage);
+        AttributeData[]? attributes = Declarations(scalar.Type, context, usage, compilation);
         if (attributes is null)
         {
             return false;
@@ -92,6 +100,11 @@ internal static class RangeTypeDeclaration
         string? name = attribute.ConstructorArguments[attribute.ConstructorArguments.Length - 1].Value as string;
         string? schema = AttributeValues.Get<string?>(attribute, "Schema", null);
         CancellationToken cancellationToken = context?.CancellationToken ?? default;
+        if (compilation is not null && !MappedIdentityMetadata.TryRead(scalar.Type, attribute, compilation, cancellationToken, out name, out schema))
+        {
+            return Invalid(RangeMappingDiagnostics.Metadata, usage);
+        }
+
         if (!SqlText.IsIdentifier(name))
         {
             return Invalid(RangeMappingDiagnostics.Name, DatumMappingDiagnostics.Argument(attribute, attribute.ConstructorArguments.Length - 1, cancellationToken));
@@ -127,7 +140,8 @@ internal static class RangeTypeDeclaration
         {
             if (context is { } output)
             {
-                output.Report(descriptor, location ?? usage ?? scalar.Type.Locations.FirstOrDefault(static item => item.IsInSource));
+                output.Report(descriptor, DatumMappingDiagnostics.CurrentLocation(location, compilation,
+                    usage ?? scalar.Type.Locations.FirstOrDefault(static item => item.IsInSource)));
             }
 
             return false;
