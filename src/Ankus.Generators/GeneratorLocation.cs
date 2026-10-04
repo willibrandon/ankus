@@ -68,7 +68,7 @@ internal readonly record struct GeneratorLocation(string Path, int TreeOccurrenc
     /// </summary>
     /// <param name="root">The current compilation-unit syntax.</param>
     /// <returns>The ordered declaration anchors, independent of body text length.</returns>
-    private static MemberDeclarationSyntax[] Members(SyntaxNode root)
+    internal static MemberDeclarationSyntax[] Members(SyntaxNode root)
         => [.. root.DescendantNodes(static node => node is not BaseMethodDeclarationSyntax and not AccessorDeclarationSyntax
             and not AnonymousFunctionExpressionSyntax).OfType<MemberDeclarationSyntax>()];
 

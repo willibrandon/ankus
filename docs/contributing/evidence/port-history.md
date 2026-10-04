@@ -24810,3 +24810,87 @@ The final Release build passes with **zero warnings / zero errors** in
 **1m35.785s**. API freshness passes in **8.898s**; site build in **14.239s** and
 site checks in **3.774s** both pass with zero diagnostics. The corrected Windows
 module reports and gates documented above are independently retained and checked.
+
+The accepted composition is committed as **596a8af**. Its [primary CI
+37169593738](https://github.com/willibrandon/ankus/actions/runs/37169593738) passes
+quality, all three runtime jobs and the complete suite on every primary platform
+using **10.0.12-ankus.4**. Each platform executes **11,816 cases** across six
+independently verified reports: Linux/18 passes **11,768** with **48 platform
+skips** in **36m32s** job; macOS ARM64/18 passes **11,756** with **60 skips** in
+**26m44s**; Windows/17 passes **11,788** with **28 skips** in **33m14s**. All have
+zero failures. [Docs CI 37169593785](https://github.com/willibrandon/ankus/actions/runs/37169593785)
+also passes. These results cover the committed correctness milestone, separately
+from subsequent discovery/cache and persistent logging-hook validation.
+
+## Persistent reporting-hook lifetime and reentrancy
+
+The local pgrx reference is refreshed to the pinned **v0.19.3 / fc91c63e**.
+Its inventory declares `emit_log_hook`, but its source tests do not exercise
+that hook. Ankus's older C report probe restores the saved hook before injecting
+failure, so it does not establish a persistent generated callback's behavior.
+
+The new generated-hook fixture installs independent outer and inner callbacks,
+chains through the typed native signature, copies borrowed diagnostic fields,
+and restores only its own hook head. Cases assert exact nested call/unwind order,
+original SQLSTATE/detail/hint, retry while still installed, restoration and the
+same backend identity. A persistent native prefix raises before invoking the
+managed hook, then forwards successfully without removing itself. This proves
+hook-chain failure before the handler; it does not inject allocator or runtime
+host-entry failures inside the generic dispatcher.
+
+The original Linux/18.6 attempt passes **12 of 15** cases in **4m03.166s**.
+Managed rejection and nested rejection expose an allocator ERROR replacing the
+original diagnostic: the callback's error header was allocated in `ErrorContext`,
+which recursive `errstart(ERROR)` resets before native cleanup. There is no
+confirmed process crash; the resulting internal error closes the client
+connection. The corrected header lives in `TopMemoryContext`, is freed in
+`PG_FINALLY`, and restores the caller through its surviving context identity.
+
+The first corrected attempt passes **51 of 52** cases in **3m50.649s**. Its
+remaining assertion assumed nested Unicode client output. PostgreSQL's actual
+recursive `err_sendstring` uses `pq_send_ascii_string`, replacing each non-ASCII
+UTF-8 byte with `?`; the managed capture still retains the original text.
+The final assertion checks that native client behavior and exact nested
+SQLSTATE/detail/hint. Focused acceptance now passes **52/52**, with zero skips
+or failures, in **3m07.371s** command on **Linux x64 / PostgreSQL 18.6 /
+10.0.12-ankus.4**. Existing reporting, memory-callback and managed native-callback
+cases pass alongside all five new hook cases. Every case and report counter is
+independently verified. Original attempts remain retained separately. Complete
+suite and platform acceptance of this uncommitted composition remain required.
+
+## Complete generator discovery and source-attribution acceptance
+
+GUC and derived equality/ordering/hashing discovery now uses semantic attribute
+indexes, including aliases. Assembly SQL providers detach their inputs before
+composition. Callback capability scans cache each metadata reference independently
+and preserve both portable-image and compilation-reference contracts. Unchanged
+syntax trees retain their declaration indexes. Physical line comments attach
+after semantic graph validation, so leading lines and earlier function edits do
+not invalidate native or managed composition. Diagnostics still report current
+mapped coordinates, and SQL retains accurate physical source lines.
+
+Four actual source-edit regressions fail against the prior implementation.
+The corrected complete generator module passes **3,427/3,427**. Plain complete
+acceptance then passes on **Linux x64 / PostgreSQL 18.6 / runtime
+10.0.12-ankus.4**: **11,830 total / 11,782 passed / 48 platform skips / zero
+failures** in **50m29.932s** command. All six modules and individual case outcomes
+are independently checked. All **1,648 authored source identities** remain
+unchanged around the full run and its follow-up gates. Release passes with
+**zero warnings / zero errors** in **1m51.827s**; API freshness passes in
+**9.928s**, checking **239 pages / 2,763 members**.
+
+This accepted generator composition excludes the subsequent logging-hook
+fixtures and diagnostic-header correction. The initial combined run stops
+without its final integration report or terminal command status; its five
+finished reports and frozen inputs remain retained as incomplete evidence.
+Replacement complete acceptance for the combined **1,650-input** composition
+runs separately. The latest committed primary CI **37169593738** and docs
+**37169593785** remain complete green on **596a8af**; the latest scheduled
+major/platform runs remain green on their previously recorded revisions.
+
+The current site build passes (**287 pages / 4.29s** Astro build), and site
+checking reports **zero errors / warnings / hints**. Before this generator
+milestone's commit, the prior primary and documentation runs are checked again:
+**37169593738 / 37169593785** remain complete green. No GitHub run is active at
+that observation. The independently running combined logging-hook acceptance
+is outside this generator milestone.

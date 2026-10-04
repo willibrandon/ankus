@@ -15,17 +15,14 @@ internal sealed record NativeCompilationModel(string Assembly, string? Binding, 
     /// Reads constant metadata and callback capability without loading or executing referenced assemblies.
     /// </summary>
     /// <param name="compilation">The current extension and resolved reference inventory.</param>
+    /// <param name="referencedCallbacks">The independently cached dependency callback capability.</param>
     /// <param name="cancellationToken">The current semantic analysis cancellation token.</param>
     /// <returns>The immutable values required by native rendering and capability selection.</returns>
-    internal static NativeCompilationModel Create(Compilation compilation, CancellationToken cancellationToken)
+    internal static NativeCompilationModel Create(Compilation compilation, bool referencedCallbacks, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         INamedTypeSymbol? binding = compilation.GetTypeByMetadataName("Ankus.Postgres.NativeBinding");
-        return new(compilation.Assembly.Identity.ToString(), Constant(binding, "Identity"), Constant(binding, "NodeLayouts"),
-            compilation.SourceModule.ReferencedAssemblySymbols.Any(static assembly => assembly.GetAttributes().Any(static attribute =>
-                attribute.AttributeClass?.ToDisplayString() == "System.Reflection.AssemblyMetadataAttribute" &&
-                attribute.ConstructorArguments.Length == 2 && attribute.ConstructorArguments[0].Value is "Ankus.NativeCallbacks" &&
-                attribute.ConstructorArguments[1].Value is "1")));
+        return new(compilation.Assembly.Identity.ToString(), Constant(binding, "Identity"), Constant(binding, "NodeLayouts"), referencedCallbacks);
     }
 
     /// <summary>

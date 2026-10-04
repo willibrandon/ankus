@@ -91,6 +91,10 @@ extensions. Counts supplement the backend, ownership and recovery assertions.
 
 | Source | Platform / PostgreSQL | Result | Duration |
 | --- | --- | --- | --- |
+| Frozen generator-discovery composition / runtime **ankus.4** | Linux x64 / 18.6 | 11,830 total; 11,782 passed; 48 platform skips; zero failures | 50m29.932s command |
+| [CI 37169593738](https://github.com/willibrandon/ankus/actions/runs/37169593738), 596a8af / runtime **ankus.4** | Linux x64 / 18 | 11,816 total; 11,768 passed; 48 platform skips; zero failures | 36m32s job |
+| Same CI / revision / runtime | macOS ARM64 / 18 | 11,816 total; 11,756 passed; 60 platform skips; zero failures | 26m44s job |
+| Same CI / revision / runtime | Windows x64 / 17 | 11,816 total; 11,788 passed; 28 platform skips; zero failures | 33m14s job |
 | [CI 37149579835](https://github.com/willibrandon/ankus/actions/runs/37149579835), c24297f / runtime **ankus.4** | Linux x64 / 18 | 11,640 total; 11,623 passed; 17 platform skips; zero failures | 36m33s job |
 | Same CI / revision / runtime | macOS ARM64 / 18 | 11,640 total; 11,611 passed; 29 platform skips; zero failures | 26m54s job |
 | Same CI / revision / runtime | Windows x64 / 17 | 11,640 total; 11,615 passed; 25 platform skips; zero failures | 32m40s job |
@@ -150,73 +154,45 @@ passes.
 
 ## Active validation and work
 
-- Shared persistent server diagnostics are uncommitted. The configuration suite
-  passes **462 total / 459 passed / three Windows skips / zero failures** on
-  Linux; its frozen **76-file** complete Linux suite passes **11,660 total /
-  11,639 passed / 21 skips / zero failures**, with Release/API/site gates green.
-  Expanded Windows configuration passes **483 total / 482 passed / one skip**.
-  The corrected native scope passes **eight cases / nine Windows skips** on
-  Linux/18.6 and **16 cases / one Unix skip** on Windows/13.23. Its frozen
-  **84-input** complete Linux suite passes **11,689 total / 11,641 passed /
-  48 skips / zero failures**. Windows/13.23 passes **11,689 total / 11,662 passed /
-  27 skips / zero failures** against the same composition. Release passes on
-  both; API freshness and site gates pass on Linux. Later corrections still
-  require final complete acceptance.
-- The latest review confirms that diagnostic-read failures bypass test-cluster
-  cleanup at both startup and shutdown. Native regressions reproduce both
-  failures. Cleanup corrections pass native startup/shutdown regressions on
-  both platforms. Repeat-disposal reproduces an additional shutdown-state bug:
-  after successful deletion, retrying probes the removed data directory. Its
-  correction passes cleanup, cluster lifecycle and port-handoff acceptance:
-  **21 total / 19 passed / two skips** on Linux and **21 / 20 / one skip** on
-  Windows, both with zero failures.
-- Idle-worker cancellation through `PgInterrupts.Check()` also reproduces with
-  a real cancel and worker exit. Its recovery correction passes repeated real
-  cancels, subsequent work and terminal-error tests on both platforms.
-  SPI quote-helper and parameter-token corrections pass **225 managed cases**
-  and **nine published PostgreSQL cases**. Editor/aggregate regressions reproduce
-  14 failures before correction; corrected acceptance passes **80/80** cases.
-  Raw-address APIs now carry ANKUS129, including generated-code callers. The
-  complete generator module passes **3,407/3,407** cases. Existing raw-call
-  fixtures and packaged consumers have explicit unsafe blocks.
-  Invalid `PgTest` declarations also reproduced loss of unrelated output in all
-  six new cases. Per-item rejection now preserves valid catalogs and exports;
-  **41/41** related cases pass. Four older catalog assertions were updated to
-  execute surviving catalogs; the entire generator module now passes
-  **3,413/3,413** cases. A Windows publication cleanup failure prompted child
-  MSBuild node isolation; the full build module passes **1,210 cases / six
-  skips**. Its original native lock holder was not captured. Release passes
-  with zero warnings/errors; API freshness and site gates pass. The expanded
-  complete Linux run finishes in **57m10s** with **11,815 total / 11,763 passed /
-  48 skips / four failures**, all four from the old generator assertions above;
-  native integration passes. The original failed reports remain retained.
-  An additional real-server regression confirms canceled shutdown tasks prevent
-  repeated disposal. Retrying canceled shutdowns passes native lifecycle,
-  diagnostic cleanup and port-handoff tests: **22 total / 20 passed / two skips /
-  zero failures** on Linux/18.6. Corrected complete Linux acceptance passes
-  **11,816 total / 11,768 passed / 48 platform skips / zero failures** in
-  **50m23s**. Native integration passes **4,564 cases / 15 skips**. All 137
-  recorded authored inputs remain unchanged through the complete result.
-  Windows' expanded complete run finishes in **81m16s** with **11,809 total /
-  11,781 passed / 27 skips / one failure**: the original publication-fixture
-  sharing failure. Its native integration passes **4,558 cases / 20 skips**.
-  After correction, complete Windows generator acceptance passes **3,413/3,413**,
-  lifecycle acceptance passes **20 cases / two skips**, and Release passes with
-  zero warnings/errors. Final Linux Release, API freshness and site checks all
-  pass. Updated complete platform CI remains required before accepting this
-  composition across platforms. Guard performance work follows correctness
-  acceptance.
-- **c24297f** primary CI passes docs, quality, runtime builds and all six test
-  modules on Linux/18, macOS ARM64/18 and Windows/17. Version CI **37145038020** passes
-  complete macOS 15/16 and Windows 13/18 suites on **b9b7eb5**; Intel CI
-  **37131051660** passes all six modules on **04f0a8a**. Complete Linux 13–17/19
-  evidence against the current runtime is refreshed in
-  [version CI 37154140634](https://github.com/willibrandon/ankus/actions/runs/37154140634)
-  on **c24297f**. PostgreSQL 13–17 and 19 pass all six modules.
-- Remaining review work includes discovery/caching, precise diagnostics and code
-  fixes, CLI environment selection (`PG_VERSION`, `DBNAME` and pgcli), samples
-  and final platform acceptance.
-  Prior detailed outcomes and superseded states are retained in the
+- **596a8af** fixes persistent diagnostic collection and cluster cleanup,
+  canceled shutdown retry, idle interrupt cancellation, SPI quoting and parameter
+  boundaries, raw caller checks, editor fixes and per-item backend-test rejection.
+  Complete Linux/18.6 acceptance passes **11,816 total / 11,768 passed /
+  48 platform skips / zero failures** in **50m23s**. All 137 recorded authored
+  inputs remain unchanged. Corrected Windows/13.23 generator, build and native
+  lifecycle modules pass; Release, API freshness and site checks pass.
+  [Primary CI 37169593738](https://github.com/willibrandon/ankus/actions/runs/37169593738)
+  passes quality, all runtime jobs and all three complete platform suites.
+  All six report modules were independently verified for each platform.
+  [Docs CI 37169593785](https://github.com/willibrandon/ankus/actions/runs/37169593785)
+  passes. Original failed attempts and subsequent corrections remain archived.
+- Generator discovery now uses semantic attribute indexes and independently
+  cached reference metadata. Physical SQL line attribution is separate from
+  semantic composition; unchanged trees retain their declaration indexes.
+  Four source-edit regressions fail before correction. Complete repository
+  generator acceptance passes **3,427/3,427**; complete Linux/18.6 acceptance
+  passes **11,830 total / 11,782 passed / 48 platform skips / zero failures**
+  in **50m29.932s**. All six reports are independently verified; all 1,648
+  recorded authored inputs remain unchanged. Release and API freshness pass.
+  This change is uncommitted; platform CI remains required.
+- CLI environment and invocation-selection drafts pass 17 real process cases
+  against PostgreSQL/18.6; 13 fail against the prior implementation. Packaged
+  publication, solution and template acceptance remain required before promotion.
+- Current-runtime Linux/13–17 and 19 acceptance is green on **c24297f** in
+  [version CI 37154140634](https://github.com/willibrandon/ankus/actions/runs/37154140634).
+  Later review fixes still require refreshed version/platform evidence.
+- Persistent generated `emit_log_hook` coverage exposed diagnostic cleanup
+  after PostgreSQL resets its error context. The callback header now survives
+  that reset and is released after unwinding. Focused Linux/18.6 acceptance
+  passes **52/52**, including chaining, nested reporting, managed failures,
+  native failure before the handler and same-session recovery. The first
+  combined complete run stopped before its integration report and is retained
+  as incomplete. Replacement complete Linux/18.6 acceptance is running against
+  1,650 recorded authored inputs; this fix remains uncommitted.
+- Remaining review work includes precise diagnostics and useful code fixes,
+  CLI environment/name contracts, appropriately guarded pure operations and
+  permanent backend benchmarks, representative samples and final platform
+  acceptance. Detailed outcomes and superseded states belong in the
   [evidence archive](docs/contributing/evidence/port-history.md#status-snapshot-before-the-23-commit-follow-up-review).
 
 ## Remaining work order

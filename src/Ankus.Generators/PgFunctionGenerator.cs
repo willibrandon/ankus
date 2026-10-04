@@ -70,11 +70,11 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             "Ankus.PgRangeTypeAttribute",
             static (node, _) => node is BaseTypeDeclarationSyntax,
             static (attributeContext, _) => (INamedTypeSymbol)attributeContext.TargetSymbol);
-        IncrementalValuesProvider<INamedTypeSymbol> derivedOperators = context.SyntaxProvider.CreateSyntaxProvider(
-            static (node, _) => node is BaseTypeDeclarationSyntax { AttributeLists.Count: > 0 },
-            static (syntaxContext, token) => syntaxContext.SemanticModel.GetDeclaredSymbol((BaseTypeDeclarationSyntax)syntaxContext.Node, token))
-            .Where(static type => type is not null && type.GetAttributes().Any(DerivedOperatorDeclaration.IsAttribute))
-            .Select(static (type, _) => type!);
+        IncrementalValueProvider<ImmutableArray<INamedTypeSymbol>> derivedOperators = DerivedTypes(context, "Ankus.PgEqualityAttribute").Collect()
+            .Combine(DerivedTypes(context, "Ankus.PgOrderingAttribute").Collect())
+            .Combine(DerivedTypes(context, "Ankus.PgHashingAttribute").Collect())
+            .Select(static (value, _) => value.Left.Left.AddRange(value.Left.Right).AddRange(value.Right)
+                .Distinct<INamedTypeSymbol>(SymbolEqualityComparer.Default).ToImmutableArray());
         IncrementalValueProvider<EquatableArray<SchemaPipeline.SchemaOutput>> schemas = SchemaPipeline.Register(context);
         IncrementalValueProvider<EquatableArray<AggregatePipeline.Output>> aggregates = AggregatePipeline.Register(context);
         IncrementalValuesProvider<ISymbol> requires = context.SyntaxProvider.ForAttributeWithMetadataName(
@@ -89,11 +89,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         IncrementalValueProvider<GucPipeline.PropertyInputs> propertyInputs = NativeCallbackPipeline.Register(context)
             .Combine(GucPipeline.Register(context))
             .Select(static (value, _) => new GucPipeline.PropertyInputs(value.Left, value.Right));
-        IncrementalValueProvider<ImmutableArray<AttributeData>> customSql = context.CompilationProvider.Select(static (compilation, _) =>
-            compilation.Assembly.GetAttributes().Where(static attribute => attribute.AttributeClass?.ToDisplayString() is
-                "Ankus.PgSqlTypeProviderAttribute" or "Ankus.PgSqlFunctionProviderAttribute" or
-                "Ankus.PgRequiresAttribute" or "Ankus.PgBeforeAttribute").ToImmutableArray());
-        IncrementalValueProvider<EquatableArray<SqlProviderModel>> providers = SqlProviderPipeline.Register(context, customSql);
+        IncrementalValueProvider<EquatableArray<SqlProviderModel>> providers = SqlProviderPipeline.Register(context);
         IncrementalValueProvider<GucPrefixPipeline.Output> prefixes = GucPrefixPipeline.Register(context);
         IncrementalValueProvider<(string Directory, bool IncludeTests, string? Version)> projectDirectory =
             context.AnalyzerConfigOptionsProvider.Select(static (options, _) =>
@@ -105,7 +101,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         IncrementalValueProvider<EquatableArray<CustomSqlPipeline.Output>> sqlBlocks = CustomSqlPipeline.Register(context,
             projectDirectory.Select(static (settings, _) => settings.Directory));
         IncrementalValueProvider<DatumPipeline.Output> mappings = DatumPipeline.Register(context, methods, datumTypes.Collect(), rangeTypes.Collect(),
-            aggregates, customSql, derivedOperators.Collect(), projectDirectory.Select(static (settings, _) => settings.IncludeTests));
+            aggregates, derivedOperators, projectDirectory.Select(static (settings, _) => settings.IncludeTests));
         IncrementalValueProvider<NativeCompilationPipeline.Output> nativeCompilation = NativeCompilationPipeline.Register(context);
         IncrementalValueProvider<ExtensionCompositionInput> inputs = methodInputs.Combine(schemas).Combine(providers).Combine(sqlBlocks).Combine(projectDirectory).Combine(enums).Combine(aggregates).Combine(propertyInputs).Combine(prefixes).Combine(customTypes).Combine(mappings).Combine(references.Combine(module).Combine(nativeCompilation))
             .Select(static (input, _) => new ExtensionCompositionInput(
@@ -114,14 +110,20 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                 input.Left.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Right, input.Left.Left.Left.Right, input.Left.Left.Right, input.Left.Right,
                 input.Right.Left.Left, input.Right.Left.Right, input.Right.Right))
             .WithTrackingName("ExtensionCompositionInput");
-        IncrementalValueProvider<GeneratorSourceMap> sources = inputs.Combine(context.CompilationProvider)
+        IncrementalValueProvider<ImmutableArray<GeneratorSourceTree>> trees = context.CompilationProvider
+            .SelectMany(static (compilation, _) => compilation.SyntaxTrees)
+            .Select(static (tree, token) => GeneratorSourceTree.Create(tree, token)).WithTrackingName("ExtensionSourceTree").Collect();
+        IncrementalValueProvider<GeneratorSourceMap> sources = inputs.Combine(trees)
             .Select(static (value, token) => GeneratorSourceMap.Create(value.Left.Locations(), value.Right, token))
             .WithTrackingName("ExtensionSourceMap");
-        IncrementalValueProvider<GeneratorCompositionContext.Output> composition = inputs.Combine(sources)
-            .Select(static (value, token) => Compose(value.Left, value.Right, token))
+        IncrementalValueProvider<GeneratorCompositionContext.Output> composition = inputs
+            .Select(static (value, token) => Compose(value, GeneratorSourceMap.Anchors(value.Locations()), token))
             .WithTrackingName("ExtensionComposition");
-        IncrementalValuesProvider<InstallationGraphModel.Node> graphNodes = composition
-            .SelectMany(static (value, _) => value.Manifest?.Metadata.Graph.Nodes ?? new EquatableArray<InstallationGraphModel.Node>([]))
+        IncrementalValueProvider<EquatableArray<InstallationGraphModel.Node>> semanticNodes = composition
+            .Select(static (value, _) => value.Manifest?.Metadata.Graph.Nodes ?? new EquatableArray<InstallationGraphModel.Node>([]))
+            .WithTrackingName("ExtensionSemanticGraph");
+        IncrementalValuesProvider<InstallationGraphModel.Node> graphNodes = semanticNodes.Combine(sources)
+            .SelectMany(static (value, _) => InstallationGraphModel.Attribute(value.Left, value.Right))
             .WithTrackingName("ExtensionGraphNode");
         IncrementalValuesProvider<string> sqlComponents = graphNodes.Select(static (value, _) => value.Provenance)
             .WithTrackingName("ExtensionSqlProvenanceModel")
@@ -184,6 +186,17 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
     /// <returns>The authored value, or null when unset.</returns>
     private static string? BuildProperty(AnalyzerConfigOptions options, string name)
         => options.TryGetValue("build_property." + name, out string? value) && !string.IsNullOrEmpty(value) ? value : null;
+
+    /// <summary>
+    /// Uses semantic attribute indexing for one declared value-operator capability, including attribute aliases.
+    /// </summary>
+    /// <param name="context">The incremental registration context.</param>
+    /// <param name="metadataName">The exact public value-operator attribute.</param>
+    /// <returns>The matching type symbols confined to transient semantic mapping analysis.</returns>
+    private static IncrementalValuesProvider<INamedTypeSymbol> DerivedTypes(IncrementalGeneratorInitializationContext context, string metadataName)
+        => context.SyntaxProvider.ForAttributeWithMetadataName(metadataName,
+            static (node, _) => node is BaseTypeDeclarationSyntax,
+            static (attributeContext, _) => (INamedTypeSymbol)attributeContext.TargetSymbol);
 
     /// <summary>
     /// Validates and composes detached declaration contracts without consulting compiler objects.
@@ -965,7 +978,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
 
         managed.AppendLine("}");
         graph.ResolveReferences(references, compilation);
-        InstallationGraphModel? installation = graph.Freeze();
+        InstallationGraphModel? installation = graph.Freeze(compilation);
         if (installation is null)
         {
             return;

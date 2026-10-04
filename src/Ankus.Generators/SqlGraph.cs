@@ -134,8 +134,9 @@ internal sealed partial class SqlGraph
     /// <summary>
     /// Resolves references and freezes deterministic installation order without rendering sources.
     /// </summary>
+    /// <param name="sources">The optional detached source resolver for later SQL attribution.</param>
     /// <returns>The detached rendering contract, or null when the graph is invalid.</returns>
-    internal InstallationGraphModel? Freeze()
+    internal InstallationGraphModel? Freeze(GeneratorSourceResolver? sources = null)
     {
         _ordered.Clear();
         var names = new Dictionary<string, SqlEntity>(StringComparer.Ordinal);
@@ -264,7 +265,7 @@ internal sealed partial class SqlGraph
             return null;
         }
 
-        return new(new EquatableArray<InstallationGraphModel.Node>(_ordered.Select(entity => InstallationGraphModel.Node.Create(entity, _projectDirectory))));
+        return new(new EquatableArray<InstallationGraphModel.Node>(_ordered.Select(entity => InstallationGraphModel.Node.Create(entity, _projectDirectory, sources))));
 
         bool ExplicitlyFollows(SqlEntity provider, SqlEntity consumer)
         {

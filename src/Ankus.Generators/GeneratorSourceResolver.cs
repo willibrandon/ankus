@@ -11,6 +11,7 @@ internal sealed class GeneratorSourceResolver(GeneratorSourceMap sources)
 {
     private readonly Dictionary<GeneratorLocation, Location> _locations = [];
     private readonly Dictionary<Location, GeneratorLocation> _coordinates = new(LocationIdentityComparer.Instance);
+    private readonly Dictionary<GeneratorLocation, GeneratorSourceMap.Entry> _entries = sources.Entries.ToDictionary(static entry => entry.Coordinates);
 
     /// <summary>
     /// Creates tree-free line attribution and retains the declaration anchor for exact diagnostic transport.
@@ -21,7 +22,7 @@ internal sealed class GeneratorSourceResolver(GeneratorSourceMap sources)
     {
         if (!_locations.TryGetValue(coordinates, out Location? location))
         {
-            GeneratorSourceMap.Entry entry = sources.Entries.First(entry => entry.Coordinates == coordinates);
+            GeneratorSourceMap.Entry entry = _entries[coordinates];
             location = Location.Create(entry.Physical.Path, coordinates.Span, entry.Physical.Span);
             _locations.Add(coordinates, location);
             _coordinates.Add(location, coordinates);

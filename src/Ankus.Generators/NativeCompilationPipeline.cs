@@ -14,8 +14,13 @@ internal static class NativeCompilationPipeline
     /// <returns>The detached compiler capabilities and cached native fragments.</returns>
     internal static IncrementalValueProvider<Output> Register(IncrementalGeneratorInitializationContext context)
     {
-        IncrementalValueProvider<NativeCompilationModel> analysis = context.CompilationProvider.Select(static (compilation, token) =>
-            NativeCompilationModel.Create(compilation, token)).WithTrackingName("NativeCompilationAnalysis");
+        IncrementalValueProvider<bool> callbacks = context.MetadataReferencesProvider
+            .Select(static (reference, token) => NativeReferenceCapabilities.Read(reference, token))
+            .WithTrackingName("NativeReferenceAnalysis").Collect().Select(static (values, _) => values.Any(static value => value))
+            .WithTrackingName("NativeReferenceCapabilities");
+        IncrementalValueProvider<NativeCompilationModel> analysis = context.CompilationProvider.Combine(callbacks)
+            .Select(static (value, token) => NativeCompilationModel.Create(value.Left, value.Right, token))
+            .WithTrackingName("NativeCompilationAnalysis");
         IncrementalValueProvider<string?> binding = analysis.Select(static (value, _) => value.Binding)
             .WithTrackingName("NativeBindingModel");
         IncrementalValueProvider<string> bindingSource = binding.Select(static (value, _) => NativeBindingBridge.Binding(value))

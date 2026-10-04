@@ -16,7 +16,6 @@ internal static class DatumPipeline
     /// <param name="local">The locally attributed scalar roots.</param>
     /// <param name="ranges">The locally attributed scalar range bounds.</param>
     /// <param name="aggregates">The selected aggregate container identities.</param>
-    /// <param name="attributes">The assembly provider inventory.</param>
     /// <param name="derived">The locally declared derived-operator roots.</param>
     /// <param name="includeTests">Whether backend test signatures participate in native publication.</param>
     /// <returns>The detached validated mappings, derived semantics and cached registration statements.</returns>
@@ -25,16 +24,14 @@ internal static class DatumPipeline
         IncrementalValueProvider<ImmutableArray<INamedTypeSymbol>> local,
         IncrementalValueProvider<ImmutableArray<INamedTypeSymbol>> ranges,
         IncrementalValueProvider<EquatableArray<AggregatePipeline.Output>> aggregates,
-        IncrementalValueProvider<ImmutableArray<AttributeData>> attributes,
         IncrementalValueProvider<ImmutableArray<INamedTypeSymbol>> derived,
         IncrementalValueProvider<bool> includeTests)
     {
         IncrementalValueProvider<Inputs> inputs = context.CompilationProvider.Combine(methods)
-            .Select(static (value, _) => new Inputs(value.Left, value.Right, [], [], new([]), [], [], false));
+            .Select(static (value, _) => new Inputs(value.Left, value.Right, [], [], new([]), [], false));
         inputs = inputs.Combine(local).Select(static (value, _) => value.Left with { Local = value.Right });
         inputs = inputs.Combine(ranges).Select(static (value, _) => value.Left with { Ranges = value.Right });
         inputs = inputs.Combine(aggregates).Select(static (value, _) => value.Left with { Aggregates = value.Right });
-        inputs = inputs.Combine(attributes).Select(static (value, _) => value.Left with { Attributes = value.Right });
         inputs = inputs.Combine(derived).Select(static (value, _) => value.Left with { Derived = value.Right });
         inputs = inputs.Combine(includeTests).Select(static (value, _) => value.Left with { IncludeTests = value.Right });
         IncrementalValueProvider<Analysis> analysis = inputs.Select(static (value, token) => Analyze(value, token))
@@ -74,7 +71,8 @@ internal static class DatumPipeline
         ImmutableArray<INamedTypeSymbol> aggregates = [.. input.Aggregates.Select(value =>
             compilation.Assembly.GetTypeByMetadataName(value.Analysis.MetadataName)).OfType<INamedTypeSymbol>()];
         List<DatumTypeDeclaration>? declarations = DatumTypeDeclaration.Discover(compilation, input.Local, input.Ranges,
-            methods, aggregates, input.Attributes, diagnostics);
+            methods, aggregates, [.. compilation.Assembly.GetAttributes().Where(static attribute =>
+                attribute.AttributeClass?.ToDisplayString() == "Ankus.PgSqlTypeProviderAttribute")], diagnostics);
         bool declared = !input.Local.IsEmpty || !input.Ranges.IsEmpty || !input.Derived.IsEmpty;
         if (declarations is null)
         {
@@ -98,12 +96,11 @@ internal static class DatumPipeline
     /// <param name="Local">The local scalar roots.</param>
     /// <param name="Ranges">The local scalar range bounds.</param>
     /// <param name="Aggregates">The selected aggregate containers.</param>
-    /// <param name="Attributes">The assembly provider metadata.</param>
     /// <param name="Derived">The local derived-operator roots.</param>
     /// <param name="IncludeTests">Whether backend tests participate in native publication.</param>
     private sealed record Inputs(Compilation Compilation, ImmutableArray<IMethodSymbol> Methods,
         ImmutableArray<INamedTypeSymbol> Local, ImmutableArray<INamedTypeSymbol> Ranges,
-        EquatableArray<AggregatePipeline.Output> Aggregates, ImmutableArray<AttributeData> Attributes,
+        EquatableArray<AggregatePipeline.Output> Aggregates,
         ImmutableArray<INamedTypeSymbol> Derived, bool IncludeTests);
 
     /// <summary>

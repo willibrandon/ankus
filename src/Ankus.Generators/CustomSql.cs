@@ -176,7 +176,7 @@ internal static class CustomSql
         try
         {
             path = path!.Replace('\\', '/');
-            if (Path.DirectorySeparatorChar == '\\' && Path.IsPathRooted(path) && Path.GetPathRoot(path).Length < 3)
+            if (Path.DirectorySeparatorChar == '\\' && Path.IsPathRooted(path) && Path.GetPathRoot(path) is not { Length: >= 3 })
             {
                 return null;
             }

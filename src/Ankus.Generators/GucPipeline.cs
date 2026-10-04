@@ -15,10 +15,14 @@ internal static class GucPipeline
     /// <returns>The detached contracts, current diagnostic metadata and reusable source fragments.</returns>
     internal static IncrementalValueProvider<EquatableArray<Output>> Register(IncrementalGeneratorInitializationContext context)
     {
-        IncrementalValuesProvider<Analysis> analysis = context.SyntaxProvider.CreateSyntaxProvider(
-            static (node, _) => node is PropertyDeclarationSyntax { AttributeLists.Count: > 0 } or IndexerDeclarationSyntax { AttributeLists.Count: > 0 },
-            static (syntax, token) => Analyze(syntax, token))
-            .Where(static value => value is not null).Select(static (value, _) => value!).WithTrackingName("GucAnalysis");
+        IncrementalValuesProvider<Analysis> analysis = Discover(context, "Ankus.PgGucBoolAttribute").Collect()
+            .Combine(Discover(context, "Ankus.PgGucIntAttribute").Collect())
+            .Combine(Discover(context, "Ankus.PgGucRealAttribute").Collect())
+            .Combine(Discover(context, "Ankus.PgGucStringAttribute").Collect())
+            .Combine(Discover(context, "Ankus.PgGucEnumAttribute").Collect())
+            .SelectMany(static (value, _) => value.Left.Left.Left.Left.AddRange(value.Left.Left.Left.Right)
+                .AddRange(value.Left.Left.Right).AddRange(value.Left.Right).AddRange(value.Right))
+            .WithTrackingName("GucAnalysis");
         IncrementalValuesProvider<GucModel?> models = analysis.Select(static (value, _) => value.Model).WithTrackingName("GucModel");
         IncrementalValuesProvider<GucEmission?> emission = models.Select(static (value, _) => value is null ? null : GucEmission.Create(value))
             .WithTrackingName("GucEmission");
@@ -29,11 +33,10 @@ internal static class GucPipeline
     /// <summary>
     /// Validates one setting while compiler objects remain confined to this transient operation.
     /// </summary>
-    private static Analysis? Analyze(GeneratorSyntaxContext syntax, CancellationToken cancellationToken)
+    private static Analysis? Analyze(GeneratorAttributeSyntaxContext syntax, CancellationToken cancellationToken)
     {
-        var property = syntax.SemanticModel.GetDeclaredSymbol((BasePropertyDeclarationSyntax)syntax.Node, cancellationToken) as IPropertySymbol;
-        if (property is null || property.GetAttributes().Any(NativeCallbackDeclaration.IsAttribute) ||
-            !property.GetAttributes().Any(GucDeclaration.IsGucAttribute))
+        var property = syntax.TargetSymbol as IPropertySymbol;
+        if (property is null || property.GetAttributes().Any(NativeCallbackDeclaration.IsAttribute))
         {
             return null;
         }
@@ -46,6 +49,18 @@ internal static class GucPipeline
         return new(DeclarationIdentity.Create(property), property.Name, declaration is null ? null : GucModel.Create(declaration),
             new(problems), GeneratorLocation.Create(property.Locations.FirstOrDefault(), compilation));
     }
+
+    /// <summary>
+    /// Uses Roslyn's semantic attribute index for one supported configuration kind.
+    /// </summary>
+    /// <param name="context">The registration context.</param>
+    /// <param name="metadataName">The exact public setting attribute.</param>
+    /// <returns>Detached analyses for matching property and indexer declarations.</returns>
+    private static IncrementalValuesProvider<Analysis> Discover(IncrementalGeneratorInitializationContext context, string metadataName)
+        => context.SyntaxProvider.ForAttributeWithMetadataName(metadataName,
+            static (node, _) => node is PropertyDeclarationSyntax or IndexerDeclarationSyntax,
+            static (syntax, token) => Analyze(syntax, token))
+            .Where(static value => value is not null).Select(static (value, _) => value!);
 
     /// <summary>
     /// Resolves current diagnostic locations and selects deterministic registration order without caching native values.

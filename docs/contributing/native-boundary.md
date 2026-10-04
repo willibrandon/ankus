@@ -168,6 +168,19 @@ tree ordinals. Final reporting binds those coordinates to the current compiler
 trees, including mapped lines. Separate trees with identical physical paths and
 spans remain distinct. SQL provenance retains physical file and line comments.
 
+Semantic graph validation uses declaration-relative anchors without physical
+line numbers. Current physical lines attach only to final SQL provenance, while
+diagnostics resolve their current mapped coordinates independently. Editing
+leading lines or an earlier function body therefore preserves native and managed
+composition. Immutable source trees retain their declaration indexes, so an edit
+does not retraverse every unchanged tree to resolve locations.
+
+GUC and derived equality, ordering and hashing declarations use Roslyn's semantic
+attribute indexes, including aliases. Assembly SQL providers detach their inputs
+before composition. Native callback capability reads are independently cached per
+metadata reference, without loading dependency assemblies; compilation references
+retain their equivalent compiler metadata path.
+
 Managed dispatchers, native C and linker exports retain ordered cached fragment
 plans before final rendering. Their tracked rendering stages can reuse unchanged
 plans after body, source-coordinate or SQL-only policy edits. Manifest rendering
@@ -210,8 +223,8 @@ Provider ownership, authored dependencies, SQL replacement, shared support
 identities and current initialization compose afterward. Diagnostics resolve
 against current source trees. Inherited generic support methods reserve their
 open definitions from ordinary function discovery; closed identities still
-distinguish published support functions. The final graph and output compositor
-remain unfinished.
+distinguish published support functions. Final graph composition and output
+rendering use the independent cached stages described above.
 
 Datum mapping discovery validates finite closed roots before immutable scalar
 and range registration contracts cross the compiler boundary. Converter factories
@@ -224,8 +237,8 @@ and conversion boundaries. Their SQL grammar uses a separate catalog projection;
 typed fragments apply current provider qualification without rewriting authored
 text. Initialization, SQL replacement, dependencies and diagnostics compose outside
 the cached fragments. Removing an earlier positional input may recreate surviving
-Roslyn inputs while preserving their exact contracts. The final graph and complete
-extension outputs still require separate caching.
+Roslyn inputs while preserving their exact contracts. Final graph composition and
+complete extension outputs use their own independently cached stages.
 
 Schema creation precedes function DDL. Fixed schemas set `Ankus.Relocatable` to
 false in assembly metadata; `ExtensionManifest` reads that with `PEReader`, and
