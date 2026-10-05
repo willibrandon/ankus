@@ -1,0 +1,4 @@
+comment = 'Borrowed and copied arrays, nullable values and vector calculations'
+schema = 'arrays'
+relocatable = false
+superuser = false

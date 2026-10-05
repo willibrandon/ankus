@@ -1,0 +1,3 @@
+comment = 'JSON documents from borrowed PostgreSQL text and bytea arrays'
+relocatable = false
+superuser = false

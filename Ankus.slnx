@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/samples/">
     <Project Path="samples/Ankus.Examples.Aggregates/Ankus.Examples.Aggregates.csproj" />
+    <Project Path="samples/Ankus.Examples.Arrays/Ankus.Examples.Arrays.csproj" />
     <Project Path="samples/Ankus.Examples.BackgroundWorkers/Ankus.Examples.BackgroundWorkers.csproj" />
     <Project Path="samples/Ankus.Examples.Benchmarks/Ankus.Examples.Benchmarks.csproj" />
     <Project Path="samples/Ankus.Examples.Composites/Ankus.Examples.Composites.csproj" />
@@ -12,6 +13,7 @@
     <Project Path="samples/Ankus.Examples.EventTriggers/Ankus.Examples.EventTriggers.csproj" />
     <Project Path="samples/Ankus.Examples.Hello/Ankus.Examples.Hello.csproj" />
     <Project Path="samples/Ankus.Examples.Initialization/Ankus.Examples.Initialization.csproj" />
+    <Project Path="samples/Ankus.Examples.Json/Ankus.Examples.Json.csproj" />
     <Project Path="samples/Ankus.Examples.Operators/Ankus.Examples.Operators.csproj" />
     <Project Path="samples/Ankus.Examples.Ranges/Ankus.Examples.Ranges.csproj" />
     <Project Path="samples/Ankus.Examples.Sets/Ankus.Examples.Sets.csproj" />

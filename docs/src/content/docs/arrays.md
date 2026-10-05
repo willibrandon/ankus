@@ -7,6 +7,13 @@ Use `T[]` for one-dimensional arrays with the usual PostgreSQL lower bound of on
 Use `PgArray<T>` when dimensions or lower bounds matter. Both support the scalar
 types listed in [Write a function](/getting-started/functions/#types).
 
+The [arrays sample](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.Arrays)
+ports pgrx's array examples: borrowed iteration, mutable copies, nullable names,
+set-returning arrays and a generated custom-type array. Its `vectors` schema
+compares iteration, copied cells, native spans and sixteen-lane accumulation.
+These functions preserve the upstream floating-point accumulation order;
+the sample does not promise a measured speedup.
+
 Reusable scalar mappings declared with `[PgDatumType]` also support these array
 forms, including nullable elements. They use the declared element's reader or
 writer and preserve its exact PostgreSQL identity. See

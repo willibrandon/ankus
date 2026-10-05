@@ -25610,3 +25610,76 @@ Before committing, the previous **a04f6ed** primary
 and [Docs 37244724710](https://github.com/willibrandon/ankus/actions/runs/37244724710)
 are checked green. This local complete acceptance does not establish the new
 composition's other-platform acceptance or full-port completion.
+
+## Array examples and borrowed-array JSON
+
+The ordinary `Ankus.Examples.Arrays` and `Ankus.Examples.Json` projects port
+the pinned pgrx array and borrowed-JSON examples. Both participate in the full
+solution and integration publication fixture. They preserve nullable elements,
+row-major iteration, typed custom arrays, copied versus borrowed storage and
+the upstream floating-point accumulation order. The sixteen-lane variant
+retains its SQL name without claiming SIMD execution or a measured speedup.
+
+The JSON writer copies each checked borrowed text or bytea cell directly into
+owned output. Text retains Unicode and escaping; bytea becomes arrays of byte
+numbers, matching serde rather than .NET's default base64 representation. The
+separate native fixture supplies bounded source-generated scalar metadata for
+nullable integers, full-range dates/timestamps and embedded JSON values. The
+anyarray iteration fixture preserves raw datum words before calling the native
+array-to-JSON function; deterministic assertions use by-value elements.
+
+| Contract | Independent native assertions |
+| --- | --- |
+| Array example values | Exact name/integer/NULL arrays and ordered sets, stable filtering, typed default expression, custom-type regtype and actual generated backend-test execution. |
+| Arithmetic and selected cells | Exact IEEE bits, negative zero, NaN/infinities, nonassociative inputs, shorter zipped input and selected/unselected NULL behavior. |
+| Accumulation order | Independent scalar and sixteen-lane expectations, including lengths 15/16/17/31/32/33 and their remainders. |
+| Seeded SQL | Actual dependency ordering and all 1,000 arrays of 768 present random cells in the documented half-open interval. |
+| Borrowed JSON output | Exact object/array shape, SQL NULL versus empty, all 1,000 source strings, every byte value and an 8,192-byte payload retained after its source is dropped. |
+| Array scalar serialization | Required-integer NULL denial, ISO full-range dates/timestamps, embedded JSON values and raw by-value datum words. |
+| Recovery and ownership | Unchanged native array bytes, exact diagnostics, explicit rollback, unchanged backend and zero retained failed frames. |
+
+The first affected run reports **88 total / 87 passed / one failed / zero
+skips**, **3m37.951s** tests / **4m05.61s** command. Its text fixture used a bare
+`ORDER BY value` after projecting `value::text`, so PostgreSQL selected the text
+output alias. Qualifying the integer input fixes numeric ordering while
+preserving every independent expected value. Exact rejected sources, logs and
+reports are retained in **1,699** byte-verified ordinary archive entries.
+
+Corrected affected validation on Linux x64/PostgreSQL **18.6** passes **88/88**,
+zero skips, **2m13.493s** tests / **2m48.62s** command. Every result, unique
+execution identity and all nineteen method partitions are independently
+checked. All **1,694** authored inputs and **39** selected runtime files match
+afterward. Final Release has zero warnings/errors, **51.30s** build /
+**51.460s** command. API freshness verifies **244 pages / 2,791 members**;
+site checks have zero errors/warnings/hints, and **293 pages** build in **4.55s**.
+
+The plain complete suite on SDK **10.0.401**, LLVM **23.1.2** and selected
+compiler/runtime **10.0.12-ankus.4** passes **12,377 total / 12,329 passed /
+48 platform skips / zero failures**, **39m48.005s** tests / **40m15.68s** command.
+All six reports independently reconcile every actual result, unique execution
+identity and module counter. All **1,694** authored inputs match locally and in
+the validation checkout afterward, and its **39** runtime files also match.
+
+The accepted source, identities, checks and complete reports are retained in a
+bounded **8,690,424-byte** archive. Every one of its **1,712** ordinary entries
+matches its original length and SHA-256, and the retained copy has the same
+archive checksum. Completed owned output is cleaned only after this verification;
+the single validation checkout and selected runtime payload remain available.
+
+| Complete module | Total | Passed | Platform skips | Failed |
+| --- | ---: | ---: | ---: | ---: |
+| Ankus.Build.Tests | 1,222 | 1,213 | 9 | 0 |
+| Ankus.Examples.Hello.Tests | 5 | 5 | 0 | 0 |
+| Ankus.Generators.Tests | 3,776 | 3,776 | 0 | 0 |
+| Ankus.IntegrationTests | 4,757 | 4,742 | 15 | 0 |
+| Ankus.PgConfig.Tests | 483 | 459 | 24 | 0 |
+| Ankus.Runtime.Tests | 2,134 | 2,134 | 0 | 0 |
+
+Before committing, previous primary
+[CI 37256732695](https://github.com/willibrandon/ankus/actions/runs/37256732695)
+and [Docs 37256732723](https://github.com/willibrandon/ankus/actions/runs/37256732723)
+are checked green on **063011d**. They precede this new composition and do not
+establish its other-platform acceptance. Exact mutable-borrow signature and
+ten-thousand-string/top-five lifetime source cases remain separate pending
+validation; the example milestone does not establish full array corpus parity
+or full-port completion.

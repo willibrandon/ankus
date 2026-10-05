@@ -91,6 +91,10 @@ extensions. Counts supplement the backend, ownership and recovery assertions.
 
 | Source | Platform / PostgreSQL | Result | Duration |
 | --- | --- | --- | --- |
+| [CI 37256732695](https://github.com/willibrandon/ankus/actions/runs/37256732695), 063011d / runtime **ankus.4** | Linux x64 / 18 | 12,289 total; 12,241 passed; 48 platform skips; zero failures | 38m04s job |
+| Same CI / revision / runtime | Windows x64 / 17 | 12,289 total; 12,261 passed; 28 platform skips; zero failures | 35m29s job |
+| Same CI / revision / runtime | macOS ARM64 / 18 | 12,289 total; 12,229 passed; 60 platform skips; zero failures | 28m05s job |
+| Frozen array/JSON composition / runtime **ankus.4** | Linux x64 / 18.6 | 12,377 total; 12,329 passed; 48 platform skips; zero failures | 39m48.005s tests; 40m15.68s command |
 | Frozen transaction-completion cleanup composition / runtime **ankus.4** | Linux x64 / 18.6 | 12,289 total; 12,241 passed; 48 platform skips; zero failures | 39m18.598s tests; 39m41.40s command |
 | Frozen remaining-reader composition / runtime **ankus.4** | Linux x64 / 18.6 | 12,260 total; 12,212 passed; 48 platform skips; zero failures | 39m21.681s tests; 39m44.06s command |
 | [CI 37244724738](https://github.com/willibrandon/ankus/actions/runs/37244724738), a04f6ed / runtime **ankus.4** | Linux x64 / 18 | 12,260 total; 12,212 passed; 48 platform skips; zero failures | 37m58s job |
@@ -233,8 +237,32 @@ passes.
   Release has zero warnings/errors (**47.88s** build / **48.045s** command);
   API freshness and site checks/build pass. Exact rejected sources/reports and
   their assertion corrections remain in the evidence archive. Other-platform
-  acceptance of this composition remains pending. Previous primary CI and docs
-  are freshly checked green before committing.
+  acceptance now passes on all three primary platforms. Committed as **063011d**;
+  replacement [CI 37256732695](https://github.com/willibrandon/ankus/actions/runs/37256732695)
+  passes quality, all runtime jobs and all three complete platform suites.
+  All six reports are independently verified per platform, with counts and
+  durations above; no failures or timeouts.
+  [Docs 37256732723](https://github.com/willibrandon/ankus/actions/runs/37256732723)
+  passes. Previous primary CI and docs were checked green before committing.
+- The array and borrowed-JSON examples now join ordinary solution builds and
+  native integration publication. They preserve pgrx's nullable cells, copied
+  versus borrowed ownership, custom-type array identity, accumulation order and
+  byte-number JSON representation. The complete Release build has zero
+  warnings/errors (**58.04s** build / **58.204s** command). All **88** new native
+  cases pass on PostgreSQL 18.6/Linux x64, including error recovery and generated
+  backend-test execution. Every outcome and all nineteen method partitions are
+  independently verified, along with **1,694** unchanged authored inputs.
+  API freshness and site checks/build pass. An initial fixture ordered numeric
+  values as text; its SQL now orders the qualified integer source, preserving
+  every independent expected value. Exact rejected evidence is retained.
+  Final Release passes with zero warnings/errors (**51.30s** build / **51.460s**
+  command). Plain complete `dotnet test` passes **12,377 total / 12,329 passed /
+  48 platform skips / zero failures**, **39m48.005s** tests / **40m15.68s**
+  command. All six reports and **1,694** authored inputs / **39** runtime files
+  are independently post-verified; **1,712** archived source/evidence files are
+  byte-verified before completed-output cleanup. Other-platform acceptance and
+  the exact mutable-borrow/large-array lifetime cases remain pending; this is not full
+  array source parity. Previous primary CI and docs are green on **063011d**.
 - [CI 37236731631](https://github.com/willibrandon/ankus/actions/runs/37236731631)
   on **a78be2c** passes quality, all runtime jobs and all three complete platform
   suites. All six reports are independently verified per platform, with counts

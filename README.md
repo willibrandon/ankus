@@ -33,6 +33,15 @@ inserts, cursors, and table functions using named C# tuples.
 The [errors sample](samples/Ankus.Examples.Errors/) ports pgrx's managed-failure
 and PostgreSQL reporting scenarios, including ERROR, FATAL, and PANIC recovery.
 
+The [arrays sample](samples/Ankus.Examples.Arrays/) demonstrates borrowed cells,
+mutable copies, nullable elements, custom-type arrays and native array spans.
+It also preserves pgrx's sequential and sixteen-lane floating-point accumulation
+orders.
+
+The [JSON sample](samples/Ankus.Examples.Json/) writes borrowed text and bytea
+arrays directly into JSON documents. SQL NULL cells become JSON null, and bytea
+cells become arrays of byte numbers.
+
 PostgreSQL 18 and later can report the library's name and version through
 `pg_get_loaded_modules()`. See [native module identity](docs/src/content/docs/reference/build-settings.md#native-module-identity)
 for project defaults and attribute overrides.

@@ -60,6 +60,18 @@ SpiParameter sqlNull = SpiParameter.Create<PgJsonb?>(null);
 Managed equality and hash codes compare the stored text ordinally, including
 whitespace. PostgreSQL jsonb operators provide SQL structural equality.
 
+## Borrowed array serialization
+
+The [JSON sample](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.Json)
+ports pgrx's borrowed `text[]` and `bytea[]` serialization examples. It writes
+each checked native cell through `Utf8JsonWriter`, producing a document with a
+`values` array without collecting an intermediate managed array.
+
+SQL NULL cells become JSON null. Text remains text, including Unicode and
+escaping; each bytea cell becomes an array of byte numbers rather than a base64
+string. Empty arrays produce `{"values":[]}`. Borrowed cells are disposed after
+the writer copies their contents, and the returned `PgJson` owns its text.
+
 ## Source-generated serialization
 
 Provide `JsonTypeInfo<T>` from a `JsonSerializerContext` to serialize and
