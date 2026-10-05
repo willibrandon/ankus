@@ -91,6 +91,10 @@ extensions. Counts supplement the backend, ownership and recovery assertions.
 
 | Source | Platform / PostgreSQL | Result | Duration |
 | --- | --- | --- | --- |
+| [CI 37261359905](https://github.com/willibrandon/ankus/actions/runs/37261359905), 73c83db / runtime **ankus.4** | Linux x64 / 18 | 12,377 total; 12,329 passed; 48 platform skips; zero failures | 38m18s job |
+| [CI 37261359905](https://github.com/willibrandon/ankus/actions/runs/37261359905), 73c83db / runtime **ankus.4** | Windows x64 / 17 | 12,377 total; 12,349 passed; 28 platform skips; zero failures | 35m19s job |
+| Same CI / revision / runtime | macOS ARM64 / 18 | 12,377 total; 12,317 passed; 60 platform skips; zero failures | 36m06s job |
+| Frozen borrowed-array signature/lifetime composition / runtime **ankus.4** | Linux x64 / 18.6 | 12,389 total; 12,341 passed; 48 platform skips; zero failures | 39m35.194s tests; 40m02.50s command |
 | [CI 37256732695](https://github.com/willibrandon/ankus/actions/runs/37256732695), 063011d / runtime **ankus.4** | Linux x64 / 18 | 12,289 total; 12,241 passed; 48 platform skips; zero failures | 38m04s job |
 | Same CI / revision / runtime | Windows x64 / 17 | 12,289 total; 12,261 passed; 28 platform skips; zero failures | 35m29s job |
 | Same CI / revision / runtime | macOS ARM64 / 18 | 12,289 total; 12,229 passed; 60 platform skips; zero failures | 28m05s job |
@@ -260,9 +264,30 @@ passes.
   48 platform skips / zero failures**, **39m48.005s** tests / **40m15.68s**
   command. All six reports and **1,694** authored inputs / **39** runtime files
   are independently post-verified; **1,712** archived source/evidence files are
-  byte-verified before completed-output cleanup. Other-platform acceptance and
-  the exact mutable-borrow/large-array lifetime cases remain pending; this is not full
+  byte-verified before completed-output cleanup. Additional PostgreSQL/platform
+  combinations and the remaining array source cases are still required; this is not full
   array source parity. Previous primary CI and docs are green on **063011d**.
+  Committed and pushed as **73c83db**; replacement
+  [CI 37261359905](https://github.com/willibrandon/ankus/actions/runs/37261359905)
+  passes quality, all three runtime jobs and all three complete platform suites.
+  All six reports per platform and their individual outcomes/execution identities
+  are independently verified, with counts and measured durations above.
+  [Docs 37261359962](https://github.com/willibrandon/ankus/actions/runs/37261359962)
+  passes.
+- Exact upstream mutable-borrow and ten-thousand-string/top-five source cases
+  now have ordinary generator/native regressions. All **eight** concrete
+  reference-passing rejection/repair cases pass under normal analyzers;
+  all **four** native owner-ending paths reject every stale alias while retaining
+  copied strings and unchanged original bytes. All twelve outcomes are
+  independently verified. The **1,697** source inputs and **39** runtime files
+  match after affected validation. Final Release has zero warnings/errors
+  (**47.54s** build / **47.702s** command). Plain complete `dotnet test` passes
+  **12,389 total / 12,341 passed / 48 platform skips / zero failures**,
+  **39m35.194s** tests / **40m02.50s** command. All six reports and **1,697**
+  source inputs / **39** runtime files are independently post-verified.
+  All **1,715** archived source/evidence files are byte-verified before bounded
+  completed-output cleanup. Primary CI and docs are green on **73c83db**;
+  platform CI for these twelve added cases remains required.
 - [CI 37236731631](https://github.com/willibrandon/ankus/actions/runs/37236731631)
   on **a78be2c** passes quality, all runtime jobs and all three complete platform
   suites. All six reports are independently verified per platform, with counts
