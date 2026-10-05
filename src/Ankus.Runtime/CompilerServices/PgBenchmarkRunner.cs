@@ -227,26 +227,58 @@ public static class PgBenchmarkRunner
     {
         PgBenchmarkConfiguration configuration = definition.Configuration;
         long targetPerSample = Math.Max(1, MillisecondsToTicks(configuration.MeasurementTimeMilliseconds) / configuration.SampleSize);
-        long iterations = 1;
-        long elapsed;
-        do
-        {
-            elapsed = routine.Measure(iterations, definition.TransactionMode, subtransaction);
-            if (elapsed < targetPerSample)
-            {
-                iterations = Math.Min(checked(iterations * 2), int.MaxValue);
-            }
-        }
-        while (elapsed < targetPerSample && iterations < int.MaxValue);
+        long MeasureRoutine(long count) => routine.Measure(count, definition.TransactionMode, subtransaction);
+        long iterations = MeasureSample(MeasureRoutine, 1, targetPerSample).Iterations;
 
         var samples = new Sample[configuration.SampleSize];
         for (int index = 0; index < samples.Length; index++)
         {
-            elapsed = routine.Measure(iterations, definition.TransactionMode, subtransaction);
+            (long sampleIterations, long elapsed) = MeasureSample(MeasureRoutine, iterations, targetPerSample);
+            iterations = sampleIterations;
             samples[index] = new(index, iterations, TicksToNanoseconds(elapsed));
         }
 
         return samples;
+    }
+
+    /// <summary>
+    /// Expands a timing batch until its actual duration meets the sample target or the iteration bound.
+    /// </summary>
+    /// <param name="measure">The routine that measures the exact requested iteration count.</param>
+    /// <param name="iterations">The initial positive iteration count, bounded by <see cref="int.MaxValue"/>.</param>
+    /// <param name="target">The positive target duration in stopwatch ticks.</param>
+    /// <returns>The actual iteration count and elapsed ticks of the retained measurement.</returns>
+    internal static (long Iterations, long ElapsedTicks) MeasureSample(Func<long, long> measure, long iterations, long target)
+    {
+        ArgumentNullException.ThrowIfNull(measure);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(iterations);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(iterations, int.MaxValue);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(target);
+        while (true)
+        {
+            long elapsed = measure(iterations);
+            if (elapsed < 0)
+            {
+                throw new InvalidOperationException("The benchmark measurement returned a negative duration.");
+            }
+
+            if (elapsed >= target)
+            {
+                return (iterations, elapsed);
+            }
+
+            if (iterations == int.MaxValue)
+            {
+                if (elapsed == 0)
+                {
+                    throw new InvalidOperationException("The benchmark measurement remained below timer resolution at the iteration limit.");
+                }
+
+                return (iterations, elapsed);
+            }
+
+            iterations = Math.Min(iterations * 2, int.MaxValue);
+        }
     }
 
     private static Estimate[] EstimateSamples(Sample[] samples, PgBenchmarkConfiguration configuration)

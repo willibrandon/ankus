@@ -70,7 +70,7 @@ defines the full scope; family-level implementation is not API-by-API completion
 | Aggregates and SQL graph | Static abstract aggregate capabilities, typed Requires/Before/SupportFunction references, deterministic SQL provenance and extended module magic. | Remaining inventoried contracts and complete version/platform acceptance. |
 | Generator caching | Detached equatable declaration/provider/reference models, declaration-relative locations and cached dispatcher/C/SQL artifacts across multi-declaration body edits and unrelated file insertion. Only selected SQL files are read, with the complete path catalog retained. | Broader precise diagnostics, useful semantic code fixes and final inventory audit remain required. |
 | Values and ownership | Documented scalar, array, composite, temporal, JSON, network, geometry, custom codec and raw datum contracts. Interval equality, hashing and ordering agree with PostgreSQL while retaining exact components; complete primary-platform CI passes. | Remaining mapped/container contracts, parsing/formatting ergonomics and complete source-case mapping remain required. |
-| Runtime performance | Owned binary PgNumeric, direct decimal coefficient encoding, constant-time fixed-width array indexing, and a measured native recovery guard for allowlisted pure built-ins. Persistent in-backend benchmarks provide batching, transaction modes and statistical baseline comparisons. | Extend the lighter guard only where ownership proofs and measurements justify it, and complete supported-platform acceptance. Never weaken error recovery to reduce overhead. |
+| Runtime performance | Owned binary PgNumeric, direct decimal coefficient encoding, constant-time fixed-width array indexing, and a measured native guard for allowlisted pure built-ins. Persistent in-backend benchmarks provide batching, transaction modes and statistical baseline comparisons. | Correct catalog-miss ownership/recovery in existing lightweight paths. Extend that tier only where ownership proofs and measurements justify it, and complete supported-platform acceptance. Never weaken error recovery to reduce overhead. |
 | Native bindings | pgrx 0.19.3 inventories, matching PostgreSQL 19 beta 4 inputs and target-compiler ABI checks; typed pointers and ANKUS129 make raw caller obligations explicit. Complete current primary-platform compositions pass, with focused binding checks on all seven majors. | Full supported-major/platform tests and final inventory audit. |
 | Development CLI | Version/project selection, installation/registration, cluster lifecycle, run/connect, test/regress/bench, property forwarding, environment selection, scriptable info and package prefixes. Benchmarks are measured inside PostgreSQL and retained in named comparison groups. | Persistent Windows diagnostic collection, account/privilege selection and remaining inventoried CLI/platform contracts. |
 | .NET templates | Version-matched ordinary extension and worker templates reuse the CLI assets and pin local tools. Optional xUnit/NUnit consumers exercise managed and named backend cases, ignore reasons, worker processes and cleanup alongside default MSTest consumers. Complete primary-platform CI passes. | Remaining discovery contracts and complete version/platform acceptance. |
@@ -91,6 +91,7 @@ extensions. Counts supplement the backend, ownership and recovery assertions.
 
 | Source | Platform / PostgreSQL | Result | Duration |
 | --- | --- | --- | --- |
+| Frozen cleanup-reporter / benchmark composition, runtime **ankus.4** | Windows x64 / 17.11 | 12,438 total; 12,410 passed; 28 platform skips; zero failures | 41m41.075s tests |
 | Frozen numeric-example composition / runtime **ankus.4** | Linux x64 / 18.6 | 12,422 total; 12,374 passed; 48 platform skips; zero failures | 39m51.287s tests; 40m18.80s command |
 | [CI 37265430538](https://github.com/willibrandon/ankus/actions/runs/37265430538), 708d93a / runtime **ankus.4** | Linux x64 / 18 | 12,389 total; 12,341 passed; 48 platform skips; zero failures | 38m24s job |
 | Same CI / revision / runtime | Windows x64 / 17 | 12,389 total; 12,361 passed; 28 platform skips; zero failures | 35m51s job |
@@ -194,148 +195,62 @@ passes.
 
 ## Active validation and work
 
-- **e456e92** fixes cold editor loading and reloads by resolving real build
-  dependencies before native bindings and qualifying companion metadata.
-  Repository **IDE0042 and CS8632 remain errors**, including samples, without
-  imposing these standards on consumers. Complete Linux/18.6 acceptance and
-  Release/docs/API checks pass. The editor diagnostics are now clear.
-- Referenced datum/range identities now use exact compiler-owned attribute
-  bytes with strict UTF-8 and complete-blob validation (**ANKUS204/205**).
-  Source GUC labels retain exact values during Roslyn retargeting. Diagnostics
-  identify current consuming source. The original **65** regression cases pass.
-  A further namespace audit exposed display-name escaping in metadata lookup;
-  the raw-name correction passes all **20** added cases and the complete
-  **3,607-case** generator module. Final complete Linux/18.6 acceptance passes
-  **12,078 total / 12,030 passed / 48 skips**, with all six reports and
-  **1,650** source inputs / **39** runtime files independently verified.
-  Release has zero warnings/errors; API freshness and site checks/build pass.
-- Exact enum/base-type attributes and serializer keys, enum names and variant
-  discriminators now use their defining module's exact strings. Referenced
-  SQL identities reject zero characters; valid persisted strings retain them.
-  **ANKUS206** identifies unreadable attributes at current consuming declarations,
-  including arrays, sets, tables and aggregate inputs. Assembly identity and
-  forwarders prevent equal metadata names from selecting another attribute.
-  All **153** added generator cases and the complete **3,760-case** module pass.
-  All **13** added native storage cases pass on Linux/18.6, including independent
-  binary COPY fixtures and same-session error recovery. Final Release has zero
-  warnings/errors; API/site checks pass. Complete Linux/18.6 acceptance passes
-  **12,244 total / 12,196 passed / 48 skips**, with all six reports and
-  **1,665** source inputs / **39** runtime files independently verified afterward.
-  This result does not establish the new composition's other-platform acceptance.
-- The follow-up datum/range and GUC reader audit reproduces assembly collisions
-  and incomplete label metadata. The shared exact reader replaces both older
-  parsers, with **16** regression cases and public guidance. Promoted-source
-  generator validation passes **3,776/3,776**. Complete Linux/18.6 acceptance
-  passes **12,260 total / 12,212 passed / 48 skips**, with zero failures; all six
-  reports, **1,669** source inputs and **39** runtime files are post-verified.
-  Release, API freshness and site checks/build pass. Committed as **a04f6ed**;
-  replacement [CI 37244724738](https://github.com/willibrandon/ankus/actions/runs/37244724738)
-  passes quality, all runtime jobs and all three complete platform suites.
-  All six reports are independently checked per platform, with results and
-  durations above; no timeouts. [Docs 37244724710](https://github.com/willibrandon/ankus/actions/runs/37244724710)
-  passes.
-- Transaction-completion cleanup preserves the primary error, complete secondary
-  warnings, callback drain and cancellation. Terminal-only transport retains
-  FATAL/PANIC intent; irreversible completion uses PANIC after managed unwinding.
-  Valid unsafe native releases remain available. Expanded native validation
-  passes **295/295**, with every outcome and all eighteen required partitions
-  independently verified. Final complete Linux/18.6 acceptance passes
-  **12,289 total / 12,241 passed / 48 skips / zero failures**, with all six
-  reports and **1,678** authored inputs / **39** runtime files post-verified.
-  Release has zero warnings/errors (**47.88s** build / **48.045s** command);
-  API freshness and site checks/build pass. Exact rejected sources/reports and
-  their assertion corrections remain in the evidence archive. Other-platform
-  acceptance now passes on all three primary platforms. Committed as **063011d**;
-  replacement [CI 37256732695](https://github.com/willibrandon/ankus/actions/runs/37256732695)
-  passes quality, all runtime jobs and all three complete platform suites.
-  All six reports are independently verified per platform, with counts and
-  durations above; no failures or timeouts.
-  [Docs 37256732723](https://github.com/willibrandon/ankus/actions/runs/37256732723)
-  passes. Previous primary CI and docs were checked green before committing.
-- The array and borrowed-JSON examples now join ordinary solution builds and
-  native integration publication. They preserve pgrx's nullable cells, copied
-  versus borrowed ownership, custom-type array identity, accumulation order and
-  byte-number JSON representation. The complete Release build has zero
-  warnings/errors (**58.04s** build / **58.204s** command). All **88** new native
-  cases pass on PostgreSQL 18.6/Linux x64, including error recovery and generated
-  backend-test execution. Every outcome and all nineteen method partitions are
-  independently verified, along with **1,694** unchanged authored inputs.
-  API freshness and site checks/build pass. An initial fixture ordered numeric
-  values as text; its SQL now orders the qualified integer source, preserving
-  every independent expected value. Exact rejected evidence is retained.
-  Final Release passes with zero warnings/errors (**51.30s** build / **51.460s**
-  command). Plain complete `dotnet test` passes **12,377 total / 12,329 passed /
-  48 platform skips / zero failures**, **39m48.005s** tests / **40m15.68s**
-  command. All six reports and **1,694** authored inputs / **39** runtime files
-  are independently post-verified; **1,712** archived source/evidence files are
-  byte-verified before completed-output cleanup. Additional PostgreSQL/platform
-  combinations and the remaining array source cases are still required; this is not full
-  array source parity. Previous primary CI and docs are green on **063011d**.
-  Committed and pushed as **73c83db**; replacement
-  [CI 37261359905](https://github.com/willibrandon/ankus/actions/runs/37261359905)
-  passes quality, all three runtime jobs and all three complete platform suites.
-  All six reports per platform and their individual outcomes/execution identities
-  are independently verified, with counts and measured durations above.
-  [Docs 37261359962](https://github.com/willibrandon/ankus/actions/runs/37261359962)
-  passes.
-- Exact upstream mutable-borrow and ten-thousand-string/top-five source cases
-  now have ordinary generator/native regressions. All **eight** concrete
-  reference-passing rejection/repair cases pass under normal analyzers;
-  all **four** native owner-ending paths reject every stale alias while retaining
-  copied strings and unchanged original bytes. All twelve outcomes are
-  independently verified. The **1,697** source inputs and **39** runtime files
-  match after affected validation. Final Release has zero warnings/errors
-  (**47.54s** build / **47.702s** command). Plain complete `dotnet test` passes
-  **12,389 total / 12,341 passed / 48 platform skips / zero failures**,
-  **39m35.194s** tests / **40m02.50s** command. All six reports and **1,697**
-  source inputs / **39** runtime files are independently post-verified.
-  All **1,715** archived source/evidence files are byte-verified before bounded
-  completed-output cleanup. Primary CI and docs are green on **73c83db**;
-  [CI 37265430538](https://github.com/willibrandon/ankus/actions/runs/37265430538)
-  now passes all three complete primary-platform suites, quality and runtime jobs.
-  All six reports per platform are independently verified; no failures/timeouts.
-- The numeric example now joins ordinary solution builds and published native
-  integration tests. All five upstream exports preserve full-range values,
-  sum-before-rounding, precision/scale, the complete arithmetic chain and exact
-  signed 128-bit conversion. All **33** native cases pass on PostgreSQL
-  18.6/Linux x64, with zero skips; every outcome and all nine method partitions
-  are independently verified. All **1,702** source inputs and **39** runtime
-  files match afterward. Release has zero warnings/errors (**53.12s** build /
-  **53.302s** command); API freshness and site checks/build pass. The README
-  and numeric guide document the sample and rounding order. Plain complete
-  `dotnet test` passes **12,422 total / 12,374 passed / 48 platform skips /
-  zero failures**, **39m51.287s** tests / **40m18.80s** command. All six reports,
-  **1,702** source inputs and **39** runtime files are independently verified;
-  all **1,723** archived source/evidence files are byte-verified before completed
-  output cleanup. Previous primary CI is green on **708d93a**, and the latest
-  docs run is green on **73c83db**. Numeric platform acceptance remains required.
-- [CI 37236731631](https://github.com/willibrandon/ankus/actions/runs/37236731631)
-  on **a78be2c** passes quality, all runtime jobs and all three complete platform
-  suites. All six reports are independently verified per platform, with counts
-  and durations above; no timeouts.
-  [Docs 37236731662](https://github.com/willibrandon/ankus/actions/runs/37236731662)
-  passes. This revision precedes the enum/serialization milestone.
-- The enum/serialization milestone is committed as **dc48724**.
-  Replacement [CI 37241377151](https://github.com/willibrandon/ankus/actions/runs/37241377151)
-  passes quality, all runtime jobs and all three complete primary-platform
-  suites. All six reports are independently verified per platform; counts and
-  durations are above, with zero failures/timeouts.
-  [Docs 37241377228](https://github.com/willibrandon/ankus/actions/runs/37241377228)
-  passes. This revision precedes the pending reader/cleanup corrections.
-- [CI 37229162897](https://github.com/willibrandon/ankus/actions/runs/37229162897)
-  on **e456e92** passes quality, all runtime jobs, macOS ARM64/18 and
-  Windows/17 and Linux/18. All six reports are independently verified per
-  platform: **11,993 total / 11,933 passed / 60 skips** on macOS,
-  **11,993 total / 11,965 passed / 28 skips** on Windows, and
-  **11,993 total / 11,945 passed / 48 skips** on Linux. Job durations are
-  **28m03s**, **34m33s** and **37m53s**, respectively; no timeouts.
-  [Docs 37229162983](https://github.com/willibrandon/ankus/actions/runs/37229162983)
-  passes. Previous **CI 37224209715** and its docs run pass all required jobs.
-- [Platform-version CI 37218985660](https://github.com/willibrandon/ankus/actions/runs/37218985660)
-  passes Windows/13 and 18 and macOS ARM64/15 and 16 on **4c9cc43**.
-  All six reports are verified per cell; durations and results appear above.
-  These older revisions do not establish current-source acceptance for every
-  supported combination.
+- **be004b3** ports all five numeric-example exports. The **33** native cases
+  and the plain complete Linux x64/PostgreSQL **18.6** suite pass: **12,422
+  total / 12,374 passed / 48 platform skips / zero failures**, **40m18.80s**
+  command. All six reports, **1,702** source inputs and **39** runtime files are
+  verified. All **1,723** archived source/evidence files match their originals
+  before completed output is removed. Release, API freshness and site checks
+  pass. [Docs 37269863241](https://github.com/willibrandon/ankus/actions/runs/37269863241)
+  passes. [CI 37269863172](https://github.com/willibrandon/ankus/actions/runs/37269863172)
+  passes quality, runtime, Linux and macOS. Windows exposes a terminal-cleanup
+  test assumption: PostgreSQL can send the original ERROR before cleanup's
+  PANIC. The corrected assertion requires both exact ordered server diagnostics,
+  process termination, crash recovery and rolled-back writes.
+- Previous [CI 37265430538](https://github.com/willibrandon/ankus/actions/runs/37265430538)
+  is green on **708d93a**, including all runtime/quality jobs and all three
+  complete platform suites. All six reports per platform are independently
+  verified; counts and durations appear above. The latest earlier docs run
+  passes on **73c83db**. These outcomes were checked before numeric commit/push.
+- The current review reproduces **PANIC during ordinary rollback** when a
+  native warning hook raises ERROR. It also confirms that cleanup manufactures
+  cancellation from any callback SQLSTATE **57014**. The production correction
+  now distinguishes abort from durable commit/preparation, preserves owned
+  reporter diagnostics, and avoids recursive reporting through a broken hook.
+  Fabricated cancellation stays a warning; actual native requests remain
+  pending. Linux **18.6** passes **326** affected native cases; its interrupted
+  full run supplies no complete acceptance, and lost remote-only focused reports
+  limit retained evidence. Exact C compatibility checks pass against **13–19**
+  headers. Detailed outcomes and limitations remain in the history archive.
+  Windows x64/PostgreSQL **17.11** passes all **31** cleanup-class cases.
+  Its corrected plain complete suite passes **12,438 total / 12,410 passed /
+  28 platform skips / zero failures**, **41m41.075s**. All six reports, every
+  named cleanup partition and **1,748** local/staged input identities verify.
+  The runtime payload matches accepted CI bytes. Release has zero warnings/errors
+  (**1m36.64s**); API freshness verifies **244 pages / 2,791 members**, and site
+  checks pass (**293** pages, **4.75s**). All **3,479** archived source/evidence
+  files match their originals. The rejected first complete run is retained
+  separately. Primary CI validation of the correction remains required.
+- Complete Windows validation exposed a benchmark timing bug.
+  A delayed pilot selected one iteration, followed by unresolved zero-duration
+  samples. Sampling now expands short batches while retaining actual counts and
+  durations. Author failures are never retried. All **16** focused cases pass on
+  Linux and Windows, the exact Windows reproduction passes **100** comparisons,
+  and the complete suite passes all **2,140** runtime cases.
+- Exact datum/range, enum, GUC and serializer metadata now preserve defining
+  module identity, complete blobs and strict UTF-8. Their generator/native
+  regressions and complete primary suites pass. The remaining review requires
+  a cached metadata owner index and proper malformed AssemblyRef diagnostics.
+- Array/JSON and borrowed-array source examples pass full primary-platform CI.
+  Mutable-borrow diagnostics and ten-thousand-string/top-five ownership cases
+  have exact regression evidence. The JSON sample still needs text-exact UTF-8
+  serialization matching pgrx; structural JSON equality does not establish it.
+- Other confirmed review work remains ordered after cleanup safety:
+  faithful **PG_VERSION** command scope; lightweight-guard resource ownership
+  in common value conversion and catalog misses; remaining raw transport unsafe
+  requirements; meaningful code fixes; SPI interpolation placement/dataflow; remaining dedicated
+  diagnostics, generator caching and source examples. Keep the complete
+  PostgreSQL/platform, .NET servicing and release requirements in scope.
 
 Detailed implementation, failures and corrections remain in the
 [evidence archive](docs/contributing/evidence/port-history.md).

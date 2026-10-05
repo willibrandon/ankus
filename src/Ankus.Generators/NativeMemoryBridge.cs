@@ -21,6 +21,9 @@ internal static class NativeMemoryBridge
         #include <stdlib.h>
         #include <string.h>
         #include "miscadmin.h"
+        #include "access/xact.h"
+        #include "storage/lock.h"
+        #include "storage/proc.h"
         #include "utils/memutils.h"
         #include "utils/palloc.h"
         #include "nodes/memnodes.h"
@@ -123,9 +126,53 @@ internal static class NativeMemoryBridge
         static char ankus_memory_provider;
         static void ankus_shared_prepare(void);
 
+        static bool ankus_memory_completion_registered;
+        static bool ankus_memory_completion_committed;
+
+        static void
+        ankus_memory_completion_event(XactEvent event, void *argument)
+        {
+            (void) argument;
+            ankus_memory_completion_committed = event == XACT_EVENT_COMMIT ||
+                event == XACT_EVENT_PARALLEL_COMMIT || event == XACT_EVENT_PREPARE;
+        }
+
+        static void
+        ankus_memory_completion_ensure(void)
+        {
+            if (!ankus_memory_completion_registered)
+            {
+                RegisterXactCallback(ankus_memory_completion_event, NULL);
+                ankus_memory_completion_registered = true;
+            }
+
+            if (IsTransactionState())
+            {
+                ankus_memory_completion_committed = false;
+            }
+        }
+
+        static bool
+        ankus_memory_completion_after_commit(void)
+        {
+            if (!ankus_memory_completion_committed || MyProc == NULL)
+            {
+                return false;
+            }
+
+            /* ProcArrayEndTransaction clears the VXID before COMMIT/PREPARE callbacks.
+             * A later transaction has a live VXID, even during its early portal abort
+             * before XACT_EVENT_ABORT. Use the selected headers' public macro so this
+             * does not depend on the PGPROC layout changing across PostgreSQL majors. */
+            VirtualTransactionId transaction;
+            GET_VXID_FROM_PGPROC(transaction, *MyProc);
+            return !VirtualTransactionIdIsValid(transaction);
+        }
+
         static void
         ankus_memory_initialize(AnkusMemoryApi *memory)
         {
+            ankus_memory_completion_ensure();
             ankus_shared_prepare();
             memset(memory, 0, sizeof(*memory));
             memory->provider = (intptr_t) &ankus_memory_provider;
@@ -203,44 +250,107 @@ internal static class NativeMemoryBridge
         static void
         ankus_report_completion_cleanup(AnkusError *error)
         {
-            if (error->sqlstate == ERRCODE_QUERY_CANCELED)
-            {
-                /* Finish the current rollback before processing cancellation at
-                 * the next interrupt boundary. A caught callback cannot lose it. */
-                QueryCancelPending = true;
-                InterruptPending = true;
-            }
-
             MemoryContext recovery = ankus_error_recovery_context(CurrentMemoryContext);
             uint32 interrupt_holdoff = InterruptHoldoffCount;
+            bool irreversible = ankus_memory_completion_after_commit();
+            MemoryContext volatile diagnostic = NULL;
+            AnkusError *volatile reporter = NULL;
             HOLD_INTERRUPTS();
             PG_TRY();
             {
                 PG_TRY();
                 {
-                    /* A second ERROR cannot interrupt an abort or undo a durable
-                     * commit. FATAL also runs abort cleanup and cannot safely
-                     * follow a durable commit. Terminal failures require PANIC. */
                     ankus_report(error, error->report_level >= 12 ? PANIC : WARNING);
                 }
                 PG_CATCH();
                 {
-                    /* Any failure while copying/reporting this terminal error
-                     * must itself be terminal, never resume unfinished cleanup. */
-                    START_CRIT_SECTION();
+                    /* Post-commit/preparation ERROR cannot initiate another abort.
+                     * Abort cleanup has not crossed that irreversible boundary. */
+                    if (irreversible)
+                    {
+                        START_CRIT_SECTION();
+                    }
+
                     MemoryContextSwitchTo(recovery);
-                    MemoryContext diagnostic = AllocSetContextCreate(TopMemoryContext,
+                    diagnostic = AllocSetContextCreate(TopMemoryContext,
                         "Ankus cleanup reporting failure", ALLOCSET_SMALL_SIZES);
-                    MemoryContextSwitchTo(diagnostic);
+                    MemoryContextSwitchTo((MemoryContext) diagnostic);
+                    reporter = palloc0(sizeof(AnkusError));
                     ErrorData *failure = ankus_copy_error_data();
                     FlushErrorState();
-                    failure->elevel = PANIC;
-                    ThrowErrorData(failure);
+                    if (irreversible)
+                    {
+                        failure->elevel = PANIC;
+                        ThrowErrorData(failure);
+                    }
+
+                    /* Transport the reporter's own diagnostic through the same owned
+                     * warning boundary. An encoding failure therefore yields an ASCII
+                     * conversion warning. A repeatedly failing reporter needs the
+                     * nonrecursive native fallback below so abort can finish. */
+                    ankus_capture_error(failure, (AnkusError *) reporter);
+                    ankus_free_error_data(failure);
+                    PG_TRY();
+                    {
+                        ankus_report((AnkusError *) reporter, WARNING);
+                    }
+                    PG_CATCH();
+                    {
+                        /* A broken persistent log hook cannot be entered repeatedly
+                         * from PostgreSQL's own abort retries. Preserve its diagnostics
+                         * through the native error reporter's nonrecursive stderr path. */
+                        MemoryContextSwitchTo((MemoryContext) diagnostic);
+                        ErrorData *fallback = ankus_copy_error_data();
+                        FlushErrorState();
+                        write_stderr("WARNING: cleanup reporting failed (%s): %s\n",
+                            unpack_sql_state(fallback->sqlerrcode), fallback->message);
+                        const char *names[] = {"DETAIL", "HINT", "CONTEXT", "SCHEMA", "TABLE", "COLUMN", "DATATYPE",
+                            "CONSTRAINT", "QUERY", "FILE", "ROUTINE", "DETAIL_LOG", "BACKTRACE"};
+                        const char *values[] = {fallback->detail, fallback->hint, fallback->context, fallback->schema_name,
+                            fallback->table_name, fallback->column_name, fallback->datatype_name, fallback->constraint_name,
+                            fallback->internalquery, fallback->filename, fallback->funcname, fallback->detail_log, fallback->backtrace};
+                        for (size_t index = 0; index < lengthof(values); index++)
+                        {
+                            if (values[index] != NULL)
+                            {
+                                write_stderr("%s: %s\n", names[index], values[index]);
+                            }
+                        }
+
+                        if (fallback->cursorpos > 0)
+                        {
+                            write_stderr("POSITION: %d\n", fallback->cursorpos);
+                        }
+
+                        if (fallback->internalpos > 0)
+                        {
+                            write_stderr("INTERNAL_POSITION: %d\n", fallback->internalpos);
+                        }
+
+                        if (fallback->lineno > 0)
+                        {
+                            write_stderr("LINE: %d\n", fallback->lineno);
+                        }
+
+                        ankus_free_error_data(fallback);
+                    }
+                    PG_END_TRY();
                 }
                 PG_END_TRY();
             }
             PG_FINALLY();
             {
+                MemoryContextSwitchTo(recovery);
+                if (reporter != NULL)
+                {
+                    ankus_release_error((AnkusError *) reporter);
+                }
+
+                if (diagnostic != NULL)
+                {
+                    MemoryContextDelete((MemoryContext) diagnostic);
+                }
+
                 InterruptHoldoffCount = interrupt_holdoff;
             }
             PG_END_TRY();

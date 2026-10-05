@@ -346,6 +346,26 @@ public static class MemoryCallbackFunctions
     }
 
     /// <summary>
+    /// Leaves an unrepresentable secondary diagnostic for transaction or subtransaction cleanup.
+    /// </summary>
+    /// <param name="kind">The top transaction or current subtransaction owner.</param>
+    /// <returns>The preparation result before PostgreSQL starts callback drain.</returns>
+    [PgFunction]
+    public static int MemoryCallbackPrepareEncoding(int kind)
+    {
+        int result = MemoryCallbackPrepare(kind, false);
+        PgMemoryContext owner = s_implicitOwner ?? throw new InvalidOperationException("Missing callback owner.");
+        PgAllocation value = s_implicitValue ?? throw new InvalidOperationException("Missing callback payload.");
+        s_implicitSecond?.Dispose();
+        s_implicitSecond = owner.RegisterResetCallback(() =>
+        {
+            s_implicitEvents.Add($"B{value.Read<int>()}");
+            throw new PgException("22023", "callback €", "secondary detail", "secondary hint");
+        });
+        return result;
+    }
+
+    /// <summary>
     /// Retains terminal reporting intent even when user cleanup catches the managed exception before commit completes.
     /// </summary>
     /// <param name="level">FATAL or PANIC represented by its logging enum value.</param>

@@ -160,16 +160,125 @@ public sealed class PgBenchmarkTests
             new(3, 1, 0, 100, 0.01, 0.05));
         PgJsonb baseline = PgBenchmarkRunner.Run(definition, null,
             static bencher => bencher.Iterate(static () => PgBenchmark.BlackBox(42)), null, static action => action());
+        using (JsonDocument baselineDocument = baseline.Parse())
+        {
+            Assert.AreEqual("ok", baselineDocument.RootElement.GetProperty("status").GetString(), baseline.Text);
+        }
 
         PgJsonb result = PgBenchmarkRunner.Run(definition, null,
             static bencher => bencher.Iterate(static () => PgBenchmark.BlackBox(42)), baseline, static action => action());
 
         using JsonDocument document = result.Parse();
+        Assert.AreEqual("ok", document.RootElement.GetProperty("status").GetString(), result.Text);
         JsonElement comparison = document.RootElement.GetProperty("comparison");
         Assert.IsTrue(double.IsFinite(comparison.GetProperty("p_value").GetDouble()));
         Assert.AreEqual(0.95, comparison.GetProperty("mean").GetProperty("confidence_level").GetDouble(), 0.000_001);
         Assert.IsTrue(double.IsFinite(comparison.GetProperty("median").GetProperty("point_estimate").GetDouble()));
         Assert.IsFalse(string.IsNullOrWhiteSpace(comparison.GetProperty("summary").GetString()));
+    }
+
+    /// <summary>
+    /// Recalibrates short samples after a delayed pilot without substituting invented elapsed values.
+    /// </summary>
+    [TestMethod]
+    public void MeasurementRecoversFromDelayedCalibrationAndZeroDurationSamples()
+    {
+        long[] durations = [1_000, 0, 40, 120, 124];
+        int next = 0;
+        List<long> measured = [];
+        long Measure(long iterations)
+        {
+            measured.Add(iterations);
+            return durations[next++];
+        }
+
+        (long pilotIterations, long pilotElapsed) = PgBenchmarkRunner.MeasureSample(Measure, 1, 100);
+        Assert.AreEqual(1L, pilotIterations);
+        Assert.AreEqual(1_000L, pilotElapsed);
+        (long iterations, long elapsed) = PgBenchmarkRunner.MeasureSample(Measure, pilotIterations, 100);
+        Assert.AreEqual(4L, iterations);
+        Assert.AreEqual(120L, elapsed);
+        (long nextIterations, long nextElapsed) = PgBenchmarkRunner.MeasureSample(Measure, iterations, 100);
+        Assert.AreEqual(4L, nextIterations);
+        Assert.AreEqual(124L, nextElapsed);
+        Assert.AreSequenceEqual([1, 1, 2, 4, 4], measured);
+        Assert.AreEqual(durations.Length, next);
+    }
+
+    /// <summary>
+    /// Preserves a resolved measurement at and above its target without running the routine again.
+    /// </summary>
+    /// <param name="duration">The exact measured duration.</param>
+    [TestMethod]
+    [DataRow(100L)]
+    [DataRow(101L)]
+    public void MeasurementPreservesResolvedSamples(long duration)
+    {
+        int calls = 0;
+        (long iterations, long elapsed) = PgBenchmarkRunner.MeasureSample(count =>
+        {
+            calls++;
+            Assert.AreEqual(7L, count);
+            return duration;
+        }, 7, 100);
+        Assert.AreEqual(7L, iterations);
+        Assert.AreEqual(duration, elapsed);
+        Assert.AreEqual(1, calls);
+    }
+
+    /// <summary>
+    /// Saturates the iteration bound while retaining a real positive duration below the target.
+    /// </summary>
+    [TestMethod]
+    public void MeasurementSaturatesIterationCountWithoutOverflow()
+    {
+        List<long> measured = [];
+        (long iterations, long elapsed) = PgBenchmarkRunner.MeasureSample(count =>
+        {
+            measured.Add(count);
+            return 1;
+        }, (int.MaxValue / 2) + 1, long.MaxValue);
+        Assert.AreEqual(int.MaxValue, iterations);
+        Assert.AreEqual(1L, elapsed);
+        Assert.AreSequenceEqual([(int.MaxValue / 2) + 1, int.MaxValue], measured);
+    }
+
+    /// <summary>
+    /// Rejects an unresolved clock at the iteration limit instead of looping or fabricating a sample.
+    /// </summary>
+    [TestMethod]
+    public void MeasurementRejectsZeroDurationAtIterationLimit()
+    {
+        int calls = 0;
+        InvalidOperationException error = Assert.ThrowsExactly<InvalidOperationException>(() =>
+            PgBenchmarkRunner.MeasureSample(_ =>
+            {
+                calls++;
+                return 0;
+            }, int.MaxValue, 1));
+        Assert.AreEqual("The benchmark measurement remained below timer resolution at the iteration limit.", error.Message);
+        Assert.AreEqual(1, calls);
+    }
+
+    /// <summary>
+    /// Rejects invalid timing values and preserves routine failures without retrying author code.
+    /// </summary>
+    [TestMethod]
+    public void MeasurementPreservesFailuresWithoutRetrying()
+    {
+        InvalidOperationException negative = Assert.ThrowsExactly<InvalidOperationException>(() =>
+            PgBenchmarkRunner.MeasureSample(static _ => -1, 1, 1));
+        Assert.AreEqual("The benchmark measurement returned a negative duration.", negative.Message);
+        var expected = new InvalidOperationException("benchmark routine failed");
+        int calls = 0;
+        InvalidOperationException actual = Assert.ThrowsExactly<InvalidOperationException>(() =>
+            PgBenchmarkRunner.MeasureSample(_ =>
+            {
+                calls++;
+                throw expected;
+            }, 1, 1));
+        Assert.AreSame(expected, actual);
+        Assert.AreEqual(1, calls);
     }
 
     /// <summary>

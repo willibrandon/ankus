@@ -93,6 +93,10 @@ that cost in the measurement.
 
 Results include raw iteration counts and elapsed nanoseconds, bootstrap confidence
 intervals for mean and median time per iteration, and comparison significance.
+The runner increases a sample's iteration count if its measured duration falls
+below the time target, including when the timer cannot resolve a single iteration.
+Results retain the actual iteration count and duration. A routine exception ends
+the benchmark; it is not retried.
 A comparison reports an improvement or regression only when the measured change
 is statistically significant and its confidence interval lies beyond the configured
 noise threshold.

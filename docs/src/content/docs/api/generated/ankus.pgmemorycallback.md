@@ -21,7 +21,10 @@ pending callback lifetime even when the registration is no longer referenced by 
 Ordinary reset failures stop callback drain and require rollback before retry. During transaction
 completion, secondary failures become warnings so commit or abort cleanup can finish. Terminal
 reports remain pending even if their managed exception is caught; irreversible completion uses
-PostgreSQL PANIC after managed unwinding. Cleanup does not inherit ordinary logging or SQL access.
+PostgreSQL PANIC after managed unwinding. Warning reporter failures during abort preserve the
+primary error and callback drain; a repeatedly failing log hook uses PostgreSQL's native stderr
+fallback. A callback's cancellation SQLSTATE does not create a native cancellation request.
+Cleanup does not inherit ordinary logging or SQL access.
 
 Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object)
 

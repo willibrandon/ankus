@@ -123,7 +123,7 @@ ankus_test_log_prefix_restore(PG_FUNCTION_ARGS)
     PG_RETURN_BOOL(emit_log_hook == log_prefix_previous);
 }
 
-/* A backend-local, one-report probe exercises the actual PostgreSQL reporter. */
+/* Mode three remains installed and rejects every warning, including retries. */
 static void
 log_probe(ErrorData *data)
 {
@@ -132,9 +132,14 @@ log_probe(ErrorData *data)
         log_previous_hook(data);
     }
 
-    if (data->message != NULL && strcmp(data->message, log_marker) == 0)
+    if ((log_mode == 3 && data->elevel == WARNING) ||
+        (data->message != NULL && strcmp(data->message, log_marker) == 0))
     {
-        emit_log_hook = log_previous_hook;
+        if (log_mode != 3)
+        {
+            emit_log_hook = log_previous_hook;
+        }
+
         log_observed_holdoff = InterruptHoldoffCount;
         if (log_mode == 1)
         {
@@ -145,6 +150,14 @@ log_probe(ErrorData *data)
         {
             ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                 errmsg("native report hook failure")));
+        }
+        else if (log_mode == 3)
+        {
+            ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                errmsg("native report hook failure"),
+                errdetail("persistent native hook detail"),
+                errhint("repair the persistent warning hook"),
+                errposition(17), internalerrposition(3), internalerrquery("SELECT broken_warning_hook")));
         }
     }
 }
