@@ -10,6 +10,7 @@
     <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);_IncludeAnkusCodeFixesInPackage</TargetsForTfmSpecificContentInPackage>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../Ankus.Runtime/CompilerServices/SpiSqlTokenLayout.cs" Link="CompilerServices/SpiSqlTokenLayout.cs" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all" />
     <ProjectReference Include="../Ankus.CodeFixes/Ankus.CodeFixes.csproj" ReferenceOutputAssembly="false" PrivateAssets="all"
                       GlobalPropertiesToRemove="RuntimeIdentifier;SelfContained;PublishAot" />

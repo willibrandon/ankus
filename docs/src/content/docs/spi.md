@@ -87,12 +87,16 @@ are permitted as raw SQL fragments. Insert those complete fragments outside
 SQL quotes; the helpers supply their own quoting. Prepared
 statements use positional parameters and explicit parameter types.
 
-The compiler check also covers casts, concatenation, conditional and coalescing
-expressions, switch arms and `string.Format`. A quoted local must be initialized
-from constants or quoting helpers and remain unchanged; writes, reference aliases and
-formatting disable that exemption. The check does not perform general tracking
-of string variables or arbitrary helper results. Callers remain responsible for
-constructing raw SQL safely. Use the quoting APIs below for dynamic identifiers.
+The compiler check follows reaching local strings, `StringBuilder` contents and
+format-argument arrays, including aliases, reassignment, branches, loops, local
+callbacks and exception cleanup. Clearing a builder or replacing a command with
+literal SQL removes the earlier construction. Complete quoting results must occur
+outside SQL strings, quoted identifiers, dollar strings and comments; the helpers
+supply their own delimiters. Ordinary positional parameters remain valid in raw SQL.
+
+The analysis is bounded and does not prove arbitrary helper implementations or
+runtime-generated text safe. Callers remain responsible for constructing raw SQL
+safely. Use `Spi.Sql` for values and the quoting APIs below for dynamic identifiers.
 
 Use explicit `E'...'` syntax for literal backslash escapes. `Spi.Sql` checks
 binding boundaries under both ordinary-string escape settings without a
@@ -312,7 +316,7 @@ Spi.Execute($"INSERT INTO {table} ({column}) VALUES ($1)", SpiParameter.Create("
 qualifier omits the prefix, while an empty qualifier represents an empty name.
 These functions use the server's keyword table and `quote_all_identifiers` setting.
 
-ANKUS044 accepts these direct helper calls and unchanged quoted locals. It
+ANKUS044 accepts these direct helper calls and locals whose reaching values remain completely quoted. It
 continues to reject an unquoted runtime value mixed into the same raw command;
 bind values separately with positional parameters, as above.
 

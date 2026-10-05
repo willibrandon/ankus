@@ -86,175 +86,88 @@ incorrect. See [the detailed review](docs/contributing/evidence/port-history.md#
 
 ## Current complete acceptance evidence
 
-Primary CI below runs all six modules against real published Native AOT
-extensions. Counts supplement the backend, ownership and recovery assertions.
+Primary CI runs all six modules against real published Native AOT extensions.
+The latest primary CI source is **7dca056**, with runtime **10.0.12-ankus.4**.
+[CI 37361236252](https://github.com/willibrandon/ankus/actions/runs/37361236252)
+and [Docs 37361236408](https://github.com/willibrandon/ankus/actions/runs/37361236408)
+pass. All eighteen actual reports and all sixty-seven required native recovery
+partitions independently verify; no primary job timed out.
 
 | Source | Platform / PostgreSQL | Result | Duration |
 | --- | --- | --- | --- |
-| Frozen raw transport / crash-recovery readiness composition, runtime **ankus.4** | Linux x64 / 18.6 | 12,561 total; 12,513 passed; 48 platform skips; zero failures | 41m19.728s tests |
-| Same composition and runtime | Windows x64 / 17.11 | 12,561 total; 12,533 passed; 28 platform skips; zero failures | 47m38.639s tests; 48m23.936s command |
-| Frozen metadata image / editor scope composition, runtime **ankus.4** | Linux x64 / 18.6 | 12,540 total; 12,492 passed; 48 platform skips; zero failures | 40m52.575s tests |
-| [CI 37335229927](https://github.com/willibrandon/ankus/actions/runs/37335229927), b9eb9db / runtime **ankus.4** | Linux x64 / 18 | 12,524 total; 12,476 passed; 48 platform skips; zero failures | 39m16s job |
-| Same CI / revision / runtime | macOS ARM64 / 18 | 12,524 total; 12,464 passed; 60 platform skips; zero failures | 29m14s job |
-| Same CI / revision / runtime | Windows x64 / 17 | 12,524 total; 12,496 passed; 28 platform skips; zero failures | 35m03s job |
-| Frozen native input/resource recovery composition, runtime **ankus.4** | Linux x64 / 18.6 | 12,524 total; 12,476 passed; 48 platform skips; zero failures | 41m15.595s tests |
-| [CI 37313742483](https://github.com/willibrandon/ankus/actions/runs/37313742483), ff7e07c / runtime **ankus.4** | Linux x64 / 18 | 12,453 total; 12,405 passed; 48 platform skips; zero failures | 39m21s job |
-| Same CI / revision / runtime | macOS ARM64 / 18 | 12,453 total; 12,393 passed; 60 platform skips; zero failures | 28m59s job |
-| Same CI / revision / runtime | Windows x64 / 17 | 12,453 total; 12,425 passed; 28 platform skips; zero failures | 35m11s job |
-| Frozen command-specific copy assertions, runtime **ankus.4** | Linux x64 / 18.6 | 12,453 total; 12,405 passed; 48 platform skips; zero failures | 36m05.545s tests |
-| [CI 37302379250](https://github.com/willibrandon/ankus/actions/runs/37302379250), afb59ae / runtime **ankus.4** | Linux x64 / 18 | 12,453 total; 12,405 passed; 48 platform skips; zero failures | 39m15s job |
-| Same CI / revision / runtime | macOS ARM64 / 18 | 12,453 total; 12,393 passed; 60 platform skips; zero failures | 28m58s job |
-| Frozen diagnostic-allocation / CLI / JSON composition, runtime **ankus.4** | Linux x64 / 18.6 | 12,453 total; 12,405 passed; 48 platform skips; zero failures | 36m21.402s tests |
-| [CI 37286283685](https://github.com/willibrandon/ankus/actions/runs/37286283685), fd79e24 / runtime **ankus.4** | Linux x64 / 18 | 12,438 total; 12,390 passed; 48 platform skips; zero failures | 39m03s job |
-| Same CI / revision / runtime | macOS ARM64 / 18 | 12,438 total; 12,378 passed; 60 platform skips; zero failures | 28m54s job |
-| Same CI / revision / runtime | Windows x64 / 17 | 12,438 total; 12,410 passed; 28 platform skips; zero failures | 34m27s job |
-| Frozen cleanup-reporter / benchmark composition, runtime **ankus.4** | Windows x64 / 17.11 | 12,438 total; 12,410 passed; 28 platform skips; zero failures | 41m41.075s tests |
-| Frozen numeric-example composition / runtime **ankus.4** | Linux x64 / 18.6 | 12,422 total; 12,374 passed; 48 platform skips; zero failures | 39m51.287s tests; 40m18.80s command |
-| [CI 37265430538](https://github.com/willibrandon/ankus/actions/runs/37265430538), 708d93a / runtime **ankus.4** | Linux x64 / 18 | 12,389 total; 12,341 passed; 48 platform skips; zero failures | 38m24s job |
-| Same CI / revision / runtime | Windows x64 / 17 | 12,389 total; 12,361 passed; 28 platform skips; zero failures | 35m51s job |
-| Same CI / revision / runtime | macOS ARM64 / 18 | 12,389 total; 12,329 passed; 60 platform skips; zero failures | 29m41s job |
-| [CI 37261359905](https://github.com/willibrandon/ankus/actions/runs/37261359905), 73c83db / runtime **ankus.4** | Linux x64 / 18 | 12,377 total; 12,329 passed; 48 platform skips; zero failures | 38m18s job |
-| [CI 37261359905](https://github.com/willibrandon/ankus/actions/runs/37261359905), 73c83db / runtime **ankus.4** | Windows x64 / 17 | 12,377 total; 12,349 passed; 28 platform skips; zero failures | 35m19s job |
-| Same CI / revision / runtime | macOS ARM64 / 18 | 12,377 total; 12,317 passed; 60 platform skips; zero failures | 36m06s job |
-| Frozen borrowed-array signature/lifetime composition / runtime **ankus.4** | Linux x64 / 18.6 | 12,389 total; 12,341 passed; 48 platform skips; zero failures | 39m35.194s tests; 40m02.50s command |
-| [CI 37256732695](https://github.com/willibrandon/ankus/actions/runs/37256732695), 063011d / runtime **ankus.4** | Linux x64 / 18 | 12,289 total; 12,241 passed; 48 platform skips; zero failures | 38m04s job |
-| Same CI / revision / runtime | Windows x64 / 17 | 12,289 total; 12,261 passed; 28 platform skips; zero failures | 35m29s job |
-| Same CI / revision / runtime | macOS ARM64 / 18 | 12,289 total; 12,229 passed; 60 platform skips; zero failures | 28m05s job |
-| Frozen array/JSON composition / runtime **ankus.4** | Linux x64 / 18.6 | 12,377 total; 12,329 passed; 48 platform skips; zero failures | 39m48.005s tests; 40m15.68s command |
-| Frozen transaction-completion cleanup composition / runtime **ankus.4** | Linux x64 / 18.6 | 12,289 total; 12,241 passed; 48 platform skips; zero failures | 39m18.598s tests; 39m41.40s command |
-| Frozen remaining-reader composition / runtime **ankus.4** | Linux x64 / 18.6 | 12,260 total; 12,212 passed; 48 platform skips; zero failures | 39m21.681s tests; 39m44.06s command |
-| [CI 37244724738](https://github.com/willibrandon/ankus/actions/runs/37244724738), a04f6ed / runtime **ankus.4** | Linux x64 / 18 | 12,260 total; 12,212 passed; 48 platform skips; zero failures | 37m58s job |
-| Same CI / revision / runtime | Windows x64 / 17 | 12,260 total; 12,232 passed; 28 platform skips; zero failures | 36m27s job |
-| Same CI / revision / runtime | macOS ARM64 / 18 | 12,260 total; 12,200 passed; 60 platform skips; zero failures | 28m23s job |
-| [CI 37241377151](https://github.com/willibrandon/ankus/actions/runs/37241377151), dc48724 / runtime **ankus.4** | Linux x64 / 18 | 12,244 total; 12,196 passed; 48 platform skips; zero failures | 37m56s job |
-| Same CI / revision / runtime | Windows x64 / 17 | 12,244 total; 12,216 passed; 28 platform skips; zero failures | 34m39s job |
-| [CI 37241377151](https://github.com/willibrandon/ankus/actions/runs/37241377151), dc48724 / runtime **ankus.4** | macOS ARM64 / 18 | 12,244 total; 12,184 passed; 60 platform skips; zero failures | 28m58s job |
-| [CI 37236731631](https://github.com/willibrandon/ankus/actions/runs/37236731631), a78be2c / runtime **ankus.4** | Linux x64 / 18 | 12,078 total; 12,030 passed; 48 platform skips; zero failures | 37m58s job |
-| Same CI / revision / runtime | macOS ARM64 / 18 | 12,078 total; 12,018 passed; 60 platform skips; zero failures | 34m45s job |
-| Same CI / revision / runtime | Windows x64 / 17 | 12,078 total; 12,050 passed; 28 platform skips; zero failures | 35m30s job |
-| Frozen enum/serialization composition / runtime **ankus.4** | Linux x64 / 18.6 | 12,244 total; 12,196 passed; 48 platform skips; zero failures | 39m27.245s tests; 39m48.86s command |
-| Frozen referenced-identity/namespace composition / runtime **ankus.4** | Linux x64 / 18.6 | 12,078 total; 12,030 passed; 48 platform skips; zero failures | 39m27.651s tests; 39m50.14s command |
-| Frozen cold-editor/reload composition / runtime **ankus.4** | Linux x64 / 18.6 | 11,993 total; 11,945 passed; 48 platform skips; zero failures | 39m16.950s tests; 39m40.34s command |
-| [CI 37224209715](https://github.com/willibrandon/ankus/actions/runs/37224209715), bed79ab / runtime **ankus.4** | Linux x64 / 18 | 11,991 total; 11,943 passed; 48 platform skips; zero failures | 37m52s job |
-| Same CI / revision / runtime | macOS ARM64 / 18 | 11,991 total; 11,931 passed; 60 platform skips; zero failures | 28m08s job |
-| Same CI / revision / runtime | Windows x64 / 17 | 11,991 total; 11,963 passed; 28 platform skips; zero failures | 33m54s job |
-| Datum mapping diagnostic milestone / runtime **ankus.4** | Linux x64 / 18.6 | 11,927 total; 11,879 passed; 48 platform skips; zero failures | 42m37.991s tests; 44m55s command |
-| [CI 37218726638](https://github.com/willibrandon/ankus/actions/runs/37218726638), 4c9cc43 / runtime **ankus.4** | Linux x64 / 18 | 11,927 total; 11,879 passed; 48 platform skips; zero failures | 37m47s job |
-| Same CI / revision / runtime | macOS ARM64 / 18 | 11,927 total; 11,867 passed; 60 platform skips; zero failures | 28m21s job |
-| Same CI / revision / runtime | Windows x64 / 17 | 11,927 total; 11,899 passed; 28 platform skips; zero failures | 35m55s job |
-| [CI 37214601834](https://github.com/willibrandon/ankus/actions/runs/37214601834), a5690d4 / runtime **ankus.4** | Linux x64 / 18 | 11,906 total; 11,858 passed; 48 platform skips; zero failures | 37m56s job |
-| Same CI / revision / runtime | macOS ARM64 / 18 | 11,906 total; 11,846 passed; 60 platform skips; zero failures | 30m25s job |
-| Same CI / revision / runtime | Windows x64 / 17 | 11,906 total; 11,878 passed; 28 platform skips; zero failures | 40m18s job |
-| Frozen CLI/template/reporting-hook composition / runtime **ankus.4** | Linux x64 / 18.6 | 11,840 total; 11,792 passed; 48 platform skips; zero failures | 51m13.968s command |
-| Frozen generator-discovery composition / runtime **ankus.4** | Linux x64 / 18.6 | 11,830 total; 11,782 passed; 48 platform skips; zero failures | 50m29.932s command |
-| [CI 37174019108](https://github.com/willibrandon/ankus/actions/runs/37174019108), 811f8d0 / runtime **ankus.4** | macOS ARM64 / 18 | 11,830 total; 11,770 passed; 60 platform skips; zero failures | 26m56s job |
-| Same CI / revision / runtime | Linux x64 / 18 | 11,830 total; 11,782 passed; 48 platform skips; zero failures | 36m27s job |
-| Same CI / revision / runtime | Windows x64 / 17 | 11,830 total; 11,802 passed; 28 platform skips; zero failures | 33m59s job |
-| [CI 37169593738](https://github.com/willibrandon/ankus/actions/runs/37169593738), 596a8af / runtime **ankus.4** | Linux x64 / 18 | 11,816 total; 11,768 passed; 48 platform skips; zero failures | 36m32s job |
-| Same CI / revision / runtime | macOS ARM64 / 18 | 11,816 total; 11,756 passed; 60 platform skips; zero failures | 26m44s job |
-| Same CI / revision / runtime | Windows x64 / 17 | 11,816 total; 11,788 passed; 28 platform skips; zero failures | 33m14s job |
-| [CI 37149579835](https://github.com/willibrandon/ankus/actions/runs/37149579835), c24297f / runtime **ankus.4** | Linux x64 / 18 | 11,640 total; 11,623 passed; 17 platform skips; zero failures | 36m33s job |
-| Same CI / revision / runtime | macOS ARM64 / 18 | 11,640 total; 11,611 passed; 29 platform skips; zero failures | 26m54s job |
-| Same CI / revision / runtime | Windows x64 / 17 | 11,640 total; 11,615 passed; 25 platform skips; zero failures | 32m40s job |
-| [Version CI 37154140634](https://github.com/willibrandon/ankus/actions/runs/37154140634), c24297f / runtime **ankus.4** | Linux x64 / 13 | 11,640 total; 11,623 passed; 17 platform skips; zero failures | 38m20s job |
-| Same version CI / revision / runtime | Linux x64 / 14 | 11,640 total; 11,623 passed; 17 platform skips; zero failures | 39m15s job |
-| Same version CI / revision / runtime | Linux x64 / 15 | 11,640 total; 11,623 passed; 17 platform skips; zero failures | 39m10s job |
-| Same version CI / revision / runtime | Linux x64 / 16 | 11,640 total; 11,623 passed; 17 platform skips; zero failures | 39m29s job |
-| Same version CI / revision / runtime | Linux x64 / 17 | 11,640 total; 11,623 passed; 17 platform skips; zero failures | 40m01s job |
-| Same version CI / revision / runtime | Linux x64 / 19 beta 4 | 11,640 total; 11,623 passed; 17 platform skips; zero failures | 40m57s job |
-| Frozen 84-input diagnostic/cleanup/idle-interrupt composition / runtime **ankus.4** | Linux x64 / 18.6 | 11,689 total; 11,641 passed; 48 platform skips; zero failures | 57m20.886s command |
-| Same frozen composition / runtime | Windows x64 / 13.23 | 11,689 total; 11,662 passed; 27 platform skips; zero failures | 1h19m46.379s command |
-| Frozen 64-file pointer/diagnostic/fixture composition / runtime **ankus.4** | Linux x64 / 18.6 | 11,609 total; 11,592 passed; 17 platform skips; zero failures | 29m25.565s tests |
-| Same frozen composition / runtime | macOS ARM64 / 18.6 | 11,609 total; 11,580 passed; 29 platform skips; zero failures | 22m29.195s tests |
-| Same frozen composition / runtime | Windows x64 / 13.23 | 11,609 total; 11,584 passed; 25 platform skips; zero failures | 38m42.708s tests |
-| Frozen 66-file composition with ANKUS129 editor correction / runtime **ankus.4** | Linux x64 / 18.6 | 11,640 total; 11,623 passed; 17 platform skips; zero failures | 50m45.859s tests |
-| [CI 37145034638](https://github.com/willibrandon/ankus/actions/runs/37145034638), b9b7eb5 / runtime **ankus.4** | Linux x64 / 18 | 11,609 total; 11,592 passed; 17 platform skips; zero failures | 36m31s job |
-| Same CI / revision / runtime | macOS ARM64 / 18 | 11,609 total; 11,580 passed; 29 platform skips; zero failures | 26m35s job |
-| Same CI / revision / runtime | Windows x64 / 17 | 11,609 total; 11,584 passed; 25 platform skips; zero failures | 31m43s job |
-| [Version CI 37145038020](https://github.com/willibrandon/ankus/actions/runs/37145038020), b9b7eb5 / runtime **ankus.4** | macOS ARM64 / 16 | 11,609 total; 11,580 passed; 29 platform skips; zero failures | 26m32s job |
-| Same version CI / revision / runtime | Windows x64 / 13 | 11,609 total; 11,584 passed; 25 platform skips; zero failures | 33m51s job |
-| Same version CI / revision / runtime | macOS ARM64 / 15 | 11,609 total; 11,580 passed; 29 platform skips; zero failures | 26m17s job |
-| Same version CI / revision / runtime | Windows x64 / 18 | 11,609 total; 11,584 passed; 25 platform skips; zero failures | 31m46s job |
-| [Intel CI 37131051660](https://github.com/willibrandon/ankus/actions/runs/37131051660), 04f0a8a / runtime **ankus.4** | macOS x64 / 18.6 | 11,568 total; 11,541 passed; 27 platform skips; zero failures | 3h59m34s job |
-| [CI 37131029131](https://github.com/willibrandon/ankus/actions/runs/37131029131), 04f0a8a / runtime **ankus.4** | Linux x64 / 18 | 11,568 total; 11,553 passed; 15 platform skips; zero failures | 36m04s job |
-| Same CI / revision / runtime | macOS ARM64 / 18 | 11,568 total; 11,541 passed; 27 platform skips; zero failures | 26m50s job |
-| Same CI / revision / runtime | Windows x64 / 17 | 11,568 total; 11,543 passed; 25 platform skips; zero failures | 32m10s job |
-| [Version CI 37131055805](https://github.com/willibrandon/ankus/actions/runs/37131055805), 04f0a8a / runtime **ankus.4** | macOS ARM64 / 16 | 11,568 total; 11,541 passed; 27 platform skips; zero failures | 26m32s job |
-| Same version CI / revision / runtime | Windows x64 / 18 | 11,568 total; 11,543 passed; 25 platform skips; zero failures | 31m18s job |
-| Same version CI / revision / runtime | macOS ARM64 / 15 | 11,568 total; 11,541 passed; 27 platform skips; zero failures | 26m18s job |
-| [CI 37117515450](https://github.com/willibrandon/ankus/actions/runs/37117515450), 7f58d03 | Linux x64 / 18 | 11,528 total; 11,514 passed; 14 platform skips; zero failures | 36m09s job |
-| Same CI / revision | macOS ARM64 / 18 | 11,528 total; 11,502 passed; 26 platform skips; zero failures | 27m09s job |
-| Same CI / revision | Windows x64 / 17 | 11,528 total; 11,503 passed; 25 platform skips; zero failures | 32m02s job |
-| Current compatibility, array/editor and runtime/compiler **ankus.4** changes | macOS ARM64 / 15.19 | 11,568 total; 11,541 passed; 27 platform skips; zero failures | 25m20.803s tests |
-| Same source and runtime/compiler **ankus.4** changes | macOS ARM64 / 16.15 | 11,568 total; 11,541 passed; 27 platform skips; zero failures | 25m53.580s tests |
-| Same source and runtime/compiler **ankus.4** changes | Linux x64 / 18.6 | 11,568 total; 11,553 passed; 15 platform skips; zero failures | 48m57.583s tests |
-| Current compatibility and array/editor changes, runtime/compiler **ankus.3** | Windows x64 / 13.23 | 11,568 total; 11,543 passed; 25 platform skips; zero failures | 41m49.962s tests |
-| 3a06bd9 with editor correction and diagnostic help links | Linux x64 / 18.6 | 11,528 total; 11,514 passed; 14 platform skips; zero failures | 36m50.035s tests |
-| [Version CI 36988634319](https://github.com/willibrandon/ankus/actions/runs/36988634319), 99660ea | Linux x64 / each of 13–17 | 10,984 total per major; 10,970 passed; 14 platform skips; zero failures | 26m15s–27m28s jobs |
-| [Version CI 37016275325](https://github.com/willibrandon/ankus/actions/runs/37016275325), c3db5ed | Linux x64 / 19 beta 4 | 11,120 total; 11,106 passed; 14 platform skips; zero failures | 28m12s job |
+| Latest primary CI, **7dca056 / ankus.4** | Linux x64 / 18 | 12,561 total; 12,513 passed; 48 platform skips; zero failures | 39m19s job |
+| Same CI / revision / runtime | macOS ARM64 / 18 | 12,561 total; 12,501 passed; 60 platform skips; zero failures | 32m34s job |
+| Same CI / revision / runtime | Windows x64 / 17 | 12,561 total; 12,533 passed; 28 platform skips; zero failures | 34m58s job |
+| Frozen corrected SPI composition, runtime **ankus.4** | Windows x64 / 17.11 | 12,630 total; 12,602 passed; 28 platform skips; zero failures | 47m45.216s tests; 48m33.194s command |
+| Frozen raw transport / recovery composition, runtime **ankus.4** | Linux x64 / 18.6 | 12,561 total; 12,513 passed; 48 platform skips; zero failures | 41m19.728s tests |
+| Same frozen composition / runtime | Windows x64 / 17.11 | 12,561 total; 12,533 passed; 28 platform skips; zero failures | 47m38.639s tests; 48m23.936s command |
 
-All six TRX reports were independently checked for each current primary
-platform, including the **04f0a8a / ankus.4** CI run, and the editor composition.
-The latter also passes Release with zero
-warnings/errors (**3m04.15s**), API freshness (**238 pages / 2,757 members**),
-site build (**286 pages, 3.97s**) and site checks with zero diagnostics. Its
-50 source identities match the tested draft, validator and promoted source.
-The older major-version runs prove their named revisions; they do not establish
-current-source acceptance for every advertised combination.
+The corrected SPI composition verifies all six reports, sixty-seven native
+recovery partitions and **1,791** source inputs. Its exact source/report archive
+matches all **1,802** retained files. Release, API freshness, site build and site
+diagnostics pass without warnings or errors. Replacement primary-platform CI
+remains required.
+The earlier frozen composition verifies all twelve reports and **1,788** source inputs.
+Its Release build, API freshness and site checks pass. These results prove the
+named source and PostgreSQL/platform combinations, not the complete port.
 
-Earlier platform results, timings and failures remain in the
-[evidence archive](docs/contributing/evidence/port-history.md#progress-snapshot-before-editor-acceptance).
-[Docs 37114971196](https://github.com/willibrandon/ankus/actions/runs/37114971196)
-passes on 3a06bd9. The editor change is committed as **21d586f** and the version
-workflow as **7f58d03**. Replacement [CI 37117515450](https://github.com/willibrandon/ankus/actions/runs/37117515450)
-passes quality, all runtime jobs and all three complete suites. [Docs 37117515453](https://github.com/willibrandon/ankus/actions/runs/37117515453)
-passes.
+Additional-platform results below are older revisions. Refreshing them against
+the current source remains required, alongside the never-covered combinations.
+
+| Earlier complete evidence | Platform / PostgreSQL | Result | Duration |
+| --- | --- | --- | --- |
+| [Version CI 37154140634](https://github.com/willibrandon/ankus/actions/runs/37154140634), **c24297f / ankus.4** | Linux x64 / each of 13–17 and 19 beta 4 | 11,640 total per major; 11,623 passed; 17 platform skips; zero failures | 38m20s–40m57s jobs |
+| [Version CI 37145038020](https://github.com/willibrandon/ankus/actions/runs/37145038020), **b9b7eb5 / ankus.4** | macOS ARM64 / 15 and 16 | 11,609 total per major; 11,580 passed; 29 platform skips; zero failures | 26m17s / 26m32s jobs |
+| Same version CI / revision / runtime | Windows x64 / 13 and 18 | 11,609 total per major; 11,584 passed; 25 platform skips; zero failures | 33m51s / 31m46s jobs |
+| [Intel CI 37131051660](https://github.com/willibrandon/ankus/actions/runs/37131051660), **04f0a8a / ankus.4** | macOS x64 / 18.6 | 11,568 total; 11,541 passed; 27 platform skips; zero failures | 3h59m34s job |
+
+Earlier timings, outcomes, failed checks and superseded acceptance details remain
+in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-table-before-spi-flow-acceptance-2026-10-05).
 
 ## Active validation and work
 
-- Native recovery is committed as **b9eb9db**; [CI 37335229927](https://github.com/willibrandon/ankus/actions/runs/37335229927)
-  passes all primary suites, quality and runtime jobs; all eighteen actual
-  reports independently verify. [Docs 37335229895](https://github.com/willibrandon/ankus/actions/runs/37335229895)
-  passes. Successful value operations retain the lightweight guard; caught
-  native failures require real rollback. Current supported-version acceptance
-  remains required.
-- Metadata/editor fixes are committed as **a4a30e2**. Their complete Linux
-  x64/PostgreSQL **18.6** suite passes **12,540 total / 12,492 passed / 48
-  platform skips / zero failures**, with all reports, required native recovery
-  partitions and **1,786** frozen inputs independently verified. Release and
-  documentation checks pass. Replacement [CI 37343346227](https://github.com/willibrandon/ankus/actions/runs/37343346227)
-  passes quality, runtime, Linux and macOS jobs. Windows reported twenty startup
-  and crash-recovery timeouts. Its server logs
-  show twelve concurrent cleanup-recovery cases and substantial disk-sync
-  delays. [Docs 37343346223](https://github.com/willibrandon/ankus/actions/runs/37343346223) passes.
-- Recovery tests now wait for postmaster readiness after reinitialization
-  before reconnecting, preserving deadlines and durability assertions. All
-  **122** affected Windows/**17.11** cases pass. The complete Linux/**18.6**
-  suite passes **12,561 total / 12,513 passed / 48 platform skips / zero
-  failures** in **41m19.728s**. Complete Windows/**17.11** acceptance passes
-  **12,561 total / 12,533 passed / 28 platform skips / zero failures** in
-  **47m38.639s**. All twelve reports, required native recovery partitions
-  and **1,788** frozen inputs verify. Release, API freshness and site checks
-  pass. Replacement CI remains required.
-- Seventeen remaining arbitrary-address/handle compiler transport methods
-  now require explicit unsafe contexts. All **21** regression cases fail
-  against the unchanged baseline and pass with the correction; the complete
-  isolated generator and runtime suites pass **3,821** and **2,148** cases.
-  The promoted composition passes all **52** affected analyzer cases and
-  the complete Linux x64/PostgreSQL
-  **18.6** suite: **12,561 total / 12,513 passed / 48 platform skips / zero
-  failures**, **41m26.979s**. All six reports, required native recovery cases
-  and **1,787** frozen inputs independently verify. Replacement primary CI and
-  current supported-platform/version acceptance remain required.
-- SPI guidance now documents hot-standby restrictions on write-intent helpers;
-  this is source-derived guidance, not standby test evidence. Remaining work
-  includes full raw contract acceptance, meaningful code fixes, SPI interpolation
-  placement/dataflow, precise diagnostics, generator caching and source examples.
-  The complete PostgreSQL/platform, .NET servicing and release requirements remain
-  in scope.
-
-Detailed implementation, failures and corrections remain in the
-[evidence archive](docs/contributing/evidence/port-history.md).
+- **7dca056** fixes recovery-test reconnection before postmaster reinitialization
+  finishes. The original thirty-second deadline and durability assertions remain.
+  All **122** affected Windows/**17.11** cases and complete primary CI pass.
+  The prior [CI 37343346227](https://github.com/willibrandon/ankus/actions/runs/37343346227)
+  reported twenty Windows startup/crash-recovery timeouts; its other jobs and
+  [Docs 37343346223](https://github.com/willibrandon/ankus/actions/runs/37343346223)
+  passed. The failure and diagnosis remain recorded in the archive.
+- Seventeen remaining arbitrary-address/handle compiler transport methods require
+  unsafe contexts. All **21** regressions fail against the unchanged baseline and
+  pass with the correction; the accepted complete suites preserve native recovery.
+  Full source-contract and current supported-version acceptance remain required.
+- The accepted Windows SPI analyzer/shared-lexer composition follows reaching strings,
+  mutable builder/array aliases, local callbacks and exception cleanup, and checks
+  quoted fragments in PostgreSQL token contexts. All **3,890** generator cases,
+  **2,148** runtime cases and **150** focused cases pass; the unchanged analyzer
+  fails **33** of the same focused cases. Source documentation is prepared. The
+  corrected complete Windows x64/PostgreSQL **17.11** suite passes all **12,630**
+  executions with **28** platform skips and zero failures. The worker fixture now
+  binds its two process-ID commands, preserving its lifecycle assertions. All
+  source hashes match before and after; the exact accepted sources are promoted.
+  The rejected predecessor and focused correction remain in the archive.
+  Replacement primary-platform and supported-version acceptance remain required.
+- The bytea sample's owned gzip framing draft preserves empty input, first-member
+  boundaries, complete trailers and pgrx's decoder policy around the standard
+  DEFLATE codec. Its **32** direct cases pass, including independently framed
+  stored, fixed and dynamic blocks, malformed input and strict UTF-8. The complete
+  isolated runtime module passes **2,180** cases in **3.457s**, with independently
+  verified execution identities including corrupt header CRC. The actual
+  generator compiles both sample sources without warnings/errors. Eighteen
+  prepared backend cases compile with the actual PostgreSQL fixture sources;
+  the **1,799**-input candidate includes the normal project/test graph and
+  public guide. Normal analyzer, native SQL and complete platform acceptance
+  remain required. The sample is not promoted.
+- The strings sample's private Unicode **17.0** lowercase draft matches Rust
+  **1.97.1** for all **1,112,064** valid scalars and their final-sigma contexts.
+  Eight focused executions pass, including actual whole-string outputs, Turkish
+  culture and invalid UTF-16. Sample APIs, native execution and complete acceptance
+  remain required; the draft is not promoted.
+- SPI guidance documents hot-standby restrictions on write-intent helpers. This
+  is source-derived guidance, not standby test evidence. Precise diagnostics,
+  remaining code fixes, source-case mapping and samples remain open. The full
+  PostgreSQL/platform, .NET servicing and release requirements remain in scope.
 
 ## Remaining work order
 

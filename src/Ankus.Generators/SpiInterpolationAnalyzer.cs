@@ -9,7 +9,7 @@ namespace Ankus.Generators;
 /// Rejects interpolation that sends formatted values directly into raw PostgreSQL command text.
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
-public sealed class SpiInterpolationAnalyzer : DiagnosticAnalyzer
+public sealed partial class SpiInterpolationAnalyzer : DiagnosticAnalyzer
 {
     private static readonly DiagnosticDescriptor s_interpolatedSql = new(
         "ANKUS044", "SQL interpolation must bind parameters",
@@ -39,24 +39,57 @@ public sealed class SpiInterpolationAnalyzer : DiagnosticAnalyzer
                 return;
             }
 
-            start.RegisterOperationAction(operation =>
+            start.RegisterOperationBlockStartAction(block =>
             {
-                var invocation = (IInvocationOperation)operation.Operation;
-                INamedTypeSymbol type = invocation.TargetMethod.ContainingType;
-                if (!SymbolEqualityComparer.Default.Equals(type, spi) && !SymbolEqualityComparer.Default.Equals(type, session))
+                System.Collections.Concurrent.ConcurrentBag<IArgumentOperation> commands = new();
+                block.RegisterOperationAction(operation =>
                 {
-                    return;
-                }
-
-                foreach (IArgumentOperation argument in invocation.Arguments)
-                {
-                    if (argument.Parameter is { Name: "commandText", Type.SpecialType: SpecialType.System_String } &&
-                        !argument.Value.ConstantValue.HasValue && ContainsInterpolation(argument.Value, spi))
+                    var invocation = (IInvocationOperation)operation.Operation;
+                    if (!SymbolEqualityComparer.Default.Equals(invocation.TargetMethod.ContainingType, spi) &&
+                        !SymbolEqualityComparer.Default.Equals(invocation.TargetMethod.ContainingType, session))
                     {
-                        operation.ReportDiagnostic(Diagnostic.Create(s_interpolatedSql, argument.Value.Syntax.GetLocation()));
+                        return;
                     }
-                }
-            }, OperationKind.Invocation);
+
+                    foreach (IArgumentOperation argument in invocation.Arguments)
+                    {
+                        if (argument.Parameter is { Name: "commandText", Type.SpecialType: SpecialType.System_String })
+                        {
+                            commands.Add(argument);
+                        }
+                    }
+                }, OperationKind.Invocation);
+                block.RegisterOperationBlockEndAction(end =>
+                {
+                    if (commands.IsEmpty)
+                    {
+                        return;
+                    }
+
+                    Dictionary<(SyntaxTree Tree, Microsoft.CodeAnalysis.Text.TextSpan Span), bool> results = [];
+                    foreach (IOperation root in end.OperationBlocks)
+                    {
+                        var analysis = new SqlFlowAnalysis(spi, session,
+                            start.Compilation.GetSpecialType(SpecialType.System_String).ContainingAssembly, end.CancellationToken);
+                        foreach (KeyValuePair<(SyntaxTree Tree, Microsoft.CodeAnalysis.Text.TextSpan Span), bool> result in analysis.Analyze(end.GetControlFlowGraph(root)))
+                        {
+                            results[result.Key] = result.Value || results.TryGetValue(result.Key, out bool previous) && previous;
+                        }
+                    }
+
+                    HashSet<(SyntaxTree Tree, Microsoft.CodeAnalysis.Text.TextSpan Span)> reported = [];
+                    foreach (IArgumentOperation argument in commands)
+                    {
+                        (SyntaxTree Tree, Microsoft.CodeAnalysis.Text.TextSpan Span) key = (argument.Value.Syntax.SyntaxTree, argument.Value.Syntax.Span);
+                        bool error = results.TryGetValue(key, out bool found)
+                            ? found : ContainsInterpolation(argument.Value, spi);
+                        if (error && reported.Add(key))
+                        {
+                            end.ReportDiagnostic(Diagnostic.Create(s_interpolatedSql, argument.Value.Syntax.GetLocation()));
+                        }
+                    }
+                });
+            });
         });
     }
 

@@ -10,7 +10,7 @@ namespace Ankus.Generators.Tests;
 /// </summary>
 /// <param name="context">The test cancellation context.</param>
 [TestClass]
-public sealed class SpiInterpolationAnalyzerTests(TestContext context)
+public sealed partial class SpiInterpolationAnalyzerTests(TestContext context)
 {
     /// <summary>
     /// Every raw SQL entry point rejects a runtime value formatted directly into its command text.

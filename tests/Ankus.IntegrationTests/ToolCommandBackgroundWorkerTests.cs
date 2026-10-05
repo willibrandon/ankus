@@ -544,7 +544,7 @@ public sealed partial class ToolCommandTests
                             throw new InvalidOperationException("Worker state changed unexpectedly.");
                         }
 
-                        if (!Spi.ExecuteScalar<bool>("SELECT pg_cancel_backend(" + pid.ToString(CultureInfo.InvariantCulture) + ")"))
+                        if (!Spi.ExecuteScalar<bool>(Spi.Sql($"SELECT pg_cancel_backend({pid})")))
                         {
                             throw new InvalidOperationException("Worker interrupt could not be sent.");
                         }
@@ -559,7 +559,7 @@ public sealed partial class ToolCommandTests
 
                         for (int child = 1; child <= 2; child++)
                         {
-                            Spi.Execute("SELECT worker_send_child(" + pid.ToString(CultureInfo.InvariantCulture) + ")");
+                            Spi.Execute(Spi.Sql($"SELECT worker_send_child({pid})"));
                             WaitUntil(() => ChildSignals.Value == child);
                         }
 
