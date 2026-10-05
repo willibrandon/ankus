@@ -77,7 +77,7 @@ publication. Use `--pg` for a registered version from 13 through 19, or
 together, the path must match the requested major. These options override
 the `PG_VERSION` environment variable and project defaults.
 
-Without an explicit selection or `PG_VERSION`, project commands evaluate
+Without an explicit selection or an applicable `PG_VERSION`, project commands evaluate
 `AnkusPostgresMajor` and `AnkusPgConfigPath` with the selected configuration. `ankus test` also uses
 the project or `.sln`/`.slnx` selected by forwarded runner arguments. A test project
 without its own selection inherits one from its referenced extension projects.
@@ -306,14 +306,19 @@ override them. These defaults select which majors `init` registers. Later comman
 use the saved registrations and their ordinary PostgreSQL selectors. Invalid
 paths or mismatched versions fail before changing the registry.
 
-`PG_VERSION` selects the default major for commands that build an extension or
-use a PostgreSQL installation. Acceptable values are `13` through `19`, including
-labels such as `pg18`. Explicit command selectors and forwarded MSBuild properties
-take precedence; project defaults apply when the variable is absent or empty.
-An unavailable or invalid environment selection fails rather than selecting
-another version. `install --from` and `package --from` retain their publication's
-major unless you explicitly select another installation. `init` continues to use
-its individual `--pgNN` options and the defaults above.
+`PG_VERSION` selects the default major for `run`, `start`, `stop`, `status`,
+`connect`, `test`, `regress` and `bench`, matching cargo-pgrx. Acceptable values
+are `13` through `19`, including labels such as `pg18`. Explicit command selectors
+and forwarded MSBuild properties take precedence; project defaults apply when
+the variable is absent or empty. An unavailable or invalid selection fails
+rather than selecting another version.
+
+`build`, `publish`, `install`, `package`, `schema`, `get` and `info` use their
+ordinary explicit and project selections. They ignore `PG_VERSION`, including
+the full package version exported by PostgreSQL's Docker image. `install --from`
+and `package --from` retain their publication's major unless you explicitly
+select another installation. `init` continues to use its individual `--pgNN`
+options and the defaults above.
 
 These environment defaults apply to `ankus` commands. Ordinary `dotnet build`,
 `dotnet publish` and `dotnet test` use their project and MSBuild selections.

@@ -25929,3 +25929,104 @@ establish CLI or native sample acceptance. The lightweight-guard audit also find
 catalog access in common parameter/result conversion and temporal I/O, beyond
 the review's array/range cases. Its resource recovery remains unresolved and
 must be corrected before expanding performance claims.
+
+### Primary cleanup acceptance and CLI/JSON follow-up
+
+Replacement **CI 37286283685** and **Docs 37286283503** pass on **fd79e24**.
+All eighteen actual test reports independently verify zero failures and every
+named cleanup partition: Linux x64/PostgreSQL 18 has **12,438 total / 12,390
+passed / 48 skips**, **39m03s** job; macOS ARM64/PostgreSQL 18 has **12,438 /
+12,378 / 60**, **28m54s**; Windows x64/PostgreSQL 17 has **12,438 / 12,410 /
+28**, **34m27s**. The benchmark correction passes all **2,140** runtime cases,
+including the delayed-calibration reproduction. The accepted source/evidence
+archive remains separate from rejected earlier runs.
+
+The CLI correction reads **PG_VERSION** only for pgrx's eight server/test
+commands: run, start, stop, status, connect, test, regress and bench. Project
+build/publish/install/package/schema/get and information commands retain their
+selected project installation when Docker supplies a full server-version value.
+Regressions exercise actual commands, explicit precedence, unregistered and
+invalid versions, exact embedded schemas and staged native library bytes.
+
+The JSON sample uses an explicit stock encoder extension matching serde_json's
+compact escaping rather than accepting either .NET encoder's different global
+block list. Native tests compare exact emitted text, including HTML, noncharacters,
+supplementary Unicode and all PostgreSQL-valid text control characters. No
+serializer is patched and no external package is added. The standby guide
+documents the transaction-ID restriction on pgrx-style write-intent SPI helpers
+and the available read-only alternatives; it does not claim standby test evidence.
+
+The CLI/JSON composition passes **41/41** affected published Native AOT cases on
+two Linux x64/PostgreSQL **18.6** installations, **4m25.112s** and **4m54.017s**.
+All thirteen actual method partitions and source identities independently verify.
+Release has zero warnings/errors, **1m25.44s** and **1m59.32s**; API freshness
+verifies **244 pages / 2,791 members**; site build produces **293 pages** in
+**5.75s**, and site checking has zero diagnostics.
+
+Its plain complete local run is **rejected**: **12,449 total / 12,399 passed /
+48 skips / two failures**, **35m38.082s**. All six actual reports independently
+verify that only the COMMIT/PREPARE reporter cases fail. Exact logs show
+`Assert(CritSectionCount == 0)` during diagnostic-context creation. The guard
+entered a critical section before creating that context; PostgreSQL forbids
+this allocation there. This is a production allocation-order defect, not a
+permitted difference in client diagnostic delivery. The existing diagnostic,
+termination, recovery and durable-write assertions remain intact.
+
+The rejected source/reports and **164** selected native logs are retained in a
+**9,228,503-byte**, **1,936-file** archive; every ordinary file's length and
+SHA-256 independently match its original. The separately retained second
+installation's focused snapshot also verifies byte-for-byte before replacement.
+
+### Durable cleanup diagnostic allocation correction
+
+Owned reporter diagnostics are now prepared before entering the critical
+section. Diagnostic preparation has its own native error boundary. If context
+creation or copying fails after durable completion, the emergency PANIC uses
+PostgreSQL's reserved critical-section-safe ErrorContext. Ordinary abort keeps
+the existing nonrecursive warning recovery. The tests also reject assertion
+traps explicitly instead of accepting them as a terminal report.
+
+Four native fault cases inject diagnostic-context creation and copying failures
+after COMMIT and PREPARE. They require the exact out-of-memory SQLSTATE and
+emergency message, actual termination/restart and preserved durable writes.
+The fixture compiles the actual emitted memory bridge; bounded native wrappers
+inject allocation faults without introducing a production fault API or copied
+guard. All **14** preliminary native-only recovery partitions pass on an
+assertion-enabled PostgreSQL **18.6** installation; these prototypes are not
+complete-suite acceptance.
+
+All **76** affected native tests pass on two Linux x64/PostgreSQL **18.6**
+installations, **4m21.299s** and **5m09.041s**. Both reports independently
+verify all **24** method partitions and unique execution identities. The frozen
+composition contains **1,753** authored inputs; their hashes match before and
+after execution on the second installation. Local Release has zero warnings/errors
+in **45.98s**, and API freshness verifies **244 pages / 2,791 members**.
+The plain complete local suite passes **12,453 total / 12,405 passed / 48
+platform skips / zero failures**, **36m21.402s** tests. All six actual reports
+and all **17** named cleanup partitions independently verify. Integration has
+**4,819 total / 4,804 passed / 15 skips / zero failures**, **36m19.997s**.
+All **1,753** source inputs match after execution, and all **39** runtime payload
+files match the previously accepted immutable runtime manifest. Site checking
+has zero errors/warnings/hints; the site builds **293 pages** in **4.31s**.
+
+A **9,337,661-byte** archive retains **1,949** exact source/report/native-log
+files. Every ordinary file's length and SHA-256 independently match its original.
+Archive SHA-256 is `dadb1c81f06d57d95427b2f9eb97b589675015ce9503e3ef6ebcbde02ab04bbd`.
+The earlier failed complete run remains retained separately. Before the corrective
+commit, **CI 37286283685**, **Docs 37286283503**, **CI 37265430538**,
+**CI 37261359905** and **Docs 37261359962** pass. **CI 37269863172** retains
+the previously corrected Windows protocol assertion failure; its docs pass.
+No previous workflow is still running. Replacement primary CI remains required.
+The earlier seven-major header checks belong to the preceding composition and
+do not prove this new correction on PostgreSQL 13–17 or 19.
+
+Independent native ownership probes compare the exact current emitted lightweight
+guard with a proposed fail-closed correction. All **48** probes execute real
+catalog-reference acquisition across numeric, temporal, network, geometry,
+built-in range and array-cell requests, with cold/invalidation faults and actual
+cancellation. The existing guard marks OOM recovered and permits calls while a
+child-owned reference remains held. The proposed guard blocks further work;
+actual subtransaction rollback releases that reference while preserving caller
+pins, interrupt holdoffs and the failed-frame counter. This remains native-only
+research: managed propagation, parsing contracts and complete acceptance are
+required before promotion. It does not establish every type-cache failure path.

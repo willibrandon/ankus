@@ -264,32 +264,54 @@ internal static class NativeMemoryBridge
                 }
                 PG_CATCH();
                 {
-                    /* Post-commit/preparation ERROR cannot initiate another abort.
-                     * Abort cleanup has not crossed that irreversible boundary. */
-                    if (irreversible)
+                    /* Context creation and diagnostic copying must precede the critical
+                     * section: PostgreSQL forbids creating contexts there, and ordinary
+                     * contexts also reject allocations. ErrorContext is reserved for the
+                     * terminal report after all diagnostic ownership is established. */
+                    ErrorData *volatile failure = NULL;
+                    PG_TRY();
                     {
-                        START_CRIT_SECTION();
-                    }
+                        MemoryContextSwitchTo(recovery);
+                        diagnostic = AllocSetContextCreate(TopMemoryContext,
+                            "Ankus cleanup reporting failure", ALLOCSET_SMALL_SIZES);
+                        MemoryContextSwitchTo((MemoryContext) diagnostic);
+                        failure = ankus_copy_error_data();
+                        if (!irreversible)
+                        {
+                            reporter = palloc0(sizeof(AnkusError));
+                        }
 
-                    MemoryContextSwitchTo(recovery);
-                    diagnostic = AllocSetContextCreate(TopMemoryContext,
-                        "Ankus cleanup reporting failure", ALLOCSET_SMALL_SIZES);
-                    MemoryContextSwitchTo((MemoryContext) diagnostic);
-                    reporter = palloc0(sizeof(AnkusError));
-                    ErrorData *failure = ankus_copy_error_data();
-                    FlushErrorState();
+                        FlushErrorState();
+                    }
+                    PG_CATCH();
+                    {
+                        if (irreversible)
+                        {
+                            /* Failure to retain diagnostics cannot start an abort after
+                             * commit/preparation. The emergency report allocates only in
+                             * PostgreSQL's critical-section-safe ErrorContext. */
+                            int sqlstate = geterrcode();
+                            START_CRIT_SECTION();
+                            ereport(PANIC, (errcode(sqlstate),
+                                errmsg("Unable to retain cleanup reporting diagnostics after durable transaction completion")));
+                        }
+
+                        PG_RE_THROW();
+                    }
+                    PG_END_TRY();
                     if (irreversible)
                     {
-                        failure->elevel = PANIC;
-                        ThrowErrorData(failure);
+                        ((ErrorData *) failure)->elevel = PANIC;
+                        START_CRIT_SECTION();
+                        ThrowErrorData((ErrorData *) failure);
                     }
 
                     /* Transport the reporter's own diagnostic through the same owned
                      * warning boundary. An encoding failure therefore yields an ASCII
                      * conversion warning. A repeatedly failing reporter needs the
                      * nonrecursive native fallback below so abort can finish. */
-                    ankus_capture_error(failure, (AnkusError *) reporter);
-                    ankus_free_error_data(failure);
+                    ankus_capture_error((ErrorData *) failure, (AnkusError *) reporter);
+                    ankus_free_error_data((ErrorData *) failure);
                     PG_TRY();
                     {
                         ankus_report((AnkusError *) reporter, WARNING);

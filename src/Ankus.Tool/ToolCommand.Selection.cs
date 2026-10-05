@@ -92,7 +92,7 @@ internal static partial class ToolCommand
             }
             else
             {
-                major = EnvironmentMajor();
+                major = EnvironmentMajor(result);
                 if (major is null && await ProjectSelectionAsync(result, token, testProject, testConfiguration, testProperties, resolvedProject) is { } project)
                 {
                     major = project.Settings.PostgresMajor;
@@ -135,7 +135,7 @@ internal static partial class ToolCommand
             return (await PostgresInstallation.CreateAsync(path, token)).Version.Major;
         }
 
-        return EnvironmentMajor() ?? (await ProjectSelectionAsync(result, token, resolvedProject: resolvedProject))?.Settings.PostgresMajor ?? 18;
+        return EnvironmentMajor(result) ?? (await ProjectSelectionAsync(result, token, resolvedProject: resolvedProject))?.Settings.PostgresMajor ?? 18;
     }
 
     /// <summary>
@@ -172,11 +172,17 @@ internal static partial class ToolCommand
     }
 
     /// <summary>
-    /// Reads pgrx-compatible version selection only after explicit command and property overrides have been applied.
+    /// Reads pgrx-compatible version selection for the same server commands as cargo-pgrx.
     /// </summary>
+    /// <param name="result">The parsed command, after explicit command and property overrides.</param>
     /// <returns>The environment-selected major, or no selection when the variable is absent or empty.</returns>
-    private static int? EnvironmentMajor()
+    private static int? EnvironmentMajor(ParseResult result)
     {
+        if (result.CommandResult.Command.Name is not ("run" or "start" or "stop" or "status" or "connect" or "test" or "regress" or "bench"))
+        {
+            return null;
+        }
+
         string? value = Environment.GetEnvironmentVariable("PG_VERSION");
         if (string.IsNullOrEmpty(value))
         {

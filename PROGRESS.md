@@ -91,6 +91,10 @@ extensions. Counts supplement the backend, ownership and recovery assertions.
 
 | Source | Platform / PostgreSQL | Result | Duration |
 | --- | --- | --- | --- |
+| Frozen diagnostic-allocation / CLI / JSON composition, runtime **ankus.4** | Linux x64 / 18.6 | 12,453 total; 12,405 passed; 48 platform skips; zero failures | 36m21.402s tests |
+| [CI 37286283685](https://github.com/willibrandon/ankus/actions/runs/37286283685), fd79e24 / runtime **ankus.4** | Linux x64 / 18 | 12,438 total; 12,390 passed; 48 platform skips; zero failures | 39m03s job |
+| Same CI / revision / runtime | macOS ARM64 / 18 | 12,438 total; 12,378 passed; 60 platform skips; zero failures | 28m54s job |
+| Same CI / revision / runtime | Windows x64 / 17 | 12,438 total; 12,410 passed; 28 platform skips; zero failures | 34m27s job |
 | Frozen cleanup-reporter / benchmark composition, runtime **ankus.4** | Windows x64 / 17.11 | 12,438 total; 12,410 passed; 28 platform skips; zero failures | 41m41.075s tests |
 | Frozen numeric-example composition / runtime **ankus.4** | Linux x64 / 18.6 | 12,422 total; 12,374 passed; 48 platform skips; zero failures | 39m51.287s tests; 40m18.80s command |
 | [CI 37265430538](https://github.com/willibrandon/ankus/actions/runs/37265430538), 708d93a / runtime **ankus.4** | Linux x64 / 18 | 12,389 total; 12,341 passed; 48 platform skips; zero failures | 38m24s job |
@@ -195,62 +199,40 @@ passes.
 
 ## Active validation and work
 
-- **be004b3** ports all five numeric-example exports. The **33** native cases
-  and the plain complete Linux x64/PostgreSQL **18.6** suite pass: **12,422
-  total / 12,374 passed / 48 platform skips / zero failures**, **40m18.80s**
-  command. All six reports, **1,702** source inputs and **39** runtime files are
-  verified. All **1,723** archived source/evidence files match their originals
-  before completed output is removed. Release, API freshness and site checks
-  pass. [Docs 37269863241](https://github.com/willibrandon/ankus/actions/runs/37269863241)
-  passes. [CI 37269863172](https://github.com/willibrandon/ankus/actions/runs/37269863172)
-  passes quality, runtime, Linux and macOS. Windows exposes a terminal-cleanup
-  test assumption: PostgreSQL can send the original ERROR before cleanup's
-  PANIC. The corrected assertion requires both exact ordered server diagnostics,
-  process termination, crash recovery and rolled-back writes.
-- Previous [CI 37265430538](https://github.com/willibrandon/ankus/actions/runs/37265430538)
-  is green on **708d93a**, including all runtime/quality jobs and all three
-  complete platform suites. All six reports per platform are independently
-  verified; counts and durations appear above. The latest earlier docs run
-  passes on **73c83db**. These outcomes were checked before numeric commit/push.
-- The current review reproduces **PANIC during ordinary rollback** when a
-  native warning hook raises ERROR. It also confirms that cleanup manufactures
-  cancellation from any callback SQLSTATE **57014**. The production correction
-  now distinguishes abort from durable commit/preparation, preserves owned
-  reporter diagnostics, and avoids recursive reporting through a broken hook.
-  Fabricated cancellation stays a warning; actual native requests remain
-  pending. Linux **18.6** passes **326** affected native cases; its interrupted
-  full run supplies no complete acceptance, and lost remote-only focused reports
-  limit retained evidence. Exact C compatibility checks pass against **13–19**
-  headers. Detailed outcomes and limitations remain in the history archive.
-  Windows x64/PostgreSQL **17.11** passes all **31** cleanup-class cases.
-  Its corrected plain complete suite passes **12,438 total / 12,410 passed /
-  28 platform skips / zero failures**, **41m41.075s**. All six reports, every
-  named cleanup partition and **1,748** local/staged input identities verify.
-  The runtime payload matches accepted CI bytes. Release has zero warnings/errors
-  (**1m36.64s**); API freshness verifies **244 pages / 2,791 members**, and site
-  checks pass (**293** pages, **4.75s**). All **3,479** archived source/evidence
-  files match their originals. The rejected first complete run is retained
-  separately. Primary CI validation of the correction remains required.
-- Complete Windows validation exposed a benchmark timing bug.
-  A delayed pilot selected one iteration, followed by unresolved zero-duration
-  samples. Sampling now expands short batches while retaining actual counts and
-  durations. Author failures are never retried. All **16** focused cases pass on
-  Linux and Windows, the exact Windows reproduction passes **100** comparisons,
-  and the complete suite passes all **2,140** runtime cases.
-- Exact datum/range, enum, GUC and serializer metadata now preserve defining
-  module identity, complete blobs and strict UTF-8. Their generator/native
-  regressions and complete primary suites pass. The remaining review requires
-  a cached metadata owner index and proper malformed AssemblyRef diagnostics.
-- Array/JSON and borrowed-array source examples pass full primary-platform CI.
-  Mutable-borrow diagnostics and ten-thousand-string/top-five ownership cases
-  have exact regression evidence. The JSON sample still needs text-exact UTF-8
-  serialization matching pgrx; structural JSON equality does not establish it.
-- Other confirmed review work remains ordered after cleanup safety:
-  faithful **PG_VERSION** command scope; lightweight-guard resource ownership
-  in common value conversion and catalog misses; remaining raw transport unsafe
-  requirements; meaningful code fixes; SPI interpolation placement/dataflow; remaining dedicated
-  diagnostics, generator caching and source examples. Keep the complete
-  PostgreSQL/platform, .NET servicing and release requirements in scope.
+- **fd79e24** has complete primary-platform acceptance:
+  [CI 37286283685](https://github.com/willibrandon/ankus/actions/runs/37286283685)
+  and [Docs 37286283503](https://github.com/willibrandon/ankus/actions/runs/37286283503)
+  pass. All eighteen actual test reports are independently verified; platform
+  counts and timings appear above. Cleanup reporting distinguishes ordinary abort
+  from durable completion, and benchmark sampling retains real measured batches.
+- The next complete Linux run exposed a real cleanup-reporting defect:
+  diagnostic-context allocation occurred inside a critical section, violating
+  PostgreSQL's allocation contract. Diagnostics are now retained first; failures
+  to retain them after COMMIT or PREPARE report through reserved ErrorContext.
+  Four native fault cases preserve actual durable writes and crash recovery.
+  The rejected run's two failures and exact source/reports remain retained.
+- The same composition fixes **PG_VERSION** command scope and matches pgrx's
+  compact JSON escaping exactly. All **76** affected native cases pass on two
+  Linux x64/PostgreSQL **18.6** installations, including every CLI/JSON and cleanup
+  partition. The plain complete suite passes **12,453 total / 12,405 passed /
+  48 platform skips / zero failures**, **36m21.402s**. All six actual reports,
+  seventeen cleanup partitions and **1,753** source identities verify. Release,
+  API freshness and site checks pass; **1,949** archived source/evidence files
+  match their originals. Other platforms and majors remain unverified for this
+  composition; replacement CI is required.
+- The lightweight-guard audit confirms that catalog references survive temporary
+  context deletion. A proposed fail-closed correction passes **48** native
+  ownership probes across six operation families, cold/invalidation faults and
+  real cancellation. Successful calls retain the existing fast path. Managed
+  rollback, parsing contracts and complete-suite acceptance remain required
+  before promoting that correction.
+- SPI guidance now documents hot-standby restrictions on write-intent helpers;
+  this is source-derived guidance, not standby test evidence. Remaining work
+  includes the metadata owner index and malformed AssemblyRef diagnostics, raw
+  transport unsafe requirements, meaningful code fixes, SPI interpolation
+  placement/dataflow, precise diagnostics, generator caching and source examples.
+  The complete PostgreSQL/platform, .NET servicing and release requirements remain
+  in scope.
 
 Detailed implementation, failures and corrections remain in the
 [evidence archive](docs/contributing/evidence/port-history.md).

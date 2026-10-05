@@ -212,6 +212,10 @@ establish writable intent, including when their SQL is a `SELECT`. This matches
 pgrx's `run` and `get_one` helpers. Choose `Select` for transaction-aware reads;
 use an explicit `readOnly` overload when you need a fixed snapshot policy.
 
+Write-intent helpers fail on a hot standby even for a `SELECT`: PostgreSQL
+cannot assign a transaction ID during recovery. Use `Select`, `SelectRaw` or
+an available explicit `readOnly: true` overload for standby reads.
+
 ### Raw PostgreSQL values
 
 Use `SelectRaw` when a PostgreSQL type has no managed mapping:

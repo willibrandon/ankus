@@ -22,6 +22,8 @@ public sealed class JsonExampleTests(TestContext context)
     [DataRow("ARRAY[NULL,NULL,NULL]::text[]", "[null,null,null]")]
     [DataRow("ARRAY['']", "[\"\"]")]
     [DataRow("ARRAY['中文','😀',E'a\\nb','\"quoted\"']", "[\"中文\",\"😀\",\"a\\nb\",\"\\\"quoted\\\"\"]")]
+    [DataRow("ARRAY[$q$<>&/'\"\\$q$]", "[\"<>&/'\\\"\\\\\"]")]
+    [DataRow("ARRAY[U&'\\2028\\2029\\0085\\00A0\\FEFF\\FDD0\\FFFF']", "[\"\u2028\u2029\u0085\u00A0\uFEFF\uFDD0\uFFFF\"]")]
     [DataRow("ARRAY[ARRAY['left',NULL],ARRAY['right','last']]", "[\"left\",null,\"right\",\"last\"]")]
     [DataRow("'[0:1]={first,last}'::text[]", "[\"first\",\"last\"]")]
     public Task JsonTextSamplePreservesCells(string input, string expected)
@@ -31,6 +33,25 @@ public sealed class JsonExampleTests(TestContext context)
             string actual = await ScalarAsync<string>(connection, transaction,
                 $"SELECT json_example.text_array_to_json_doc({input})::text", token);
             AssertDocument(actual, expected);
+        }, context.CancellationToken);
+
+    /// <summary>
+    /// Preserves every PostgreSQL text control character with the upstream JSON escape spelling.
+    /// </summary>
+    [TestMethod]
+    public Task JsonTextSamplePreservesEveryControlEscape()
+        => PostgresFixture.Cluster.RunInTransactionAsync(nameof(JsonTextSamplePreservesEveryControlEscape), async (connection, transaction, token) =>
+        {
+            await InstallAsync(connection, transaction, token);
+            string actual = await ScalarAsync<string>(connection, transaction, """"
+                SELECT json_example.text_array_to_json_doc(ARRAY[
+                    (SELECT string_agg(chr(ordinal), '' ORDER BY ordinal) FROM generate_series(1,31) AS ordinal)])::text
+                """", token);
+            const string Expected = """"["\u0001\u0002\u0003\u0004\u0005\u0006\u0007\b\t\n\u000b\f\r\u000e\u000f\u0010\u0011\u0012\u0013\u0014\u0015\u0016\u0017\u0018\u0019\u001a\u001b\u001c\u001d\u001e\u001f"]"""";
+            AssertDocument(actual, Expected);
+            using JsonDocument parsed = JsonDocument.Parse(actual);
+            Assert.AreEqual(new string([.. Enumerable.Range(1, 31).Select(static value => (char)value)]),
+                AssertValues(parsed)[0].GetString());
         }, context.CancellationToken);
 
     /// <summary>
@@ -159,15 +180,15 @@ public sealed class JsonExampleTests(TestContext context)
     }
 
     /// <summary>
-    /// Compares the native result with an independent literal while permitting equivalent JSON escaping.
+    /// Compares the native JSON text with an independent literal, including exact escaping.
     /// </summary>
     /// <param name="actual">The returned native JSON document.</param>
     /// <param name="expected">The independently specified JSON values array.</param>
     private static void AssertDocument(string actual, string expected)
     {
         using JsonDocument document = JsonDocument.Parse(actual);
-        using JsonDocument expectedDocument = JsonDocument.Parse(expected);
-        Assert.IsTrue(JsonElement.DeepEquals(expectedDocument.RootElement, AssertValues(document)), actual);
+        AssertValues(document);
+        Assert.AreEqual("{\"values\":" + expected + "}", actual);
     }
 
     /// <summary>

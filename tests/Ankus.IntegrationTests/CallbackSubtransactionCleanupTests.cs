@@ -301,6 +301,21 @@ public sealed partial class CallbackSubtransactionCleanupTests(TestContext conte
             preparedTransaction: preparedTransaction);
 
     /// <summary>
+    /// Reporter allocation failures remain terminal after durable completion without invalid critical-section allocations.
+    /// </summary>
+    /// <param name="stage">One for context creation or two for diagnostic copying.</param>
+    /// <param name="preparedTransaction">Whether PostgreSQL prepares instead of committing the transaction.</param>
+    [TestMethod]
+    [DataRow(1, false)]
+    [DataRow(1, true)]
+    [DataRow(2, false)]
+    [DataRow(2, true)]
+    public Task CompletionReportingAllocationFailurePreservesDurableCompletion(int stage, bool preparedTransaction)
+        => AssertTerminalCleanupAsync(FormattableString.Invariant($"tests.completion_reporting_allocation_fault({stage})"), true,
+            "53200", "Unable to retain cleanup reporting diagnostics after durable transaction completion", null, null,
+            preparedTransaction: preparedTransaction);
+
+    /// <summary>
     /// Caught FATAL and PANIC reports remain terminal without running abort cleanup after a durable commit.
     /// </summary>
     /// <param name="level">The terminal logging level requested by the callback.</param>
@@ -342,7 +357,7 @@ public sealed partial class CallbackSubtransactionCleanupTests(TestContext conte
     /// <param name="setupStatement">Optional backend-local fixture setup before writes begin.</param>
     /// <param name="preparedTransaction">Whether the irreversible completion prepares the transaction.</param>
     private async Task AssertTerminalCleanupAsync(string preparation, bool failingReporter,
-        string sqlState, string message, string detail, string hint, string? abortQuery = null, string? setupStatement = null,
+        string sqlState, string message, string? detail, string? hint, string? abortQuery = null, string? setupStatement = null,
         bool preparedTransaction = false)
     {
         CancellationToken token = context.CancellationToken;
@@ -363,7 +378,7 @@ public sealed partial class CallbackSubtransactionCleanupTests(TestContext conte
         await using NpgsqlConnection observer = await cluster.OpenConnectionAsync(token);
         await using var setup = new NpgsqlCommand("CREATE SCHEMA datatype; CREATE EXTENSION ankus_test WITH SCHEMA datatype; " +
             "CREATE SCHEMA tests; CREATE TABLE callback_reporter_commit(value integer); " +
-            NativeRawCallFixtureCompiler.InstallationSql, observer);
+            NativeRawCallFixtureCompiler.InstallationSql + AllocatorFaultFixtureCompiler.CompletionReportingSql, observer);
         await setup.ExecuteNonQueryAsync(token);
         await using NpgsqlConnection connection = await cluster.OpenConnectionAsync(token);
         string marker = "callback-reporter-" + Guid.NewGuid().ToString("N");
@@ -446,8 +461,17 @@ public sealed partial class CallbackSubtransactionCleanupTests(TestContext conte
             Assert.IsLessThan(log.IndexOf(terminal, StringComparison.Ordinal), log.IndexOf(primary, StringComparison.Ordinal));
         }
 
-        Assert.Contains(detail, log);
-        Assert.Contains(hint, log);
+        if (detail is not null)
+        {
+            Assert.Contains(detail, log);
+        }
+
+        if (hint is not null)
+        {
+            Assert.Contains(hint, log);
+        }
+
+        Assert.DoesNotContain("TRAP: failed Assert", cluster.ReadServerLog());
         Assert.DoesNotContain("AbortTransaction while", log);
         Assert.DoesNotContain("it was already committed", log);
         NpgsqlConnection recovered;

@@ -40,7 +40,8 @@ orders.
 
 The [JSON sample](samples/Ankus.Examples.Json/) writes borrowed text and bytea
 arrays directly into JSON documents. SQL NULL cells become JSON null, and bytea
-cells become arrays of byte numbers.
+cells become arrays of byte numbers. Text retains pgrx's compact JSON escaping,
+including unescaped Unicode and HTML characters.
 
 The [numeric sample](samples/Ankus.Examples.Numeric/) demonstrates full-range
 arithmetic, PostgreSQL precision and scale, string parsing and exact signed

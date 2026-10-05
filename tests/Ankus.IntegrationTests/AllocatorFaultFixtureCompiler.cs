@@ -14,6 +14,14 @@ internal static class AllocatorFaultFixtureCompiler
     private static string ModuleFileName { get; } = AllocatorFixtureCompiler.GetModuleFileName("Ankus.AllocatorFaultFixture");
 
     /// <summary>
+    /// Gets the isolated-cluster declaration for completion reporter allocation failures.
+    /// </summary>
+    internal static string CompletionReportingSql { get; } = $$"""
+        CREATE FUNCTION tests.completion_reporting_allocation_fault(integer) RETURNS integer
+        AS '{{ModuleFileName}}', 'ankus_test_completion_reporting_allocation_fault' LANGUAGE c STRICT;
+        """;
+
+    /// <summary>
     /// Gets the declaration for the native registry failure probe.
     /// </summary>
     internal static string InstallationSql { get; } = $$"""
@@ -29,6 +37,7 @@ internal static class AllocatorFaultFixtureCompiler
         AS '{{ModuleFileName}}', 'ankus_test_list_fault' LANGUAGE c STRICT;
         CREATE FUNCTION tests.worker_allocation_fault(integer, text) RETURNS text
         AS '{{ModuleFileName}}', 'ankus_test_worker_allocation_fault' LANGUAGE c STRICT;
+        {{CompletionReportingSql}}
         """;
 
     /// <summary>
@@ -60,10 +69,12 @@ internal static class AllocatorFaultFixtureCompiler
         string probe = await File.ReadAllTextAsync(Path.Combine(fixtures, "allocator_fault_probe.c"), cancellationToken);
         string workerPrefix = await File.ReadAllTextAsync(Path.Combine(fixtures, "worker_fault_prefix.c"), cancellationToken);
         string workerProbe = await File.ReadAllTextAsync(Path.Combine(fixtures, "worker_fault_probe.c"), cancellationToken);
+        string completionPrefix = await File.ReadAllTextAsync(Path.Combine(fixtures, "completion_fault_prefix.c"), cancellationToken);
+        string completionProbe = await File.ReadAllTextAsync(Path.Combine(fixtures, "completion_fault_probe.c"), cancellationToken);
         // Memory callbacks retain terminal intent through their own memory capability, so its recovery entry point is required.
         // Workers and SQL must load the same compiled filename, including its explicit platform suffix.
-        string source = emitted[..preambleEnd] + emitted[diagnosticsStart..memoryStart] + prefix + workerPrefix +
-            emitted[memoryStart..memoryEnd] + probe + $"\n#define ANKUS_WORKER_FAULT_LIBRARY \"{ModuleFileName}\"\n" + workerProbe;
+        string source = emitted[..preambleEnd] + emitted[diagnosticsStart..memoryStart] + prefix + workerPrefix + completionPrefix +
+            emitted[memoryStart..memoryEnd] + probe + $"\n#define ANKUS_WORKER_FAULT_LIBRARY \"{ModuleFileName}\"\n" + workerProbe + completionProbe;
         string output = IntegrationEnvironment.NativeOutputDirectory;
         string sourcePath = Path.Combine(output, "allocator_fault_fixture.c");
         await File.WriteAllTextAsync(sourcePath, source, cancellationToken);

@@ -9,7 +9,7 @@ namespace Ankus.IntegrationTests;
 public sealed partial class ToolCommandTests
 {
     /// <summary>
-    /// An environment major overrides project defaults while retaining a read-only installation lookup.
+    /// An environment major overrides project defaults for a read-only server status lookup.
     /// </summary>
     /// <param name="prefix">Whether the environment uses a pgrx-style version label.</param>
     [TestMethod]
@@ -27,10 +27,10 @@ public sealed partial class ToolCommandTests
             .Save(Path.Combine(directory, "Selection.csproj"));
         Dictionary<string, string?> environment = EnvironmentDefaultsConfiguration(home);
         environment["PG_VERSION"] = (prefix ? "pg" : "") + MajorText();
-        ProcessResult result = await ProcessRunner.RunAsync(s_tool, ["info", "version"], environment, token, workingDirectory: directory);
+        ProcessResult result = await ProcessRunner.RunAsync(s_tool, ["status"], environment, token, workingDirectory: directory);
 
         Assert.AreEqual(0, result.ExitCode, result.StandardError);
-        Assert.AreEqual(s_installation.Version + Environment.NewLine, result.StandardOutput);
+        Assert.AreEqual(s_installation.Label + ": stopped" + Environment.NewLine, result.StandardOutput);
         Assert.IsEmpty(Directory.GetDirectories(directory, "obj", SearchOption.AllDirectories));
         Assert.IsEmpty(Directory.GetDirectories(directory, "bin", SearchOption.AllDirectories));
         Assert.HasCount(1, Directory.GetFileSystemEntries(home));
@@ -78,6 +78,7 @@ public sealed partial class ToolCommandTests
     [DataRow("18.6")]
     [DataRow("banana")]
     [DataRow("pg")]
+    [DataRow("18.6-1.pgdg13+1")]
     public async Task InvalidEnvironmentMajorPreservesRegistry(string value)
     {
         CancellationToken token = context.CancellationToken;
@@ -87,7 +88,7 @@ public sealed partial class ToolCommandTests
         string original = await File.ReadAllTextAsync(configuration, token);
         Dictionary<string, string?> environment = EnvironmentDefaultsConfiguration(home);
         environment["PG_VERSION"] = value;
-        ProcessResult result = await ProcessRunner.RunAsync(s_tool, ["info", "version"], environment, token, workingDirectory: s_root);
+        ProcessResult result = await ProcessRunner.RunAsync(s_tool, ["status"], environment, token, workingDirectory: s_root);
 
         Assert.AreEqual(1, result.ExitCode);
         Assert.IsEmpty(result.StandardOutput);
@@ -118,10 +119,12 @@ public sealed partial class ToolCommandTests
             "path" => ["--pg-config", s_installation.PgConfigPath],
             _ => throw new ArgumentException("Unknown selection.", nameof(selection)),
         };
-        ProcessResult result = await ProcessRunner.RunAsync(s_tool, ["info", "version", .. selected], environment, token, workingDirectory: s_root);
+        string[] command = selection == "argument" ? ["info", "version"] : ["status"];
+        ProcessResult result = await ProcessRunner.RunAsync(s_tool, [.. command, .. selected], environment, token, workingDirectory: s_root);
 
         Assert.AreEqual(0, result.ExitCode, result.StandardError);
-        Assert.AreEqual(s_installation.Version + Environment.NewLine, result.StandardOutput);
+        Assert.AreEqual((selection == "argument" ? s_installation.Version.ToString() : s_installation.Label + ": stopped") +
+            Environment.NewLine, result.StandardOutput);
     }
 
     /// <summary>
@@ -136,11 +139,120 @@ public sealed partial class ToolCommandTests
         Dictionary<string, string?> environment = EnvironmentDefaultsConfiguration(home);
         int major = DifferentMajor();
         environment["PG_VERSION"] = "pg" + major.ToString(CultureInfo.InvariantCulture);
-        ProcessResult result = await ProcessRunner.RunAsync(s_tool, ["info", "version"], environment, token, workingDirectory: s_root);
+        ProcessResult result = await ProcessRunner.RunAsync(s_tool, ["status"], environment, token, workingDirectory: s_root);
 
         Assert.AreEqual(1, result.ExitCode);
         Assert.IsEmpty(result.StandardOutput);
         Assert.Contains("PostgreSQL " + major.ToString(CultureInfo.InvariantCulture) + " is not registered", result.StandardError);
+        Assert.HasCount(1, Directory.GetFileSystemEntries(home));
+    }
+
+    /// <summary>
+    /// Information commands retain project selection even when Docker or another command supplies PG_VERSION.
+    /// </summary>
+    /// <param name="information">The scriptable installation value to read.</param>
+    /// <param name="dockerValue">Whether the environment holds Docker's full version rather than another valid major.</param>
+    [TestMethod]
+    [DataRow("version", false)]
+    [DataRow("version", true)]
+    [DataRow("path", false)]
+    [DataRow("path", true)]
+    [DataRow("pg-config", false)]
+    [DataRow("pg-config", true)]
+    public async Task InformationIgnoresServerVersionEnvironment(string information, bool dockerValue)
+    {
+        CancellationToken token = context.CancellationToken;
+        string directory = CreateDirectory();
+        string home = Path.Combine(directory, "home");
+        await RegisterEnvironmentInstallationAsync(home, token);
+        new XDocument(new XElement("Project", new XAttribute("Sdk", "Microsoft.NET.Sdk"),
+            new XElement("PropertyGroup", new XElement("TargetFramework", "net10.0"),
+                new XElement("UsingAnkusSdk", "true"), new XElement("AnkusPostgresMajor", MajorText()),
+                new XElement("AnkusPgConfigPath", s_installation.PgConfigPath))))
+            .Save(Path.Combine(directory, "Selection.csproj"));
+        string configuration = Path.Combine(home, "config.json");
+        string original = await File.ReadAllTextAsync(configuration, token);
+        Dictionary<string, string?> environment = EnvironmentDefaultsConfiguration(home);
+        environment["PG_VERSION"] = dockerValue ? "18.6-1.pgdg13+1" : "pg" + DifferentMajor().ToString(CultureInfo.InvariantCulture);
+        ProcessResult result = await ProcessRunner.RunAsync(s_tool, ["info", information], environment, token, workingDirectory: directory);
+
+        string expected = information switch
+        {
+            "version" => s_installation.Version.ToString(),
+            "path" => Path.GetDirectoryName(Path.GetDirectoryName(s_installation.PgConfigPath)!)!,
+            "pg-config" => s_installation.PgConfigPath,
+            _ => throw new ArgumentException("Unknown information command.", nameof(information)),
+        };
+        Assert.AreEqual(0, result.ExitCode, result.StandardError);
+        Assert.AreEqual(expected + Environment.NewLine, result.StandardOutput);
+        Assert.AreEqual(original, await File.ReadAllTextAsync(configuration, token));
+        Assert.HasCount(1, Directory.GetFileSystemEntries(home));
+        Assert.IsEmpty(Directory.GetDirectories(directory, "obj", SearchOption.AllDirectories));
+        Assert.IsEmpty(Directory.GetDirectories(directory, "bin", SearchOption.AllDirectories));
+    }
+
+    /// <summary>
+    /// Builds, publishes, extracts and stages a real project while Docker's full version is present.
+    /// </summary>
+    [TestMethod]
+    public async Task ProjectCommandsIgnoreDockerServerVersion()
+    {
+        CancellationToken token = context.CancellationToken;
+        string directory = CreateDirectory();
+        string home = Path.Combine(directory, "home");
+        await RegisterEnvironmentInstallationAsync(home, token);
+        string configuration = Path.Combine(home, "config.json");
+        string original = await File.ReadAllTextAsync(configuration, token);
+        string project = Path.Combine(directory, "Environment.csproj");
+        new XDocument(new XElement("Project", new XAttribute("Sdk", "Ankus.Sdk/" + s_version),
+            new XElement("PropertyGroup", new XElement("TargetFramework", "net10.0"),
+                new XElement("Nullable", "enable"), new XElement("ImplicitUsings", "enable"),
+                new XElement("AnkusExtensionName", "ankus_environment"), new XElement("AnkusExtensionVersion", "0.1.0"),
+                new XElement("AnkusPostgresMajor", MajorText()), new XElement("AnkusPgConfigPath", s_installation.PgConfigPath))))
+            .Save(project);
+        File.Copy(Path.Combine(Path.GetDirectoryName(s_project)!, "Hello.cs"), Path.Combine(directory, "Hello.cs"));
+        Dictionary<string, string?> environment = EnvironmentDefaultsConfiguration(home);
+        environment["PG_VERSION"] = "18.6-1.pgdg13+1";
+        string publication = Path.Combine(directory, "bin", "ankus", "pg" + MajorText(),
+            System.Runtime.InteropServices.RuntimeInformation.RuntimeIdentifier, "Release");
+        string stagedInstallation = Path.Combine(directory, "staged installation");
+        string stagedPackage = Path.Combine(directory, "staged package");
+        (string Name, string[] Arguments)[] commands =
+        [
+            ("build", ["build", "--project", project]),
+            ("publish", ["publish", "--project", project]),
+            ("schema", ["schema", "--project", project, "--skip-build"]),
+            ("get", ["get", "extname", "--project", project]),
+            ("install", ["install", "--project", project, "--destdir", stagedInstallation]),
+            ("package", ["package", "--project", project, "--output", stagedPackage, "--prefix-dir", "flat"]),
+        ];
+        foreach ((string name, string[] arguments) in commands)
+        {
+            ProcessResult result = await ProcessRunner.RunAsync(s_tool, arguments, environment, token, workingDirectory: directory);
+            Assert.AreEqual(0, result.ExitCode, name + ": " + result.StandardError);
+            PublishedExtension manifest = PublishedExtension.Read(publication);
+            Assert.AreEqual(s_installation.Version.Major, manifest.PostgresMajor, name);
+            Assert.AreEqual(System.Runtime.InteropServices.RuntimeInformation.RuntimeIdentifier, manifest.RuntimeIdentifier, name);
+            Assert.AreEqual("ankus_environment.control", manifest.Control, name);
+            ExtensionSchema schema = ExtensionSchema.Read(Path.Combine(publication, manifest.Library), manifest.RuntimeIdentifier);
+            Assert.AreEqual(s_installation.Version.Major, schema.Artifacts.PostgresMajor, name);
+            if (name == "schema")
+            {
+                Assert.AreEqual(schema.Sql, result.StandardOutput);
+            }
+            else if (name == "get")
+            {
+                Assert.AreEqual("ankus_environment" + Environment.NewLine, result.StandardOutput);
+            }
+        }
+
+        PublishedExtension published = PublishedExtension.Read(publication);
+        string installedLibrary = Path.Combine(StagedPath(stagedInstallation, s_installation.LibraryDirectory), published.Library);
+        string packagedLibrary = Path.Combine(stagedPackage, OperatingSystem.IsWindows() ? "lib" : "flat", published.Library);
+        byte[] source = await File.ReadAllBytesAsync(Path.Combine(publication, published.Library), token);
+        Assert.AreSequenceEqual(source, await File.ReadAllBytesAsync(installedLibrary, token));
+        Assert.AreSequenceEqual(source, await File.ReadAllBytesAsync(packagedLibrary, token));
+        Assert.AreEqual(original, await File.ReadAllTextAsync(configuration, token));
         Assert.HasCount(1, Directory.GetFileSystemEntries(home));
     }
 
