@@ -26065,3 +26065,70 @@ verify; all 1,753 source identities and 39 runtime/compiler files match. API
 freshness passes for 244 pages / 2,791 members; the site builds 293 pages in
 4.79s and its check reports zero diagnostics. Previous completed CI/docs outcomes
 are checked and recorded again before both commit and push.
+
+## Windows publication-copy replacement CI acceptance
+
+Replacement CI 37313742483 tests **ff7e07c** with runtime **10.0.12-ankus.4**.
+All primary platform suites, quality and runtime jobs pass. All eighteen actual
+reports independently verify: Linux x64/PostgreSQL 18 has 12,453 total, 12,405
+passed and 48 platform skips; macOS ARM64/18 has 12,393 passed and 60 skips;
+Windows x64/17 has 12,425 passed and 28 skips. Each has zero failures. Job durations
+are respectively 39m21s, 28m59s and 35m11s. Docs 37313742494 passes. This supersedes
+the outstanding replacement-CI requirement in the preceding entry.
+
+## Native value ownership correction under validation
+
+The lightweight guard incorrectly treated deletion of its temporary memory
+context as error recovery. Catalog misses can hold ResourceOwner references and
+native locks that memory-context deletion does not release. The candidate keeps
+successful operations lightweight, retains an unrecovered native error until
+actual rollback, and requests a real recovery subtransaction for deliberate
+TryParse and scalar JSON input where PostgreSQL permits it. Restricted callback
+and older parallel-worker phases retain the original native failure instead of
+claiming rollback occurred.
+
+Twelve repository regression rows exercise forty-eight real native resource
+partitions across six value families, cold and invalidated catalog entries,
+injected native OOM and actual PostgreSQL cancellation. They verify original
+diagnostics, failure blocking, actual lock and child-reference release, independent
+caller pins, caller writes and locks, and same-session recovery. The exact emitted
+bridge is compiled with the production Clang/MSVC toolchain; warning-as-error
+standards remain unchanged.
+
+The affected published-extension scope passes 71 actual cases on Linux
+x64/PostgreSQL 18.6 and 80 each on Linux x64/13 and Windows x64/17.11, with no
+skips. The complete Linux/18.6 integration module passes 4,866 cases with 15
+platform skips. The overall 12,523-case run is rejected: 12,474 pass, 48 skip and
+one cache-cancellation test fails, in 41m22.324s. Its exact frozen inputs and all
+six actual reports are retained; this is not complete acceptance.
+
+The cache waiter legitimately throws OperationCanceledException either from
+the explicit token check or its cancellable delay. Requiring exactly the delay's
+TaskCanceledException makes the test depend on scheduling. The corrected test
+covers cancellation before and during lock acquisition, verifies the exact token
+and canceled task state, and retains producer-count, reader protection and reuse
+assertions. All 30 cache cases pass with zero skips. Complete validation of the
+corrected composition remains in progress; production promotion and full
+primary-platform CI are still required.
+
+The corrected plain complete Linux x64/PostgreSQL 18.6 suite now passes
+**12,524 total / 12,476 passed / 48 platform skips / zero failures** in
+**41m15.595s**. All six actual reports, all forty direct/nested/recovering value
+cases, twelve native ownership rows, five callback cases, five parallel-worker
+cases, four network JSON cases and the successful no-subtransaction witness
+independently verify. All **1,784** frozen source and documentation identities
+match after execution. The immutable archive preserves **1,808** exact source
+and evidence files; every archived byte independently verifies before promotion.
+Prior main inputs are preserved, and only the seventy-three changed/new candidate
+files are promoted. Runtime/compiler packages remain at **10.0.12-ankus.4**.
+This supersedes the preceding pending local-validation state; full
+primary-platform CI remains required for the correction.
+
+The promoted composition passes Release with zero warnings/errors in **1m29.77s**,
+API freshness for **244 pages / 2,791 members**, and the site build for **293
+pages** in **4.59s**. Site checks report zero errors, warnings and hints. All
+**1,784** accepted source/documentation identities still match after these
+checks. Immediately before commit, CI **37313742483** and Docs **37313742494**
+pass at **ff7e07c**; CI **37302379250** retains the earlier Windows publication-copy
+failure corrected by that revision. Earlier CI **37286283685** and its Docs
+**37286283503** pass. No previous workflow is still running.

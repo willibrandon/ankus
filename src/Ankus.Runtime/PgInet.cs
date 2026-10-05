@@ -160,6 +160,10 @@ public readonly record struct PgInet : IComparable<PgInet>
     /// <param name="text">The address text.</param>
     /// <param name="value">The parsed address, or default.</param>
     /// <returns>Whether the input is valid.</returns>
+    /// <remarks>
+    /// Invalid input returns false only after actual rollback. Transaction callbacks and parallel operations
+    /// before PostgreSQL 17 forbid independent rollback; native errors there remain pending and throw PgException.
+    /// </remarks>
     public static bool TryParse(string? text, out PgInet value) => PgNetwork.TryParse(text, out value);
 
     /// <summary>

@@ -76,8 +76,10 @@ PgPath path = PgPath.Parse("[(1,2),(3,4)]");
 ```
 
 `TryParse` returns false for malformed input and coordinate range errors.
-Backend-access and operational errors propagate. `ToString()` uses invariant
-coordinate formatting and works on detached values.
+Backend-access and operational errors propagate. `TryParse` recovers its input
+operation before returning false. Catch other native input errors outside
+`PgTransaction.RunInSubtransaction` before continuing with backend work.
+`ToString()` uses invariant coordinate formatting and works on detached values.
 
 `PgLine` and `PgCircle` constructors retain the supplied coefficients and radius.
 PostgreSQL validates them when converting to SQL: near-zero `A` and `B`
@@ -89,6 +91,10 @@ Empty paths and polygons can be constructed and exchanged, matching pgrx's owned
 geometries. An empty polygon has a zero bounding box. PostgreSQL's text parser
 requires at least one point, so empty collection formatting is not a text-input
 round trip.
+
+In transaction callbacks and parallel operations before PostgreSQL 17, native
+input errors must propagate because independent rollback is unavailable. See
+[error recovery](/reference/execution/#errors).
 
 ## Arrays and SPI
 

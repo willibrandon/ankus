@@ -22,10 +22,10 @@ internal static class PgNetwork
 
         try
         {
-            value = NativeBackend.Network<T>([PgTemporal.Text(text)]);
+            value = NativeInputRecovery.Run(() => NativeBackend.Network<T>([PgTemporal.Text(text)]));
             return true;
         }
-        catch (PgException error) when (error.SqlState == "22P02")
+        catch (PgException error) when ((error.NativeFlags & NativeErrorFlags.Unrecovered) == 0 && (error.SqlState == "22P02"))
         {
             return false;
         }

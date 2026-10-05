@@ -169,12 +169,20 @@ SPI calls use internal subtransactions. A failed call rolls back its work before
 throwing `PgException`, allowing your function to catch it and continue. Successful
 calls remain part of the caller's transaction.
 
-Raw and memory calls preserve PostgreSQL's resource rules. A native error
+Raw, memory and direct value calls preserve PostgreSQL's resource rules. A native error
 outside a recoverable subtransaction remains pending even if managed code
 catches its exception. Ankus blocks further backend work and raises the original
 error when managed cleanup has unwound. Use
 [`PgTransaction.RunInSubtransaction`](/transaction-callbacks/#recoverable-work)
-for operations that need rollback and recovery.
+for operations that need rollback and recovery. `TryParse` helpers perform
+that rollback internally before returning false for invalid input. Native scalar
+JSON converters also roll back input errors before wrapping them in `JsonException`.
+
+PostgreSQL forbids independent rollback inside transaction callbacks and parallel
+operations before version 17. Valid input remains usable when the invocation phase
+permits backend value calls. Native invalid-input errors propagate as `PgException`
+and remain pending until PostgreSQL aborts. `TryParse` cannot return false for an unrecovered native error,
+and a JSON converter cannot turn it into a catchable `JsonException`.
 
 Query cancellation, `Fatal` and `Panic` remain pending across managed catches
 and subtransaction rollback. Handle them for cleanup, without treating the

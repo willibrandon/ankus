@@ -117,11 +117,14 @@ internal static class GuardedBackend
             bool function_context = request->operation == ANKUS_SPI_FUNCTION_CONTEXT;
             bool function_call = request->operation == ANKUS_SPI_FUNCTION_CALL;
             bool subtransaction = request->operation == ANKUS_SPI_SUBTRANSACTION;
-            /* These allowlisted operations only compute values in a disposable memory
-             * context. They do not run SQL, retain resources, or invoke user-defined
-             * code, so PG_TRY plus context deletion is a complete recovery boundary. */
-            bool lightweight = numeric || temporal || network || geometry || (range && ankus_uses_builtin_range(request)) ||
-                (datum && request->scalar_operation == 6);
+            /* Successful built-in operations avoid a per-call subtransaction. Catalog
+             * lookup and value conversion can still acquire transaction resources;
+             * a caught ERROR requires real rollback before further backend work. */
+            bool input_recovery = request->recover_input && request->scalar_operation == 0 &&
+                (numeric || temporal || network || geometry || (range && ankus_uses_builtin_range(request))) &&
+                !direct_spi && transaction_frame == NULL;
+            bool lightweight = !input_recovery && (numeric || temporal || network || geometry ||
+                (range && ankus_uses_builtin_range(request)) || (datum && request->scalar_operation == 6));
             bool direct = quote || reporting || temporal || numeric || network || geometry || range || enumeration || tuple ||
                 transaction_callbacks || transaction_id || datum || function_context || function_call || custom_type || datum_type || array || lookup || relation || subtransaction;
             bool recovery_subtransaction = !direct_spi && !lightweight;
@@ -481,7 +484,7 @@ internal static class GuardedBackend
                     MemoryContextSwitchTo(diagnostic_context);
                     data = ankus_copy_error_data();
                     FlushErrorState();
-                    bool recovered = lightweight;
+                    bool recovered = false;
                     while (GetCurrentTransactionNestLevel() > caller_nest_level)
                     {
                         RollbackAndReleaseCurrentSubTransaction();

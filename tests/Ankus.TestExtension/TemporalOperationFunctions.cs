@@ -92,7 +92,7 @@ public static class TemporalOperationFunctions
             bool source = false;
             try
             {
-                TemporalOperation(type, operation, left, right);
+                PgTransaction.RunInSubtransaction(() => TemporalOperation(type, operation, left, right));
             }
             catch (PgException error)
             {
@@ -140,7 +140,7 @@ public static class TemporalOperationFunctions
                 instant.Add(new PgInterval(0, 1, index)).ToIsoString();
                 try
                 {
-                    PgInterval.Parse("1 day").Divide(0);
+                    PgTransaction.RunInSubtransaction(() => PgInterval.Parse("1 day").Divide(0));
                 }
                 catch (PgException error) when (error.SqlState == "22012")
                 {

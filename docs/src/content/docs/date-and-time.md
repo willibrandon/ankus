@@ -196,7 +196,12 @@ public static PgDate? ReadDate(string text)
 Parsing accepts PostgreSQL input syntax, including special values. `DateStyle`
 controls ambiguous date input and date/timestamp output. `IntervalStyle` controls
 interval output. `TryParse` returns `false` and a default out value for invalid
-input; backend-access and operational errors still throw.
+input after rolling back its input operation; backend-access and operational
+errors still throw.
+
+In transaction callbacks and parallel operations before PostgreSQL 17, native
+input errors must propagate because independent rollback is unavailable. See
+[error recovery](/reference/execution/#errors).
 
 Dates, times, and timestamps also expose `ToIsoString`, using PostgreSQL's ISO JSON
 representation independently of `DateStyle`. A `PgTimestampTz` is formatted in the
@@ -302,8 +307,9 @@ modifiers. Rounding can reach 24:00 or carry into the next day. A timestamp that
 rounds outside the finite range raises a `PgException` range error.
 
 Server parsing, formatting, arithmetic, extraction, and timezone methods require
-the active backend thread inside an Ankus callback. Their native errors become
-catchable `PgException` instances. Stored-value access, exact .NET conversions,
+the active backend thread inside an Ankus callback. To catch a native error
+and continue with backend work, catch outside `PgTransaction.RunInSubtransaction`.
+Stored-value access, exact .NET conversions,
 and date/time/timestamp comparisons also work outside PostgreSQL. `CompareTo` and
 relational operators preserve infinities and the distinct 24:00 time value.
 

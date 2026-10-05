@@ -81,10 +81,10 @@ public sealed partial class PgFunctionGeneratorTests
     }
 
     /// <summary>
-    /// Pure built-in value operations recover through a disposable context without opening an internal subtransaction.
+    /// Built-in value operations avoid subtransactions on success and require actual rollback after native ERROR.
     /// </summary>
     [TestMethod]
-    public void PureValueOperationsUseLightweightRecovery()
+    public void ValueOperationsRequireActualErrorRecovery()
     {
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(
             "public static class Functions { [Ankus.PgFunction] public static decimal Value(decimal value) => value + 1; }");
@@ -94,10 +94,10 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.Contains("type == INT4RANGEOID || type == INT8RANGEOID || type == NUMRANGEOID", native);
         Assert.Contains("request->parameter_count > 0 && request->parameters != NULL", native);
         Assert.Contains("ankus_is_builtin_range(request->parameters[0].type_oid)", native);
-        Assert.Contains("bool lightweight = numeric || temporal || network || geometry || (range && ankus_uses_builtin_range(request)) ||", native);
-        Assert.Contains("(datum && request->scalar_operation == 6);", native);
+        Assert.Contains("bool lightweight = !input_recovery && (numeric || temporal || network || geometry ||", native);
+        Assert.Contains("(datum && request->scalar_operation == 6));", native);
         Assert.Contains("bool recovery_subtransaction = !direct_spi && !lightweight;", native);
-        Assert.Contains("bool recovered = lightweight;", native);
+        Assert.Contains("bool recovered = false;", native);
         Assert.Contains("if (lightweight && operation_context != NULL)", native);
         Assert.Contains("MemoryContextDelete((MemoryContext) operation_context);", native);
     }

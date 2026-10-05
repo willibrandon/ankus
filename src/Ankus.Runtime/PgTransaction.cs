@@ -11,7 +11,7 @@ public static class PgTransaction
     /// <param name="action">The work to run on the active backend thread.</param>
     /// <remarks>
     /// Catch failures outside this callback, after native resources have been recovered.
-    /// An unrecovered raw native or memory error prevents further backend work in this scope, even if caught.
+    /// An unrecovered native error, including a value-operation error, prevents further backend work in this scope, even if caught.
     /// Success retains changes in the enclosing transaction; it does not commit that transaction.
     /// The callback must not perform transaction control or asynchronous work. This operation
     /// is unavailable during transaction callbacks and abort cleanup. Internal guard
@@ -34,8 +34,8 @@ public static class PgTransaction
     /// <param name="action">The synchronous work to run on the active backend thread.</param>
     /// <returns>The result after the subtransaction succeeds.</returns>
     /// <remarks>
-    /// Failures roll back this scope before propagating to the caller. Catch raw native and memory errors
-    /// outside the callback; catching one inside cannot turn a failed scope into a successful one.
+    /// Failures roll back this scope before propagating to the caller. Catch native errors outside the callback;
+    /// catching one inside cannot turn a failed scope into a successful one.
     /// Nested scopes may recover independently. Native results retain PostgreSQL's memory-context
     /// lifetimes; rollback invalidates allocations and resources owned by the aborted scope.
     /// Cleanup aggregates that contain the original native failure retain all their causes after rollback.

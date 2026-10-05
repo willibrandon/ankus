@@ -39,9 +39,10 @@ internal static class PgScalarJson
 
         try
         {
-            return parse(text);
+            return NativeInputRecovery.Run(() => parse(text));
         }
-        catch (PgException error) when (error.SqlState is "22P02" or "22003" or "22007" or "22008" or "22009" or "22015" or "22023")
+        catch (PgException error) when ((error.NativeFlags & NativeErrorFlags.Unrecovered) == 0 &&
+            error.SqlState is "22P02" or "22003" or "22007" or "22008" or "22009" or "22015" or "22023")
         {
             throw new JsonException("Invalid PostgreSQL value.", error);
         }

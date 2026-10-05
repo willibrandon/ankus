@@ -130,7 +130,7 @@ public static class NetworkFunctions
                     invalid++;
                 }
 
-                _ = PgInet.Parse("::1/129");
+                _ = PgTransaction.RunInSubtransaction(() => PgInet.Parse("::1/129"));
             }
             catch (PgException error) when (error.SqlState == "22P02")
             {

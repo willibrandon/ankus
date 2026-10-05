@@ -20,6 +20,10 @@ public readonly record struct PgLineSegment(PgPoint Start, PgPoint End)
     /// <param name="text">The segment text.</param>
     /// <param name="value">The result, or default.</param>
     /// <returns>Whether parsing succeeded.</returns>
+    /// <remarks>
+    /// Invalid input returns false only after actual rollback. Transaction callbacks and parallel operations
+    /// before PostgreSQL 17 forbid independent rollback; native errors there remain pending and throw PgException.
+    /// </remarks>
     public static bool TryParse(string? text, out PgLineSegment value) => PgGeometry.TryParse(text, out value);
 
     /// <summary>

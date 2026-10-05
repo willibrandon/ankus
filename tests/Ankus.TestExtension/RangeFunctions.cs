@@ -238,7 +238,7 @@ public static class RangeFunctions
 
             try
             {
-                _ = PgRange.Create(1, 2).Union(PgRange.Create(4, 5));
+                _ = PgTransaction.RunInSubtransaction(() => PgRange.Create(1, 2).Union(PgRange.Create(4, 5)));
             }
             catch (PgException error) when (error.SqlState == "22000")
             {

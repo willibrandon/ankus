@@ -34,10 +34,11 @@ internal static class PgGeometry
 
         try
         {
-            value = Parse<T>(text) ?? throw new InvalidOperationException("PostgreSQL geometry input returned NULL.");
+            value = NativeInputRecovery.Run(() => Parse<T>(text)) ??
+                throw new InvalidOperationException("PostgreSQL geometry input returned NULL.");
             return true;
         }
-        catch (PgException error) when (error.SqlState is "22P02" or "22003")
+        catch (PgException error) when ((error.NativeFlags & NativeErrorFlags.Unrecovered) == 0 && (error.SqlState is "22P02" or "22003"))
         {
             return false;
         }

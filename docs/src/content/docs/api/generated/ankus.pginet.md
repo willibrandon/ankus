@@ -286,6 +286,9 @@ Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
 
 Whether the input is valid.
 
+Invalid input returns false only after actual rollback. Transaction callbacks and parallel operations
+before PostgreSQL 17 forbid independent rollback; native errors there remain pending and throw PgException.
+
 <a id="member-48446c89a236aec8"></a>
 
 ### WithPrefixLength(int)

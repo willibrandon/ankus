@@ -55,8 +55,13 @@ PgCidr network = PgCidr.Parse("10"); // 10.0.0.0/8
 ```
 
 `TryParse` returns false for invalid input. Backend-access and operational errors
-still propagate. PostgreSQL errors cross the guarded native boundary before
-managed code handles them.
+still propagate. `TryParse` rolls back its input operation before returning false.
+To catch a `Parse` or native arithmetic error and continue, run the operation in
+`PgTransaction.RunInSubtransaction` and catch outside that callback.
+
+In transaction callbacks and parallel operations before PostgreSQL 17, native
+input errors must propagate because independent rollback is unavailable. See
+[error recovery](/reference/execution/#errors).
 
 `ToString()` works outside PostgreSQL and produces round-trippable address text.
 An `inet` full-width prefix is omitted; a `cidr` prefix is always included.

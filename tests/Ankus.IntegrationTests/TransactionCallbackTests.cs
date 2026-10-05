@@ -123,7 +123,7 @@ public sealed class TransactionCallbackTests(TestContext context)
     }
 
     /// <summary>
-    /// Pure built-in value operations use native error recovery without opening hidden PostgreSQL subtransactions.
+    /// Successful value calls avoid per-call subtransactions, while explicit rollback permits recovery from native errors.
     /// </summary>
     [TestMethod]
     public async Task PureValueOperationsDoNotCreateGuardSubtransactions()
@@ -137,6 +137,8 @@ public sealed class TransactionCallbackTests(TestContext context)
 
         Assert.AreEqual("3", await ScalarAsync<string>(connection, transaction,
             "SELECT datatype.numeric_apply('add', 1, 2, 0, 0)::text", token));
+        Assert.AreEqual("|null,null,null,null,null,null,True,True,True,True",
+            await StateAsync(connection, transaction, token));
         Assert.AreEqual("22012:3", await ScalarAsync<string>(connection, transaction,
             "SELECT datatype.transaction_callback_recover_pure_value_error()", token));
         Assert.AreEqual("|null,null,null,null,null,null,True,True,True,True",

@@ -165,4 +165,9 @@ internal unsafe struct NativeSpiRequest
     /// Borrows an array cursor only after validating its bookkeeping context and the array's lifetime.
     /// </summary>
     internal nint _arrayIterator;
+
+    /// <summary>
+    /// Requests actual input-error rollback where PostgreSQL permits subtransactions.
+    /// </summary>
+    internal byte _recoverInput;
 }

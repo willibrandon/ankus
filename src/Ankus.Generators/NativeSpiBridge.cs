@@ -93,6 +93,7 @@ internal static class NativeSpiBridge
             PGFunction native_function;
             intptr_t callback_state;
             void *array_iterator;
+            bool recover_input;
         } AnkusRequest;
 
         typedef struct AnkusColumn

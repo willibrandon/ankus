@@ -73,6 +73,10 @@ public sealed class PgPolygon : IReadOnlyList<PgPoint>
     /// <param name="text">The polygon text.</param>
     /// <param name="value">The result, or null.</param>
     /// <returns>Whether parsing succeeded.</returns>
+    /// <remarks>
+    /// Invalid input returns false only after actual rollback. Transaction callbacks and parallel operations
+    /// before PostgreSQL 17 forbid independent rollback; native errors there remain pending and throw PgException.
+    /// </remarks>
     public static bool TryParse(string? text, [NotNullWhen(true)] out PgPolygon? value) => PgGeometry.TryParse(text, out value);
 
     /// <summary>

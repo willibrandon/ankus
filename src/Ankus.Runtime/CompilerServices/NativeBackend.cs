@@ -819,6 +819,7 @@ public static unsafe partial class NativeBackend
             request->_cleanupOnly = 1;
         }
 
+        request->_recoverInput = NativeInputRecovery.IsActive ? (byte)1 : (byte)0;
         var execute = (delegate* unmanaged[Cdecl]<NativeSpiRequest*, NativeSpiResult*, NativeCallError*, int>)s_execute;
         NativeCallError error = default;
         try

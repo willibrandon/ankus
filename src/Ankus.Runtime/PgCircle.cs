@@ -21,6 +21,10 @@ public readonly record struct PgCircle(PgPoint Center, double Radius)
     /// <param name="text">The circle text.</param>
     /// <param name="value">The result, or default.</param>
     /// <returns>Whether parsing succeeded.</returns>
+    /// <remarks>
+    /// Invalid input returns false only after actual rollback. Transaction callbacks and parallel operations
+    /// before PostgreSQL 17 forbid independent rollback; native errors there remain pending and throw PgException.
+    /// </remarks>
     public static bool TryParse(string? text, out PgCircle value) => PgGeometry.TryParse(text, out value);
 
     /// <summary>

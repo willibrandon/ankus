@@ -116,6 +116,19 @@ internal static class AllocatorFixtureCompiler
     /// <param name="useC11">Whether to enable the compiler's C11 language mode.</param>
     /// <param name="cancellationToken">Cancels compilation.</param>
     internal static async Task CompileModuleAsync(PostgresInstallation installation, string source, string outputPath, bool useC11, CancellationToken cancellationToken)
+        => await CompileModuleAsync(installation, source, outputPath, useC11, null, cancellationToken);
+
+    /// <summary>
+    /// Compiles a fixture with an explicit native compiler while preserving every diagnostic and header check.
+    /// </summary>
+    /// <param name="installation">The selected backend installation.</param>
+    /// <param name="source">The C translation unit.</param>
+    /// <param name="outputPath">The resulting module.</param>
+    /// <param name="useC11">Whether the translation unit requires C11.</param>
+    /// <param name="nativeCompiler">The production bridge compiler, or null for the platform fixture default.</param>
+    /// <param name="cancellationToken">Cancels compilation.</param>
+    internal static async Task CompileModuleAsync(PostgresInstallation installation, string source, string outputPath,
+        bool useC11, string? nativeCompiler, CancellationToken cancellationToken)
     {
         string output = Path.GetDirectoryName(outputPath) ?? throw new ArgumentException("The module needs an output directory.", nameof(outputPath));
         Directory.CreateDirectory(output);
@@ -123,7 +136,7 @@ internal static class AllocatorFixtureCompiler
         string compiler;
         if (OperatingSystem.IsWindows())
         {
-            compiler = "cl.exe";
+            compiler = nativeCompiler ?? "cl.exe";
             arguments = ["/nologo", "/LD", "/O2", "/MD", "/WX",
                 "/I" + installation.ServerIncludeDirectory,
                 "/I" + installation.IncludeDirectory,
@@ -135,7 +148,7 @@ internal static class AllocatorFixtureCompiler
         }
         else
         {
-            compiler = "cc";
+            compiler = nativeCompiler ?? "cc";
             arguments = [.. await installation.GetPreprocessorArgumentsAsync(cancellationToken),
                 "-O2", "-fPIC", "-Wall", "-Wextra", "-Werror",
                 "-isystem", installation.ServerIncludeDirectory,

@@ -62,6 +62,10 @@ public static class PgRange
     /// <param name="text">The PostgreSQL range text.</param>
     /// <param name="value">The canonical range, or null.</param>
     /// <returns>Whether parsing succeeded.</returns>
+    /// <remarks>
+    /// Invalid input returns false only after actual rollback. Transaction callbacks and parallel operations
+    /// before PostgreSQL 17 forbid independent rollback; native errors there remain pending and throw PgException.
+    /// </remarks>
     public static bool TryParse<T>(string? text, [NotNullWhen(true)] out PgRange<T>? value) where T : struct
     {
         value = null;
@@ -72,10 +76,10 @@ public static class PgRange
 
         try
         {
-            value = Parse<T>(text);
+            value = NativeInputRecovery.Run(() => Parse<T>(text));
             return true;
         }
-        catch (PgException error) when (error.SqlState is "22P02" or "22000" or "22003" or "22007" or "22008" or "22009")
+        catch (PgException error) when ((error.NativeFlags & NativeErrorFlags.Unrecovered) == 0 && (error.SqlState is "22P02" or "22000" or "22003" or "22007" or "22008" or "22009"))
         {
             return false;
         }

@@ -26,6 +26,7 @@ internal static class PostgresFixture
         await AllocatorFixtureCompiler.BuildAsync(options.Installation, context.CancellationToken);
         await AllocatorFaultFixtureCompiler.CompileAsync(options.Installation, context.CancellationToken);
         await NativeRawCallFixtureCompiler.CompileAsync(options.Installation, context.CancellationToken);
+        await NativeValueOwnershipFixtureCompiler.CompileAsync(options.Installation, context.CancellationToken);
         s_cluster = await PostgresTestCluster.StartAsync(options, context.CancellationToken);
         try
         {
@@ -43,7 +44,7 @@ internal static class PostgresFixture
                 CREATE FUNCTION tests.fail_probe() RETURNS integer LANGUAGE sql AS 'SELECT 1 / 0';
                 """;
             await using var command = new NpgsqlCommand(sql + AllocatorFixtureCompiler.InstallationSql + AllocatorFaultFixtureCompiler.InstallationSql +
-                NativeRawCallFixtureCompiler.InstallationSql, connection);
+                NativeRawCallFixtureCompiler.InstallationSql + NativeValueOwnershipFixtureCompiler.InstallationSql, connection);
             await command.ExecuteNonQueryAsync(context.CancellationToken);
         }
         catch

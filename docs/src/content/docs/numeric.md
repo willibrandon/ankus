@@ -87,9 +87,16 @@ constraints through the guarded dispatcher; they do not distinguish SQL overload
 and do not apply to direct C# method calls. Use `Rescale` for an explicit conversion
 inside managed code.
 
-Parsing and arithmetic require the active PostgreSQL backend thread. Native errors
-become catchable `PgException` instances. Text access, comparison, hashing, and exact
-.NET conversions also work outside PostgreSQL.
+Parsing and arithmetic require the active PostgreSQL backend thread. A native
+error must propagate to PostgreSQL or roll back before more backend work. To
+handle it and continue, catch it outside `PgTransaction.RunInSubtransaction`.
+`TryParse` performs that recovery internally before returning false for invalid
+input. Text access, comparison, hashing, and exact .NET conversions also work
+outside PostgreSQL.
+
+In transaction callbacks and parallel operations before PostgreSQL 17, native
+input errors must propagate because independent rollback is unavailable. See
+[error recovery](/reference/execution/#errors).
 
 ## .NET conversions and SPI
 

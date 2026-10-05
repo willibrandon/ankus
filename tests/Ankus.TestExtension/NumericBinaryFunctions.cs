@@ -27,7 +27,7 @@ public static class NumericBinaryFunctions
         string failure = "no error";
         try
         {
-            _ = PgNumeric.One / PgNumeric.Zero;
+            _ = PgTransaction.RunInSubtransaction(() => PgNumeric.One / PgNumeric.Zero);
         }
         catch (PgException error) when (error.SqlState == "22012")
         {

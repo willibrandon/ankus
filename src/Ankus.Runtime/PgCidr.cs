@@ -122,6 +122,10 @@ public readonly record struct PgCidr : IComparable<PgCidr>
     /// <param name="text">The network text.</param>
     /// <param name="value">The parsed network, or default.</param>
     /// <returns>Whether the text is valid.</returns>
+    /// <remarks>
+    /// Invalid input returns false only after actual rollback. Transaction callbacks and parallel operations
+    /// before PostgreSQL 17 forbid independent rollback; native errors there remain pending and throw PgException.
+    /// </remarks>
     public static bool TryParse(string? text, out PgCidr value) => PgNetwork.TryParse(text, out value);
 
     /// <summary>

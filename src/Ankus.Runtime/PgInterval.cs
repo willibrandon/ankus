@@ -265,6 +265,10 @@ public readonly record struct PgInterval : IComparable<PgInterval>
     /// <param name="text">The interval text.</param>
     /// <param name="value">The parsed interval, or the default value on invalid input.</param>
     /// <returns>Whether the input is valid. Backend-access and operational errors still throw.</returns>
+    /// <remarks>
+    /// Invalid input returns false only after actual rollback. Transaction callbacks and parallel operations
+    /// before PostgreSQL 17 forbid independent rollback; native errors there remain pending and throw PgException.
+    /// </remarks>
     public static bool TryParse(string? text, out PgInterval value) => PgTemporal.TryParse(text, out value);
 
     /// <summary>

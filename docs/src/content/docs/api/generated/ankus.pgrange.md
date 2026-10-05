@@ -157,6 +157,9 @@ Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
 
 Whether parsing succeeded.
 
+Invalid input returns false only after actual rollback. Transaction callbacks and parallel operations
+before PostgreSQL 17 forbid independent rollback; native errors there remain pending and throw PgException.
+
 <a id="member-7827d9fb69f1a983"></a>
 
 ### Unbounded&lt;T&gt;()

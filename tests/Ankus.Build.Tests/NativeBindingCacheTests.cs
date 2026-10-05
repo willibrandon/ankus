@@ -183,8 +183,11 @@ public sealed partial class NativeBindingCacheTests(TestContext context)
     /// <summary>
     /// A consumer's lease prevents replacement until its reads finish, and a cancelled waiter cannot enter production.
     /// </summary>
+    /// <param name="cancelBeforeWaiting">Whether cancellation precedes lock acquisition.</param>
     [TestMethod]
-    public async Task CacheOwnershipProtectsReadersAndCancelsWaiters()
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task CacheOwnershipProtectsReadersAndCancelsWaiters(bool cancelBeforeWaiting)
     {
         string root = Directory.CreateTempSubdirectory("ankus-binding-cache-lock-").FullName;
         try
@@ -200,10 +203,21 @@ public sealed partial class NativeBindingCacheTests(TestContext context)
             await using (NativeBindingCacheLease first = await NativeBindingCache.GetAsync(root, Key, Produce, context.CancellationToken))
             {
                 using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(context.CancellationToken);
+                if (cancelBeforeWaiting)
+                {
+                    await cancellation.CancelAsync();
+                }
+
                 Task<NativeBindingCacheLease> waiting = NativeBindingCache.GetAsync(root, Key, Produce, cancellation.Token);
-                Assert.IsFalse(waiting.IsCompleted);
-                await cancellation.CancelAsync();
-                await Assert.ThrowsExactlyAsync<TaskCanceledException>(async () => await waiting);
+                if (!cancelBeforeWaiting)
+                {
+                    Assert.IsFalse(waiting.IsCompleted);
+                    await cancellation.CancelAsync();
+                }
+
+                OperationCanceledException error = await Assert.ThrowsAsync<OperationCanceledException>(async () => await waiting);
+                Assert.AreEqual(cancellation.Token, error.CancellationToken);
+                Assert.IsTrue(waiting.IsCanceled);
                 Assert.AreEqual(1, produced);
                 Assert.AreEqual("verified", await File.ReadAllTextAsync(Path.Combine(first.Directory, "binding.dll"), context.CancellationToken));
             }

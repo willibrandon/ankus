@@ -165,6 +165,10 @@ public readonly record struct PgNumeric : IComparable<PgNumeric>,
     /// <param name="text">The candidate input.</param>
     /// <param name="value">The parsed numeric, or zero on invalid input.</param>
     /// <returns>Whether the input was valid. Backend-access and operational errors still throw.</returns>
+    /// <remarks>
+    /// Invalid input returns false only after actual rollback. Transaction callbacks and parallel operations
+    /// before PostgreSQL 17 forbid independent rollback; native errors there remain pending and throw PgException.
+    /// </remarks>
     public static bool TryParse(string? text, out PgNumeric value)
     {
         value = default;
@@ -175,10 +179,10 @@ public readonly record struct PgNumeric : IComparable<PgNumeric>,
 
         try
         {
-            value = Parse(text);
+            value = NativeInputRecovery.Run(() => Parse(text));
             return true;
         }
-        catch (PgException error) when (error.SqlState is "22P02" or "22003")
+        catch (PgException error) when ((error.NativeFlags & NativeErrorFlags.Unrecovered) == 0 && (error.SqlState is "22P02" or "22003"))
         {
             return false;
         }

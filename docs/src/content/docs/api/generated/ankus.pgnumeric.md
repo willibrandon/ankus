@@ -641,6 +641,9 @@ Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
 
 Whether the input was valid. Backend-access and operational errors still throw.
 
+Invalid input returns false only after actual rollback. Transaction callbacks and parallel operations
+before PostgreSQL 17 forbid independent rollback; native errors there remain pending and throw PgException.
+
 
 ## Properties
 

@@ -66,6 +66,10 @@ public sealed class PgPath : IReadOnlyList<PgPoint>
     /// <param name="text">The path text.</param>
     /// <param name="value">The result, or null.</param>
     /// <returns>Whether parsing succeeded.</returns>
+    /// <remarks>
+    /// Invalid input returns false only after actual rollback. Transaction callbacks and parallel operations
+    /// before PostgreSQL 17 forbid independent rollback; native errors there remain pending and throw PgException.
+    /// </remarks>
     public static bool TryParse(string? text, [NotNullWhen(true)] out PgPath? value) => PgGeometry.TryParse(text, out value);
 
     /// <summary>

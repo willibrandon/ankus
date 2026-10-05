@@ -136,7 +136,7 @@ public static class TransactionCallbackFunctions
     }
 
     /// <summary>
-    /// Catches a native numeric error and performs another pure operation without an internal subtransaction.
+    /// Recovers a native numeric error through explicit rollback before performing another pure operation.
     /// </summary>
     /// <returns>The recovered SQLSTATE and subsequent result.</returns>
     [PgFunction]
@@ -145,7 +145,7 @@ public static class TransactionCallbackFunctions
         string failure;
         try
         {
-            _ = PgNumeric.Parse("1") / default(PgNumeric);
+            _ = PgTransaction.RunInSubtransaction(static () => PgNumeric.Parse("1") / default(PgNumeric));
             failure = "no error";
         }
         catch (PgException error)

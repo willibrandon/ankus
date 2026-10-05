@@ -178,7 +178,8 @@ public static class NumericFunctions
                 }
                 else
                 {
-                    NumericApply(operation, PgNumeric.Parse(left), PgNumeric.Parse(right), precision, scale);
+                    PgTransaction.RunInSubtransaction(() =>
+                        NumericApply(operation, PgNumeric.Parse(left), PgNumeric.Parse(right), precision, scale));
                 }
             }
             catch (PgException error)
@@ -218,7 +219,7 @@ public static class NumericFunctions
                 _ = (value * PgNumeric.FromDecimal(2m)).Rescale(50, 8).Text;
                 try
                 {
-                    _ = value / default(PgNumeric);
+                    _ = PgTransaction.RunInSubtransaction(() => value / default(PgNumeric));
                 }
                 catch (PgException error) when (error.SqlState == "22012")
                 {
