@@ -75,6 +75,12 @@ internal static class NativeAggregateBridge
                 pfree(state);
             }
             PG_END_TRY();
+            if (status != 0 && ankus_transaction_cleanup_active())
+            {
+                ankus_report_completion_cleanup(&error);
+                return;
+            }
+
             if (status != 0 && ((error.flags & ANKUS_ERROR_UNRECOVERED) != 0 ||
                 error.sqlstate == ERRCODE_QUERY_CANCELED || error.report_level != 0))
             {

@@ -14,6 +14,31 @@ public static unsafe class NativeLog
     [ThreadStatic]
     private static int s_scopeDepth;
 
+    [ThreadStatic]
+    private static int s_memoryTerminalScopeDepth;
+
+    /// <summary>
+    /// Grants terminal transport through the current cleanup memory capability without inheriting a logger or SQL access.
+    /// </summary>
+    /// <returns>The enclosing memory-terminal scope restored after this callback.</returns>
+    internal static int EnterMemoryTerminal()
+    {
+        int previous = s_memoryTerminalScopeDepth;
+        s_memoryTerminalScopeDepth = s_scopeDepth;
+        return previous;
+    }
+
+    /// <summary>
+    /// Restores the enclosing memory-terminal capability before leaving the matching logging scope.
+    /// </summary>
+    /// <param name="previous">The scope depth returned by the matching entry.</param>
+    internal static void ExitMemoryTerminal(int previous) => s_memoryTerminalScopeDepth = previous;
+
+    /// <summary>
+    /// Gets whether this exact logging scope owns the cleanup memory transport for terminal diagnostics.
+    /// </summary>
+    private static bool HasMemoryTerminal => s_scopeDepth != 0 && s_scopeDepth == s_memoryTerminalScopeDepth;
+
     /// <summary>
     /// Enters a native logging scope on the current backend thread.
     /// </summary>
@@ -42,6 +67,12 @@ public static unsafe class NativeLog
     /// </summary>
     internal static void CheckAccess(bool terminal = false)
     {
+        if (terminal && HasMemoryTerminal)
+        {
+            _ = NativeMemoryContext.Provider;
+            return;
+        }
+
         if (!terminal)
         {
             NativeBorrowScope.CheckBackendAccess();
@@ -49,7 +80,14 @@ public static unsafe class NativeLog
 
         if (s_scopeDepth == 0)
         {
-            NativeBackend.CheckCallbackAccess();
+            if (terminal)
+            {
+                NativeBackend.CheckDisposalAccess();
+            }
+            else
+            {
+                NativeBackend.CheckCallbackAccess();
+            }
         }
         else if (s_log == 0)
         {
@@ -78,7 +116,11 @@ public static unsafe class NativeLog
         try
         {
             NativeError.Write(exception, &report);
-            if (s_scopeDepth == 0)
+            if (HasMemoryTerminal)
+            {
+                NativeMemoryContext.RecordTerminal(exception.Level, &report);
+            }
+            else if (s_scopeDepth == 0)
             {
                 NativeBackend.RecordTerminal(exception.Level, &report);
             }

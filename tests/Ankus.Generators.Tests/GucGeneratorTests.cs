@@ -281,7 +281,12 @@ public sealed partial class PgFunctionGeneratorTests
             Assert.DoesNotContain("ankus_spi_execute(", native);
             Assert.DoesNotContain("ankus_read_guc", native);
             Assert.DoesNotContain("ankus_enum_supported(", native);
-            Assert.Contains("ankus_report(&error, ERROR);", native);
+            string reporting = options.StartsWith("Show", StringComparison.Ordinal)
+                ? "ankus_guc_report(&frame->error, frame->error.report_level == 0 ?\n" +
+                    "                    (IsTransactionState() ? ERROR : FATAL) : ankus_log_level(frame->error.report_level - 1));"
+                : "ankus_guc_report(&frame->error, frame->error.report_level == 0 ? FATAL :\n" +
+                    "                    ankus_log_level(frame->error.report_level - 1));";
+            Assert.Contains(reporting, native.ReplaceLineEndings("\n"));
             Assert.Contains("ankus_capture_error(", native);
         }
 

@@ -195,37 +195,52 @@ public sealed class MemoryCallbackTests(TestContext context)
     }
 
     /// <summary>
-    /// Commit cleanup reports the managed callback's native error and finishes pending cleanup before the next command.
+    /// Commit cleanup reports the secondary diagnostic without undoing committed data or skipping older callbacks.
     /// </summary>
     [TestMethod]
-    public async Task ImplicitCommitCleanupPropagatesOwnedCallbackErrorAndRecovers()
+    public async Task ImplicitCommitCleanupPreservesCommittedDataAndReportsSecondaryError()
     {
         CancellationToken token = context.CancellationToken;
         await using NpgsqlConnection connection = await PostgresFixture.Cluster.OpenConnectionAsync(token);
         int backend = connection.ProcessID;
+        var notices = new List<PostgresNotice>();
+        connection.Notice += (_, args) => notices.Add(args.Notice);
+        await using (var setup = new NpgsqlCommand("CREATE TEMP TABLE callback_commit(value integer)", connection))
+        {
+            await setup.ExecuteNonQueryAsync(token);
+        }
+
         await using (NpgsqlTransaction transaction = await connection.BeginTransactionAsync(token))
         {
-            await using var command = new NpgsqlCommand("SELECT datatype.memory_callback_prepare(1, true)", connection, transaction);
+            await using var command = new NpgsqlCommand("INSERT INTO callback_commit VALUES(73); SELECT datatype.memory_callback_prepare(1, true)", connection, transaction);
             Assert.AreEqual(42, await command.ExecuteScalarAsync(token));
-            PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => transaction.CommitAsync(token));
-            AssertCallbackError(error);
+            await transaction.CommitAsync(token);
+        }
+
+        PostgresNotice warning = Assert.ContainsSingle(notices.Where(static notice => notice.SqlState == "22023"));
+        AssertCallbackWarning(warning);
+        await using (var committed = new NpgsqlCommand("SELECT array_agg(value) FROM callback_commit", connection))
+        {
+            Assert.AreSequenceEqual([73], Assert.IsInstanceOfType<int[]>(await committed.ExecuteScalarAsync(token)));
         }
 
         await AssertImplicitCleanupAsync(connection, backend, token);
     }
 
     /// <summary>
-    /// PostgreSQL records primary and cleanup errors in order, while Npgsql reports the final error before backend recovery.
+    /// PostgreSQL retains the primary error while secondary callback warnings permit complete cleanup and recovery.
     /// </summary>
     /// <param name="cleanupThrows">Whether the callback also throws while PostgreSQL is cleaning up the SQL error.</param>
     [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
-    public async Task SqlFailureDrainsImplicitCallbacksAndReportsLastProtocolError(bool cleanupThrows)
+    public async Task SqlFailurePreservesPrimaryErrorAndDrainsImplicitCallbacks(bool cleanupThrows)
     {
         CancellationToken token = context.CancellationToken;
         await using NpgsqlConnection connection = await PostgresFixture.Cluster.OpenConnectionAsync(token);
         int backend = connection.ProcessID;
+        var notices = new List<PostgresNotice>();
+        connection.Notice += (_, args) => notices.Add(args.Notice);
         await using var command = new NpgsqlCommand("DO $$ BEGIN RAISE EXCEPTION 'earlier session error'; END $$", connection);
         // A previous session can leave errors under a reused operating-system process ID.
         PostgresException previous = await Assert.ThrowsExactlyAsync<PostgresException>(() => command.ExecuteNonQueryAsync(token));
@@ -235,16 +250,18 @@ public sealed class MemoryCallbackTests(TestContext context)
         await command.ExecuteNonQueryAsync(token);
         command.CommandText = $"SELECT datatype.memory_callback_prepare(1, {cleanupThrows}); DO $$ BEGIN RAISE EXCEPTION 'primary cleanup failure' USING ERRCODE = '23514', DETAIL = 'primary detail', HINT = 'primary hint'; END $$";
         PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => command.ExecuteNonQueryAsync(token));
+        Assert.AreEqual("23514", error.SqlState);
+        Assert.AreEqual("primary cleanup failure", error.MessageText);
+        Assert.AreEqual("primary detail", error.Detail);
+        Assert.AreEqual("primary hint", error.Hint);
+        PostgresNotice[] cleanup = [.. notices.Where(static notice => notice.SqlState == "22023")];
         if (cleanupThrows)
         {
-            AssertCallbackError(error);
+            AssertCallbackWarning(Assert.ContainsSingle(cleanup));
         }
         else
         {
-            Assert.AreEqual("23514", error.SqlState);
-            Assert.AreEqual("primary cleanup failure", error.MessageText);
-            Assert.AreEqual("primary detail", error.Detail);
-            Assert.AreEqual("primary hint", error.Hint);
+            Assert.IsEmpty(cleanup);
         }
 
         await AssertImplicitCleanupAsync(connection, backend, token);
@@ -253,16 +270,29 @@ public sealed class MemoryCallbackTests(TestContext context)
             .Where(line => line.Contains($"[{session}]: ", StringComparison.Ordinal))];
         string[] loggedErrors = [.. backendLines.Where(line => line.Contains(errorPrefix, StringComparison.Ordinal))
             .Select(line => line[(line.IndexOf(errorPrefix, StringComparison.Ordinal) + errorPrefix.Length)..])];
-        Assert.AreSequenceEqual<string>(cleanupThrows ? ["23514: primary cleanup failure", "22023: callback café"] : ["23514: primary cleanup failure"],
-            loggedErrors);
+        Assert.AreSequenceEqual<string>(["23514: primary cleanup failure"], loggedErrors);
         string backendLog = string.Join('\n', backendLines);
         Assert.Contains("DETAIL:  primary detail", backendLog);
         Assert.Contains("HINT:  primary hint", backendLog);
         if (cleanupThrows)
         {
+            Assert.Contains(": WARNING:  22023: callback café", backendLog);
             Assert.Contains("DETAIL:  detail naïve", backendLog);
             Assert.Contains("HINT:  hint déjà", backendLog);
         }
+    }
+
+    /// <summary>
+    /// Validates complete secondary callback diagnostics without replacing the transaction's outcome.
+    /// </summary>
+    /// <param name="warning">The native warning emitted after managed unwinding.</param>
+    private static void AssertCallbackWarning(PostgresNotice warning)
+    {
+        Assert.AreEqual("WARNING", warning.InvariantSeverity);
+        Assert.AreEqual("22023", warning.SqlState);
+        Assert.AreEqual("callback café", warning.MessageText);
+        Assert.AreEqual("detail naïve", warning.Detail);
+        Assert.AreEqual("hint déjà", warning.Hint);
     }
 
     /// <summary>

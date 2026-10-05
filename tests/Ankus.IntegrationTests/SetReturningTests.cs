@@ -253,6 +253,8 @@ public sealed class SetReturningTests(TestContext context)
         => PostgresFixture.Cluster.RunInTransactionAsync(nameof(CaughtNativeCleanupErrorsRequireRollback), async (connection, transaction, token) =>
         {
             int backend = connection.ProcessID;
+            var notices = new List<PostgresNotice>();
+            connection.Notice += (_, args) => notices.Add(args.Notice);
             await using var command = new NpgsqlCommand("SELECT set_values.set_reset()", connection, transaction);
             await command.ExecuteNonQueryAsync(token);
             await transaction.SaveAsync("set_native_cleanup", token);
@@ -263,10 +265,31 @@ public sealed class SetReturningTests(TestContext context)
                 _ => "SELECT array_agg(v) FROM set_values.set_probe_streaming(3,10,false) AS v",
             };
             PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => command.ExecuteScalarAsync(token));
-            Assert.AreEqual(mode == 2 ? "P7105" : "42704", error.SqlState);
-            Assert.AreEqual(mode == 2 ? "set MoveNext failure" :
-                "ExtensibleNodeMethods \"ankus_missing_iterator_cleanup\" was not registered", error.MessageText);
+            Assert.AreEqual(mode switch
+            {
+                0 => "42704",
+                1 => "22012",
+                _ => "P7105",
+            }, error.SqlState);
+            Assert.AreEqual(mode switch
+            {
+                0 => "ExtensibleNodeMethods \"ankus_missing_iterator_cleanup\" was not registered",
+                1 => "division by zero",
+                _ => "set MoveNext failure",
+            }, error.MessageText);
+            Assert.IsNull(error.Detail);
+            Assert.IsNull(error.Hint);
             await transaction.RollbackAsync("set_native_cleanup", token);
+            PostgresNotice[] cleanupWarnings = [.. notices.Where(static notice => notice.SqlState == "42704")];
+            Assert.HasCount(mode == 1 ? 1 : 0, cleanupWarnings);
+            foreach (PostgresNotice warning in cleanupWarnings)
+            {
+                Assert.AreEqual("WARNING", warning.InvariantSeverity);
+                Assert.AreEqual("ExtensibleNodeMethods \"ankus_missing_iterator_cleanup\" was not registered", warning.MessageText);
+                Assert.IsNull(warning.Detail);
+                Assert.IsNull(warning.Hint);
+            }
+
             int[] status = await ReadStatusAsync(command, token);
             Assert.AreEqual(1, status[6]);
             Assert.AreEqual(1, status[7]);
@@ -330,8 +353,16 @@ public sealed class SetReturningTests(TestContext context)
             Assert.AreEqual(PostgresErrorCodes.DivisionByZero, error.SqlState);
             await transaction.RollbackAsync("set_executor_failure", token);
             Assert.AreSequenceEqual([1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 0, 0], await ReadStatusAsync(command, token));
-            PostgresNotice[] disposalWarnings = [.. notices.Where(static notice => notice.InvariantSeverity == "WARNING" && notice.MessageText.Contains("Ankus iterator disposal failed during query abort", StringComparison.Ordinal))];
+            PostgresNotice[] disposalWarnings = [.. notices.Where(static notice => notice.SqlState == "P7107")];
             Assert.HasCount(failure == 7 ? 1 : 0, disposalWarnings);
+            foreach (PostgresNotice warning in disposalWarnings)
+            {
+                Assert.AreEqual("WARNING", warning.InvariantSeverity);
+                Assert.AreEqual("set Dispose failure", warning.MessageText);
+                Assert.IsNull(warning.Detail);
+                Assert.IsNull(warning.Hint);
+            }
+
             command.CommandText = "SELECT count(*) FROM set_cleanup";
             Assert.AreEqual(0L, await command.ExecuteScalarAsync(token));
         }, context.CancellationToken);
@@ -503,8 +534,9 @@ public sealed class SetReturningTests(TestContext context)
                 ? $"SELECT 1/(CASE WHEN value='Low'::datatype.enum_mood THEN 0 ELSE 1 END) FROM (SELECT {source} AS value) input"
                 : $"SELECT value::text FROM {source} value";
             PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => command.ExecuteScalarAsync(token));
-            Assert.AreEqual("42704", error.SqlState);
-            Assert.AreEqual("ExtensibleNodeMethods \"ankus_missing_iterator_cleanup\" was not registered", error.MessageText);
+            Assert.AreEqual(executorFailure ? "22012" : "42704", error.SqlState);
+            Assert.AreEqual(executorFailure ? "division by zero" :
+                "ExtensibleNodeMethods \"ankus_missing_iterator_cleanup\" was not registered", error.MessageText);
             command.CommandText = "SELECT set_values.set_status()";
             int[] status = Assert.IsInstanceOfType<int[]>(await command.ExecuteScalarAsync(token));
             Assert.AreEqual(index + 1, status[12], "Each acquired iterator must execute its finally block once.");

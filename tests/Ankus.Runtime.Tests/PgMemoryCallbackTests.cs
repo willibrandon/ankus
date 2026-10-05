@@ -7,7 +7,7 @@ namespace Ankus.Runtime.Tests;
 /// Verifies managed callback rooting, cancellation, guarded dispatch, and capability restoration.
 /// </summary>
 [TestClass]
-public sealed unsafe class PgMemoryCallbackTests
+public sealed unsafe partial class PgMemoryCallbackTests
 {
     /// <summary>
     /// A missing action is rejected before context liveness or native registration is queried.

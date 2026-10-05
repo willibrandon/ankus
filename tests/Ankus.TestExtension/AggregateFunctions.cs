@@ -395,6 +395,11 @@ public static class AggregateFunctions
                 ProbeNativeCleanupFailure();
             }
 
+            if (_mode is "cleanup_terminal_fatal" or "cleanup_terminal_panic")
+            {
+                CallbackRecoveryFunctions.ReportCaughtTerminal((int)(_mode == "cleanup_terminal_fatal" ? PgLogLevel.Fatal : PgLogLevel.Panic));
+            }
+
             if (_mode is "cleanup_sql" or "dispose_error" or "dispose_error_transition")
             {
                 try
@@ -447,7 +452,8 @@ public static class AggregateFunctions
         }
 
         s_retained = state;
-        if (value == 2 && s_mode is "transition_error" or "dispose_error_transition" or "resources_error" or "cleanup_native_transition" or "resources_native_transition")
+        if (value == 2 && s_mode is "transition_error" or "dispose_error_transition" or "resources_error" or "cleanup_native_transition" or "resources_native_transition" or
+            "cleanup_terminal_fatal" or "cleanup_terminal_panic")
         {
             throw new PgException("P7801", "aggregate transition failed", "owned aggregate detail", "retry valid inputs");
         }

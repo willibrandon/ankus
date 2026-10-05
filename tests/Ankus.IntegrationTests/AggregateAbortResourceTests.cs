@@ -33,8 +33,15 @@ public sealed partial class AggregateTests
             await command.ExecuteNonQueryAsync(token);
             command.CommandText = "SELECT aggregate_values.managed_sum(v ORDER BY v) FROM (VALUES(1),(2),(3)) AS input(v)";
             PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => command.ExecuteScalarAsync(token));
-            Assert.AreEqual("42704", error.SqlState);
-            Assert.AreEqual("ExtensibleNodeMethods \"ankus_missing_aggregate_cleanup\" was not registered", error.MessageText);
+            Assert.AreEqual(transitionFailure ? "P7801" : "42704", error.SqlState);
+            Assert.AreEqual(transitionFailure ? "aggregate transition failed" :
+                "ExtensibleNodeMethods \"ankus_missing_aggregate_cleanup\" was not registered", error.MessageText);
+            if (transitionFailure)
+            {
+                Assert.AreEqual("owned aggregate detail", error.Detail);
+                Assert.AreEqual("retry valid inputs", error.Hint);
+            }
+
             command.CommandText = "SELECT aggregate_values.aggregate_status()";
             int[] status = Assert.IsInstanceOfType<int[]>(await command.ExecuteScalarAsync(token));
             Assert.AreSequenceEqual([1, 1, 0, 0], status[..4], $"Aggregate ownership after failure {index}.");

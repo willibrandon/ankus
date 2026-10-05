@@ -59,9 +59,9 @@ internal static class AllocatorFaultFixtureCompiler
         string probe = await File.ReadAllTextAsync(Path.Combine(fixtures, "allocator_fault_probe.c"), cancellationToken);
         string workerPrefix = await File.ReadAllTextAsync(Path.Combine(fixtures, "worker_fault_prefix.c"), cancellationToken);
         string workerProbe = await File.ReadAllTextAsync(Path.Combine(fixtures, "worker_fault_probe.c"), cancellationToken);
-        // The memory-only probe has no managed logger; retain recovery frames but exclude its terminal logging entry point.
+        // Memory callbacks retain terminal intent through their own memory capability, so its recovery entry point is required.
         // Workers and SQL must load the same compiled filename, including its explicit platform suffix.
-        string source = emitted[..preambleEnd] + emitted[diagnosticsStart..terminalStart] + prefix + workerPrefix +
+        string source = emitted[..preambleEnd] + emitted[diagnosticsStart..memoryStart] + prefix + workerPrefix +
             emitted[memoryStart..memoryEnd] + probe + $"\n#define ANKUS_WORKER_FAULT_LIBRARY \"{ModuleFileName}\"\n" + workerProbe;
         string output = IntegrationEnvironment.NativeOutputDirectory;
         string sourcePath = Path.Combine(output, "allocator_fault_fixture.c");

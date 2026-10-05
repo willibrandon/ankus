@@ -155,6 +155,8 @@ public sealed partial class AggregateTests
         => Run(nameof(NativeDisposeFailureCannotBeSwallowed), async (connection, transaction, token) =>
         {
             int backend = connection.ProcessID;
+            var notices = new List<PostgresNotice>();
+            connection.Notice += (_, args) => notices.Add(args.Notice);
             await Reset(connection, transaction, mode, token);
             await transaction.SaveAsync("native_cleanup", token);
             string operation;
@@ -176,9 +178,23 @@ public sealed partial class AggregateTests
 
             PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => Execute(connection, transaction,
                 operation, token));
-            Assert.AreEqual("42704", error.SqlState);
-            Assert.AreEqual("ExtensibleNodeMethods \"ankus_missing_aggregate_cleanup\" was not registered", error.MessageText);
+            bool transitionFailure = mode == "cleanup_native_transition";
+            Assert.AreEqual(transitionFailure ? "P7801" : "42704", error.SqlState);
+            Assert.AreEqual(transitionFailure ? "aggregate transition failed" :
+                "ExtensibleNodeMethods \"ankus_missing_aggregate_cleanup\" was not registered", error.MessageText);
+            Assert.AreEqual(transitionFailure ? "owned aggregate detail" : null, error.Detail);
+            Assert.AreEqual(transitionFailure ? "retry valid inputs" : null, error.Hint);
             await transaction.RollbackAsync("native_cleanup", token);
+            PostgresNotice[] cleanupWarnings = [.. notices.Where(static notice => notice.SqlState == "42704")];
+            Assert.HasCount(transitionFailure ? 1 : 0, cleanupWarnings);
+            foreach (PostgresNotice warning in cleanupWarnings)
+            {
+                Assert.AreEqual("WARNING", warning.InvariantSeverity);
+                Assert.AreEqual("ExtensibleNodeMethods \"ankus_missing_aggregate_cleanup\" was not registered", warning.MessageText);
+                Assert.IsNull(warning.Detail);
+                Assert.IsNull(warning.Hint);
+            }
+
             await AssertBalancedRelease(connection, transaction, token);
             string[] trace = await Trace(connection, transaction, token);
             Assert.HasCount((await Status(connection, transaction, token))[1], trace);

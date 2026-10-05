@@ -25509,3 +25509,104 @@ interrupted rollback, not a measured resource leak. The phase-aware native
 correction and proper cross-platform regression acceptance remain pending.
 Complete supported-version/platform, source-case, ergonomic and release scope
 also remain open. No analyzer severity or warning mode was relaxed.
+
+## Transaction-completion callback recovery
+
+An iterator or aggregate cleanup error during a PL/pgSQL exception subtransaction
+could replace the saved primary error and interrupt rollback. Both independent
+witnesses produced `AbortSubTransaction while in ABORT state`; ordinary cleanup
+and forty client-savepoint cycles passed. Those controls did not cover this
+path. The witnesses prove interrupted rollback, not a measured resource leak.
+
+Native cleanup now distinguishes ordinary context reset from transaction
+completion. During completion it reports complete secondary diagnostics as
+warnings and finishes draining callbacks, preserving the transaction's original
+error. Cancellation remains pending for the next legal interrupt boundary.
+Ordinary reset retains its error-and-retry contract. Idle initialization and
+shared preload remain ordinary phases when no transaction context exists.
+
+FATAL cannot safely follow a durable commit because PostgreSQL runs abort
+cleanup again. Terminal intent or a reporter failure during irreversible
+completion therefore uses PANIC after managed unwinding. A terminal-only memory
+transport retains that intent even when managed code catches the exception;
+resource-only iterator and aggregate cleanup also permits this transport.
+Neither capability grants ordinary SQL or logging during restricted cleanup.
+
+The first complete run exposed an additional regression in the draft's blanket
+raw-call restriction: valid generated `pfree` during query abort completed zero
+releases instead of one. That unchanged release test is correct. Raw access is
+unsafe and its caller must satisfy the native function's ownership and phase
+preconditions; a guard cannot infer those effects from a function address.
+Removing that new blanket restriction preserves valid releases while retaining
+existing native guards, sticky failed frames and checked lifetime restrictions.
+The failed/incomplete run was stopped at **10m27.41s**, and its exact source,
+logs and reports were preserved and independently verified before correction.
+
+| Requirement | Named evidence |
+| --- | --- |
+| Original diagnostics through exception-subtransaction rollback | `IteratorCleanupPreservesExceptionSubtransactionRecovery` and `AggregateCleanupPreservesExceptionSubtransactionRecovery`: exact primary fields, ten repetitions, unchanged backend, zero failed frames and resource baselines. |
+| Actual native errors caught during cleanup | The same cases require the actual caught **42704**, exactly one complete secondary warning during abort and no warning in ordinary controls. |
+| Ordinary memory callback drain | `MemoryCleanupPreservesPrimaryErrorAndRemainingCallbacks`: original **23514**, exact secondary UTF-8 fields, LIFO callbacks, consumed registrations and stale owner/allocation checks. |
+| Recovery inside the same managed entry | `ManagedSubtransactionCleanupPreservesPrimaryErrorAndRecovery`: SPI and explicit subtransaction scopes, exact diagnostics, later SQL result **42**, retained resources and backend identity. |
+| Cancellation waits for completed rollback | `CleanupCancellationFinishesRollbackBeforeInterruptProcessing`: managed and persistent native-hook cancellation, exact **57014**, complete drain and restored interrupt holdoffs. |
+| Commit and abort remain durable | `CleanupTerminalReportPanicsAndPreservesCommit` and `ExecutorCleanupTerminalReportPanicsAndRollsBackWrites`: isolated clusters, full terminal fields, real crash recovery and independently committed/uncommitted rows. |
+| Reporter failure before managed handler entry | `CleanupReporterFailurePanicsAfterManagedUnwindingAndPreservesCommit`: persistent native fixture, complete **P7521** diagnostic, durable row and later native logging after actual recovery. |
+| Cleanup capabilities stay restricted | `MemoryCallbackTerminalTests` and `NativeLogTests`: sole terminal transport, exact fields before buffer release, nested zero-logger denial, restored scope denial and no ordinary SQL/logging. |
+| Nontransactional shared preload stays usable | `SharedPreloadProvidesManagedRuntimeInEveryBackend`: exact six-field callback snapshot in three real backends, including valid native lookup during ordinary reset. |
+| Existing raw release remains valid | Unchanged `GeneratedRawCallsReleaseStorageDuringQueryAbort`: one generated release, original **22012**, no secondary warnings and later **42** in the surviving backend. |
+
+Final affected validation on Linux x64/PostgreSQL **18.6** passes **70 distinct
+native cases**, independently checked across two nonoverlapping reports and
+all fifteen named phase partitions. The first report passes **64/64** in
+**3m09.16s** command time; the six parameterized legacy cases missed by its exact
+display-name filter pass in **2m16.97s**. Existing **98/98** logging/callback
+runtime cases pass (**1.699s** tests / **3.741s** command).
+
+The final generator module passes **3,776/3,776**, zero failures/skips,
+**59.601s** command. Two old shared-memory source-substring assertions now
+check their actual GUC reporting contract. Release has zero warnings/errors,
+**54.40s** build / **54.562s** command. API generation/freshness verifies
+**244 pages / 2,791 members**; site checks have zero errors/warnings/hints and
+**293 pages** build in **2.69s**.
+
+The corrected complete suite finishes on SDK **10.0.401**, LLVM **23.1.2**
+and compiler/runtime **10.0.12-ankus.4** with **12,289 total / 12,238 passed /
+48 skips / three failures**, **38m59.214s** tests / **39m20.70s** command.
+All **1,678** authored inputs and **39** runtime files match afterward.
+Its exact source and complete evidence are archived, and every one of the
+**1,785** ordinary archived files matches its retained original before cleanup.
+
+All three failures are older assertions of the corrected cleanup contract:
+`NativeDisposeFailureCannotBeSwallowed` expected **42704** to replace the
+transition's **P7801**, and `CaughtNativeCleanupErrorsRequireRollback` expected
+**42704** to replace the executor's **22012**. Their complete native secondary
+warnings are present. `ExecutorErrorsAbortEnumeratorsWithoutReplacingTheError`
+expected a generic warning instead of the original **P7107** message. Their
+corrected assertions retain ordinary-error/rollback controls and require exact
+primary and secondary fields, cleanup ownership and same-backend recovery.
+Expanded native validation passes **295/295**, zero failures/skips,
+**2m42.585s** tests / **3m16.11s** command. Every outcome and all eighteen
+required named partitions are independently verified, including all seven
+ordinary/abort/row-error controls in those three existing methods. Final Release
+has zero warnings/errors, **47.88s** build / **48.045s** command. All **1,678**
+authored inputs and **39** runtime files match before the final complete run.
+The final complete suite passes **12,289 total / 12,241 passed / 48 platform
+skips / zero failures**, **39m18.598s** tests / **39m41.40s** command. Every
+actual result and unique execution identity matches its report counters; all
+six modules are present. All **1,678** authored inputs match locally and in the
+validation checkout afterward, and its **39** runtime files also match.
+
+| Complete module | Total | Passed | Platform skips | Failed |
+| --- | ---: | ---: | ---: | ---: |
+| Ankus.Build.Tests | 1,222 | 1,213 | 9 | 0 |
+| Ankus.Examples.Hello.Tests | 5 | 5 | 0 | 0 |
+| Ankus.Generators.Tests | 3,776 | 3,776 | 0 | 0 |
+| Ankus.IntegrationTests | 4,669 | 4,654 | 15 | 0 |
+| Ankus.PgConfig.Tests | 483 | 459 | 24 | 0 |
+| Ankus.Runtime.Tests | 2,134 | 2,134 | 0 | 0 |
+
+Before committing, the previous **a04f6ed** primary
+[CI 37244724738](https://github.com/willibrandon/ankus/actions/runs/37244724738)
+and [Docs 37244724710](https://github.com/willibrandon/ankus/actions/runs/37244724710)
+are checked green. This local complete acceptance does not establish the new
+composition's other-platform acceptance or full-port completion.

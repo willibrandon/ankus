@@ -111,7 +111,7 @@ public static unsafe class NativeMemoryContext
     /// <param name="result">The native result.</param>
     internal static void Invoke(ref NativeMemoryRequest request, out NativeMemoryResult result)
     {
-        if (request._operation != NativeMemoryOperation.SpinLock &&
+        if (request._operation is not (NativeMemoryOperation.SpinLock or NativeMemoryOperation.RecordTerminal) &&
             !(request._operation == NativeMemoryOperation.SharedMemory && request._flags is 6 or 7))
         {
             NativeBorrowScope.CheckBackendAccess();
@@ -140,6 +140,22 @@ public static unsafe class NativeMemoryContext
         }
 
         throw exception;
+    }
+
+    /// <summary>
+    /// Copies terminal intent into the native callback frame without reporting, acquiring resources or starting SQL.
+    /// </summary>
+    /// <param name="level">The validated FATAL or PANIC severity.</param>
+    /// <param name="report">The borrowed transport copied by the native frame before this call returns.</param>
+    internal static void RecordTerminal(PgLogLevel level, NativeCallError* report)
+    {
+        NativeMemoryRequest request = new()
+        {
+            _operation = NativeMemoryOperation.RecordTerminal,
+            _flags = (int)level,
+            _pointer = (nint)report,
+        };
+        Invoke(ref request, out _);
     }
 
     /// <summary>
@@ -312,6 +328,10 @@ internal enum NativeMemoryOperation
     /// Processes PostgreSQL interrupts, including queued Windows signals, beneath the native error guard.
     /// </summary>
     CheckInterrupts = 38,
+    /// <summary>
+    /// Retains terminal diagnostics in the current native callback frame without entering PostgreSQL reporting.
+    /// </summary>
+    RecordTerminal = 39,
 }
 
 /// <summary>
@@ -345,7 +365,7 @@ internal struct NativeMemoryRequest
     /// </summary>
     internal NativeMemoryOperation _operation;
     /// <summary>
-    /// Carries zero-fill, no-OOM, and huge-size allocation flags.
+    /// Carries operation-specific allocation, ownership or terminal severity flags.
     /// </summary>
     internal int _flags;
     /// <summary>

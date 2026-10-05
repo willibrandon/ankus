@@ -163,15 +163,22 @@ cleanup, queries and catalog operations are unavailable: the transaction or
 executor may already be shutting down. Disposal of owned SPI plans and cursors
 still releases those resources through a restricted native guard. Keep other
 abort cleanup independent of database work.
+
+Unsafe raw calls must satisfy the native function's transaction and ownership
+preconditions. Valid releases such as `pfree` remain supported during abort;
+the error guard does not establish whether arbitrary backend work is safe there.
+Checked lifetime access and disposal of owned resources remain available.
+
 Cursor closure during rollback is deferred until PostgreSQL finishes scanning
 its cursor registry, including when the iterator adopted a cursor opened before
 the failed savepoint.
 
 Factory, iteration, conversion, and normal disposal exceptions become PostgreSQL
 errors after managed frames unwind. If disposal also fails while another error
-is being handled, an ordinary managed disposal failure produces a warning while
-preserving the original error. Native failures cannot be swallowed to finish the
-query successfully. After an unrecovered native row error, disposal can release
+is being handled, its secondary diagnostic is reported as a warning while
+preserving the original error and completing rollback. Native failures during
+ordinary execution cannot be swallowed to finish the query successfully.
+After an unrecovered native row error, disposal can release
 owned resources but cannot begin new backend work. Cancellation and terminal
 reports retain their effect through cleanup.
 

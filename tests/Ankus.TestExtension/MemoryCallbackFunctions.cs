@@ -326,6 +326,50 @@ public static class MemoryCallbackFunctions
     }
 
     /// <summary>
+    /// Registers cancellation during cleanup after retaining an older callback and its native payload.
+    /// </summary>
+    /// <param name="kind">The current statement, top transaction, or current subtransaction owner.</param>
+    /// <returns>The ordinary preparation result before native cleanup starts.</returns>
+    [PgFunction]
+    public static int MemoryCallbackPrepareCancellation(int kind)
+    {
+        int result = MemoryCallbackPrepare(kind, false);
+        PgMemoryContext owner = s_implicitOwner ?? throw new InvalidOperationException("Missing callback owner.");
+        PgAllocation value = s_implicitValue ?? throw new InvalidOperationException("Missing callback payload.");
+        s_implicitSecond?.Dispose();
+        s_implicitSecond = owner.RegisterResetCallback(() =>
+        {
+            s_implicitEvents.Add($"B{value.Read<int>()}");
+            throw new PgQueryCanceledException("cleanup cancellation");
+        });
+        return result;
+    }
+
+    /// <summary>
+    /// Retains terminal reporting intent even when user cleanup catches the managed exception before commit completes.
+    /// </summary>
+    /// <param name="level">FATAL or PANIC represented by its logging enum value.</param>
+    /// <returns>The ordinary preparation result before transaction completion starts.</returns>
+    [PgFunction]
+    public static int MemoryCallbackPrepareTerminal(int level)
+    {
+        if (level != (int)PgLogLevel.Fatal && level != (int)PgLogLevel.Panic)
+        {
+            throw new ArgumentOutOfRangeException(nameof(level));
+        }
+
+        int result = MemoryCallbackPrepare(1, false);
+        PgMemoryContext owner = s_implicitOwner ?? throw new InvalidOperationException("Missing callback owner.");
+        s_implicitSecond?.Dispose();
+        s_implicitSecond = owner.RegisterResetCallback(() =>
+        {
+            CallbackRecoveryFunctions.ReportCaughtTerminal(level);
+            s_implicitEvents.Add("caught terminal report");
+        });
+        return result;
+    }
+
+    /// <summary>
     /// Inspects the backend-local aftermath of implicit cleanup from a later SQL call.
     /// </summary>
     /// <returns>The callback order, pending states, owner lifetime, and checked payload state.</returns>

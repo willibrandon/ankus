@@ -21,6 +21,7 @@ public static class PreloadFunctions
     private static int s_parentFinalization;
     private static int s_parentTask;
     private static int s_parentTimer;
+    private static int[] s_cleanupState = [];
     private static Node? s_root;
     private static Timer? s_retainedTimer;
 
@@ -33,6 +34,7 @@ public static class PreloadFunctions
         s_initializations++;
         s_initializerPid = Environment.ProcessId;
         s_token = Guid.NewGuid();
+        s_cleanupState = PreloadCleanupProbe.Run();
         s_root = new Node(GraphValue);
         s_root.Next = s_root;
         s_parentFinalization = CollectAndFinalize();
@@ -54,6 +56,13 @@ public static class PreloadFunctions
     [PgFunction(Name = "preload_snapshot")]
     public static string Snapshot() => string.Create(CultureInfo.InvariantCulture,
         $"{s_initializerPid}|{Environment.ProcessId}|{s_initializations}|{s_token:D}|{s_parentFinalization}|{s_parentTask}|{s_parentTimer}|{s_root?.Marker ?? -1}");
+
+    /// <summary>
+    /// Returns native callback observations collected outside a transaction during shared preload.
+    /// </summary>
+    /// <returns>Transaction presence, callback count, payload, native result, pending registration and retained owner.</returns>
+    [PgFunction(Name = "preload_cleanup_state")]
+    public static int[] CleanupState() => s_cleanupState;
 
     /// <summary>
     /// Exercises fresh and inherited runtime services in a forked backend.

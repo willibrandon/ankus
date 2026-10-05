@@ -10,6 +10,10 @@ namespace Ankus;
 /// Disposing the registration cancels its action without running it. The native context retains a
 /// cancellation record until its next reset or deletion. There is no finalizer; PostgreSQL owns the
 /// pending callback lifetime even when the registration is no longer referenced by application code.
+/// Ordinary reset failures stop callback drain and require rollback before retry. During transaction
+/// completion, secondary failures become warnings so commit or abort cleanup can finish. Terminal
+/// reports remain pending even if their managed exception is caught; irreversible completion uses
+/// PostgreSQL PANIC after managed unwinding. Cleanup does not inherit ordinary logging or SQL access.
 /// </remarks>
 public sealed unsafe class PgMemoryCallback : IDisposable
 {
@@ -103,6 +107,7 @@ public sealed unsafe class PgMemoryCallback : IDisposable
         nint previousBackend = 0;
         bool backendEntered = false;
         nint previousLog = NativeLog.Enter(0);
+        int previousTerminal = NativeLog.EnterMemoryTerminal();
         nint previousRead = NativeGuc.Enter(0);
         NativeAggregate.EnterCleanup();
         try
@@ -130,6 +135,7 @@ public sealed unsafe class PgMemoryCallback : IDisposable
         {
             NativeAggregate.ExitCleanup();
             NativeGuc.Exit(previousRead);
+            NativeLog.ExitMemoryTerminal(previousTerminal);
             NativeLog.Exit(previousLog);
             if (backendEntered)
             {

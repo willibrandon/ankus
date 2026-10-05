@@ -11,6 +11,24 @@ namespace Ankus.TestExtension;
 [PgSchema("set_values")]
 public static class SetFunctions
 {
+    /// <summary>
+    /// Leaves terminal cleanup to the executor's abort callback after it receives the first row.
+    /// </summary>
+    /// <param name="level">The terminal severity retained despite a managed catch.</param>
+    /// <returns>A zero value used to trigger an independent executor division error.</returns>
+    [PgFunction(SetMode = PgSetMode.ValuePerCall)]
+    public static IEnumerable<int> SetTerminalCleanup(int level)
+    {
+        try
+        {
+            yield return 0;
+        }
+        finally
+        {
+            CallbackRecoveryFunctions.ReportCaughtTerminal(level);
+        }
+    }
+
     private static int s_factory;
     private static int s_sequenceConstruction;
     private static int s_getEnumerator;
@@ -465,6 +483,10 @@ public static class SetFunctions
             if (exception is PgException { SqlState: "42704" })
             {
                 s_nativeCleanupCaught++;
+            }
+            else
+            {
+                throw;
             }
         }
     }

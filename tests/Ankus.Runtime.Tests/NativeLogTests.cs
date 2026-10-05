@@ -15,6 +15,43 @@ public sealed partial class NativeLogTests
     private static LogFixture? s_fixture;
 
     /// <summary>
+    /// Terminal transport remains available during owned-resource cleanup without granting SQL or ordinary logging.
+    /// </summary>
+    /// <param name="level">The terminal severity retained before managed unwinding.</param>
+    [TestMethod]
+    [DataRow(PgLogLevel.Fatal)]
+    [DataRow(PgLogLevel.Panic)]
+    public void TerminalBackendTransportRemainsAvailableDuringAbortCleanup(PgLogLevel level)
+    {
+        using var fixture = new LogFixture();
+        nint previous = NativeBackend.Enter(BackendPointer, abortCleanup: true);
+        try
+        {
+            Assert.ThrowsExactly<InvalidOperationException>(() => Spi.Execute("SELECT 42"));
+            Assert.ThrowsExactly<InvalidOperationException>(() => PgLog.IsEnabled(PgLogLevel.Notice));
+            var diagnostic = new PgDiagnostic("terminal cleanup café")
+            {
+                SqlState = "P7806",
+                Detail = "terminal cleanup naïve",
+                Hint = "restart after terminal cleanup déjà",
+            };
+            PgTerminalException terminal = Assert.ThrowsExactly<PgTerminalException>(() => PgLog.Write(level, diagnostic));
+            Assert.AreEqual(level, terminal.Level);
+            Assert.AreSame(diagnostic, terminal.Diagnostic);
+            Assert.AreSequenceEqual([SpiOperation.Report], fixture.BackendOperations);
+            Assert.IsEmpty(fixture.Calls);
+            Assert.AreEqual(diagnostic.Message, fixture.Fields[(int)NativeDiagnosticField.Message]);
+            Assert.AreEqual(diagnostic.Detail, fixture.Fields[(int)NativeDiagnosticField.Detail]);
+            Assert.AreEqual(diagnostic.Hint, fixture.Fields[(int)NativeDiagnosticField.Hint]);
+            Assert.AreEqual(3, fixture.ReportReleases);
+        }
+        finally
+        {
+            NativeBackend.Exit(previous, abortCleanup: true);
+        }
+    }
+
+    /// <summary>
     /// Logging and terminal reports require an active capability even when no native message would be emitted.
     /// </summary>
     /// <param name="level">A representative nonterminal or terminal severity.</param>

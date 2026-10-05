@@ -808,7 +808,7 @@ public static unsafe partial class NativeBackend
             NativeBorrowScope.CheckBackendAccess();
         }
 
-        if (s_abortCleanupDepth != 0)
+        if (s_abortCleanupDepth != 0 && !terminal)
         {
             bool relationRelease = request->_operation == SpiOperation.Relation && request->_scalarOperation == 0;
             if ((!relationRelease && request->_operation is not (SpiOperation.FreePlan or SpiOperation.CloseCursor)) || request->_sessionId != 0)

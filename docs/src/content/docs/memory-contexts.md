@@ -347,17 +347,26 @@ without running it; repeated disposal is harmless. Cancellation releases managed
 references immediately, while a small native cancellation record remains until
 the context next resets or is deleted. Registrations have no finalizer.
 
-An exception consumes that callback and stops the native drain. Older callbacks
-remain pending; retrying reset or deletion invokes them. Already deleted child
-contexts stay deleted. The diagnostic becomes a PostgreSQL error only after the
-managed callback returns. An explicit managed `Reset()` or owned `Dispose()`
-receives a `PgException`; recovering from it requires the surrounding
-subtransaction to roll back before retrying. Implicit PostgreSQL cleanup can report the error to the
-SQL caller, including during statement or transaction completion. Write cleanup
-actions so they can release their own resources without throwing. If cleanup
-throws while PostgreSQL is already handling a SQL error, the server reports the
-cleanup error too. Npgsql reports the last error it receives before the backend
-becomes ready; the server log retains both diagnostics.
+During ordinary reset or deletion, an exception consumes that callback and
+stops the native drain. Older callbacks remain pending; retrying cleanup invokes
+them. Already deleted child contexts stay deleted. The diagnostic becomes a
+PostgreSQL error after the managed callback returns. An explicit managed
+`Reset()` or owned `Dispose()` receives a `PgException`; recovering requires
+the surrounding subtransaction to roll back before retrying.
+
+Commit and abort cleanup must finish draining the transaction's callbacks.
+A secondary callback failure is reported as a warning with its diagnostic fields.
+It neither replaces the original SQL error nor turns a completed commit into a
+failed transaction. Cancellation remains pending until a later interrupt boundary;
+terminal failures require PostgreSQL `PANIC` after managed unwinding. If a native
+log hook or diagnostic conversion fails while reporting the secondary warning,
+PostgreSQL also panics with the reporter's diagnostic. `FATAL` would try to abort
+an already committed transaction, so it cannot safely handle this phase. This
+matches the [transaction-completion contract](/transaction-callbacks/).
+Write callbacks to release their resources without throwing.
+`PgLog.Write(PgLogLevel.Fatal, ...)` and `PgLog.Write(PgLogLevel.Panic, ...)` retain terminal intent
+through the callback's own memory capability, even if its managed exception is
+caught. This does not grant ordinary logging or SQL access during cleanup.
 
 Cleanup permits checked native allocation access and disposal of retained SPI
 plans and cursors when the registration was created with backend access. Queries,
@@ -367,6 +376,12 @@ or its ancestors, switching into the context being reclaimed, and child creation
 within the active cleanup tree are rejected. Independent contexts can still be
 used and reset. Iterator and aggregate cleanup has the same native owner
 protection, including during transaction abort.
+Unsafe raw calls retain their native transaction and ownership preconditions.
+Releasing owned storage with a valid `pfree` call remains supported during abort;
+the raw guard contains errors, but cannot make an arbitrary native operation safe
+in a transaction that PostgreSQL is dismantling. Checked lifetime access and
+owned-resource release remain available. Ordinary reset during initialization
+or idle backend execution retains its existing native-call and error contract.
 
 A callback owned by `ErrorContext` or one of its children runs inside the error
 handler's cleanup phase. It can release managed resources, but guarded memory

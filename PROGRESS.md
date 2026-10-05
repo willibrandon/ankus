@@ -91,7 +91,11 @@ extensions. Counts supplement the backend, ownership and recovery assertions.
 
 | Source | Platform / PostgreSQL | Result | Duration |
 | --- | --- | --- | --- |
+| Frozen transaction-completion cleanup composition / runtime **ankus.4** | Linux x64 / 18.6 | 12,289 total; 12,241 passed; 48 platform skips; zero failures | 39m18.598s tests; 39m41.40s command |
 | Frozen remaining-reader composition / runtime **ankus.4** | Linux x64 / 18.6 | 12,260 total; 12,212 passed; 48 platform skips; zero failures | 39m21.681s tests; 39m44.06s command |
+| [CI 37244724738](https://github.com/willibrandon/ankus/actions/runs/37244724738), a04f6ed / runtime **ankus.4** | Linux x64 / 18 | 12,260 total; 12,212 passed; 48 platform skips; zero failures | 37m58s job |
+| Same CI / revision / runtime | Windows x64 / 17 | 12,260 total; 12,232 passed; 28 platform skips; zero failures | 36m27s job |
+| Same CI / revision / runtime | macOS ARM64 / 18 | 12,260 total; 12,200 passed; 60 platform skips; zero failures | 28m23s job |
 | [CI 37241377151](https://github.com/willibrandon/ankus/actions/runs/37241377151), dc48724 / runtime **ankus.4** | Linux x64 / 18 | 12,244 total; 12,196 passed; 48 platform skips; zero failures | 37m56s job |
 | Same CI / revision / runtime | Windows x64 / 17 | 12,244 total; 12,216 passed; 28 platform skips; zero failures | 34m39s job |
 | [CI 37241377151](https://github.com/willibrandon/ankus/actions/runs/37241377151), dc48724 / runtime **ankus.4** | macOS ARM64 / 18 | 12,244 total; 12,184 passed; 60 platform skips; zero failures | 28m58s job |
@@ -212,12 +216,25 @@ passes.
   generator validation passes **3,776/3,776**. Complete Linux/18.6 acceptance
   passes **12,260 total / 12,212 passed / 48 skips**, with zero failures; all six
   reports, **1,669** source inputs and **39** runtime files are post-verified.
-  Release, API freshness and site checks/build pass. Replacement platform CI
-  remains required for this composition.
-- The cleanup audit reproduces iterator and aggregate errors while PL/pgSQL rolls
-  back an exception subtransaction, producing `AbortSubTransaction while in
-  ABORT state`. Ordinary savepoint probes pass, but do not cover this path.
-  A phase-aware native cleanup correction and regression coverage are pending.
+  Release, API freshness and site checks/build pass. Committed as **a04f6ed**;
+  replacement [CI 37244724738](https://github.com/willibrandon/ankus/actions/runs/37244724738)
+  passes quality, all runtime jobs and all three complete platform suites.
+  All six reports are independently checked per platform, with results and
+  durations above; no timeouts. [Docs 37244724710](https://github.com/willibrandon/ankus/actions/runs/37244724710)
+  passes.
+- Transaction-completion cleanup preserves the primary error, complete secondary
+  warnings, callback drain and cancellation. Terminal-only transport retains
+  FATAL/PANIC intent; irreversible completion uses PANIC after managed unwinding.
+  Valid unsafe native releases remain available. Expanded native validation
+  passes **295/295**, with every outcome and all eighteen required partitions
+  independently verified. Final complete Linux/18.6 acceptance passes
+  **12,289 total / 12,241 passed / 48 skips / zero failures**, with all six
+  reports and **1,678** authored inputs / **39** runtime files post-verified.
+  Release has zero warnings/errors (**47.88s** build / **48.045s** command);
+  API freshness and site checks/build pass. Exact rejected sources/reports and
+  their assertion corrections remain in the evidence archive. Other-platform
+  acceptance of this composition remains pending. Previous primary CI and docs
+  are freshly checked green before committing.
 - [CI 37236731631](https://github.com/willibrandon/ankus/actions/runs/37236731631)
   on **a78be2c** passes quality, all runtime jobs and all three complete platform
   suites. All six reports are independently verified per platform, with counts

@@ -307,6 +307,8 @@ public sealed class InitializationTests(TestContext context)
             Assert.AreEqual("42", values[5]);
             Assert.AreEqual("91", values[6]);
             Assert.AreEqual("17", values[7]);
+            command.CommandText = "SELECT preload_cleanup_state()";
+            Assert.AreSequenceEqual([0, 1, 73, 1, 0, 1], Assert.IsInstanceOfType<int[]>(await command.ExecuteScalarAsync(token)));
             if (OperatingSystem.IsWindows())
             {
                 Assert.AreEqual(connection.ProcessID, currentInitializerPid);

@@ -98,6 +98,12 @@ internal static class NativeSetBridge
             /* The executor skips expression callbacks on abort. Managed cleanup still runs;
              * SPI queries are unavailable while the backend dismantles its transaction. */
             status = ankus_set_call(state, 3, NULL, &error, true, NULL);
+            if (status != 0 && ankus_transaction_cleanup_active())
+            {
+                ankus_report_completion_cleanup(&error);
+                return;
+            }
+
             if (status != 0 && ((error.flags & ANKUS_ERROR_UNRECOVERED) != 0 ||
                 error.sqlstate == ERRCODE_QUERY_CANCELED || error.report_level != 0))
             {

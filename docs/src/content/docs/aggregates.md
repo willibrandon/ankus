@@ -207,9 +207,17 @@ That includes group completion, rescans, moving-window restarts, cancellation,
 and errors. If the payload implements `IDisposable`, cleanup invalidates the
 wrapper and releases its root before calling `Dispose` once. Ordinary managed
 cleanup failures produce a PostgreSQL warning; other states still receive cleanup.
-Unrecovered native errors, query cancellation and terminal reports propagate
-after managed cleanup returns, even when `Dispose` catches their exceptions.
-During cleanup, SPI access is limited to releasing owned plans and cursors.
+An unrecovered native error during ordinary state disposal requires rollback,
+even when `Dispose` catches it. Secondary failures during transaction completion
+produce warnings with their diagnostic fields, allowing the original error's
+rollback to finish.
+Query cancellation remains pending for the next interrupt boundary. Terminal
+failures during irreversible cleanup require PostgreSQL `PANIC` after managed
+unwinding, matching transaction-completion callbacks. During cleanup, SPI access
+is limited to releasing owned plans and cursors.
+
+Unsafe raw calls retain their native transaction and ownership preconditions;
+use them only for operations valid during cleanup, such as releasing owned memory.
 
 Finalization does not dispose state: PostgreSQL can call a final method repeatedly
 or share state across several final methods. Retained wrappers reject payload

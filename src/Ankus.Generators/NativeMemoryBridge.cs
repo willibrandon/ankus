@@ -68,7 +68,8 @@ internal static class NativeMemoryBridge
             ANKUS_MEMORY_SHARED = 35,
             ANKUS_MEMORY_SPIN = 36,
             ANKUS_MEMORY_WORKER = 37,
-            ANKUS_MEMORY_CHECK_INTERRUPTS = 38
+            ANKUS_MEMORY_CHECK_INTERRUPTS = 38,
+            ANKUS_MEMORY_RECORD_TERMINAL = 39
         } AnkusMemoryOperation;
 
         typedef struct AnkusMemoryRequest
@@ -191,6 +192,60 @@ internal static class NativeMemoryBridge
             return NULL;
         }
 
+        static bool
+        ankus_transaction_cleanup_active(void)
+        {
+            /* Commit/abort owns this context until its callbacks finish. An idle
+             * backend or initializer has no transaction context to dismantle. */
+            return !IsTransactionState() && CurTransactionContext != NULL;
+        }
+
+        static void
+        ankus_report_completion_cleanup(AnkusError *error)
+        {
+            if (error->sqlstate == ERRCODE_QUERY_CANCELED)
+            {
+                /* Finish the current rollback before processing cancellation at
+                 * the next interrupt boundary. A caught callback cannot lose it. */
+                QueryCancelPending = true;
+                InterruptPending = true;
+            }
+
+            MemoryContext recovery = ankus_error_recovery_context(CurrentMemoryContext);
+            uint32 interrupt_holdoff = InterruptHoldoffCount;
+            HOLD_INTERRUPTS();
+            PG_TRY();
+            {
+                PG_TRY();
+                {
+                    /* A second ERROR cannot interrupt an abort or undo a durable
+                     * commit. FATAL also runs abort cleanup and cannot safely
+                     * follow a durable commit. Terminal failures require PANIC. */
+                    ankus_report(error, error->report_level >= 12 ? PANIC : WARNING);
+                }
+                PG_CATCH();
+                {
+                    /* Any failure while copying/reporting this terminal error
+                     * must itself be terminal, never resume unfinished cleanup. */
+                    START_CRIT_SECTION();
+                    MemoryContextSwitchTo(recovery);
+                    MemoryContext diagnostic = AllocSetContextCreate(TopMemoryContext,
+                        "Ankus cleanup reporting failure", ALLOCSET_SMALL_SIZES);
+                    MemoryContextSwitchTo(diagnostic);
+                    ErrorData *failure = ankus_copy_error_data();
+                    FlushErrorState();
+                    failure->elevel = PANIC;
+                    ThrowErrorData(failure);
+                }
+                PG_END_TRY();
+            }
+            PG_FINALLY();
+            {
+                InterruptHoldoffCount = interrupt_holdoff;
+            }
+            PG_END_TRY();
+        }
+
         typedef int (*AnkusMemoryCallbackFunction)(intptr_t, AnkusMemoryApi *, AnkusError *);
 
         typedef struct AnkusMemoryCallback
@@ -250,7 +305,14 @@ internal static class NativeMemoryBridge
             PG_END_TRY();
             if (status != 0)
             {
-                ankus_report(&error, ERROR);
+                if (ankus_transaction_cleanup_active())
+                {
+                    ankus_report_completion_cleanup(&error);
+                }
+                else
+                {
+                    ankus_report(&error, error.report_level == 0 ? ERROR : ankus_log_level(error.report_level - 1));
+                }
             }
 
             ankus_release_error(&error);
@@ -1601,6 +1663,13 @@ internal static class NativeMemoryBridge
             AnkusMemoryResult *result, AnkusError *error)
         {
             memset(error, 0, sizeof(*error));
+            if (request->operation == ANKUS_MEMORY_RECORD_TERMINAL)
+            {
+                /* This only copies diagnostics into the callback's native frame.
+                 * It must remain available under held locks and during teardown. */
+                return ankus_recovery_terminal(request->flags, (AnkusError *) request->pointer, error);
+            }
+
             if (request->operation == ANKUS_MEMORY_WORKER && request->flags == 6)
             {
                 ankus_worker_release(request);
