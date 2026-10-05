@@ -44,6 +44,11 @@ public static unsafe class NativeLog
     /// </summary>
     /// <param name="log">The guarded native logging entry point, or zero to explicitly disable logging.</param>
     /// <returns>The previous binding, restored by generated code in a matching finally block.</returns>
+    /// <remarks>
+    /// This raw transport contract requires an explicit unsafe context.
+    /// Use the matching dispatcher's live binding and restore the exact previous entry in reverse order.
+    /// </remarks>
+    [NativeUnsafeAccess]
     public static nint Enter(nint log)
     {
         nint previous = s_log;
@@ -56,6 +61,11 @@ public static unsafe class NativeLog
     /// Restores the enclosing native logging scope on its owning thread.
     /// </summary>
     /// <param name="previous">The binding returned by the matching Enter call.</param>
+    /// <remarks>
+    /// This raw transport contract requires an explicit unsafe context.
+    /// Use the matching dispatcher's live binding and restore the exact previous entry in reverse order.
+    /// </remarks>
+    [NativeUnsafeAccess]
     public static void Exit(nint previous)
     {
         s_log = previous;

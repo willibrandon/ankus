@@ -331,12 +331,7 @@ public sealed class TransactionCallbackTests(TestContext context)
 
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
         deadline.CancelAfter(TimeSpan.FromSeconds(30));
-        while (!cluster.ReadServerLog().Contains("reinitializing", StringComparison.Ordinal))
-        {
-            await Task.Delay(50, deadline.Token);
-        }
-
-        string log = cluster.ReadServerLog();
+        string log = await CrashRecovery.WaitAsync(cluster, deadline.Token);
         string diagnostic = $"[{session}]: PANIC:  38000: managed post-commit failure";
         string cleanup = $"[{session}]: WARNING:  01000: managed post-commit finally";
         Assert.Contains(diagnostic, log);

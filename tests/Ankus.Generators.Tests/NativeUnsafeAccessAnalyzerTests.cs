@@ -10,7 +10,7 @@ namespace Ankus.Generators.Tests;
 /// </summary>
 /// <param name="context">The test cancellation context.</param>
 [TestClass]
-public sealed class NativeUnsafeAccessAnalyzerTests(TestContext context)
+public sealed partial class NativeUnsafeAccessAnalyzerTests(TestContext context)
 {
     private const string Declarations = """
         public static class Raw

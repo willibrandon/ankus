@@ -307,35 +307,13 @@ public sealed partial class PgLogTests(TestContext context)
         {
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
             deadline.CancelAfter(TimeSpan.FromSeconds(30));
-            // PANIC can reach the client before the postmaster observes the dying backend.
-            // A connection accepted before crash recovery begins does not prove recovery.
-            while (!cluster.ReadServerLog().Contains("reinitializing", StringComparison.Ordinal))
-            {
-                await Task.Delay(50, deadline.Token);
-            }
-
-            // Crash recovery asynchronously closes peers and reopens the database. Retry only startup connection failures.
-            while (true)
-            {
-                deadline.Token.ThrowIfCancellationRequested();
-                try
-                {
-                    await using NpgsqlConnection recovered = await cluster.OpenConnectionAsync(deadline.Token);
-                    await using var query = new NpgsqlCommand("SELECT count(*) FROM log_rollback", recovered);
-                    Assert.AreEqual(0L, await query.ExecuteScalarAsync(deadline.Token));
-                    break;
-                }
-                catch (NpgsqlException failure) when (failure is not PostgresException or PostgresException
-                {
-                    SqlState: PostgresErrorCodes.CannotConnectNow or
-                        PostgresErrorCodes.AdminShutdown or PostgresErrorCodes.CrashShutdown
-                })
-                {
-                    await Task.Delay(50, deadline.Token);
-                }
-            }
-
-            Assert.Contains("reinitializing", cluster.ReadServerLog());
+            string recoveredLog = await CrashRecovery.WaitAsync(cluster, deadline.Token);
+            Assert.DoesNotContain("the database system is in recovery mode", recoveredLog);
+            Assert.DoesNotContain("the database system is not yet accepting connections", recoveredLog);
+            await using NpgsqlConnection recovered = await cluster.OpenConnectionAsync(deadline.Token);
+            await using var query = new NpgsqlCommand("SELECT count(*) FROM log_rollback", recovered);
+            Assert.AreEqual(0L, await query.ExecuteScalarAsync(deadline.Token));
+            Assert.Contains("reinitializing", recoveredLog);
         }
     }
 }

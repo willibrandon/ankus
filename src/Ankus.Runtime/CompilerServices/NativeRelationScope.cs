@@ -17,6 +17,11 @@ public sealed class NativeRelationScope : IDisposable
     /// </summary>
     /// <param name="iterator">The generated iterator handle.</param>
     /// <returns>A result scope to create before advancing the iterator.</returns>
+    /// <remarks>
+    /// This raw transport contract requires an explicit unsafe context.
+    /// A nonzero iterator handle must be a live root returned by NativeSet.Create.
+    /// </remarks>
+    [NativeUnsafeAccess]
     public static NativeRelationScope ForIterator(nint iterator)
         => new()
         {

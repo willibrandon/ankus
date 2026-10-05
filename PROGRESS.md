@@ -91,6 +91,8 @@ extensions. Counts supplement the backend, ownership and recovery assertions.
 
 | Source | Platform / PostgreSQL | Result | Duration |
 | --- | --- | --- | --- |
+| Frozen raw transport / crash-recovery readiness composition, runtime **ankus.4** | Linux x64 / 18.6 | 12,561 total; 12,513 passed; 48 platform skips; zero failures | 41m19.728s tests |
+| Same composition and runtime | Windows x64 / 17.11 | 12,561 total; 12,533 passed; 28 platform skips; zero failures | 47m38.639s tests; 48m23.936s command |
 | Frozen metadata image / editor scope composition, runtime **ankus.4** | Linux x64 / 18.6 | 12,540 total; 12,492 passed; 48 platform skips; zero failures | 40m52.575s tests |
 | [CI 37335229927](https://github.com/willibrandon/ankus/actions/runs/37335229927), b9eb9db / runtime **ankus.4** | Linux x64 / 18 | 12,524 total; 12,476 passed; 48 platform skips; zero failures | 39m16s job |
 | Same CI / revision / runtime | macOS ARM64 / 18 | 12,524 total; 12,464 passed; 60 platform skips; zero failures | 29m14s job |
@@ -210,32 +212,43 @@ passes.
 
 ## Active validation and work
 
-- **ff7e07c** preserves exact DLL-copy checks against each command's own
-  publication. Replacement [CI 37313742483](https://github.com/willibrandon/ankus/actions/runs/37313742483)
-  passes all three complete platform suites, quality and runtime jobs; all eighteen
-  actual reports independently verify. [Docs 37313742494](https://github.com/willibrandon/ankus/actions/runs/37313742494) passes.
-- Native recovery passes **71** affected cases on Linux/**18.6**
-  and **80** each on Linux/**13** and Windows/**17.11**, including actual catalog
-  pins, native locks, cancellation, caller ownership and callback/parallel parsing.
-  The corrected complete Linux/**18.6** suite passes **12,524 total / 12,476
-  passed / 48 platform skips / zero failures**. Its **1,784** frozen inputs and
-  all six actual reports independently verify. Successful value operations retain
-  the lightweight path, and deliberate input recovery performs real rollback
-  where PostgreSQL permits it. Complete primary-platform CI now passes at
-  **b9eb9db**; current supported-version acceptance remains required.
 - Native recovery is committed as **b9eb9db**; [CI 37335229927](https://github.com/willibrandon/ankus/actions/runs/37335229927)
   passes all primary suites, quality and runtime jobs; all eighteen actual
   reports independently verify. [Docs 37335229895](https://github.com/willibrandon/ankus/actions/runs/37335229895)
-  passes. Metadata image indexing and scope-preserving unsafe editor fixes pass
-  **49** affected tests with zero skips and the complete Linux x64/PostgreSQL
-  **18.6** suite: **12,540 total / 12,492 passed / 48 platform skips / zero
-  failures**. All six actual reports, the nested Fix All case, required native
-  recovery partitions and **1,786** frozen inputs independently verify after
-  execution. Release and public documentation checks pass; replacement
-  primary-platform CI remains required for this metadata/editor composition.
+  passes. Successful value operations retain the lightweight guard; caught
+  native failures require real rollback. Current supported-version acceptance
+  remains required.
+- Metadata/editor fixes are committed as **a4a30e2**. Their complete Linux
+  x64/PostgreSQL **18.6** suite passes **12,540 total / 12,492 passed / 48
+  platform skips / zero failures**, with all reports, required native recovery
+  partitions and **1,786** frozen inputs independently verified. Release and
+  documentation checks pass. Replacement [CI 37343346227](https://github.com/willibrandon/ankus/actions/runs/37343346227)
+  passes quality, runtime, Linux and macOS jobs. Windows reported twenty startup
+  and crash-recovery timeouts. Its server logs
+  show twelve concurrent cleanup-recovery cases and substantial disk-sync
+  delays. [Docs 37343346223](https://github.com/willibrandon/ankus/actions/runs/37343346223) passes.
+- Recovery tests now wait for postmaster readiness after reinitialization
+  before reconnecting, preserving deadlines and durability assertions. All
+  **122** affected Windows/**17.11** cases pass. The complete Linux/**18.6**
+  suite passes **12,561 total / 12,513 passed / 48 platform skips / zero
+  failures** in **41m19.728s**. Complete Windows/**17.11** acceptance passes
+  **12,561 total / 12,533 passed / 28 platform skips / zero failures** in
+  **47m38.639s**. All twelve reports, required native recovery partitions
+  and **1,788** frozen inputs verify. Release, API freshness and site checks
+  pass. Replacement CI remains required.
+- Seventeen remaining arbitrary-address/handle compiler transport methods
+  now require explicit unsafe contexts. All **21** regression cases fail
+  against the unchanged baseline and pass with the correction; the complete
+  isolated generator and runtime suites pass **3,821** and **2,148** cases.
+  The promoted composition passes all **52** affected analyzer cases and
+  the complete Linux x64/PostgreSQL
+  **18.6** suite: **12,561 total / 12,513 passed / 48 platform skips / zero
+  failures**, **41m26.979s**. All six reports, required native recovery cases
+  and **1,787** frozen inputs independently verify. Replacement primary CI and
+  current supported-platform/version acceptance remain required.
 - SPI guidance now documents hot-standby restrictions on write-intent helpers;
   this is source-derived guidance, not standby test evidence. Remaining work
-  includes raw transport unsafe requirements, meaningful code fixes, SPI interpolation
+  includes full raw contract acceptance, meaningful code fixes, SPI interpolation
   placement/dataflow, precise diagnostics, generator caching and source examples.
   The complete PostgreSQL/platform, .NET servicing and release requirements remain
   in scope.

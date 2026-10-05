@@ -116,10 +116,7 @@ public sealed class ErrorsExampleTests(TestContext context)
         {
             using var recovery = CancellationTokenSource.CreateLinkedTokenSource(token);
             recovery.CancelAfter(TimeSpan.FromSeconds(30));
-            while (!cluster.ReadServerLog().Contains("reinitializing", StringComparison.Ordinal))
-            {
-                await Task.Delay(50, recovery.Token);
-            }
+            _ = await CrashRecovery.WaitAsync(cluster, recovery.Token);
 
             await AssertRecoveredAsync(cluster, recovery.Token);
         }

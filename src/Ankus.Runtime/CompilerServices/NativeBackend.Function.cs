@@ -12,7 +12,10 @@ public static unsafe partial class NativeBackend
     /// <returns>Metadata and checked argument copies owned by the current callback or set context.</returns>
     /// <remarks>
     /// This generator contract requires a valid native pointer; extension authors receive the injected snapshot.
+    /// This raw transport contract requires an explicit unsafe context.
+    /// The function-call address must remain a live PostgreSQL call frame for the entire capture.
     /// </remarks>
+    [NativeUnsafeAccess]
     public static PgFunctionContext CaptureFunction(nint functionCall)
     {
         CheckAccess();

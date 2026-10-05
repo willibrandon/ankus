@@ -444,13 +444,12 @@ public sealed partial class CallbackSubtransactionCleanupTests(TestContext conte
 
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
         deadline.CancelAfter(TimeSpan.FromSeconds(30));
-        while (!cluster.ReadServerLog().Contains("reinitializing", StringComparison.Ordinal))
-        {
-            await Task.Delay(50, deadline.Token);
-        }
+        string recoveredLog = await CrashRecovery.WaitAsync(cluster, deadline.Token);
+        Assert.DoesNotContain("the database system is in recovery mode", recoveredLog);
+        Assert.DoesNotContain("the database system is not yet accepting connections", recoveredLog);
 
         Assert.AreEqual(System.Data.ConnectionState.Closed, connection.State);
-        string log = string.Join('\n', cluster.ReadServerLog().Split('\n')
+        string log = string.Join('\n', recoveredLog.Split('\n')
             .Where(line => line.Contains($"[{marker}]:", StringComparison.Ordinal)));
         string terminal = $"PANIC:  {sqlState}: {message}";
         Assert.Contains(terminal, log);
@@ -474,22 +473,7 @@ public sealed partial class CallbackSubtransactionCleanupTests(TestContext conte
         Assert.DoesNotContain("TRAP: failed Assert", cluster.ReadServerLog());
         Assert.DoesNotContain("AbortTransaction while", log);
         Assert.DoesNotContain("it was already committed", log);
-        NpgsqlConnection recovered;
-        while (true)
-        {
-            deadline.Token.ThrowIfCancellationRequested();
-            try
-            {
-                recovered = await cluster.OpenConnectionAsync(deadline.Token);
-                break;
-            }
-            catch (PostgresException failure) when (failure.SqlState == PostgresErrorCodes.CannotConnectNow)
-            {
-                await Task.Delay(50, deadline.Token);
-            }
-        }
-
-        await using (recovered)
+        await using (NpgsqlConnection recovered = await cluster.OpenConnectionAsync(deadline.Token))
         {
             if (preparedTransaction)
             {

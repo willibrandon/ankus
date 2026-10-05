@@ -32,6 +32,11 @@ public static unsafe partial class NativeBackend
     /// <param name="execute">The native guarded SPI entry point.</param>
     /// <param name="abortCleanup">Whether this scope may only release resources during query abort.</param>
     /// <returns>The previous callback binding, restored by generated code in a finally block.</returns>
+    /// <remarks>
+    /// This raw transport contract requires an explicit unsafe context.
+    /// Use the matching dispatcher's live binding and restore the exact previous entry in reverse order.
+    /// </remarks>
+    [NativeUnsafeAccess]
     public static nint Enter(nint execute, bool abortCleanup = false)
     {
         nint previous = s_execute;
@@ -50,6 +55,11 @@ public static unsafe partial class NativeBackend
     /// </summary>
     /// <param name="previous">The binding saved on entry.</param>
     /// <param name="abortCleanup">Whether the matching entry established an abort-cleanup scope.</param>
+    /// <remarks>
+    /// This raw transport contract requires an explicit unsafe context.
+    /// Use the matching dispatcher's live binding and restore the exact previous entry in reverse order.
+    /// </remarks>
+    [NativeUnsafeAccess]
     public static void Exit(nint previous, bool abortCleanup = false)
     {
         s_execute = previous;

@@ -96,6 +96,11 @@ public static unsafe class NativeRawCallback
     /// <typeparam name="T">The primitive unmanaged value type.</typeparam>
     /// <param name="argument">The live native value descriptor.</param>
     /// <returns>The exact native argument value.</returns>
+    /// <remarks>
+    /// This raw transport contract requires an explicit unsafe context.
+    /// Use only live argument and result storage supplied by the matching native dispatcher.
+    /// </remarks>
+    [NativeUnsafeAccess]
     public static T Read<T>(NativeCallArgument argument) where T : unmanaged
         => Read<T>(argument, Unsafe.SizeOf<T>());
 
@@ -105,6 +110,11 @@ public static unsafe class NativeRawCallback
     /// <typeparam name="T">The generated native value type.</typeparam>
     /// <param name="argument">The live native value descriptor.</param>
     /// <returns>The exact value, or the logical default of a zero-byte native type.</returns>
+    /// <remarks>
+    /// This raw transport contract requires an explicit unsafe context.
+    /// Use only live argument and result storage supplied by the matching native dispatcher.
+    /// </remarks>
+    [NativeUnsafeAccess]
     public static T ReadNative<T>(NativeCallArgument argument) where T : unmanaged, IPgNativeType
         => Read<T>(argument, NativeSize<T>());
 
@@ -115,6 +125,11 @@ public static unsafe class NativeRawCallback
     /// <param name="result">The live native destination.</param>
     /// <param name="resultSize">The supplied destination size.</param>
     /// <param name="value">The exact result value.</param>
+    /// <remarks>
+    /// This raw transport contract requires an explicit unsafe context.
+    /// Use only live argument and result storage supplied by the matching native dispatcher.
+    /// </remarks>
+    [NativeUnsafeAccess]
     public static void Write<T>(nint result, nuint resultSize, T value) where T : unmanaged
         => Write(result, resultSize, value, Unsafe.SizeOf<T>());
 
@@ -125,6 +140,11 @@ public static unsafe class NativeRawCallback
     /// <param name="result">The live native destination.</param>
     /// <param name="resultSize">The supplied destination size.</param>
     /// <param name="value">The exact result value.</param>
+    /// <remarks>
+    /// This raw transport contract requires an explicit unsafe context.
+    /// Use only live argument and result storage supplied by the matching native dispatcher.
+    /// </remarks>
+    [NativeUnsafeAccess]
     public static void WriteNative<T>(nint result, nuint resultSize, T value) where T : unmanaged, IPgNativeType
         => Write(result, resultSize, value, NativeSize<T>());
 

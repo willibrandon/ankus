@@ -38,6 +38,11 @@ public static unsafe class NativeAggregate
     /// <param name="owner">The native memory context that owns returned state.</param>
     /// <param name="api">The guarded native adoption, comparison, and memory-owner entry point.</param>
     /// <returns>The active context, which must be passed to Exit in the generated finally block.</returns>
+    /// <remarks>
+    /// This raw transport contract requires an explicit unsafe context.
+    /// The owner and API must be live capabilities supplied by the matching native aggregate dispatcher.
+    /// </remarks>
+    [NativeUnsafeAccess]
     public static PgAggregateContext Enter(ReadOnlySpan<NativeValue> metadata, nint owner, nint api)
     {
         if (s_cleanupDepth != 0)

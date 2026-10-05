@@ -176,6 +176,13 @@ compiler; `ANKUS129` also checks operations whose signatures contain only
 scalars. Use an `unsafe` block for those calls. Assigning a raw method to a
 delegate requires the same acknowledgment. The native error guard still applies;
 `unsafe` acknowledges the caller's native storage and backend obligations.
+
+The same requirement applies to `Ankus.CompilerServices` transport methods
+that accept native addresses, callback storage or iterator handles. A nonzero
+address is not proof of valid storage. Use only the live capability supplied by
+the matching dispatcher, and restore entry scopes in reverse order. Iterator
+handles must come from `NativeSet.Create` and cannot be reused after disposal.
+
 For `ANKUS129`, the editor offers **Use an unsafe block** on supported block and
 expression bodies. The correction preserves the existing code and local scope;
 you still supply valid storage and follow PostgreSQL's ownership rules.

@@ -117,12 +117,7 @@ public sealed class TransactionBoundaryTests(TestContext context)
 
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
         deadline.CancelAfter(TimeSpan.FromSeconds(30));
-        while (!cluster.ReadServerLog().Contains("reinitializing", StringComparison.Ordinal))
-        {
-            await Task.Delay(50, deadline.Token);
-        }
-
-        string log = cluster.ReadServerLog();
+        string log = await CrashRecovery.WaitAsync(cluster, deadline.Token);
         string diagnostic = $"[{identity}]: PANIC:  38000: managed post-prepare failure";
         string cleanup = $"[{identity}]: WARNING:  01000: managed post-prepare finally";
         Assert.Contains(diagnostic, log);

@@ -81,6 +81,11 @@ public static class NativeSet
     /// <param name="handle">The iterator handle.</param>
     /// <param name="value">The next row, or the default value after completion.</param>
     /// <returns>Whether a row was produced.</returns>
+    /// <remarks>
+    /// This raw transport contract requires an explicit unsafe context.
+    /// A nonzero handle must be the live iterator root returned by Create; do not reuse it after disposal.
+    /// </remarks>
+    [NativeUnsafeAccess]
     public static bool MoveNext<T>(nint handle, out T value)
     {
         if (handle != 0 && GCHandle.FromIntPtr(handle).Target is IEnumerator<T> iterator && iterator.MoveNext())
@@ -97,6 +102,11 @@ public static class NativeSet
     /// Clears and frees a handle before disposing its iterator, including when disposal throws.
     /// </summary>
     /// <param name="handle">The owned handle, cleared before invoking user cleanup.</param>
+    /// <remarks>
+    /// This raw transport contract requires an explicit unsafe context.
+    /// A nonzero handle must be the live iterator root returned by Create; do not reuse it after disposal.
+    /// </remarks>
+    [NativeUnsafeAccess]
     public static void Dispose(ref nint handle)
     {
         if (handle == 0)

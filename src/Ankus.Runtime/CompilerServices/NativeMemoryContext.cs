@@ -23,6 +23,11 @@ public static unsafe class NativeMemoryContext
     /// </summary>
     /// <param name="api">The callback-scoped native memory envelope.</param>
     /// <returns>The enclosing envelope, restored by <see cref="Exit"/>.</returns>
+    /// <remarks>
+    /// This raw transport contract requires an explicit unsafe context.
+    /// Use the matching dispatcher's live binding and restore the exact previous entry in reverse order.
+    /// </remarks>
+    [NativeUnsafeAccess]
     public static nint Enter(nint api)
     {
         nint previous = s_api;
@@ -35,6 +40,11 @@ public static unsafe class NativeMemoryContext
     /// Restores the enclosing native memory capability.
     /// </summary>
     /// <param name="previous">The value returned by <see cref="Enter"/>.</param>
+    /// <remarks>
+    /// This raw transport contract requires an explicit unsafe context.
+    /// Use the matching dispatcher's live binding and restore the exact previous entry in reverse order.
+    /// </remarks>
+    [NativeUnsafeAccess]
     public static void Exit(nint previous)
     {
         if (s_depth <= 0)

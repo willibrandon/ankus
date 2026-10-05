@@ -26203,3 +26203,120 @@ verifies before the validation checkout is reused. Fresh CI inspection confirms
 with no previous workflow still running. The retained **37302379250** Windows
 publication-copy failure was corrected by **ff7e07c** and its successful
 replacement CI; it is not an unresolved current failure.
+
+## Remaining raw compiler transport contracts, 2026-10-05
+
+The metadata/editor milestone is committed and pushed as **a4a30e2** after its
+complete Linux acceptance and documentation checks. Replacement CI
+**37343346227** subsequently passes quality, all runtime jobs, Linux and macOS
+but fails its Windows full-suite job. Docs **37343346223** passes; prior
+**b9eb9db** remains green. The Windows failure is recorded below.
+
+Seventeen hidden-but-public compiler transport methods accepted caller-supplied
+addresses, callback storage or iterator handles without requiring an unsafe
+context. Hiding them from IntelliSense does not enforce their ownership contract.
+The correction applies the existing runtime-owned NativeUnsafeAccess attribute
+and documents each lifetime/scope obligation. It covers callback reads/writes,
+backend/memory/GUC/log entry restoration, aggregate entry, FunctionCallInfo
+capture, iterator advancement/disposal and relation scope lookup. Checked
+aggregate IDs and creation from managed iterator inputs remain ordinary managed
+contracts; they do not accept arbitrary native addresses.
+
+The same twenty-one invocation/method-group regressions all fail against the
+unchanged runtime and all pass with the prepared correction. They check the
+actual shipped symbols, exact ANKUS129 source spans and successful explicit
+unsafe contexts without executing forged addresses. The isolated complete
+generator/editor suite passes **3,821 / 3,821** in **53.099s**, and the complete
+runtime suite passes **2,148 / 2,148** in **3.880s**. Both actual reports
+independently verify. All twenty-one original/draft identities verify before
+promotion; ten original files are preserved and eleven exact runtime/test files
+are promoted. Complete published native and platform acceptance remain required.
+
+The promoted composition passes all **52** affected analyzer cases on Linux
+x64 with zero skips in **5.279s**. Its actual report independently verifies
+every execution. All **1,787** frozen authored inputs match in the existing
+validator before the complete unsharded PostgreSQL **18.6** suite starts.
+The complete native run subsequently passes **12,561 total / 12,513 passed /
+48 platform skips / zero failures** in **41m26.979s**. All six actual reports,
+the sixty-seven required native recovery partitions and all **1,787** frozen
+authored inputs independently verify after execution. The preserved acceptance
+archive contains **1,798** exact source/evidence files, whose bytes independently
+verify before the validator is reused. This establishes the named Linux/18.6
+composition; it does not establish current Windows or supported-version acceptance.
+
+A separate compile-only audit confirms the remaining SPI analyzer finding.
+Valid C# and the shipped analyzer correctly accept two complete quoted-fragment
+controls and reject the direct unquoted-value control, but omit ANKUS044 in
+eleven additional placement/construction partitions. The current exemption
+checks quoting-method identity without considering the surrounding SQL token
+context; command locals and builder construction also escape its expression
+inspection. These are unresolved diagnostic gaps. The audit executes no SQL
+and makes no claim of runtime recovery or complete injection prevention.
+
+### Metadata/editor Windows CI recovery failures
+
+CI **37343346227**, revision **a4a30e2**, reports twenty failed Windows
+x64/PostgreSQL **17.11** cases. Twelve cleanup-reporting cases begin within
+116 milliseconds and all expire while awaiting crash recovery. Startup/preload
+and later PANIC-recovery cases also time out. Native diagnostics show expected
+PANIC reports and postmaster reinitialization, followed by substantial startup
+and checkpoint-sync delays; cleanup shuts down several servers before recovery
+finishes. The tests retry recovery connections every fifty milliseconds and
+produce hundreds of rejected startup connections per server. The underlying
+failure and the contribution of those retries are under investigation; no
+current Windows acceptance or completed repair is claimed.
+
+Two unchanged focused Windows runs subsequently pass all **122** affected
+cases, confirming that the CI failure is intermittent. The second completes
+in **3m27.489s** with process telemetry. The first observer fails while reading
+a protected process's CPU counter, but its independently inspected completed
+test report also passes all 122 executions; the observer is corrected before
+the second run. Neither passing rerun erases the failed CI evidence.
+
+The recovery harness now waits for the most recent postmaster reinitialization
+and its subsequent readiness message before opening a new backend, following
+pgrx's log-based readiness approach. It no longer retries connections every
+fifty milliseconds throughout recovery. Existing thirty-second deadlines,
+terminal diagnostics, rollback checks and durable/prepared transaction checks
+remain enforced. Cleanup and logging cases additionally reject recovery-mode
+connection spam in their native logs. The correction passes all **122**
+affected Windows/PostgreSQL **17.11** cases with zero skips in **4m44.087s**;
+this includes republishing changed inputs and is not a like-for-like performance
+benchmark against the unchanged warm rerun.
+
+The complete plain, unsharded Windows/**17.11** and Linux/**18.6** suites are
+running against **1,788** frozen authored inputs. Both source compositions
+verify before execution. Full acceptance and replacement CI remain pending.
+
+The complete Linux x64/PostgreSQL **18.6** readiness composition subsequently
+passes **12,561 total / 12,513 passed / 48 platform skips / zero failures**
+in **41m19.728s**. All six actual reports independently verify, including all
+sixty-seven required native error/resource/callback/parallel/JSON/lightweight
+partitions. All **1,788** frozen authored inputs match after execution.
+The accepted archive preserves **1,798** exact source/report/evidence files;
+every archived byte independently verifies before the validator is reused.
+This supersedes the pending Linux state above. Complete Windows acceptance
+and replacement primary-platform CI remain pending.
+
+The complete plain Windows x64/PostgreSQL **17.11** suite then passes
+**12,561 total / 12,533 passed / 28 platform skips / zero failures** in
+**47m38.639s**; the command including its build takes **48m23.936s**.
+All six actual reports and the sixty-seven native recovery partitions
+independently verify. The driver verifies all **1,788** frozen source inputs
+both before and after execution. This supersedes the pending Windows state;
+replacement primary-platform CI remains required. The current composition
+retains the original recovery deadlines and has complete local Windows and
+Linux evidence; it does not erase the earlier failed run.
+
+The Windows acceptance archive preserves **1,798** exact source/report/telemetry
+files; every archived byte independently verifies. Main Release passes with
+zero warnings/errors in **1m31.64s**. API freshness verifies **244 pages /
+2,791 members**; the public site builds **293 pages** in **3.83s**, and its
+check reports zero errors, warnings and hints. All **1,788** authored inputs
+still match after these checks. No runtime/compiler pin changes are required.
+
+Fresh pre-commit inspection retains the failed Windows outcome in CI
+**37343346227**, successful Docs **37343346223**, and successful preceding
+**37335229927 / 37335229895** and **37313742483 / 37313742494**. No preceding
+workflow is still running. The current local repair passes both complete
+platform suites; its replacement primary-platform CI remains required.

@@ -22,6 +22,11 @@ public static unsafe class NativeGuc
     /// </summary>
     /// <param name="read">The native read entry point, or zero for an explicitly disabled scope.</param>
     /// <returns>The previous read binding to restore in the matching finally block.</returns>
+    /// <remarks>
+    /// This raw transport contract requires an explicit unsafe context.
+    /// Use the matching dispatcher's live binding and restore the exact previous entry in reverse order.
+    /// </remarks>
+    [NativeUnsafeAccess]
     public static nint Enter(nint read)
     {
         nint previous = s_read;
@@ -34,6 +39,11 @@ public static unsafe class NativeGuc
     /// Restores the enclosing configuration hook read capability.
     /// </summary>
     /// <param name="previous">The binding saved by the matching Enter call.</param>
+    /// <remarks>
+    /// This raw transport contract requires an explicit unsafe context.
+    /// Use the matching dispatcher's live binding and restore the exact previous entry in reverse order.
+    /// </remarks>
+    [NativeUnsafeAccess]
     public static void Exit(nint previous)
     {
         s_read = previous;
