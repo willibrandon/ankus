@@ -26030,3 +26030,38 @@ actual subtransaction rollback releases that reference while preserving caller
 pins, interrupt holdoffs and the failed-frame counter. This remains native-only
 research: managed propagation, parsing contracts and complete acceptance are
 required before promotion. It does not establish every type-cache failure path.
+## Windows copy assertions use the producing publication, 2026-10-05
+
+CI 37302379250 at afb59ae passes quality, all three runtime jobs and the complete
+Linux x64/PG18 and macOS ARM64/PG18 suites. Its Windows x64/PG17 suite has exactly
+one failure, `ProjectCommandsIgnoreDockerServerVersion`: 12,453 total, 12,424
+passed, 28 platform skips, one failure; 35m24s job. Linux reports 12,453 / 12,405 /
+48 / zero failures in 39m15s; macOS reports 12,453 / 12,393 / 60 / zero failures in
+28m58s. All eighteen actual reports independently verify. Docs 37302379155 passes.
+Earlier CI 37286283685 and Docs 37286283503 pass; no older workflow remains live.
+
+The test installed a DLL, ran `package` to rebuild the same extension, then
+compared the installed earlier DLL with the later publication. The actual
+1,199,616-byte images differ at only six bytes: five repeated native linker
+timestamp fields and the CodeView age. Every remaining byte matches. Separate
+native builds need not be byte-identical, even when their inputs match.
+
+The test now compares installed and packaged libraries with the publication from
+each corresponding command immediately after that command finishes. Both exact
+byte comparisons remain, together with the selected PostgreSQL major, runtime
+identifier, control-file and schema assertions. No production behavior, warning
+severity, suppression or binary comparison mask changes.
+
+The actual Windows x64/PostgreSQL 17.11 regression passes, one case with no skips,
+6m20.418s tests / 7m42.109s command; all 1,753 staged source identities match after
+execution. The corrected plain complete Linux x64/PostgreSQL 18.6 suite passes
+12,453 total / 12,405 passed / 48 platform skips / zero failures in 36m05.545s.
+Replacement full primary-platform CI remains required. The runtime/compiler
+stays at immutable 10.0.12-ankus.4.
+
+The required Release build passes with zero warnings/errors in 49.66s. All six
+actual full-suite reports and all seventeen cleanup partitions independently
+verify; all 1,753 source identities and 39 runtime/compiler files match. API
+freshness passes for 244 pages / 2,791 members; the site builds 293 pages in
+4.79s and its check reports zero diagnostics. Previous completed CI/docs outcomes
+are checked and recorded again before both commit and push.

@@ -91,6 +91,9 @@ extensions. Counts supplement the backend, ownership and recovery assertions.
 
 | Source | Platform / PostgreSQL | Result | Duration |
 | --- | --- | --- | --- |
+| Frozen command-specific copy assertions, runtime **ankus.4** | Linux x64 / 18.6 | 12,453 total; 12,405 passed; 48 platform skips; zero failures | 36m05.545s tests |
+| [CI 37302379250](https://github.com/willibrandon/ankus/actions/runs/37302379250), afb59ae / runtime **ankus.4** | Linux x64 / 18 | 12,453 total; 12,405 passed; 48 platform skips; zero failures | 39m15s job |
+| Same CI / revision / runtime | macOS ARM64 / 18 | 12,453 total; 12,393 passed; 60 platform skips; zero failures | 28m58s job |
 | Frozen diagnostic-allocation / CLI / JSON composition, runtime **ankus.4** | Linux x64 / 18.6 | 12,453 total; 12,405 passed; 48 platform skips; zero failures | 36m21.402s tests |
 | [CI 37286283685](https://github.com/willibrandon/ankus/actions/runs/37286283685), fd79e24 / runtime **ankus.4** | Linux x64 / 18 | 12,438 total; 12,390 passed; 48 platform skips; zero failures | 39m03s job |
 | Same CI / revision / runtime | macOS ARM64 / 18 | 12,438 total; 12,378 passed; 60 platform skips; zero failures | 28m54s job |
@@ -199,33 +202,26 @@ passes.
 
 ## Active validation and work
 
-- **fd79e24** has complete primary-platform acceptance:
-  [CI 37286283685](https://github.com/willibrandon/ankus/actions/runs/37286283685)
-  and [Docs 37286283503](https://github.com/willibrandon/ankus/actions/runs/37286283503)
-  pass. All eighteen actual test reports are independently verified; platform
-  counts and timings appear above. Cleanup reporting distinguishes ordinary abort
-  from durable completion, and benchmark sampling retains real measured batches.
-- The next complete Linux run exposed a real cleanup-reporting defect:
-  diagnostic-context allocation occurred inside a critical section, violating
-  PostgreSQL's allocation contract. Diagnostics are now retained first; failures
-  to retain them after COMMIT or PREPARE report through reserved ErrorContext.
-  Four native fault cases preserve actual durable writes and crash recovery.
-  The rejected run's two failures and exact source/reports remain retained.
-- The same composition fixes **PG_VERSION** command scope and matches pgrx's
-  compact JSON escaping exactly. All **76** affected native cases pass on two
-  Linux x64/PostgreSQL **18.6** installations, including every CLI/JSON and cleanup
-  partition. The plain complete suite passes **12,453 total / 12,405 passed /
-  48 platform skips / zero failures**, **36m21.402s**. All six actual reports,
-  seventeen cleanup partitions and **1,753** source identities verify. Release,
-  API freshness and site checks pass; **1,949** archived source/evidence files
-  match their originals. Other platforms and majors remain unverified for this
-  composition; replacement CI is required.
+- **afb59ae** fixes diagnostic allocation before critical sections, **PG_VERSION**
+  command scope and exact pgrx JSON escaping. Its complete Linux and macOS suites
+  pass. [CI 37302379250](https://github.com/willibrandon/ankus/actions/runs/37302379250)
+  has exactly one Windows failure: a new copy test compared DLLs from different
+  builds. The six differing bytes are linker timestamps and CodeView age.
+  Copy assertions now compare each artifact with its producing build, preserving
+  exact byte checks. The Windows regression passes on PostgreSQL **17.11**;
+  the complete Linux/**18.6** suite passes **12,453 total / 12,405 passed /
+  48 skips / zero failures**, **36m05.545s**. Replacement primary CI remains required.
+  [Docs 37302379155](https://github.com/willibrandon/ankus/actions/runs/37302379155)
+  passes; earlier **fd79e24** has complete primary-platform acceptance.
 - The lightweight-guard audit confirms that catalog references survive temporary
   context deletion. A proposed fail-closed correction passes **48** native
   ownership probes across six operation families, cold/invalidation faults and
-  real cancellation. Successful calls retain the existing fast path. Managed
-  rollback, parsing contracts and complete-suite acceptance remain required
-  before promoting that correction.
+  real cancellation. A further **48** native cases verify actual lock release and
+  recovering input requests. The candidate also passes **1,417** real backend
+  cases, including callback/parallel-worker parsing, **eight** scope unit cases
+  and all **3,784** generator cases on Linux x64/**18.6**. Successful arithmetic
+  retains its fast path. Repository resource regressions, restricted-version
+  behavior and complete-suite/platform acceptance remain required before promotion.
 - SPI guidance now documents hot-standby restrictions on write-intent helpers;
   this is source-derived guidance, not standby test evidence. Remaining work
   includes the metadata owner index and malformed AssemblyRef diagnostics, raw

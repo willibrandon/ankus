@@ -244,14 +244,17 @@ public sealed partial class ToolCommandTests
             {
                 Assert.AreEqual("ankus_environment" + Environment.NewLine, result.StandardOutput);
             }
+
+            if (name is "install" or "package")
+            {
+                string stagedLibrary = name == "install"
+                    ? Path.Combine(StagedPath(stagedInstallation, s_installation.LibraryDirectory), manifest.Library)
+                    : Path.Combine(stagedPackage, OperatingSystem.IsWindows() ? "lib" : "flat", manifest.Library);
+                Assert.AreSequenceEqual(await File.ReadAllBytesAsync(Path.Combine(publication, manifest.Library), token),
+                    await File.ReadAllBytesAsync(stagedLibrary, token), name);
+            }
         }
 
-        PublishedExtension published = PublishedExtension.Read(publication);
-        string installedLibrary = Path.Combine(StagedPath(stagedInstallation, s_installation.LibraryDirectory), published.Library);
-        string packagedLibrary = Path.Combine(stagedPackage, OperatingSystem.IsWindows() ? "lib" : "flat", published.Library);
-        byte[] source = await File.ReadAllBytesAsync(Path.Combine(publication, published.Library), token);
-        Assert.AreSequenceEqual(source, await File.ReadAllBytesAsync(installedLibrary, token));
-        Assert.AreSequenceEqual(source, await File.ReadAllBytesAsync(packagedLibrary, token));
         Assert.AreEqual(original, await File.ReadAllTextAsync(configuration, token));
         Assert.HasCount(1, Directory.GetFileSystemEntries(home));
     }
