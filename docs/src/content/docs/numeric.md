@@ -134,6 +134,28 @@ decimal price = Spi.ExecuteScalar<decimal>(
 Untyped numeric cells contain `PgNumeric`. Reading them with `row.Get<decimal>()`
 performs the same exact conversion as a generated function adapter.
 
+## Numeric sample
+
+The [numeric sample](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.Numeric)
+ports pgrx's addition, parsing, random integer and arithmetic examples. Its
+addition rounds the result after adding the full-range inputs:
+
+```csharp
+[PgFunction]
+public static PgNumeric AddNumeric(PgNumeric left, PgNumeric right)
+    => (left + right).Rescale(precision: 1000, scale: 33);
+```
+
+Rounding each input first changes results near the rounding boundary. For
+example, adding two `4e-34` inputs and then applying scale 33 produces `1e-33`.
+The sample also preserves PostgreSQL's floating-point conversion rules through
+`FromSingle` and `FromDouble`. Its complete arithmetic chain returns `0.060`
+with precision 10 and scale 3.
+
+The random example converts all 128 signed integer bits directly into an owned
+numeric value. Parsing and precision errors retain PostgreSQL's SQLSTATE and
+diagnostic fields through `PgException`.
+
 ## JSON serialization
 
 `PgNumeric` serializes as a JSON string, retaining scale and full precision even

@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>PostgreSQL numeric arithmetic, precision, scale and full-range integer conversion from C#.</Description>
+    <AnkusExtensionName>ankus_numeric</AnkusExtensionName>
+    <AnkusExtensionControlFile>$(MSBuildProjectDirectory)/ankus_numeric.control</AnkusExtensionControlFile>
+  </PropertyGroup>
+
+  <Import Project="../../src/Ankus.Sdk/Ankus.Sdk.targets" />
+
+</Project>

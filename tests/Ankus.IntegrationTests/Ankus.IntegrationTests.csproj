@@ -12,6 +12,7 @@
     <ProjectReference Include="../../samples/Ankus.Examples.Enums/Ankus.Examples.Enums.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../../samples/Ankus.Examples.Arrays/Ankus.Examples.Arrays.csproj" />
     <ProjectReference Include="../../samples/Ankus.Examples.Json/Ankus.Examples.Json.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../samples/Ankus.Examples.Numeric/Ankus.Examples.Numeric.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../../samples/Ankus.Examples.Errors/Ankus.Examples.Errors.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../../samples/Ankus.Examples.CustomTypes/Ankus.Examples.CustomTypes.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../../samples/Ankus.Examples.CustomScans/Ankus.Examples.CustomScans.csproj" ReferenceOutputAssembly="false" />

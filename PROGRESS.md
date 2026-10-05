@@ -91,6 +91,10 @@ extensions. Counts supplement the backend, ownership and recovery assertions.
 
 | Source | Platform / PostgreSQL | Result | Duration |
 | --- | --- | --- | --- |
+| Frozen numeric-example composition / runtime **ankus.4** | Linux x64 / 18.6 | 12,422 total; 12,374 passed; 48 platform skips; zero failures | 39m51.287s tests; 40m18.80s command |
+| [CI 37265430538](https://github.com/willibrandon/ankus/actions/runs/37265430538), 708d93a / runtime **ankus.4** | Linux x64 / 18 | 12,389 total; 12,341 passed; 48 platform skips; zero failures | 38m24s job |
+| Same CI / revision / runtime | Windows x64 / 17 | 12,389 total; 12,361 passed; 28 platform skips; zero failures | 35m51s job |
+| Same CI / revision / runtime | macOS ARM64 / 18 | 12,389 total; 12,329 passed; 60 platform skips; zero failures | 29m41s job |
 | [CI 37261359905](https://github.com/willibrandon/ankus/actions/runs/37261359905), 73c83db / runtime **ankus.4** | Linux x64 / 18 | 12,377 total; 12,329 passed; 48 platform skips; zero failures | 38m18s job |
 | [CI 37261359905](https://github.com/willibrandon/ankus/actions/runs/37261359905), 73c83db / runtime **ankus.4** | Windows x64 / 17 | 12,377 total; 12,349 passed; 28 platform skips; zero failures | 35m19s job |
 | Same CI / revision / runtime | macOS ARM64 / 18 | 12,377 total; 12,317 passed; 60 platform skips; zero failures | 36m06s job |
@@ -287,7 +291,24 @@ passes.
   source inputs / **39** runtime files are independently post-verified.
   All **1,715** archived source/evidence files are byte-verified before bounded
   completed-output cleanup. Primary CI and docs are green on **73c83db**;
-  platform CI for these twelve added cases remains required.
+  [CI 37265430538](https://github.com/willibrandon/ankus/actions/runs/37265430538)
+  now passes all three complete primary-platform suites, quality and runtime jobs.
+  All six reports per platform are independently verified; no failures/timeouts.
+- The numeric example now joins ordinary solution builds and published native
+  integration tests. All five upstream exports preserve full-range values,
+  sum-before-rounding, precision/scale, the complete arithmetic chain and exact
+  signed 128-bit conversion. All **33** native cases pass on PostgreSQL
+  18.6/Linux x64, with zero skips; every outcome and all nine method partitions
+  are independently verified. All **1,702** source inputs and **39** runtime
+  files match afterward. Release has zero warnings/errors (**53.12s** build /
+  **53.302s** command); API freshness and site checks/build pass. The README
+  and numeric guide document the sample and rounding order. Plain complete
+  `dotnet test` passes **12,422 total / 12,374 passed / 48 platform skips /
+  zero failures**, **39m51.287s** tests / **40m18.80s** command. All six reports,
+  **1,702** source inputs and **39** runtime files are independently verified;
+  all **1,723** archived source/evidence files are byte-verified before completed
+  output cleanup. Previous primary CI is green on **708d93a**, and the latest
+  docs run is green on **73c83db**. Numeric platform acceptance remains required.
 - [CI 37236731631](https://github.com/willibrandon/ankus/actions/runs/37236731631)
   on **a78be2c** passes quality, all runtime jobs and all three complete platform
   suites. All six reports are independently verified per platform, with counts

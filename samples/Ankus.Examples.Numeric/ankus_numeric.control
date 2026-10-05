@@ -1,0 +1,3 @@
+comment = 'Full-range PostgreSQL numeric arithmetic and conversion'
+relocatable = false
+superuser = false
