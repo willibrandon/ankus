@@ -26132,3 +26132,74 @@ checks. Immediately before commit, CI **37313742483** and Docs **37313742494**
 pass at **ff7e07c**; CI **37302379250** retains the earlier Windows publication-copy
 failure corrected by that revision. Earlier CI **37286283685** and its Docs
 **37286283503** pass. No previous workflow is still running.
+
+## Exact metadata image indexing and unsafe local scope, 2026-10-05
+
+The native recovery milestone is pushed as **b9eb9db**. CI **37335229927** and
+Docs **37335229895** are running; all runtime jobs pass and the three complete
+platform suites are running. Previous CI **37313742483** and Docs **37313742494**
+remain successful.
+
+Exact imported-attribute decoding previously scanned and rebuilt names for the
+whole type-definition table on every read. Roslyn returns distinct non-owning
+ModuleMetadata wrappers with the same image identity; indexing by wrapper would
+not solve repeated scans. The correction keys a weak index by MetadataId, stores
+only owned names and logical handles, and publishes only a complete index. It
+retains exact strings and distinguishes separate same-named images. Cancellation
+does not publish a partial index. Invalid AssemblyRef flags are rejected as
+malformed metadata instead of normalizing their content type or allowing an
+AssemblyIdentity constructor exception to escape the decoder.
+
+The scoped unsafe code fix previously moved escaping out/deconstruction locals
+inside its new block. The resulting compilation error caused its own validation
+to return unchanged source. The correction keeps typed declarations in their
+original enclosing scope and wraps only the native assignment. Tuple discards
+remain discards even when a real underscore variable exists. Nested Fix All
+composes independent scope-preserving changes. Borrowed-span examples already
+worked in the old provider; their retained regressions are not a newly fixed bug.
+
+All **49** affected metadata/editor tests pass with zero skips in **3.623s** on
+Linux x64. The actual report independently verifies the required nested Fix All
+case. Tests execute original and corrected consumers and compare complete fixed
+method bodies, including out locals, typed/inferred deconstruction, discard
+semantics and scoped spans. Metadata tests cover exact strings, same-named images,
+non-owning copies, cold/warm cancellation, allocation growth and malformed
+references producing ANKUS206 without a generator exception.
+
+The complete combined Linux x64/PostgreSQL **18.6** composition is running with
+**1,786** frozen authored inputs verified before execution. This is pending
+acceptance, not full platform or version proof.
+
+### Completed metadata/editor acceptance and preceding CI
+
+The complete combined Linux x64/PostgreSQL **18.6** suite subsequently passes
+**12,540 total / 12,492 passed / 48 platform skips / zero failures** in
+**40m52.575s**. All six actual reports independently verify, including all
+**3,800** generator/editor cases and the exact nested Fix All regression. The
+complete integration report retains all sixty-seven required native recovery
+executions: forty direct-error cases, twelve resource-ownership rows, five
+callback cases, five parallel-worker cases, four network JSON cases and the
+successful lightweight-path witness. All **1,786** frozen source/documentation
+identities match after execution.
+
+Main Release passes with zero warnings/errors in **1m33.37s**. API freshness
+passes for **244 pages / 2,791 members**; the site builds **293 pages** in
+**3.49s** and reports zero errors, warnings and hints. The correction does not
+change the runtime/compiler pin, **10.0.12-ankus.4**.
+
+Preceding native recovery CI **37335229927** and Docs **37335229895** complete
+successfully at **b9eb9db**. All eighteen actual platform reports independently
+verify: Linux x64/PostgreSQL 18 has **12,524 total / 12,476 passed / 48 skips**
+in **39m16s**; macOS ARM64/PostgreSQL 18 has **12,524 / 12,464 / 60** in
+**29m14s**; Windows x64/PostgreSQL 17 has **12,524 / 12,496 / 28** in
+**35m03s**. All have zero failures. These results supersede the preceding
+pending native CI state. The metadata/editor composition still requires its
+replacement primary-platform CI and current supported-version acceptance.
+
+Before committing this milestone, the immutable evidence archive preserves
+**1,802** exact source/report/log files; every archived byte independently
+verifies before the validation checkout is reused. Fresh CI inspection confirms
+**37335229927 / 37335229895** and **37313742483 / 37313742494** successful,
+with no previous workflow still running. The retained **37302379250** Windows
+publication-copy failure was corrected by **ff7e07c** and its successful
+replacement CI; it is not an unresolved current failure.

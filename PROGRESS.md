@@ -70,7 +70,7 @@ defines the full scope; family-level implementation is not API-by-API completion
 | Aggregates and SQL graph | Static abstract aggregate capabilities, typed Requires/Before/SupportFunction references, deterministic SQL provenance and extended module magic. | Remaining inventoried contracts and complete version/platform acceptance. |
 | Generator caching | Detached equatable declaration/provider/reference models, declaration-relative locations and cached dispatcher/C/SQL artifacts across multi-declaration body edits and unrelated file insertion. Only selected SQL files are read, with the complete path catalog retained. | Broader precise diagnostics, useful semantic code fixes and final inventory audit remain required. |
 | Values and ownership | Documented scalar, array, composite, temporal, JSON, network, geometry, custom codec and raw datum contracts. Interval equality, hashing and ordering agree with PostgreSQL while retaining exact components; complete primary-platform CI passes. | Remaining mapped/container contracts, parsing/formatting ergonomics and complete source-case mapping remain required. |
-| Runtime performance | Owned binary PgNumeric, direct decimal coefficient encoding, constant-time fixed-width array indexing, and a measured native guard for allowlisted pure built-ins. Catalog-miss errors now require actual rollback; real-resource regressions and the complete Linux/18.6 suite pass. Persistent in-backend benchmarks provide batching, transaction modes and statistical baseline comparisons. | Complete current guard primary-platform and supported-version acceptance. Extend that tier only where ownership proofs and measurements justify it. Never weaken error recovery to reduce overhead. |
+| Runtime performance | Owned binary PgNumeric, direct decimal coefficient encoding, constant-time fixed-width array indexing, and a measured native guard for allowlisted pure built-ins. Catalog-miss errors require actual rollback; real-resource regressions and complete primary-platform CI pass. Persistent in-backend benchmarks provide batching, transaction modes and statistical baseline comparisons. | Complete current guard supported-version acceptance. Extend that tier only where ownership proofs and measurements justify it. Never weaken error recovery to reduce overhead. |
 | Native bindings | pgrx 0.19.3 inventories, matching PostgreSQL 19 beta 4 inputs and target-compiler ABI checks; typed pointers and ANKUS129 make raw caller obligations explicit. Complete current primary-platform compositions pass, with focused binding checks on all seven majors. | Full supported-major/platform tests and final inventory audit. |
 | Development CLI | Version/project selection, installation/registration, cluster lifecycle, run/connect, test/regress/bench, property forwarding, environment selection, scriptable info and package prefixes. Benchmarks are measured inside PostgreSQL and retained in named comparison groups. | Persistent Windows diagnostic collection, account/privilege selection and remaining inventoried CLI/platform contracts. |
 | .NET templates | Version-matched ordinary extension and worker templates reuse the CLI assets and pin local tools. Optional xUnit/NUnit consumers exercise managed and named backend cases, ignore reasons, worker processes and cleanup alongside default MSTest consumers. Complete primary-platform CI passes. | Remaining discovery contracts and complete version/platform acceptance. |
@@ -91,6 +91,10 @@ extensions. Counts supplement the backend, ownership and recovery assertions.
 
 | Source | Platform / PostgreSQL | Result | Duration |
 | --- | --- | --- | --- |
+| Frozen metadata image / editor scope composition, runtime **ankus.4** | Linux x64 / 18.6 | 12,540 total; 12,492 passed; 48 platform skips; zero failures | 40m52.575s tests |
+| [CI 37335229927](https://github.com/willibrandon/ankus/actions/runs/37335229927), b9eb9db / runtime **ankus.4** | Linux x64 / 18 | 12,524 total; 12,476 passed; 48 platform skips; zero failures | 39m16s job |
+| Same CI / revision / runtime | macOS ARM64 / 18 | 12,524 total; 12,464 passed; 60 platform skips; zero failures | 29m14s job |
+| Same CI / revision / runtime | Windows x64 / 17 | 12,524 total; 12,496 passed; 28 platform skips; zero failures | 35m03s job |
 | Frozen native input/resource recovery composition, runtime **ankus.4** | Linux x64 / 18.6 | 12,524 total; 12,476 passed; 48 platform skips; zero failures | 41m15.595s tests |
 | [CI 37313742483](https://github.com/willibrandon/ankus/actions/runs/37313742483), ff7e07c / runtime **ankus.4** | Linux x64 / 18 | 12,453 total; 12,405 passed; 48 platform skips; zero failures | 39m21s job |
 | Same CI / revision / runtime | macOS ARM64 / 18 | 12,453 total; 12,393 passed; 60 platform skips; zero failures | 28m59s job |
@@ -217,11 +221,21 @@ passes.
   passed / 48 platform skips / zero failures**. Its **1,784** frozen inputs and
   all six actual reports independently verify. Successful value operations retain
   the lightweight path, and deliberate input recovery performs real rollback
-  where PostgreSQL permits it. Complete primary-platform CI remains required.
+  where PostgreSQL permits it. Complete primary-platform CI now passes at
+  **b9eb9db**; current supported-version acceptance remains required.
+- Native recovery is committed as **b9eb9db**; [CI 37335229927](https://github.com/willibrandon/ankus/actions/runs/37335229927)
+  passes all primary suites, quality and runtime jobs; all eighteen actual
+  reports independently verify. [Docs 37335229895](https://github.com/willibrandon/ankus/actions/runs/37335229895)
+  passes. Metadata image indexing and scope-preserving unsafe editor fixes pass
+  **49** affected tests with zero skips and the complete Linux x64/PostgreSQL
+  **18.6** suite: **12,540 total / 12,492 passed / 48 platform skips / zero
+  failures**. All six actual reports, the nested Fix All case, required native
+  recovery partitions and **1,786** frozen inputs independently verify after
+  execution. Release and public documentation checks pass; replacement
+  primary-platform CI remains required for this metadata/editor composition.
 - SPI guidance now documents hot-standby restrictions on write-intent helpers;
   this is source-derived guidance, not standby test evidence. Remaining work
-  includes metadata owner-index and malformed AssemblyRef acceptance, raw
-  transport unsafe requirements, meaningful code fixes, SPI interpolation
+  includes raw transport unsafe requirements, meaningful code fixes, SPI interpolation
   placement/dataflow, precise diagnostics, generator caching and source examples.
   The complete PostgreSQL/platform, .NET servicing and release requirements remain
   in scope.

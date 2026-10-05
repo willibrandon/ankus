@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Reflection.Metadata;
+using System.Runtime.CompilerServices;
 using System.Text;
 using Microsoft.CodeAnalysis;
 
@@ -14,6 +15,11 @@ internal static class ExactAttributeStrings
     /// Rejects malformed UTF-8 instead of replacing bytes in persisted identities.
     /// </summary>
     private static readonly UTF8Encoding s_utf8 = new(false, true);
+
+    /// <summary>
+    /// Associates one type-name index with an image identity, including non-owning metadata copies.
+    /// </summary>
+    private static readonly ConditionalWeakTable<MetadataId, OwnerIndex> s_owners = new();
 
     /// <summary>
     /// Retains source constants or decodes complete type, property and field attribute blobs.
@@ -100,7 +106,7 @@ internal static class ExactAttributeStrings
         try
         {
             MetadataReader reader = module.GetMetadataReader();
-            if (!FindOwner(reader, owner, cancellationToken, out CustomAttributeHandleCollection handles))
+            if (!FindOwner(reader, module.Id, owner, cancellationToken, out CustomAttributeHandleCollection handles))
             {
                 return false;
             }
@@ -186,7 +192,7 @@ internal static class ExactAttributeStrings
     /// <summary>
     /// Finds the exact declaration within its defining module, including nested generic containers.
     /// </summary>
-    private static bool FindOwner(MetadataReader reader, ISymbol owner, CancellationToken cancellationToken,
+    private static bool FindOwner(MetadataReader reader, MetadataId image, ISymbol owner, CancellationToken cancellationToken,
         out CustomAttributeHandleCollection attributes)
     {
         attributes = default;
@@ -197,14 +203,9 @@ internal static class ExactAttributeStrings
         }
 
         string identity = MetadataTypeName.Create(type);
-        foreach (TypeDefinitionHandle handle in reader.TypeDefinitions)
+        OwnerIndex index = s_owners.GetValue(image, static _ => new());
+        if (index.TryFind(reader, identity, cancellationToken, out TypeDefinitionHandle handle))
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (Identity(reader, handle) != identity)
-            {
-                continue;
-            }
-
             TypeDefinition definition = reader.GetTypeDefinition(handle);
             if (owner is INamedTypeSymbol)
             {
@@ -492,10 +493,19 @@ internal static class ExactAttributeStrings
         else if (type.ResolutionScope.Kind == HandleKind.AssemblyReference)
         {
             AssemblyReference reference = reader.GetAssemblyReference((AssemblyReferenceHandle)type.ResolutionScope);
-            var requested = new AssemblyIdentity(reader.GetString(reference.Name), reference.Version, reader.GetString(reference.Culture),
-                reader.GetBlobContent(reference.PublicKeyOrToken), (reference.Flags & AssemblyFlags.PublicKey) != 0,
-                (reference.Flags & AssemblyFlags.Retargetable) != 0,
-                (reference.Flags & AssemblyFlags.WindowsRuntime) != 0 ? AssemblyContentType.WindowsRuntime : AssemblyContentType.Default);
+            AssemblyIdentity requested;
+            try
+            {
+                requested = new(reader.GetString(reference.Name), reference.Version, reader.GetString(reference.Culture),
+                    reader.GetBlobContent(reference.PublicKeyOrToken), (reference.Flags & AssemblyFlags.PublicKey) != 0,
+                    (reference.Flags & AssemblyFlags.Retargetable) != 0,
+                    (AssemblyContentType)((int)(reference.Flags & AssemblyFlags.ContentTypeMask) >> 9));
+            }
+            catch (ArgumentException error)
+            {
+                throw new BadImageFormatException("The attribute constructor references an invalid assembly identity.", error);
+            }
+
             for (int index = 0; index < module.ReferencedAssemblies.Length; index++)
             {
                 if (requested.Equals(module.ReferencedAssemblies[index]))
@@ -508,6 +518,93 @@ internal static class ExactAttributeStrings
 
         return assembly is not null && SymbolEqualityComparer.Default.Equals(
             assembly.GetTypeByMetadataName(identity) ?? assembly.ResolveForwardedType(identity), expected);
+    }
+
+    /// <summary>
+    /// Publishes a complete image index without retaining a reader, symbol or metadata owner.
+    /// </summary>
+    private sealed class OwnerIndex
+    {
+        /// <summary>
+        /// Serializes initial construction so concurrent attribute reads share the completed index.
+        /// </summary>
+        private readonly object _gate = new();
+
+        /// <summary>
+        /// Holds only owned names and logical table handles after successful construction.
+        /// </summary>
+        private Dictionary<string, TypeDefinitionHandle>? _types;
+
+        /// <summary>
+        /// Finds a declaration without traversing the type table again after publication.
+        /// </summary>
+        internal bool TryFind(MetadataReader reader, string identity, CancellationToken cancellationToken, out TypeDefinitionHandle handle)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (_gate)
+            {
+                _types ??= Create(reader, cancellationToken);
+                return _types.TryGetValue(identity, out handle);
+            }
+        }
+
+        /// <summary>
+        /// Resolves each definition once, detecting cyclic and duplicate metadata rather than publishing a partial index.
+        /// </summary>
+        private static Dictionary<string, TypeDefinitionHandle> Create(MetadataReader reader, CancellationToken cancellationToken)
+        {
+            Dictionary<string, TypeDefinitionHandle> types = new(StringComparer.Ordinal);
+            Dictionary<TypeDefinitionHandle, string> identities = new();
+            Stack<TypeDefinitionHandle> ancestors = new();
+            HashSet<TypeDefinitionHandle> active = new();
+            foreach (TypeDefinitionHandle handle in reader.TypeDefinitions)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                active.Clear();
+                TypeDefinitionHandle current = handle;
+                while (!current.IsNil && !identities.ContainsKey(current))
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (!active.Add(current))
+                    {
+                        throw new BadImageFormatException("A metadata type has a cyclic declaring type.");
+                    }
+
+                    ancestors.Push(current);
+                    current = reader.GetTypeDefinition(current).GetDeclaringType();
+                }
+
+                while (ancestors.Count != 0)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    TypeDefinitionHandle ancestor = ancestors.Pop();
+                    TypeDefinition definition = reader.GetTypeDefinition(ancestor);
+                    TypeDefinitionHandle parent = definition.GetDeclaringType();
+                    string name;
+                    if (parent.IsNil)
+                    {
+                        string space = reader.GetString(definition.Namespace);
+                        name = (space.Length == 0 ? string.Empty : space + ".") + reader.GetString(definition.Name);
+                    }
+                    else
+                    {
+                        name = identities[parent] + "+" + reader.GetString(definition.Name);
+                    }
+
+                    identities.Add(ancestor, name);
+                }
+
+                string identity = identities[handle];
+                if (types.ContainsKey(identity))
+                {
+                    throw new BadImageFormatException("A metadata image contains duplicate type identities.");
+                }
+
+                types.Add(identity, handle);
+            }
+
+            return types;
+        }
     }
 }
 

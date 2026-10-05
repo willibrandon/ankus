@@ -163,7 +163,7 @@ SQL type and schema names still require nonempty identifiers of at most
 `NullInputErrorMessage` values receive the same exact validation as source
 declarations.
 
-Malformed UTF-8, incomplete attribute arguments and trailing attribute data
+Malformed UTF-8, invalid constructor assembly identities, incomplete attribute arguments and trailing attribute data
 produce `ANKUS206`, identifying the failing attribute and its defining member.
 The error points to the consuming SQL parameter, result or custom-type
 declaration. Rebuild the defining assembly with valid metadata. Ankus does not

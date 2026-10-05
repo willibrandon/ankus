@@ -90,15 +90,13 @@ public sealed class NativeUnsafeAccessCodeFixProvider : CodeFixProvider
             return null;
         }
 
-        if (owner is LocalDeclarationStatementSyntax local)
+        if (owner is StatementSyntax statement)
         {
-            return HoistDeclaration(local, model, cancellationToken);
+            return CreateStatementEdit(statement, model, cancellationToken);
         }
 
         SyntaxNode? replacement = owner switch
         {
-            StatementSyntax statement => SyntaxFactory.UnsafeStatement(SyntaxFactory.Block(statement.WithoutLeadingTrivia()))
-                .WithLeadingTrivia(statement.GetLeadingTrivia()),
             ArrowExpressionClauseSyntax arrow => ConvertArrow(arrow, model, cancellationToken),
             LambdaExpressionSyntax lambda when lambda.Body is ExpressionSyntax body => ConvertLambda(lambda, body, model, cancellationToken),
             _ => null,
@@ -109,18 +107,94 @@ public sealed class NativeUnsafeAccessCodeFixProvider : CodeFixProvider
     }
 
     /// <summary>
+    /// Retains escaping declaration expressions outside the smallest native acknowledgment.
+    /// </summary>
+    /// <param name="statement">The original statement containing the native operation.</param>
+    /// <param name="model">The original declaration types and variable scopes.</param>
+    /// <param name="cancellationToken">Cancels semantic inspection.</param>
+    /// <returns>The original target and complete scope-preserving statement replacements.</returns>
+    private static (SyntaxNode Target, ImmutableArray<SyntaxNode> Replacements)? CreateStatementEdit(StatementSyntax statement,
+        SemanticModel model, CancellationToken cancellationToken)
+    {
+        DeclarationExpressionSyntax[] declarations = [.. statement.DescendantNodes().OfType<DeclarationExpressionSyntax>()];
+        var hoisted = new List<SyntaxNode>();
+        StatementSyntax rewritten = statement;
+        if (declarations.Length != 0)
+        {
+            DataFlowAnalysis? flow = model.AnalyzeDataFlow(statement);
+            if (flow is not { Succeeded: true })
+            {
+                return null;
+            }
+
+            HashSet<ISymbol> escaping = new(flow.ReadOutside.Concat(flow.WrittenOutside), SymbolEqualityComparer.Default);
+            declarations = [.. declarations.Where(declaration => declaration.Designation.DescendantNodesAndSelf()
+                .OfType<SingleVariableDesignationSyntax>().Any(designation =>
+                    model.GetDeclaredSymbol(designation, cancellationToken) is ILocalSymbol local && escaping.Contains(local)))];
+            foreach (DeclarationExpressionSyntax declaration in declarations)
+            {
+                foreach (SingleVariableDesignationSyntax designation in declaration.Designation.DescendantNodesAndSelf()
+                    .OfType<SingleVariableDesignationSyntax>())
+                {
+                    if (model.GetDeclaredSymbol(designation, cancellationToken) is not ILocalSymbol local ||
+                        !local.Type.CanBeReferencedByName)
+                    {
+                        return null;
+                    }
+
+                    TypeSyntax type = SyntaxFactory.ParseTypeName(local.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat
+                        .AddMiscellaneousOptions(SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier)));
+                    hoisted.Add(SyntaxFactory.LocalDeclarationStatement(SyntaxFactory.VariableDeclaration(type,
+                        SyntaxFactory.SingletonSeparatedList(SyntaxFactory.VariableDeclarator(designation.Identifier.WithoutTrivia()))))
+                        .WithAdditionalAnnotations(Formatter.Annotation));
+                }
+            }
+
+            rewritten = statement.ReplaceNodes(declarations, static (original, _) =>
+                DesignationExpression(original.Designation, original.Type).WithTriviaFrom(original));
+        }
+
+        if (rewritten is LocalDeclarationStatementSyntax declarationStatement)
+        {
+            (SyntaxNode Target, ImmutableArray<SyntaxNode> Replacements)? localEdit = HoistDeclaration(declarationStatement,
+                (LocalDeclarationStatementSyntax)statement, model, cancellationToken);
+            return localEdit is null ? null : (statement, [.. hoisted, .. localEdit.Value.Replacements]);
+        }
+
+        SyntaxNode region = SyntaxFactory.UnsafeStatement(SyntaxFactory.Block(rewritten.WithoutLeadingTrivia()))
+            .WithLeadingTrivia(statement.GetLeadingTrivia()).WithAdditionalAnnotations(Formatter.Annotation);
+        return (statement, [.. hoisted, region]);
+    }
+
+    /// <summary>
+    /// Converts an already declared out or tuple designation to its equivalent assignment expression.
+    /// </summary>
+    /// <param name="designation">The original bound variable designation.</param>
+    /// <param name="type">The declaration's original inferred or explicit type.</param>
+    /// <returns>The equivalent identifier, discard or nested tuple expression.</returns>
+    private static ExpressionSyntax DesignationExpression(VariableDesignationSyntax designation, TypeSyntax type) => designation switch
+    {
+        SingleVariableDesignationSyntax single => SyntaxFactory.IdentifierName(single.Identifier.WithoutTrivia()),
+        DiscardDesignationSyntax discard => SyntaxFactory.DeclarationExpression(type.WithoutTrivia(), discard.WithoutTrivia()),
+        ParenthesizedVariableDesignationSyntax tuple => SyntaxFactory.TupleExpression(
+            SyntaxFactory.SeparatedList(tuple.Variables.Select(variable => SyntaxFactory.Argument(DesignationExpression(variable, type))))),
+        _ => throw new InvalidOperationException("An unsupported declaration designation reached the native scope correction."),
+    };
+
+    /// <summary>
     /// Leaves a local's declaration in its original scope while acknowledging only its initializer assignments.
     /// </summary>
     /// <param name="declaration">The original local declaration.</param>
+    /// <param name="original">The declaration retained in the original semantic model.</param>
     /// <param name="model">Its declared managed types.</param>
     /// <param name="cancellationToken">Cancels binding.</param>
     /// <returns>The declaration and unsafe assignments, or null for a contract requiring a broader manual edit.</returns>
     private static (SyntaxNode Target, ImmutableArray<SyntaxNode> Replacements)? HoistDeclaration(LocalDeclarationStatementSyntax declaration,
-        SemanticModel model, CancellationToken cancellationToken)
+        LocalDeclarationStatementSyntax original, SemanticModel model, CancellationToken cancellationToken)
     {
         if (declaration.UsingKeyword != default || declaration.AwaitKeyword != default ||
             declaration.Modifiers.Any(SyntaxKind.ConstKeyword) || declaration.Declaration.Type is RefTypeSyntax ||
-            declaration.Parent is not (BlockSyntax or SwitchSectionSyntax))
+            original.Parent is not (BlockSyntax or SwitchSectionSyntax))
         {
             return null;
         }
@@ -128,7 +202,7 @@ public sealed class NativeUnsafeAccessCodeFixProvider : CodeFixProvider
         TypeSyntax type = declaration.Declaration.Type;
         if (type.IsVar)
         {
-            if (model.GetDeclaredSymbol(declaration.Declaration.Variables[0], cancellationToken) is not ILocalSymbol local ||
+            if (model.GetDeclaredSymbol(original.Declaration.Variables[0], cancellationToken) is not ILocalSymbol local ||
                 !local.Type.CanBeReferencedByName)
             {
                 return null;

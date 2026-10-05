@@ -179,6 +179,10 @@ delegate requires the same acknowledgment. The native error guard still applies;
 For `ANKUS129`, the editor offers **Use an unsafe block** on supported block and
 expression bodies. The correction preserves the existing code and local scope;
 you still supply valid storage and follow PostgreSQL's ownership rules.
+When an `out` or deconstruction variable is used by a later statement, the fix
+keeps its declaration in that enclosing scope and puts the native assignment
+inside an unsafe block. Fix All applies the same rule independently in nested
+blocks.
 Checked APIs such as `PgNodes`, `PgFunctions` and `Spi` remain usable in safe code.
 
 The same class includes selected-header helpers for alignment, memory contexts,
