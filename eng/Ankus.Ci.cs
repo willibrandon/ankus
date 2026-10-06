@@ -305,6 +305,7 @@ static void WriteOutput(string name, string value)
 static void BuildRuntime(string repositoryRoot, string platform, string architecture)
 {
     VerifyPlatform(platform, architecture);
+    (string cCompiler, string cppCompiler, IReadOnlyDictionary<string, string?>? environment) = GetRuntimeToolchain();
     string runtimeRoot = Path.Combine(repositoryRoot, "runtime");
     List<string> arguments =
     [
@@ -323,7 +324,7 @@ static void BuildRuntime(string repositoryRoot, string platform, string architec
     }
     else
     {
-        Run(Path.Combine(runtimeRoot, "build.sh"), arguments, runtimeRoot);
+        Run(Path.Combine(runtimeRoot, "build.sh"), arguments, runtimeRoot, environment: environment);
     }
 
     string runtimeDotNet = Path.Combine(runtimeRoot, OperatingSystem.IsWindows() ? "dotnet.cmd" : "dotnet.sh");
@@ -336,16 +337,48 @@ static void BuildRuntime(string repositoryRoot, string platform, string architec
         $"-p:IlcSdkPath={GetBuiltRuntimePath(repositoryRoot, platform, architecture)}{Path.DirectorySeparatorChar}",
         $"-p:RuntimeFrameworkVersion={RuntimeCompilerVersion}",
         "/p:ManagePackageVersionsCentrally=false",
-    ], runtimeRoot, OperatingSystem.IsWindows());
+    ], runtimeRoot, OperatingSystem.IsWindows(), environment);
 
     if (!OperatingSystem.IsWindows())
     {
-        VerifyNativeHostBehavior(repositoryRoot, platform, architecture);
+        VerifyNativeHostBehavior(repositoryRoot, platform, architecture, cCompiler, cppCompiler, environment);
     }
 }
 
+static (string CCompiler, string CppCompiler, IReadOnlyDictionary<string, string?>? Environment) GetRuntimeToolchain()
+{
+    if (!OperatingSystem.IsMacOS())
+    {
+        return ("clang", "clang++", null);
+    }
+
+    string cCompiler = Capture("xcrun", ["--find", "clang"]);
+    string cppCompiler = Capture("xcrun", ["--find", "clang++"]);
+    string sdkRoot = Capture("xcrun", ["--sdk", "macosx", "--show-sdk-path"]);
+    string compilerDirectory = Path.GetDirectoryName(cCompiler)
+        ?? throw new InvalidOperationException($"Could not determine the Apple Clang directory from '{cCompiler}'.");
+    string path = Environment.GetEnvironmentVariable("PATH")
+        ?? throw new InvalidOperationException("PATH is required to build the runtime.");
+    Dictionary<string, string?> environment = new()
+    {
+        ["CC"] = cCompiler,
+        ["CXX"] = cppCompiler,
+        ["PATH"] = compilerDirectory + Path.PathSeparator + path,
+        ["SDKROOT"] = sdkRoot,
+    };
+
+    Console.WriteLine($"Selected Apple Clang for the macOS runtime build: {cCompiler}");
+    return (cCompiler, cppCompiler, environment);
+}
+
 // Prove that a newly built fork runtime preserves native host shutdown, thread cleanup and signal masks.
-static void VerifyNativeHostBehavior(string repositoryRoot, string platform, string architecture)
+static void VerifyNativeHostBehavior(
+    string repositoryRoot,
+    string platform,
+    string architecture,
+    string cCompiler,
+    string cppCompiler,
+    IReadOnlyDictionary<string, string?>? environment)
 {
     string runtimeIdentifier = $"{platform}-{architecture}";
     string probeRoot = Path.Combine(repositoryRoot, "runtime", "eng", "ankus", "fork-probes", "host-shutdown");
@@ -369,7 +402,7 @@ static void VerifyNativeHostBehavior(string repositoryRoot, string platform, str
         compilerArguments.Add("-ldl");
     }
 
-    Run("clang", compilerArguments);
+    Run(cCompiler, compilerArguments, environment: environment);
     string library = "NativeHostShutdownProbe" + (OperatingSystem.IsMacOS() ? ".dylib" : ".so");
     Run(host, [Path.Combine(output, library)]);
 
@@ -387,7 +420,7 @@ static void VerifyNativeHostBehavior(string repositoryRoot, string platform, str
         signalArguments.Add("-ldl");
     }
 
-    Run("clang++", signalArguments);
+    Run(cppCompiler, signalArguments, environment: environment);
     Run(signalHost, []);
     Run(signalHost, [Path.Combine(output, library)]);
 }

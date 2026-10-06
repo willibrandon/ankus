@@ -28522,3 +28522,23 @@ platform acceptance.
 Immediately before this runner milestone's commit, primary **37491227831** and
 docs **37488835665** remain complete and successful. No active or failed prior
 run competes for a private platform runner.
+
+The first dedicated run exposed two machine prerequisites in sequence. The
+runtime prerequisites check first rejected the absent `pkg-config`; the package
+was installed and its command now resolves from the runner path. The retry,
+[Intel run 37518305139](https://github.com/willibrandon/ankus/actions/runs/37518305139),
+then built the runtime but failed while linking the Native AOT compiler because
+direct Clang invocation had no macOS SDK root and could not resolve `-ldl`.
+
+The accepted correction selects Apple Clang and the active macOS SDK explicitly
+for runtime, compiler and native-probe builds. LLVM 20 remains the separate
+header frontend used by binding generation. On the dedicated Intel runner, a
+full runtime rebuild, Native AOT ILCompiler publish, Native AOT host publish and
+both native shutdown/signal-mask probe sets pass with this environment. The
+patched file-based CI app also compiles and runs its metadata command there; all
+temporary validation artifacts and checkout edits were removed afterward.
+
+Immediately before this correction's commit, docs run **37518295279** is complete
+and successful. Primary run **37518295419** has successful quality and all three
+runtime jobs; its Linux, macOS ARM64 and Windows complete test jobs remain in
+progress. The failed dedicated run above is the failure addressed by this change.

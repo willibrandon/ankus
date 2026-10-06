@@ -142,8 +142,12 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
 - A private Intel macOS x64 runner is online with macOS **15.8.1**, PostgreSQL
   **18.6** and LLVM **20.1.8**. The additional-platform workflow now selects its
   generic repository label only for owner-triggered `main` runs, retains the
-  **60-minute** job limit and uses persistent local package/binding caches. The
-  workflow and CI app compile locally; its first complete live run is pending.
+  **60-minute** job limit and uses persistent local package/binding caches. Initial
+  provisioning exposed a missing `pkg-config` installation and an unset macOS SDK
+  root during Native AOT linking. The dependency is installed; runtime builds now
+  select Apple Clang and the active SDK explicitly while binding generation retains
+  LLVM 20. A full manual runtime, ILCompiler and native-probe build passes. The first
+  complete live suite remains pending.
 - Function-provider diagnostics pass complete Linux/PostgreSQL **18.6** acceptance:
   **13,365** total, zero failures. All **1,853** ordinary source inputs and the
   exact **2,038**-file evidence archive verify; ten changed/new files are promoted.
