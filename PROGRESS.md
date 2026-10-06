@@ -139,6 +139,11 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   macOS allocation variance remains unattributed.
 - Hosted Intel refresh **37460600236** passes its complete **13,210**-case macOS
   x64/PostgreSQL 18 suite with zero failures.
+- A private Intel macOS x64 runner is online with macOS **15.8.1**, PostgreSQL
+  **18.6** and LLVM **20.1.8**. The additional-platform workflow now selects its
+  generic repository label only for owner-triggered `main` runs, retains the
+  **60-minute** job limit and uses persistent local package/binding caches. The
+  workflow and CI app compile locally; its first complete live run is pending.
 - Function-provider diagnostics pass complete Linux/PostgreSQL **18.6** acceptance:
   **13,365** total, zero failures. All **1,853** ordinary source inputs and the
   exact **2,038**-file evidence archive verify; ten changed/new files are promoted.
@@ -187,7 +192,7 @@ disconnect and remaining version/platform acceptance are still required.
 
 1. Resolve discovered correctness and CI failures before accepting affected work, including safe SQL loop analysis. Finish the remaining declaration/source-case audits. Malformed AssemblyRef handling and the owner index already pass all eight regressions in the current complete suite.
 2. Complete every pgrx 0.19.3 release-delta gate, including deterministic header discovery/regeneration, newly exposed native contracts, all CLI/configuration/output forwarding and allocation/shared-memory/varlena audits. Refresh evidence against the corrected current source.
-3. Finish the Intel timing milestone and complete supported-major/platform coverage, including Intel macOS and the macOS 15/16 library-suffix boundary.
+3. Verify the dedicated Intel runner with a complete live run and finish supported-major/platform coverage, including Intel macOS and the macOS 15/16 library-suffix boundary.
 4. Complete declaration diagnostics/code fixes, API discoverability and unsafe raw-call contracts.
 5. Use the in-backend baseline to finish measured hot-path improvements that preserve recovery and ownership guarantees.
 6. Close remaining CLI, account/privilege and platform-installation contracts.

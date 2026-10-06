@@ -13,10 +13,14 @@ on:
 permissions:
   contents: read
 
+env:
+  ANKUS_RUNNER_PRIVATE_IDENTIFIERS: ${{ secrets.ANKUS_RUNNER_PRIVATE_IDENTIFIERS }}
+
 jobs:
   runtime:
-    runs-on: macos-26-intel
-    timeout-minutes: 360
+    if: github.repository == 'willibrandon/ankus' && github.actor == 'willibrandon' && github.triggering_actor == 'willibrandon' && github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, macOS, X64, ankus-macos-x64]
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
 
@@ -33,7 +37,7 @@ jobs:
         id: runtime-cache
         with:
           path: artifacts/nativeaot/osx-x64
-          key: nativeaot-v3-osx-x64-hosted-macos26-${{ steps.runtime.outputs.commit }}
+          key: nativeaot-v3-osx-x64-dedicated-${{ steps.runtime.outputs.commit }}
 
       - uses: actions/checkout@v5
         if: steps.runtime-cache.outputs.cache-hit != 'true'
@@ -65,8 +69,9 @@ jobs:
 
   macos-x64:
     needs: runtime
-    runs-on: macos-26-intel
-    timeout-minutes: 360
+    if: github.repository == 'willibrandon/ankus' && github.actor == 'willibrandon' && github.triggering_actor == 'willibrandon' && github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, macOS, X64, ankus-macos-x64]
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
 
@@ -75,6 +80,7 @@ jobs:
           dotnet-version: 10.0.x
 
       - name: Restore NuGet package cache
+        if: runner.environment != 'self-hosted'
         uses: actions/cache/restore@v5
         id: nuget-cache
         with:
@@ -91,13 +97,14 @@ jobs:
         run: dotnet restore Ankus.slnx -p:Platform="Any CPU"
 
       - name: Save NuGet package cache
-        if: steps.nuget-cache.outputs.cache-hit != 'true'
+        if: runner.environment != 'self-hosted' && steps.nuget-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v5
         with:
           path: ~/.nuget/packages
           key: ${{ steps.nuget-cache.outputs.cache-primary-key }}
 
       - name: Restore native binding cache
+        if: runner.environment != 'self-hosted'
         uses: actions/cache/restore@v5
         id: binding-cache
         with:
@@ -109,7 +116,7 @@ jobs:
         run: dotnet run --file ./eng/Ankus.Ci.cs -- runtime-test-build osx-x64 18
 
       - name: Save native binding cache
-        if: steps.binding-cache.outputs.cache-hit != 'true'
+        if: runner.environment != 'self-hosted' && steps.binding-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v5
         with:
           path: artifacts/binding-cache
@@ -117,7 +124,7 @@ jobs:
 
       - name: Run full PostgreSQL tests
         env:
-          ANKUS_PACKAGE_TEST_CONCURRENCY: ${{ inputs.package-test-concurrency || '' }}
+          ANKUS_PACKAGE_TEST_CONCURRENCY: ${{ inputs.package-test-concurrency || vars.ANKUS_MACOS_PACKAGE_TEST_CONCURRENCY || '' }}
         run: dotnet run --file ./eng/Ankus.Ci.cs -- runtime-test-run
 
       - name: Prepare test reports

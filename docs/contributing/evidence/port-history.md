@@ -28494,3 +28494,31 @@ after recording these outcomes.
 Immediately before this milestone's commit, primary **37491227831** at
 **de27abd** and the latest docs run **37488835665** are complete and successful;
 no earlier reported failure or pending run remains unresolved.
+
+## Dedicated Intel macOS runner preparation — 2026-10-06
+
+A private Intel x64 runner is online on macOS **15.8.1** with Xcode command-line
+tools **16.4**, MacPorts **2.12.6**, PostgreSQL **18.6**, LLVM **20.1.8**, CMake
+**3.31.12**, Ninja **1.13.2** and ccache **4.13.1**. The runner registration,
+host identity and repository label are generic. No address, username, connection
+detail or personal device path is stored in the repository.
+
+The additional-platform workflow now uses that repository-specific label for
+both runtime preparation and the complete macOS x64/PostgreSQL 18 suite. Both
+jobs require the repository owner, triggering owner and `main`; outside work
+continues to use GitHub-hosted runners. Each job retains the required
+**60-minute** limit. NuGet and binding caches remain local on the persistent
+runner, the runtime cache has a dedicated Intel key, and package-test concurrency
+uses the repository setting unless a dispatch supplies an override.
+
+`actionlint` accepts every workflow. The changed file-based CI app compiles and
+runs its metadata command. PostgreSQL selection first honors an explicit version
+path. Hosted macOS installs the matching Homebrew formula; self-hosted macOS uses
+an existing Homebrew formula when present and otherwise resolves `pg_config` from
+`PATH`. The normal version and header checks remain. The runner service is online
+and idle. A complete live workflow dispatch remains required before this becomes
+platform acceptance.
+
+Immediately before this runner milestone's commit, primary **37491227831** and
+docs **37488835665** remain complete and successful. No active or failed prior
+run competes for a private platform runner.

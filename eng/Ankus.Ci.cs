@@ -574,6 +574,16 @@ static void InstallPostgreSql(string repositoryRoot, string version)
     if (OperatingSystem.IsMacOS())
     {
         string formula = $"postgresql@{version}";
+        string variable = $"PG{version}_PG_CONFIG";
+        string? configured = Environment.GetEnvironmentVariable(variable);
+        if (!string.IsNullOrWhiteSpace(configured))
+        {
+            string selected = Path.GetFullPath(configured);
+            VerifyPostgreSqlHeaders(selected, version);
+            SelectPostgreSql(version, selected);
+            return;
+        }
+
         if (Environment.GetEnvironmentVariable("RUNNER_ENVIRONMENT") != "self-hosted")
         {
             Run("brew", ["install", formula], environment: new Dictionary<string, string?>
@@ -582,8 +592,11 @@ static void InstallPostgreSql(string repositoryRoot, string version)
             });
         }
 
-        string prefix = Capture("brew", ["--prefix", formula]);
-        string pgConfig = Path.Combine(prefix, "bin", "pg_config");
+        string? brew = FindOnPath("brew");
+        string pgConfig = brew is null
+            ? FindOnPath("pg_config") ?? throw new FileNotFoundException(
+                $"The macOS runner does not contain PostgreSQL {version}. Set {variable} to its pg_config path.")
+            : Path.Combine(Capture(brew, ["--prefix", formula]), "bin", "pg_config");
         VerifyPostgreSqlHeaders(pgConfig, version);
         SelectPostgreSql(version, pgConfig);
         return;
@@ -619,6 +632,26 @@ static void InstallPostgreSql(string repositoryRoot, string version)
     }
 
     throw new PlatformNotSupportedException("PostgreSQL installation is not defined for this runner.");
+}
+
+static string? FindOnPath(string command)
+{
+    string? path = Environment.GetEnvironmentVariable("PATH");
+    if (string.IsNullOrWhiteSpace(path))
+    {
+        return null;
+    }
+
+    foreach (string directory in path.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
+    {
+        string candidate = Path.Combine(directory, command);
+        if (File.Exists(candidate))
+        {
+            return candidate;
+        }
+    }
+
+    return null;
 }
 
 static void SelectPostgreSql(string version, string pgConfig)

@@ -2,5 +2,6 @@ self-hosted-runner:
   labels:
     - ankus-linux-x64
     - ankus-macos-arm64
+    - ankus-macos-x64
     - ankus-windows-x64
     - ankus-linux-versions-x64
