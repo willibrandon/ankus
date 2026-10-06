@@ -91,6 +91,7 @@ try
             VerifyStagedRuntime(repositoryRoot, args[1]);
             InstallPostgreSql(repositoryRoot, args[2]);
             ConfigureHeaderFrontend(repositoryRoot);
+            ConfigureMacOsSdk();
             ConfigureBindingCache(repositoryRoot);
             BuildTests(repositoryRoot);
             if (args[0] == "runtime-test")
@@ -804,6 +805,18 @@ static void ConfigureHeaderFrontend(string repositoryRoot)
     string pathFile = Environment.GetEnvironmentVariable("GITHUB_PATH")
         ?? throw new InvalidOperationException("GITHUB_PATH is required.");
     File.AppendAllText(pathFile, directory + Environment.NewLine);
+}
+
+static void ConfigureMacOsSdk()
+{
+    if (!OperatingSystem.IsMacOS())
+    {
+        return;
+    }
+
+    string sdkRoot = Capture("xcrun", ["--sdk", "macosx", "--show-sdk-path"]);
+    WriteEnvironment("SDKROOT", sdkRoot);
+    Console.WriteLine($"Selected the macOS SDK: {sdkRoot}");
 }
 
 static void VerifyHeaderFrontend(string compiler)

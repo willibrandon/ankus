@@ -28555,3 +28555,26 @@ Immediately before this follow-up commit, the failed Intel run above is complete
 Primary **37518295419** remains in progress with quality, all runtime jobs and
 macOS ARM64 complete; docs **37518295279** succeeds. Replacement primary
 **37521629720** is queued and docs **37521629544** is waiting.
+
+The next [Intel run 37523293619](https://github.com/willibrandon/ankus/actions/runs/37523293619)
+passes the complete runtime job in **8m21s**, including the corrected Native AOT
+host probe. Its full test job builds successfully, then fails during generated
+consumer work because the active SDK root was scoped to the earlier runtime job.
+MacPorts Clang cannot find `string.h`, `stdlib.h` or `setjmp.h`; Native AOT linking
+cannot resolve `-ldl`. The test-build command now selects the active macOS SDK
+after retaining LLVM 20 as the binding frontend, applies it to its own process and
+writes it to the GitHub Actions environment for the following full-test step.
+The file-based CI app compiles and its metadata command passes with this change.
+With LLVM 20 still first on `PATH` and the active SDK selected, direct standard-C
+header probes compile with LLVM and Apple Clang, an exact clean Native AOT publish
+of the test extension succeeds, and the complete Intel build-tool module passes
+**1,223 total / 1,214 passed / nine platform skips / zero failures** in
+**5m56.616s**. All focused validation artifacts and build servers were removed
+after recording the result. Replacement workflow validation remains pending and
+is not yet counted as complete Intel acceptance.
+
+Immediately before this repair's commit, primary **37521629720** and docs
+**37523267011** are complete and successful. Primary **37523266946** remains in
+progress. Docs **37521629544** is an older, superseded deployment left waiting by
+GitHub Pages after the newer successful deployment; its pending deployment has no
+configured reviewers. The failed Intel run above is the failure addressed here.

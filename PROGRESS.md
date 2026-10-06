@@ -147,9 +147,14 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   root during Native AOT linking. The dependency is installed; runtime builds now
   select Apple Clang and the active SDK explicitly while binding generation retains
   LLVM 20. The first corrected CI attempt exposed one missed environment handoff
-  in the Native AOT host publish. The exact CI command now passes the runtime,
-  ILCompiler, Native AOT host and native-probe builds. The first complete live
-  suite remains pending.
+  in the Native AOT host publish. The second attempt passes the complete runtime
+  job, then exposes the same missing SDK root in generated consumer builds during
+  the full test step: MacPorts Clang cannot find standard C headers and Native AOT
+  cannot resolve `-ldl`. The test-build command now persists the active SDK root
+  for its own build and the following test step while retaining LLVM 20 as the
+  binding frontend. An exact Intel Native AOT extension publish passes, followed
+  by all **1,223** build-tool cases with zero failures and nine platform skips.
+  The first complete live suite remains pending.
 - Function-provider diagnostics pass complete Linux/PostgreSQL **18.6** acceptance:
   **13,365** total, zero failures. All **1,853** ordinary source inputs and the
   exact **2,038**-file evidence archive verify; ten changed/new files are promoted.
