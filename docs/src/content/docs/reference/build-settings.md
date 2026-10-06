@@ -63,9 +63,25 @@ using Ankus;
 ```
 
 Each omitted or `null` value retains its project default. Values preserve exact
-UTF-8 text; embedded zero characters and malformed Unicode produce `ANKUS025`
-at the invalid attribute argument. Empty strings are preserved when explicitly
-declared. `[assembly: PgModule]` also permits a loadable module with no SQL objects.
+UTF-8 text. Empty strings are preserved when explicitly declared.
+`[assembly: PgModule]` also permits a loadable module with no SQL objects.
+
+### Module identity diagnostics
+
+Embedded zero characters cannot be represented in PostgreSQL's terminated
+module identity strings. Malformed Unicode cannot be encoded as exact UTF-8.
+Ankus rejects both without truncating or replacing the supplied text:
+
+| Diagnostic | Invalid value | Correction |
+| --- | --- | --- |
+| `ANKUS350` | `Name` contains a zero character | Remove the embedded zero from the name |
+| `ANKUS351` | `Name` contains an unpaired UTF-16 surrogate | Supply a well-formed Unicode name |
+| `ANKUS352` | `Version` contains a zero character | Remove the embedded zero from the version |
+| `ANKUS353` | `Version` contains an unpaired UTF-16 surrogate | Supply a well-formed Unicode version |
+
+Attribute errors point to the invalid `Name` or `Version` expression, including
+constant references. Invalid project defaults require correcting the project's
+`AssemblyName` or `Version`. If both fields are invalid, both errors are reported.
 
 This metadata describes the native library. SQL installation names and versions
 still come from `AnkusExtensionName` and `AnkusExtensionVersion`. PostgreSQL

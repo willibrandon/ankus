@@ -59,22 +59,23 @@ public sealed partial class PgFunctionGeneratorTests
     /// </summary>
     /// <param name="property">The identity member.</param>
     /// <param name="literal">The malformed managed string expression.</param>
+    /// <param name="expected">The independently required field transport error.</param>
     [TestMethod]
-    [DataRow("Name", "\"a\\0b\"")]
-    [DataRow("Version", "\"a\\0b\"")]
-    [DataRow("Name", "\"\\ud800\"")]
-    [DataRow("Version", "\"\\ud800\"")]
-    [DataRow("Name", "\"\\udc00\"")]
-    [DataRow("Version", "\"\\udc00\"")]
-    public void NativeModuleIdentityRejectsTruncationAndReplacement(string property, string literal)
+    [DataRow("Name", "\"a\\0b\"", "ANKUS350")]
+    [DataRow("Version", "\"a\\0b\"", "ANKUS352")]
+    [DataRow("Name", "\"\\ud800\"", "ANKUS351")]
+    [DataRow("Version", "\"\\ud800\"", "ANKUS353")]
+    [DataRow("Name", "\"\\udc00\"", "ANKUS351")]
+    [DataRow("Version", "\"\\udc00\"", "ANKUS353")]
+    public void NativeModuleIdentityRejectsTruncationAndReplacement(string property, string literal, string expected)
     {
         string source = "[assembly: Ankus.PgModule(" + property + " = " + literal + ")]";
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source);
         Diagnostic diagnostic = Assert.ContainsSingle(diagnostics);
-        Assert.AreEqual("ANKUS025", diagnostic.Id);
+        Assert.AreEqual(expected, diagnostic.Id);
         Assert.Contains("PgModule." + property, diagnostic.GetMessage(CultureInfo.InvariantCulture));
         Assert.AreEqual(literal, diagnostic.Location.SourceTree!.GetText(context.CancellationToken).ToString(diagnostic.Location.SourceSpan));
-        Assert.EndsWith("#native-module-identity", diagnostic.Descriptor.HelpLinkUri);
+        Assert.EndsWith("#module-identity-diagnostics", diagnostic.Descriptor.HelpLinkUri);
         Assert.DoesNotContain(static attribute => attribute.AttributeClass?.ToDisplayString() == "System.Reflection.AssemblyMetadataAttribute" &&
             attribute.ConstructorArguments[0].Value is "Ankus.NativeSource", compilation.Assembly.GetAttributes());
     }

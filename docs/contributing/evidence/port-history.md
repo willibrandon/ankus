@@ -27734,3 +27734,91 @@ as do the earlier **ec19b55** replacement runs. The rejected **b2fe3e7** and
 hidden or counted as acceptance. No previous run is live. Replacement CI for
 the callback/prefix milestone remains required; independent module-identity
 native validation is still running.
+
+The coherent milestone is committed and pushed as **a177cfc**. Previous outcomes
+are checked again immediately before pushing and remain unchanged: latest primary
+CI and Docs are green, and no earlier run is live. Replacement
+[CI 37448633288](https://github.com/willibrandon/ankus/actions/runs/37448633288)
+starts on that exact revision. All three runtime jobs pass; quality and all three
+complete platform suites remain running. The matching
+[Docs 37448633273](https://github.com/willibrandon/ankus/actions/runs/37448633273)
+builds and deploys successfully. No pending platform outcome is recorded as a pass.
+
+The quality job subsequently passes in **9m46s**, ending at **10:25:48 UTC**;
+all three platform suites remain live at **10:44 UTC**, with no reported failures.
+The separate module correction's existing Linux SDK process is still live. Its
+promotion guard independently preserves all **1,838** accepted parent source/guide
+inputs, including the guide absent from the earlier parent manifest. No module
+source is promoted before complete native acceptance.
+
+### Datetime sample preparation, 2026-10-06
+
+The read-only local pgrx datetime example has **21** exports. The prepared C#
+sample retains their exact SQL argument names, native calendar/timezone behavior,
+upstream execution flags and upper-exclusive random-value distributions. The
+current draft compiles with the actual generator, producing two generated sources
+with zero compiler/generator warnings or errors. Its prepared native-test class
+also compiles with the seven actual integration support inputs, without warnings
+or errors. These are compiler-preparation results only: ordinary project analyzers,
+test discovery and published Native AOT execution remain required.
+
+The drafted tests compare independent PostgreSQL binary send values, strict NULLs,
+month/end-of-day rollover, DST day versus elapsed-hour arithmetic, full-range
+values, ISO formatting, timezone interpretation, the actual four clock columns,
+all SQL signatures/options and rollback followed by same-backend recovery. No
+datetime production source, fixture registration or solution entry is promoted.
+
+### Module identity complete acceptance and promotion, 2026-10-06
+
+The complete normal-source Linux x64/PostgreSQL **18.6** suite passes **13,210**
+executions: **13,162** passed, **48** platform skips and zero failures. Test time
+is **42m42.532s**; command time is **43m29.757s**. All six actual reports verify,
+including **4,317** generator cases, every **51** module case, **158** callback
+cases, **54** prefix cases and **67** native ownership/error/recovery cases.
+Every **1,839** source/guide input matches before and after execution.
+
+The retained archive contains **1,851** exact source/evidence files and
+**9,106,361** bytes. Every archived byte matches the completed validator; the
+copied archive has the same SHA-256 digest:
+`8a855535c6f84bc8fefe26cbeb73f7e64adc90e9d3e43640a7f60c4b202306f1`.
+The independently guarded **1,838** parent preimages include the original public
+guide. Promotion preserves prior bytes and changes only six source/test/guide
+files. All **1,839** accepted inputs still match after normal Release and docs
+gates. Release passes with zero warnings/errors in **1m25.800s**; API freshness
+verifies **244** pages/**2,791** members. Site diagnostics have zero errors,
+warnings or hints; all **295** pages build in **3.51s**. No API pages change.
+The completed run's **432** owned temporary entries are removed after checking
+the retained archive and active processes; checkout, runtime and evidence remain.
+
+Previous primary **a177cfc** CI **37448633288** and Docs **37448633273** both pass.
+All eighteen actual reports, **67** native recovery cases and both complete
+callback/prefix corpora per platform independently verify. The actual primary
+jobs take **40m01s** Linux, **29m08s** macOS and **38m11s** Windows; none times out.
+Replacement CI for the module milestone remains required.
+
+Immediately before committing, preceding outcomes are checked again. Latest
+**a177cfc** CI/Docs remain complete and green, as do **5a11b8c** and **ec19b55**.
+The earlier rejected **b2fe3e7** and **15efe37** CI runs remain recorded with
+their verified replacements. There are no live or queued main-branch workflows.
+The separate datetime full native validation remains active; it is not counted
+as accepted or included in this module source milestone.
+
+### Datetime normal-source focused acceptance, 2026-10-06
+
+The first ordinary sample build rejects an unnecessary using directive
+(`IDE0005`), before any tests run, in **58.054s**. After that source correction,
+the second build rejects a repeatedly allocated constant test array
+(`CA1861`/`IDE0300`), again before testing, in **28.858s**. Both rejected snapshots
+and actual driver logs remain retained; no warning level, mode or assertion is
+relaxed. The array becomes a documented static readonly collection expression.
+
+The corrected ordinary composition passes normal analyzers and all **58** focused
+macOS ARM64/PostgreSQL **18.6** Native AOT cases, with zero failures/skips.
+Test time is **2m10.257s**; command time is **2m39.729s**. The actual report
+independently verifies all nine required arithmetic, scaling, ISO, composition,
+timezone, clock, sampler, native-recovery and declaration partitions. All **1,845**
+source/guide inputs match before and after. The patched runtime's **39** payload
+inputs match the prior accepted bytes. Plain, unsharded full native acceptance
+starts with the same composition and runtime. That full result and final
+documentation/promotion gates remain required; the datetime sample is not yet
+promoted into the authoring tree.

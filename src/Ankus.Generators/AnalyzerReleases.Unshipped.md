@@ -11,7 +11,6 @@ ANKUS016 | Ankus | Error | Invalid raw PostgreSQL type or TABLE column binding
 ANKUS017 | Ankus | Error | Invalid PostgreSQL base type or storage codec
 ANKUS018 | Ankus | Error | Invalid generated PostgreSQL operators
 ANKUS024 | Ankus | Error | Ambiguous reference nullability in a SQL parameter or result
-ANKUS025 | Ankus | Error | Invalid PostgreSQL native module identity
 ANKUS026 | Ankus | Error | Invalid managed SQL dependency reference
 ANKUS027 | Ankus | Error | Invalid generated planner support function
 ANKUS028 | Ankus | Error | Incompatible typed aggregate implementation nullability
@@ -336,3 +335,7 @@ ANKUS346 | Ankus | Error | Native callback handler argument does not match Invok
 ANKUS347 | Ankus | Error | Configuration prefix requires a nonnull string
 ANKUS348 | Ankus | Error | Configuration prefix cannot contain zero characters
 ANKUS349 | Ankus | Error | Configuration prefix requires well-formed Unicode
+ANKUS350 | Ankus | Error | Module name cannot contain zero characters
+ANKUS351 | Ankus | Error | Module name requires well-formed Unicode
+ANKUS352 | Ankus | Error | Module version cannot contain zero characters
+ANKUS353 | Ankus | Error | Module version requires well-formed Unicode

@@ -10,11 +10,41 @@ namespace Ankus.Generators;
 /// </summary>
 internal static class NativeModuleMagic
 {
-    private static readonly DiagnosticDescriptor s_invalidIdentity = new(
-        "ANKUS025", "Invalid PostgreSQL module identity",
-        "{0} must contain valid UTF-8 text without embedded zero characters",
+    /// <summary>
+    /// Identifies the independently correctable module name C-string boundary contract.
+    /// </summary>
+    private static readonly DiagnosticDescriptor s_nameZero = new(
+        "ANKUS350", "Module name cannot contain zero characters",
+        "Remove embedded zero characters from PgModule.Name or its project default; PostgreSQL requires the complete null-terminated value",
         "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true,
-        helpLinkUri: "https://willibrandon.github.io/ankus/reference/build-settings/#native-module-identity");
+        helpLinkUri: "https://willibrandon.github.io/ankus/reference/build-settings/#module-identity-diagnostics");
+
+    /// <summary>
+    /// Identifies the independently correctable module name Unicode encoding contract.
+    /// </summary>
+    private static readonly DiagnosticDescriptor s_nameUnicode = new(
+        "ANKUS351", "Module name requires well-formed Unicode",
+        "Replace unpaired UTF-16 surrogate characters in PgModule.Name or its project default; Ankus preserves exact UTF-8 text without replacement",
+        "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true,
+        helpLinkUri: "https://willibrandon.github.io/ankus/reference/build-settings/#module-identity-diagnostics");
+
+    /// <summary>
+    /// Identifies the independently correctable module version C-string boundary contract.
+    /// </summary>
+    private static readonly DiagnosticDescriptor s_versionZero = new(
+        "ANKUS352", "Module version cannot contain zero characters",
+        "Remove embedded zero characters from PgModule.Version or its project default; PostgreSQL requires the complete null-terminated value",
+        "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true,
+        helpLinkUri: "https://willibrandon.github.io/ankus/reference/build-settings/#module-identity-diagnostics");
+
+    /// <summary>
+    /// Identifies the independently correctable module version Unicode encoding contract.
+    /// </summary>
+    private static readonly DiagnosticDescriptor s_versionUnicode = new(
+        "ANKUS353", "Module version requires well-formed Unicode",
+        "Replace unpaired UTF-16 surrogate characters in PgModule.Version or its project default; Ankus preserves exact UTF-8 text without replacement",
+        "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true,
+        helpLinkUri: "https://willibrandon.github.io/ankus/reference/build-settings/#module-identity-diagnostics");
 
     /// <summary>
     /// Registers semantic identity discovery, separately cached native emission and current-tree diagnostics.
@@ -76,8 +106,8 @@ internal static class NativeModuleMagic
     {
         string name = input.Name ?? input.AssemblyName;
         string version = input.Version ?? projectVersion ?? input.AssemblyVersion;
-        ModuleProblem? nameError = SqlText.IsText(name) ? null : new("Name", input.NameLocation);
-        ModuleProblem? versionError = SqlText.IsText(version) ? null : new("Version", input.VersionLocation);
+        ModuleProblem? nameError = SqlText.IsText(name) ? null : new("Name", name.Contains('\0'), input.NameLocation);
+        ModuleProblem? versionError = SqlText.IsText(version) ? null : new("Version", version.Contains('\0'), input.VersionLocation);
         return new(nameError is null && versionError is null ? new(name, version) : null, nameError, versionError);
     }
 
@@ -95,8 +125,10 @@ internal static class NativeModuleMagic
     {
         if (problem is not null)
         {
-            context.Report(s_invalidIdentity,
-                problem.Location?.Resolve(compilation) ?? Location.None, "PgModule." + problem.Property);
+            DiagnosticDescriptor descriptor = problem.Property == "Name"
+                ? problem.HasZero ? s_nameZero : s_nameUnicode
+                : problem.HasZero ? s_versionZero : s_versionUnicode;
+            context.Report(descriptor, problem.Location?.Resolve(compilation) ?? Location.None);
         }
     }
 
@@ -121,7 +153,7 @@ internal static class NativeModuleMagic
     /// <summary>
     /// Identifies one invalid authored property and its detached source coordinates.
     /// </summary>
-    internal sealed record ModuleProblem(string Property, GeneratorLocation? Location);
+    internal sealed record ModuleProblem(string Property, bool HasZero, GeneratorLocation? Location);
 
     /// <summary>
     /// Keeps validated identity and reporting data independently of the compiler's object graph.

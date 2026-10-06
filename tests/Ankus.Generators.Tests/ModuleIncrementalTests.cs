@@ -57,13 +57,13 @@ public sealed partial class PgFunctionGeneratorTests
         CSharpCompilation initial = ModuleCompilation(Source);
         GeneratorDriver driver = ModuleDriver().RunGeneratorsAndUpdateCompilation(initial, out _,
             out ImmutableArray<Diagnostic> firstErrors, context.CancellationToken);
-        Assert.AreEqual("ANKUS025", Assert.ContainsSingle(firstErrors).Id);
+        Assert.AreEqual("ANKUS350", Assert.ContainsSingle(firstErrors).Id);
         SyntaxTree current = CSharpSyntaxTree.ParseText(Source + "\n// unrelated edit", path: "Module.cs", cancellationToken: context.CancellationToken);
         CSharpCompilation edited = initial.ReplaceSyntaxTree(initial.SyntaxTrees.Single(), current);
         driver = driver.RunGeneratorsAndUpdateCompilation(edited, out _, out ImmutableArray<Diagnostic> errors, context.CancellationToken);
         Diagnostic error = Assert.ContainsSingle(errors);
 
-        Assert.AreEqual("ANKUS025", error.Id);
+        Assert.AreEqual("ANKUS350", error.Id);
         Assert.AreSame(current, error.Location.SourceTree);
         Assert.AreEqual(Assert.ContainsSingle(firstErrors).Location.SourceSpan, error.Location.SourceSpan);
         Assert.AreEqual(IncrementalStepRunReason.Cached, ModuleStep(driver, "ModuleAnalysis"));
@@ -191,13 +191,13 @@ public sealed partial class PgFunctionGeneratorTests
         CSharpCompilation initial = ModuleCompilation(Invalid);
         GeneratorDriver driver = ModuleDriver().RunGeneratorsAndUpdateCompilation(initial, out _,
             out ImmutableArray<Diagnostic> firstErrors, context.CancellationToken);
-        Assert.AreEqual("ANKUS025", Assert.ContainsSingle(firstErrors).Id);
+        Assert.AreEqual("ANKUS350", Assert.ContainsSingle(firstErrors).Id);
         SyntaxTree shifted = CSharpSyntaxTree.ParseText("#line 100 \"Mapped.cs\"\n\n" + Invalid, path: "Module.cs", cancellationToken: context.CancellationToken);
         CSharpCompilation edited = initial.ReplaceSyntaxTree(initial.SyntaxTrees.Single(), shifted);
         driver = driver.RunGeneratorsAndUpdateCompilation(edited, out _, out ImmutableArray<Diagnostic> errors, context.CancellationToken);
         Diagnostic error = Assert.ContainsSingle(errors);
 
-        Assert.AreEqual("ANKUS025", error.Id);
+        Assert.AreEqual("ANKUS350", error.Id);
         Assert.AreSame(shifted, error.Location.SourceTree);
         Assert.AreEqual("\"a\\0b\"", shifted.GetText(context.CancellationToken).ToString(error.Location.SourceSpan));
         Assert.AreEqual("Mapped.cs", error.Location.GetMappedLineSpan().Path);

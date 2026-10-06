@@ -87,16 +87,21 @@ incorrect. See [the detailed review](docs/contributing/evidence/port-history.md#
 ## Current complete acceptance evidence
 
 Primary CI runs all six modules against real published Native AOT extensions.
-The latest successful primary CI source is **5a11b8c**, with runtime **10.0.12-ankus.4**.
-[CI 37437329994](https://github.com/willibrandon/ankus/actions/runs/37437329994)
-and [Docs 37437330058](https://github.com/willibrandon/ankus/actions/runs/37437330058)
+The latest successful primary CI source is **a177cfc**, with runtime **10.0.12-ankus.4**.
+[CI 37448633288](https://github.com/willibrandon/ankus/actions/runs/37448633288)
+and [Docs 37448633273](https://github.com/willibrandon/ankus/actions/runs/37448633273)
 pass. All eighteen actual reports and all sixty-seven required native recovery
-partitions independently verify; no primary job timed out.
+partitions independently verify, alongside the callback and prefix corpora on
+every platform; no primary job timed out.
 
 | Source | Platform / PostgreSQL | Result | Duration |
 | --- | --- | --- | --- |
-| Frozen callback/prefix composition, runtime **ankus.4** | macOS ARM64 / 18.6 | 13,187 total; 13,127 passed; 60 platform skips; zero failures | 28m21.670s tests; 29m17.922s command |
-| Latest primary CI, **5a11b8c / ankus.4** | Linux x64 / 18 | 13,111 total; 13,063 passed; 48 platform skips; zero failures | 39m55s job |
+| Module-identity composition, parent **a177cfc / ankus.4** | Linux x64 / 18.6 | 13,210 total; 13,162 passed; 48 platform skips; zero failures | 42m42.532s tests; 43m29.757s command |
+| Latest primary CI, **a177cfc / ankus.4** | Linux x64 / 18 | 13,187 total; 13,139 passed; 48 platform skips; zero failures | 40m01s job |
+| Same CI / revision / runtime | macOS ARM64 / 18 | 13,187 total; 13,127 passed; 60 platform skips; zero failures | 29m08s job |
+| Same CI / revision / runtime | Windows x64 / 17 | 13,187 total; 13,159 passed; 28 platform skips; zero failures | 38m11s job |
+| Callback/prefix composition, **a177cfc / ankus.4** | macOS ARM64 / 18.6 | 13,187 total; 13,127 passed; 60 platform skips; zero failures | 28m21.670s tests; 29m17.922s command |
+| Earlier primary CI, **5a11b8c / ankus.4** | Linux x64 / 18 | 13,111 total; 13,063 passed; 48 platform skips; zero failures | 39m55s job |
 | Same CI / revision / runtime | macOS ARM64 / 18 | 13,111 total; 13,051 passed; 60 platform skips; zero failures | 29m33s job |
 | Same CI / revision / runtime | Windows x64 / 17 | 13,111 total; 13,083 passed; 28 platform skips; zero failures | 38m03s job |
 | Earlier primary CI, **ec19b55 / ankus.4** | Linux x64 / 18 | 13,015 total; 12,967 passed; 48 platform skips; zero failures | 39m52s job |
@@ -150,7 +155,7 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   retrying a GitHub ID-token timeout. Crash tests retain their original deadlines,
   fsync and durability checks; warmed owner lookups preserve their allocation
   bound. The original macOS CI allocation variance remains unattributed.
-- The callback/prefix composition separates **39** actionable declaration errors
+- **a177cfc** separates **39** actionable callback/prefix declaration errors
   while preserving handler selection, native ABI and exact prefix registration.
   Separate unchanged-validator baselines reproduce all **54** callback and **17**
   prefix regressions; all compiled controls pass. Normal combined source passes
@@ -160,8 +165,13 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   cases and **54** prefix cases verify. All **1,837** source inputs and **39**
   runtime payload inputs match after execution. The exact **1,851**-file archive
   is retained, and all **12** changed/new files are promoted byte-for-byte.
-  Normal Release, API freshness and both site checks pass; replacement CI remains
-  required. Separate callback-only
+  Normal Release, API freshness and both site checks pass.
+  [Replacement CI 37448633288](https://github.com/willibrandon/ankus/actions/runs/37448633288)
+  passes on all three platforms. All eighteen actual reports, **67** native
+  recovery cases, **158** callback cases and **54** prefix cases per platform
+  independently verify. The matching
+  [docs deployment](https://github.com/willibrandon/ankus/actions/runs/37448633273)
+  passes. Separate callback-only
   Linux acceptance has **13,165** total, **13,117** passed, **48** skips and zero failures;
   its rejected setup run remains recorded separately.
 - A separate module-identity prototype distinguishes name/version zero characters
@@ -172,8 +182,21 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   authoring/prototype inputs match before and after each run. The next normal-source
   child passes all **4,317** generator cases, including both accepted corpora;
   all **1,839** source/guide inputs match before and after. Its plain, unsharded
-  Linux/PostgreSQL **18.6** Native AOT suite is running. Full native, documentation
-  and promotion gates remain required.
+  Linux/PostgreSQL **18.6** Native AOT suite passes: **13,210** total, **13,162**
+  passed, **48** platform skips and zero failures. All six reports and all
+  module/callback/prefix/native-recovery partitions verify. The **1,851**-file
+  source/report archive matches every byte; all **6** changed/new files are
+  promoted with **1,839** accepted inputs unchanged after the final gates.
+  Normal Release, API freshness and both site checks pass. Replacement CI remains
+  required; completed owned temporary files are removed and evidence is retained.
+- The datetime sample draft maps all **21** upstream exports, including exact SQL
+  argument names, upper-exclusive sampler bounds, calendar arithmetic, timezone
+  projection and the four clock columns. Normal analyzers pass and all **58**
+  focused macOS ARM64/PostgreSQL **18.6** Native AOT cases pass. Actual-report
+  checks verify every behavioral partition, with all **1,845** source inputs
+  unchanged. Plain, unsharded full macOS acceptance is running; no datetime sample
+  source is promoted before complete acceptance. Rejected analyzer builds remain
+  recorded separately, with no skipped tests or relaxed diagnostics.
 
 Remaining diagnostics/code fixes, source-case mapping, samples, API and CLI
 contracts, supported PostgreSQL/platform combinations, .NET servicing and release
