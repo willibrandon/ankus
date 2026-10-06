@@ -67,7 +67,7 @@ defines the full scope; family-level implementation is not API-by-API completion
 | Errors and cancellation | Sticky query cancellation/FATAL, retained raw/memory errors, fail-fast backend access and explicit rollback recovery. Primary-platform full CI passes. | Preserve these guarantees in every remaining API and performance change; complete the version/platform matrix. |
 | Workers and shared memory | Native signal globals, lifecycle/transaction boundaries and shared memory. Idle Wait recovers repeated real cancellation; transaction waits still abort and terminal reports remain sticky. Complete primary-platform CI passes. | Full source-contract and complete version/platform acceptance remain required. |
 | Functions and callbacks | Scalar/array/SETOF/TABLE, triggers/events, lifecycle, native callbacks, operators/conversions and installation-schema search paths. | Full upstream declaration/option audit and complete version/platform evidence. |
-| Aggregates and SQL graph | Static abstract aggregate capabilities, typed Requires/Before/SupportFunction references, deterministic SQL provenance and extended module magic. | Remaining inventoried contracts and complete version/platform acceptance. |
+| Aggregates and SQL graph | Static abstract aggregate capabilities, typed Requires/Before/SupportFunction references, deterministic SQL provenance and extended module magic. Empty SQL dependency anchors and exact authored CR/CRLF values pass complete native acceptance. | Remaining precise provider/graph diagnostics, inventoried contracts and complete version/platform acceptance. |
 | Generator caching | Detached equatable declaration/provider/reference models, declaration-relative locations and cached dispatcher/C/SQL artifacts across multi-declaration body edits and unrelated file insertion. Only selected SQL files are read, with the complete path catalog retained. | Broader precise diagnostics, useful semantic code fixes and final inventory audit remain required. |
 | Values and ownership | Documented scalar, array, composite, temporal, JSON, network, geometry, custom codec and raw datum contracts. Interval equality, hashing and ordering agree with PostgreSQL while retaining exact components; complete primary-platform CI passes. | Remaining mapped/container contracts, parsing/formatting ergonomics and complete source-case mapping remain required. |
 | Runtime performance | Owned binary PgNumeric, direct decimal coefficient encoding, constant-time fixed-width array indexing, and a measured native guard for allowlisted pure built-ins. Catalog-miss errors require actual rollback; real-resource regressions and complete primary-platform CI pass. Persistent in-backend benchmarks provide batching, transaction modes and statistical baseline comparisons. | Complete current guard supported-version acceptance. Extend that tier only where ownership proofs and measurements justify it. Never weaken error recovery to reduce overhead. |
@@ -76,7 +76,7 @@ defines the full scope; family-level implementation is not API-by-API completion
 | .NET templates | Version-matched ordinary extension and worker templates reuse the CLI assets and pin local tools. Optional xUnit/NUnit consumers exercise managed and named backend cases, ignore reasons, worker processes and cleanup alongside default MSTest consumers. Complete primary-platform CI passes. | Remaining discovery contracts and complete version/platform acceptance. |
 | API discoverability | Idiomatic attributed declarations, documented runtime APIs, named logging helpers and typed SPI interpolation. Compiler transport helpers are isolated in Ankus.CompilerServices and hidden from IntelliSense; complete primary-platform CI passes. | Remaining value/assertion helpers and final inventory audit. |
 | Packages and release | MIT license, Brandon Williams copyright, author/repository/project metadata and deliberate SDK/runtime boundaries. | Full release gates and supported-platform packages before publishing 0.1.0. |
-| Documentation and samples | Public guides, generated API pages, pgrx migration and backend-execution guidance; current status separated from historical evidence. SPI, error/reporting, bytea, strings and in-backend benchmark samples cover their complete authoring loops. | Every remaining inventoried representative sample and final usage/limitation review. |
+| Documentation and samples | Public guides, generated API pages, pgrx migration and backend-execution guidance; current status separated from historical evidence. SPI, error/reporting, bytea, strings, datetime and in-backend benchmark samples cover their complete authoring loops. | Every remaining inventoried representative sample and final usage/limitation review. |
 
 The custom-type alignment review found no defect: variable-length PostgreSQL
 types require at least four-byte datum alignment. Managed codec payload layout
@@ -87,51 +87,28 @@ incorrect. See [the detailed review](docs/contributing/evidence/port-history.md#
 ## Current complete acceptance evidence
 
 Primary CI runs all six modules against real published Native AOT extensions.
-The latest successful primary CI source is **a177cfc**, with runtime **10.0.12-ankus.4**.
-[CI 37448633288](https://github.com/willibrandon/ankus/actions/runs/37448633288)
-and [Docs 37448633273](https://github.com/willibrandon/ankus/actions/runs/37448633273)
+The latest successful primary CI source is **e41c687**, with runtime **10.0.12-ankus.4**.
+[CI 37454418329](https://github.com/willibrandon/ankus/actions/runs/37454418329)
+and [Docs 37454418510](https://github.com/willibrandon/ankus/actions/runs/37454418510)
 pass. All eighteen actual reports and all sixty-seven required native recovery
 partitions independently verify, alongside the callback and prefix corpora on
 every platform; no primary job timed out.
+A current [Intel refresh](https://github.com/willibrandon/ankus/actions/runs/37460600236)
+has passed its runtime job and is running the complete macOS x64 suite. Its
+platform outcome remains pending.
 
 | Source | Platform / PostgreSQL | Result | Duration |
 | --- | --- | --- | --- |
-| Module-identity composition, parent **a177cfc / ankus.4** | Linux x64 / 18.6 | 13,210 total; 13,162 passed; 48 platform skips; zero failures | 42m42.532s tests; 43m29.757s command |
-| Latest primary CI, **a177cfc / ankus.4** | Linux x64 / 18 | 13,187 total; 13,139 passed; 48 platform skips; zero failures | 40m01s job |
-| Same CI / revision / runtime | macOS ARM64 / 18 | 13,187 total; 13,127 passed; 60 platform skips; zero failures | 29m08s job |
-| Same CI / revision / runtime | Windows x64 / 17 | 13,187 total; 13,159 passed; 28 platform skips; zero failures | 38m11s job |
-| Callback/prefix composition, **a177cfc / ankus.4** | macOS ARM64 / 18.6 | 13,187 total; 13,127 passed; 60 platform skips; zero failures | 28m21.670s tests; 29m17.922s command |
-| Earlier primary CI, **5a11b8c / ankus.4** | Linux x64 / 18 | 13,111 total; 13,063 passed; 48 platform skips; zero failures | 39m55s job |
-| Same CI / revision / runtime | macOS ARM64 / 18 | 13,111 total; 13,051 passed; 60 platform skips; zero failures | 29m33s job |
-| Same CI / revision / runtime | Windows x64 / 17 | 13,111 total; 13,083 passed; 28 platform skips; zero failures | 38m03s job |
-| Earlier primary CI, **ec19b55 / ankus.4** | Linux x64 / 18 | 13,015 total; 12,967 passed; 48 platform skips; zero failures | 39m52s job |
-| Same CI / revision / runtime | macOS ARM64 / 18 | 13,015 total; 12,955 passed; 60 platform skips; zero failures | 29m31s job |
-| Same CI / revision / runtime | Windows x64 / 17 | 13,015 total; 12,987 passed; 28 platform skips; zero failures | 38m14s job |
-| Earlier primary CI, **f86e0ac / ankus.4** | Linux x64 / 18 | 12,630 total; 12,582 passed; 48 platform skips; zero failures | 39m27s job |
-| Same CI / revision / runtime | macOS ARM64 / 18 | 12,630 total; 12,570 passed; 60 platform skips; zero failures | 34m10s job |
-| Same CI / revision / runtime | Windows x64 / 17 | 12,630 total; 12,602 passed; 28 platform skips; zero failures | 35m21s job |
-| [New primary CI](https://github.com/willibrandon/ankus/actions/runs/37401674049), **15efe37 / ankus.4** | macOS ARM64 / 18 | 12,799 total; 12,739 passed; 60 platform skips; zero failures | 29m40s job |
-| Same CI / revision / runtime | Linux x64 / 18 | 12,799 total; 12,751 passed; 48 platform skips; zero failures | 39m40s job |
-| Same CI / revision / runtime, rejected | Windows x64 / 17.11 | 12,799 total; 12,770 passed; 28 platform skips; one recovery timeout | 35m28s job; superseded by the successful crash-isolation replacement |
-| [Crash-isolation replacement CI](https://github.com/willibrandon/ankus/actions/runs/37410596204), **b2fe3e7 / ankus.4** | Windows x64 / 17 | 12,799 total; 12,771 passed; 28 platform skips; zero failures | 37m11s job |
-| Same replacement CI / revision / runtime | Linux x64 / 18 | 12,799 total; 12,751 passed; 48 platform skips; zero failures | 40m11s job |
-| Same replacement CI, rejected | macOS ARM64 / 18 | Generator allocation regression fails; only four of six module reports exist | 30m43s job; superseded by the successful declaration/cache CI milestone |
-| Allocation workload reproduction, **b2fe3e7 / ankus.4**, private phase observations | macOS ARM64 / 18.6 | 12,799 total; 12,739 passed; 60 platform skips; zero failures | 28m37.771s tests; 29m33.377s command; does not reproduce the CI failure |
-| Frozen owner-lookup measurement correction, runtime **ankus.4** | macOS ARM64 / 18.6 | 12,799 total; 12,739 passed; 60 platform skips; zero failures | 28m50.398s tests; 29m46.185s command |
-| Frozen crash-isolation repair, runtime **ankus.4** | Windows x64 / 17.11 | 12,799 total; 12,771 passed; 28 platform skips; zero failures | 50m30.838s tests; 51m21.747s command |
-| Frozen bytea/strings and SQL-identity composition, runtime **ankus.4** | Windows x64 / 17.11 | 12,799 total; 12,771 passed; 28 platform skips; zero failures | 48m38.373s tests; 49m26.804s command |
-| Frozen corrected SPI composition, **f86e0ac / ankus.4** | Windows x64 / 17.11 | 12,630 total; 12,602 passed; 28 platform skips; zero failures | 47m45.216s tests; 48m33.194s command |
-| Frozen raw transport / recovery composition, runtime **ankus.4** | Linux x64 / 18.6 | 12,561 total; 12,513 passed; 48 platform skips; zero failures | 41m19.728s tests |
-| Same frozen composition / runtime | Windows x64 / 17.11 | 12,561 total; 12,533 passed; 28 platform skips; zero failures | 47m38.639s tests; 48m23.936s command |
+| Latest primary CI, **e41c687 / ankus.4** | Linux x64 / 18 | 13,210 total; 13,162 passed; 48 platform skips; zero failures | 40m00s job |
+| Same CI / revision / runtime | macOS ARM64 / 18 | 13,210 total; 13,150 passed; 60 platform skips; zero failures | 28m29s retry job; first attempt rejected after disk exhaustion |
+| Same CI / revision / runtime | Windows x64 / 17 | 13,210 total; 13,182 passed; 28 platform skips; zero failures | 38m03s job |
+| SQL/datetime composition, parent **e41c687 / ankus.4** | Linux x64 / 18.6 | 13,337 total; 13,289 passed; 48 platform skips; zero failures | 42m46.885s tests; 43m41.597s command |
 
-The corrected SPI composition verifies all six reports, sixty-seven native
-recovery partitions and **1,791** source inputs. Its exact source/report archive
-matches all **1,802** retained files. Release, API freshness, site build and site
-diagnostics pass without warnings or errors. Replacement primary-platform CI
-passes; current supported-version and additional-platform acceptance remain required.
-The earlier frozen composition verifies all twelve reports and **1,788** source inputs.
-Its Release build, API freshness and site checks pass. These results prove the
-named source and PostgreSQL/platform combinations, not the complete port.
+All eighteen primary reports and the module identity, callback, prefix and native
+recovery partitions independently verify. Normal Release, API freshness and site
+checks pass. Earlier source counts, timings, rejected attempts and superseded
+results remain in the [acceptance history](docs/contributing/evidence/port-history.md#superseded-active-and-primary-acceptance-detail-before-sqldatetime-acceptance-2026-10-06).
+These results establish the named combinations, not full-port completion.
 
 Additional-platform results below are older revisions. Refreshing them against
 the current source remains required, alongside the never-covered combinations.
@@ -148,55 +125,31 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
 
 ## Active validation and work
 
-- **5a11b8c** is the accepted enum/backend-test milestone. Normal Release, API
-  freshness, both site checks and complete primary CI pass. All eighteen actual
-  reports and **67** required native recovery cases per platform independently
-  verify; no primary job times out. The matching docs deployment passes after
-  retrying a GitHub ID-token timeout. Crash tests retain their original deadlines,
-  fsync and durability checks; warmed owner lookups preserve their allocation
-  bound. The original macOS CI allocation variance remains unattributed.
-- **a177cfc** separates **39** actionable callback/prefix declaration errors
-  while preserving handler selection, native ABI and exact prefix registration.
-  Separate unchanged-validator baselines reproduce all **54** callback and **17**
-  prefix regressions; all compiled controls pass. Normal combined source passes
-  **4,294** generator cases and plain, unsharded macOS ARM64/PostgreSQL **18.6**
-  acceptance: **13,187** total, **13,127** passed, **60** platform skips and zero
-  failures. All six reports, **67** native recovery partitions, **158** callback
-  cases and **54** prefix cases verify. All **1,837** source inputs and **39**
-  runtime payload inputs match after execution. The exact **1,851**-file archive
-  is retained, and all **12** changed/new files are promoted byte-for-byte.
-  Normal Release, API freshness and both site checks pass.
-  [Replacement CI 37448633288](https://github.com/willibrandon/ankus/actions/runs/37448633288)
-  passes on all three platforms. All eighteen actual reports, **67** native
-  recovery cases, **158** callback cases and **54** prefix cases per platform
-  independently verify. The matching
-  [docs deployment](https://github.com/willibrandon/ankus/actions/runs/37448633273)
-  passes. Separate callback-only
-  Linux acceptance has **13,165** total, **13,117** passed, **48** skips and zero failures;
-  its rejected setup run remains recorded separately.
-- A separate module-identity prototype distinguishes name/version zero characters
-  and malformed Unicode without changing emitted native bytes or defaults. On
-  the accepted **5a11b8c** parent, the unchanged validator fails all **19** precise
-  regressions while **4** compiled Unicode controls pass. The correction passes
-  all **51** affected cases and **4,241** complete generator cases; all **1,840**
-  authoring/prototype inputs match before and after each run. The next normal-source
-  child passes all **4,317** generator cases, including both accepted corpora;
-  all **1,839** source/guide inputs match before and after. Its plain, unsharded
-  Linux/PostgreSQL **18.6** Native AOT suite passes: **13,210** total, **13,162**
-  passed, **48** platform skips and zero failures. All six reports and all
-  module/callback/prefix/native-recovery partitions verify. The **1,851**-file
-  source/report archive matches every byte; all **6** changed/new files are
-  promoted with **1,839** accepted inputs unchanged after the final gates.
-  Normal Release, API freshness and both site checks pass. Replacement CI remains
-  required; completed owned temporary files are removed and evidence is retained.
-- The datetime sample draft maps all **21** upstream exports, including exact SQL
-  argument names, upper-exclusive sampler bounds, calendar arithmetic, timezone
-  projection and the four clock columns. Normal analyzers pass and all **58**
-  focused macOS ARM64/PostgreSQL **18.6** Native AOT cases pass. Actual-report
-  checks verify every behavioral partition, with all **1,845** source inputs
-  unchanged. Plain, unsharded full macOS acceptance is running; no datetime sample
-  source is promoted before complete acceptance. Rejected analyzer builds remain
-  recorded separately, with no skipped tests or relaxed diagnostics.
+- **e41c687** is the accepted module-identity milestone, following callback/prefix
+  **a177cfc** and enum/backend-test **5a11b8c**. Complete primary CI, Release,
+  API freshness and both site checks pass. The first macOS attempt exhausted disk
+  during overlapping private validation; owned completed outputs are cleaned,
+  validation is separated from CI and the complete retry passes. Crash tests
+  retain their deadlines, fsync and durability checks. The earlier macOS
+  allocation variance remains unattributed.
+- The SQL/datetime composition passes plain, unsharded Linux/PostgreSQL **18.6**
+  acceptance: **13,337** total, **13,289** passed, **48** platform skips and zero
+  failures. All six actual reports verify, including **62** datetime cases,
+  **66** new SQL generator cases and the real SQL package/value/recovery case.
+  All **1,851** source inputs match after execution; the exact **2,044**-file
+  evidence archive verifies. The **31** changed/new source files are promoted.
+  Normal Release, API freshness and both site checks pass before commit.
+- The sample maps all **21** datetime exports. Four cached-plan regressions
+  reproduce incorrect upstream immutable flags; stable declarations preserve
+  session timezone changes. Empty SQL anchors retain their dependency edges,
+  and authored CR/CRLF values remain exact. Earlier source flags and the rejected
+  macOS disk-exhaustion attempt remain recorded separately.
+- Hosted Intel refresh **37460600236** has passed runtime preparation; its full
+  suite remains pending.
+- The next function-provider diagnostic draft passes all **4,409** generator
+  cases after reproducing **24** precise failures and **4** valid controls.
+  Actual reports and exact sources are retained; native acceptance and promotion
+  remain pending for this separate milestone.
 
 Remaining diagnostics/code fixes, source-case mapping, samples, API and CLI
 contracts, supported PostgreSQL/platform combinations, .NET servicing and release

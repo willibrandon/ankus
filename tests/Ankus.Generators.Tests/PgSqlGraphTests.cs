@@ -56,32 +56,33 @@ public sealed partial class PgFunctionGeneratorTests
     /// </summary>
     /// <param name="source">The invalid declaration source.</param>
     /// <param name="message">The diagnostic fragment identifying the failure.</param>
+    /// <param name="expected">The precise declaration or dependency diagnostic.</param>
     [TestMethod]
-    [DataRow("[assembly: Ankus.PgSql(\"a\", \"SELECT 1;\", Requires = new[] { \"missing\" })]", "missing dependency 'missing'")]
-    [DataRow("[assembly: Ankus.PgSql(\"a\", \"SELECT 1;\", Before = new[] { \"missing\" })]", "missing dependency 'missing'")]
-    [DataRow("[assembly: Ankus.PgSql(\"a\", \"SELECT 1;\", Requires = new[] { \"a\" })]", "cycle blocks: a")]
-    [DataRow("[assembly: Ankus.PgSql(\"a\", \"SELECT 1;\", Requires = new[] { \"b\" })] [assembly: Ankus.PgSql(\"b\", \"SELECT 2;\", Requires = new[] { \"a\" })]", "cycle blocks: a, b")]
-    [DataRow("[assembly: Ankus.PgSql(\"a\", \"SELECT 1;\")] [assembly: Ankus.PgSql(\"a\", \"SELECT 2;\")]", "declared more than once")]
-    [DataRow("[assembly: Ankus.PgSql(\"a\", \"SELECT 1;\", Order = Ankus.PgSqlOrder.Bootstrap)] [assembly: Ankus.PgSql(\"b\", \"SELECT 2;\", Order = Ankus.PgSqlOrder.Bootstrap)]", "Only one bootstrap")]
-    [DataRow("[assembly: Ankus.PgSql(\"a\", \"SELECT 1;\", Order = Ankus.PgSqlOrder.Finalize)] [assembly: Ankus.PgSql(\"b\", \"SELECT 2;\", Order = Ankus.PgSqlOrder.Finalize)]", "Only one final")]
-    [DataRow("[assembly: Ankus.PgSql(\"a\", \"SELECT 1;\", Order = Ankus.PgSqlOrder.Bootstrap, Requires = new[] { \"b\" })] [assembly: Ankus.PgSql(\"b\", \"SELECT 2;\")]", "cycle")]
-    [DataRow("[assembly: Ankus.PgSql(\"a\", \"SELECT 1;\", Order = Ankus.PgSqlOrder.Finalize, Before = new[] { \"b\" })] [assembly: Ankus.PgSql(\"b\", \"SELECT 2;\")]", "cycle")]
-    [DataRow("[assembly: Ankus.PgSql(\"\", \"SELECT 1;\")]", "nonempty dependency name")]
-    [DataRow("[assembly: Ankus.PgSql(null!, \"SELECT 1;\")]", "nonempty dependency name")]
-    [DataRow("[assembly: Ankus.PgSql(\"a\", \" \")]", "nonempty SQL")]
-    [DataRow("[assembly: Ankus.PgSql(\"a\", \"SELECT '\\0';\")]", "nonempty SQL")]
-    [DataRow("[assembly: Ankus.PgSql(\"a\", \"SELECT '\\ud800';\")]", "nonempty SQL")]
-    [DataRow("[assembly: Ankus.PgSql(\"a\", \"SELECT 1;\", Order = (Ankus.PgSqlOrder)3)]", "undefined PgSqlOrder")]
-    [DataRow("[assembly: Ankus.PgSql(\"a\", \"SELECT 1;\", Requires = null!)]", "invalid Requires")]
-    [DataRow("[assembly: Ankus.PgSql(\"a\", \"SELECT 1;\", Before = new[] { \"\" })]", "invalid Before")]
-    [DataRow("[assembly: Ankus.PgSql(\"a\", \"SELECT 1;\", Requires = new[] { \"A\" })]", "missing dependency 'A'")]
-    [DataRow("public static class C { [Ankus.PgFunction(Id = \"x\")] public static int F() => 1; [Ankus.PgFunction(Id = \"x\")] public static int G() => 2; }", "declared more than once")]
-    [DataRow("[Ankus.PgSchema(\"s\", Id = \"schema\", Requires = new[] { \"function\" })] public static class C { [Ankus.PgFunction(Id = \"function\")] public static int F() => 1; }", "cycle")]
-    public void InvalidSqlDependenciesAreDiagnosed(string source, string message)
+    [DataRow("[assembly: Ankus.PgSql(\"a\", \"SELECT 1;\", Requires = new[] { \"missing\" })]", "missing dependency 'missing'", "ANKUS005")]
+    [DataRow("[assembly: Ankus.PgSql(\"a\", \"SELECT 1;\", Before = new[] { \"missing\" })]", "missing dependency 'missing'", "ANKUS005")]
+    [DataRow("[assembly: Ankus.PgSql(\"a\", \"SELECT 1;\", Requires = new[] { \"a\" })]", "cycle blocks: a", "ANKUS005")]
+    [DataRow("[assembly: Ankus.PgSql(\"a\", \"SELECT 1;\", Requires = new[] { \"b\" })] [assembly: Ankus.PgSql(\"b\", \"SELECT 2;\", Requires = new[] { \"a\" })]", "cycle blocks: a, b", "ANKUS005")]
+    [DataRow("[assembly: Ankus.PgSql(\"a\", \"SELECT 1;\")] [assembly: Ankus.PgSql(\"a\", \"SELECT 2;\")]", "declared more than once", "ANKUS005")]
+    [DataRow("[assembly: Ankus.PgSql(\"a\", \"SELECT 1;\", Order = Ankus.PgSqlOrder.Bootstrap)] [assembly: Ankus.PgSql(\"b\", \"SELECT 2;\", Order = Ankus.PgSqlOrder.Bootstrap)]", "Only one bootstrap", "ANKUS005")]
+    [DataRow("[assembly: Ankus.PgSql(\"a\", \"SELECT 1;\", Order = Ankus.PgSqlOrder.Finalize)] [assembly: Ankus.PgSql(\"b\", \"SELECT 2;\", Order = Ankus.PgSqlOrder.Finalize)]", "Only one final", "ANKUS005")]
+    [DataRow("[assembly: Ankus.PgSql(\"a\", \"SELECT 1;\", Order = Ankus.PgSqlOrder.Bootstrap, Requires = new[] { \"b\" })] [assembly: Ankus.PgSql(\"b\", \"SELECT 2;\")]", "cycle", "ANKUS005")]
+    [DataRow("[assembly: Ankus.PgSql(\"a\", \"SELECT 1;\", Order = Ankus.PgSqlOrder.Finalize, Before = new[] { \"b\" })] [assembly: Ankus.PgSql(\"b\", \"SELECT 2;\")]", "cycle", "ANKUS005")]
+    [DataRow("[assembly: Ankus.PgSql(\"\", \"SELECT 1;\")]", "dependency name", "ANKUS355")]
+    [DataRow("[assembly: Ankus.PgSql(null!, \"SELECT 1;\")]", "dependency name", "ANKUS355")]
+    [DataRow("[assembly: Ankus.PgSql(\"a\", null!)]", "nonnull SQL string", "ANKUS359")]
+    [DataRow("[assembly: Ankus.PgSql(\"a\", \"SELECT '\\0';\")]", "zero characters", "ANKUS360")]
+    [DataRow("[assembly: Ankus.PgSql(\"a\", \"SELECT '\\ud800';\")]", "surrogate", "ANKUS361")]
+    [DataRow("[assembly: Ankus.PgSql(\"a\", \"SELECT 1;\", Order = (Ankus.PgSqlOrder)3)]", "defined PgSqlOrder", "ANKUS358")]
+    [DataRow("[assembly: Ankus.PgSql(\"a\", \"SELECT 1;\", Requires = null!)]", "invalid Requires", "ANKUS005")]
+    [DataRow("[assembly: Ankus.PgSql(\"a\", \"SELECT 1;\", Before = new[] { \"\" })]", "invalid Before", "ANKUS005")]
+    [DataRow("[assembly: Ankus.PgSql(\"a\", \"SELECT 1;\", Requires = new[] { \"A\" })]", "missing dependency 'A'", "ANKUS005")]
+    [DataRow("public static class C { [Ankus.PgFunction(Id = \"x\")] public static int F() => 1; [Ankus.PgFunction(Id = \"x\")] public static int G() => 2; }", "declared more than once", "ANKUS005")]
+    [DataRow("[Ankus.PgSchema(\"s\", Id = \"schema\", Requires = new[] { \"function\" })] public static class C { [Ankus.PgFunction(Id = \"function\")] public static int F() => 1; }", "cycle", "ANKUS005")]
+    public void InvalidSqlDependenciesAreDiagnosed(string source, string message, string expected)
     {
         (_, ImmutableArray<Diagnostic> diagnostics) = Generate(source);
         Diagnostic diagnostic = Assert.ContainsSingle(diagnostics);
-        Assert.AreEqual("ANKUS005", diagnostic.Id);
+        Assert.AreEqual(expected, diagnostic.Id);
         Assert.Contains(message, diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture));
     }
 
@@ -143,17 +144,22 @@ public sealed partial class PgFunctionGeneratorTests
     [DataRow("missing")]
     [DataRow("duplicate")]
     [DataRow("unreadable")]
-    [DataRow("empty")]
     [DataRow("no project directory")]
     public void InvalidSqlFilesAreDiagnosed(string kind)
     {
         string project = Path.Combine(AppContext.BaseDirectory, "virtual-project");
-        var file = new SqlInput(Path.Combine(project, "seed.sql"), kind == "unreadable" ? null : kind == "empty" ? "" : "SELECT 1;");
+        var file = new SqlInput(Path.Combine(project, "seed.sql"), kind == "unreadable" ? null : "SELECT 1;");
         AdditionalText[] files = kind == "missing" ? [] : kind == "duplicate"
             ? [file, new SqlInput(Path.Combine(project, "nested", "..", "seed.sql"), "SELECT 2;")] : [file];
         (_, ImmutableArray<Diagnostic> diagnostics) = Generate("""[assembly: Ankus.PgSqlFile("seed", "seed.sql")]""",
             files, kind == "no project directory" ? null : new SqlOptions(project));
-        Assert.AreEqual("ANKUS005", Assert.ContainsSingle(diagnostics).Id);
+        Assert.AreEqual(kind switch
+        {
+            "missing" => "ANKUS367",
+            "duplicate" => "ANKUS368",
+            "unreadable" => "ANKUS369",
+            _ => "ANKUS366",
+        }, Assert.ContainsSingle(diagnostics).Id);
     }
 
     /// <summary>

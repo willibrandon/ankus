@@ -4,7 +4,8 @@ namespace Ankus;
 /// Includes trusted SQL text in the extension installation script with explicit dependency ordering.
 /// </summary>
 /// <remarks>
-/// Declares a named SQL block.
+/// Declares a named SQL block. Empty SQL is a valid dependency anchor.
+/// Authored SQL text, including line endings inside quoted values, is preserved.
 /// </remarks>
 /// <param name="name">The unique, case-sensitive dependency identifier.</param>
 /// <param name="sql">The complete SQL statements, including their terminators.</param>

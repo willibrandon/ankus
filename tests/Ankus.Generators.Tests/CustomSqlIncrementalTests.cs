@@ -164,7 +164,6 @@ public sealed partial class PgFunctionGeneratorTests
     [DataRow("missing")]
     [DataRow("duplicate")]
     [DataRow("unreadable")]
-    [DataRow("empty")]
     [DataRow("invalid text")]
     [DataRow("invalid Unicode")]
     [DataRow("invalid arguments")]
@@ -185,7 +184,6 @@ public sealed partial class PgFunctionGeneratorTests
         var file = new SqlInput(Path.Combine(project, "seed.sql"), kind switch
         {
             "unreadable" => null,
-            "empty" => " ",
             "invalid text" => "SELECT '\0';",
             "invalid Unicode" => "SELECT '\ud800';",
             _ => "SELECT 1;",
@@ -202,16 +200,28 @@ public sealed partial class PgFunctionGeneratorTests
         driver = driver.RunGeneratorsAndUpdateCompilation(edited, out _, out ImmutableArray<Diagnostic> errors, context.CancellationToken);
         Diagnostic error = Assert.ContainsSingle(errors);
 
-        Assert.AreEqual("ANKUS005", error.Id);
+        Assert.AreEqual(kind switch
+        {
+            "invalid arguments" => "ANKUS354",
+            "invalid path" => "ANKUS363",
+            "invalid name" => "ANKUS356",
+            "invalid order" => "ANKUS358",
+            "invalid text" => "ANKUS360",
+            "invalid Unicode" => "ANKUS361",
+            "missing" => "ANKUS367",
+            "duplicate" => "ANKUS368",
+            _ => "ANKUS369",
+        }, error.Id);
         Assert.AreEqual(IncrementalStepRunReason.Cached, ModuleStep(driver, "CustomSqlResolution"));
         Assert.Contains(kind switch
         {
-            "invalid arguments" => "require a name and a SQL string or file path",
-            "invalid path" => "requires a valid path",
-            "invalid name" => "nonempty dependency name",
-            "invalid order" => "undefined PgSqlOrder",
-            "empty" or "invalid text" or "invalid Unicode" => "nonempty SQL",
-            _ => "exactly one readable AdditionalFiles input",
+            "invalid arguments" => "Supply a dependency name",
+            "invalid path" or "invalid name" or "invalid text" => "zero characters",
+            "invalid order" => "defined PgSqlOrder",
+            "invalid Unicode" => "surrogate",
+            "missing" => "no tracked path matches",
+            "duplicate" => "duplicate or ambiguous",
+            _ => "tracked text is unavailable",
         }, error.GetMessage(System.Globalization.CultureInfo.InvariantCulture));
         Assert.AreEqual(before.GetMessage(System.Globalization.CultureInfo.InvariantCulture), error.GetMessage(System.Globalization.CultureInfo.InvariantCulture));
         Assert.AreSame(moved, error.Location.SourceTree);

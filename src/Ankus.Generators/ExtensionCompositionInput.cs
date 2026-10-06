@@ -114,6 +114,9 @@ internal sealed record ExtensionCompositionInput(FunctionPipeline.MethodInputs M
         foreach (CustomSqlPipeline.Output output in CustomBlocks)
         {
             yield return output.Analysis.Location;
+            yield return output.Analysis.NameLocation;
+            yield return output.Analysis.ContentLocation;
+            yield return output.Analysis.OrderLocation;
         }
 
         foreach (EnumPipeline.EnumOutput output in Enums)

@@ -168,6 +168,7 @@ internal static class IntegrationEnvironment
             ("samples", "Ankus.Examples.Bytea"),
             ("samples", "Ankus.Examples.Json"),
             ("samples", "Ankus.Examples.Numeric"),
+            ("samples", "Ankus.Examples.DateTime"),
             ("samples", "Ankus.Examples.Errors"),
             ("samples", "Ankus.Examples.CustomTypes"),
             ("samples", "Ankus.Examples.CustomScans"),

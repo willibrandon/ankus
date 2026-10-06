@@ -348,3 +348,24 @@ DateOnly next = Spi.ExecuteScalar<DateOnly>(
 
 Untyped row cells contain the full-range `Pg*` value. `row.Get<DateOnly>(ordinal)`
 and the other .NET readers perform checked conversions from that value.
+
+## Datetime sample
+
+The [datetime sample](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.DateTime)
+ports pgrx's interval arithmetic, ISO formatting, timezone conversion, bounded
+random values and transaction, statement and wall-clock reads.
+
+```sql
+SELECT public.add_interval(date '2000-01-31', interval '1 month');
+SELECT public.compose_timestamp(date '2000-12-31', time '24:00');
+SELECT public.to_iso_string(now(), 'Asia/Kathmandu');
+SELECT * FROM public.all_times();
+```
+
+These queries assume installation in `public`; use the schema where you installed
+`ankus_datetime`. Arithmetic overloads preserve PostgreSQL's full range, exact
+microseconds and calendar rules. `set_timezone` interprets its timestamp in the
+current session timezone before projecting the instant into the named destination.
+The session-dependent ISO, timestamp-with-time-zone arithmetic and timezone
+conversion functions are stable, so cached queries see session timezone changes.
+The other arithmetic and explicit-zone ISO overload are immutable.

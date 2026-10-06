@@ -54,6 +54,9 @@ The [numeric sample](samples/Ankus.Examples.Numeric/) demonstrates full-range
 arithmetic, PostgreSQL precision and scale, string parsing and exact signed
 128-bit integer conversion.
 
+The [datetime sample](samples/Ankus.Examples.DateTime/) demonstrates full-range
+calendar arithmetic, timezone conversion, ISO formatting and PostgreSQL clocks.
+
 PostgreSQL 18 and later can report the library's name and version through
 `pg_get_loaded_modules()`. See [native module identity](docs/src/content/docs/reference/build-settings.md#native-module-identity)
 for project defaults and attribute overrides.

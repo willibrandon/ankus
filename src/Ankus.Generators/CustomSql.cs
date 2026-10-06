@@ -27,13 +27,13 @@ internal static class CustomSql
             Location? location = analysis.Location?.Resolve(compilation);
             if (resolution.Error is not null)
             {
-                graph.Error(location, resolution.Error);
+                graph.Error(ErrorLocation(analysis, resolution.Error.Value)?.Resolve(compilation) ?? location, CustomSqlDiagnostics.Descriptor(resolution.Error.Value));
                 continue;
             }
 
             if (analysis.Order is < 0 or > 2)
             {
-                graph.Error(location, $"Custom SQL '{resolution.Name}' has an undefined PgSqlOrder value.");
+                graph.Error(analysis.OrderLocation?.Resolve(compilation) ?? location, CustomSqlDiagnostics.Descriptor(CustomSqlDiagnosticKind.Order));
                 continue;
             }
 
@@ -68,12 +68,12 @@ internal static class CustomSql
     {
         if (!input.ValidArguments)
         {
-            return new(input.Name, null, "Custom SQL declarations require a name and a SQL string or file path.");
+            return new(input.Name, null, CustomSqlDiagnosticKind.Arguments);
         }
 
-        if (string.IsNullOrWhiteSpace(input.Name) || !SqlText.IsText(input.Name!))
+        if (TextError(input.Name, CustomSqlDiagnosticKind.EmptyName, CustomSqlDiagnosticKind.NameZero, CustomSqlDiagnosticKind.NameUnicode) is { } nameError)
         {
-            return new(input.Name, null, "Custom SQL requires a nonempty dependency name with valid Unicode and no zero characters.");
+            return new(input.Name, null, nameError);
         }
 
         if (!input.File)
@@ -88,7 +88,7 @@ internal static class CustomSql
         }
 
         CustomSqlPipeline.FileInput selected = files.Single(file => file.Path == selection.Path);
-        return selected.Text is null ? new(input.Name, null, FileError(input.Content)) : new(input.Name, selected.Text, null);
+        return selected.Text is null ? new(input.Name, null, CustomSqlDiagnosticKind.FileUnreadable) : new(input.Name, selected.Text, null);
     }
 
     /// <summary>
@@ -100,10 +100,20 @@ internal static class CustomSql
     /// <returns>The unique original path or the existing path-selection diagnostic.</returns>
     internal static CustomSqlPipeline.FileSelection SelectFilePath(string? path, IEnumerable<string> files, string projectDirectory)
     {
+        if (TextError(path, CustomSqlDiagnosticKind.EmptyPath, CustomSqlDiagnosticKind.PathZero, CustomSqlDiagnosticKind.PathUnicode) is { } pathError)
+        {
+            return new(null, pathError);
+        }
+
+        if (!Path.IsPathRooted(path!) && !Path.IsPathRooted(projectDirectory))
+        {
+            return new(null, CustomSqlDiagnosticKind.ProjectDirectory);
+        }
+
         string? fullPath = Normalize(path, projectDirectory);
         if (fullPath is null)
         {
-            return new(null, "PgSqlFile requires a valid path and a compiler-visible MSBuildProjectDirectory for relative paths. Use Ankus.Sdk or expose that property with CompilerVisibleProperty.");
+            return new(null, CustomSqlDiagnosticKind.PathInvalid);
         }
 
         StringComparison comparison = Path.DirectorySeparatorChar == '\\' ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
@@ -119,16 +129,9 @@ internal static class CustomSql
             ];
         }
 
-        return matches.Length == 1 ? new(matches[0], null) : new(null, FileError(path));
+        return matches.Length == 1 ? new(matches[0], null) : new(null,
+            matches.Length == 0 ? CustomSqlDiagnosticKind.FileMissing : CustomSqlDiagnosticKind.FileAmbiguous);
     }
-
-    /// <summary>
-    /// Preserves the required unique/readable tracked-file diagnostic.
-    /// </summary>
-    /// <param name="path">The authored path.</param>
-    /// <returns>The diagnostic text for missing, ambiguous or unreadable input.</returns>
-    private static string FileError(string? path)
-        => $"SQL file '{path}' must resolve to exactly one readable AdditionalFiles input. Include it with <AdditionalFiles Include=\"...\" />.";
 
     /// <summary>
     /// Validates selected SQL text independently of graph options, source coordinates and other files.
@@ -137,9 +140,43 @@ internal static class CustomSql
     /// <returns>The validated block or an owned diagnostic message.</returns>
     internal static CustomSqlPipeline.Resolution Resolve(CustomSqlPipeline.Selection selection)
         => selection.Error is not null ? new(selection.Name, null, selection.Error) :
-            string.IsNullOrWhiteSpace(selection.Sql) || !SqlText.IsText(selection.Sql!)
-                ? new(selection.Name, null, $"Custom SQL '{selection.Name}' must contain nonempty SQL with valid Unicode and no zero characters.")
+            TextError(selection.Sql, CustomSqlDiagnosticKind.NullSql, CustomSqlDiagnosticKind.SqlZero, CustomSqlDiagnosticKind.SqlUnicode, allowEmpty: true) is { } error
+                ? new(selection.Name, null, error)
                 : new(selection.Name, selection.Sql, null);
+
+    /// <summary>
+    /// Preserves the current validation precedence while retaining a precise text-boundary cause.
+    /// </summary>
+    /// <param name="value">The authored or tracked text.</param>
+    /// <param name="empty">The empty-value contract.</param>
+    /// <param name="zero">The zero-character contract.</param>
+    /// <param name="unicode">The Unicode contract.</param>
+    /// <param name="allowEmpty">Whether empty and whitespace SQL remains a valid dependency anchor.</param>
+    /// <returns>The first failed contract, or none for exact valid text.</returns>
+    private static CustomSqlDiagnosticKind? TextError(string? value, CustomSqlDiagnosticKind empty,
+        CustomSqlDiagnosticKind zero, CustomSqlDiagnosticKind unicode, bool allowEmpty = false)
+    {
+        if (value is null || !allowEmpty && string.IsNullOrWhiteSpace(value))
+        {
+            return empty;
+        }
+
+        return value.Contains('\0') ? zero : !SqlText.IsText(value) ? unicode : null;
+    }
+
+    /// <summary>
+    /// Attributes each cause to its authored argument while file-content errors identify the selected path.
+    /// </summary>
+    /// <param name="analysis">The current detached declaration coordinates.</param>
+    /// <param name="kind">The independently cached validation cause.</param>
+    /// <returns>The specific current source coordinate.</returns>
+    private static GeneratorLocation? ErrorLocation(CustomSqlPipeline.Analysis analysis, CustomSqlDiagnosticKind kind)
+        => kind switch
+        {
+            CustomSqlDiagnosticKind.Arguments => analysis.Location,
+            CustomSqlDiagnosticKind.EmptyName or CustomSqlDiagnosticKind.NameZero or CustomSqlDiagnosticKind.NameUnicode => analysis.NameLocation,
+            _ => analysis.ContentLocation,
+        };
 
     private static string? NormalizeRelative(string? path, string projectDirectory)
     {

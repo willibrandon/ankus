@@ -159,7 +159,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             .WithTrackingName("ExtensionGraphNode");
         IncrementalValuesProvider<string> sqlComponents = graphNodes.Select(static (value, _) => value.Provenance)
             .WithTrackingName("ExtensionSqlProvenanceModel")
-            .Select(static (value, _) => NormalizeLineEndings(SqlProvenance.Render(value)))
+            .Select(static (value, _) => SqlProvenance.Render(value))
             .WithTrackingName("ExtensionSqlComponentEmission");
         IncrementalValueProvider<string> installation = sqlComponents.Collect().Select(static (value, _) => new EquatableArray<string>(value))
             .WithTrackingName("ExtensionInstallationModel")

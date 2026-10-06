@@ -132,6 +132,17 @@ internal sealed partial class SqlGraph
     }
 
     /// <summary>
+    /// Reports a fixed independently correctable declaration contract and prevents partial installation output.
+    /// </summary>
+    /// <param name="location">The exact offending argument.</param>
+    /// <param name="descriptor">The fixed validation contract.</param>
+    internal void Error(Location? location, DiagnosticDescriptor descriptor)
+    {
+        _invalid = true;
+        _context.Report(descriptor, location);
+    }
+
+    /// <summary>
     /// Resolves references and freezes deterministic installation order without rendering sources.
     /// </summary>
     /// <param name="sources">The optional detached source resolver for later SQL attribution.</param>

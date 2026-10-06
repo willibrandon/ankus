@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>PostgreSQL temporal arithmetic, timezone conversion and transaction, statement and wall clocks from C#.</Description>
+    <AnkusExtensionName>ankus_datetime</AnkusExtensionName>
+    <AnkusExtensionControlFile>$(MSBuildProjectDirectory)/ankus_datetime.control</AnkusExtensionControlFile>
+  </PropertyGroup>
+
+  <Import Project="../../src/Ankus.Sdk/Ankus.Sdk.targets" />
+
+</Project>

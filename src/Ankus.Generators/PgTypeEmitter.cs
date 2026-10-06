@@ -27,14 +27,14 @@ internal static class PgTypeEmitter
             EmitFunction("send", "Binary", custom, FunctionType.CreateIoBuffer("bytea", "bytea"));
         }
 
-        sql.AppendLine("CREATE TYPE " + prefix + type.Sql + " (");
-        sql.AppendLine("    INTERNALLENGTH = variable, INPUT = " + prefix + type.Function("in") + ", OUTPUT = " + prefix + type.Function("out") + ",");
+        sql.Append("CREATE TYPE " + prefix + type.Sql + " (").Append('\n');
+        sql.Append("    INTERNALLENGTH = variable, INPUT = " + prefix + type.Function("in") + ", OUTPUT = " + prefix + type.Function("out") + ",").Append('\n');
         if (type.BinaryProtocol)
         {
-            sql.AppendLine("    RECEIVE = " + prefix + type.Function("recv") + ", SEND = " + prefix + type.Function("send") + ",");
+            sql.Append("    RECEIVE = " + prefix + type.Function("recv") + ", SEND = " + prefix + type.Function("send") + ",").Append('\n');
         }
 
-        sql.AppendLine("    ALIGNMENT = " + type.Alignment + ", STORAGE = extended);");
+        sql.Append("    ALIGNMENT = " + type.Alignment + ", STORAGE = extended);").Append('\n');
         return new(sql.ToString(), managed.ToString(), new(native), exports.ToString());
 
         void EmitFunction(string role, string operation, FunctionType input, FunctionType result)
@@ -43,9 +43,9 @@ internal static class PgTypeEmitter
             string symbol = type.NativeFunction(role);
             EmitManaged(callback, operation, type, managed);
             native.Add(PgFunctionEmitter.CreateNative(symbol, callback, [input], result));
-            sql.AppendLine("CREATE FUNCTION " + prefix + type.Function(role) + "(" + SqlSchemaTemplate.Type(input) + ") RETURNS " + SqlSchemaTemplate.Type(result) +
+            sql.Append("CREATE FUNCTION " + prefix + type.Function(role) + "(" + SqlSchemaTemplate.Type(input) + ") RETURNS " + SqlSchemaTemplate.Type(result) +
                 " AS 'MODULE_PATHNAME', '" + symbol + "' LANGUAGE c IMMUTABLE " +
-                (role == "in" && type.NullInputErrorMessage is not null ? "CALLED ON NULL INPUT" : "STRICT") + " PARALLEL SAFE;");
+                (role == "in" && type.NullInputErrorMessage is not null ? "CALLED ON NULL INPUT" : "STRICT") + " PARALLEL SAFE;").Append('\n');
             exports.AppendLine(symbol);
             exports.AppendLine("pg_finfo_" + symbol);
         }

@@ -27803,6 +27803,13 @@ their verified replacements. There are no live or queued main-branch workflows.
 The separate datetime full native validation remains active; it is not counted
 as accepted or included in this module source milestone.
 
+The coherent module milestone is committed and pushed as **e41c687**. Previous
+outcomes are checked again immediately before pushing and remain unchanged:
+latest primary CI/Docs pass, with no previous live run. Replacement
+[CI 37454418329](https://github.com/willibrandon/ankus/actions/runs/37454418329)
+and [Docs 37454418510](https://github.com/willibrandon/ankus/actions/runs/37454418510)
+start on that exact revision. Their pending outcomes remain unaccepted.
+
 ### Datetime normal-source focused acceptance, 2026-10-06
 
 The first ordinary sample build rejects an unnecessary using directive
@@ -27822,3 +27829,379 @@ inputs match the prior accepted bytes. Plain, unsharded full native acceptance
 starts with the same composition and runtime. That full result and final
 documentation/promotion gates remain required; the datetime sample is not yet
 promoted into the authoring tree.
+
+### Rejected concurrent disk-exhaustion runs, 2026-10-06
+
+The separate datetime validation and the **e41c687** macOS CI suite overlap on
+one machine. This scheduling mistake exhausts available disk space in both
+runs. The macOS CI job **112239033250** fails with compiler/output-file and
+runner diagnostic writes reporting no space left on device. Quality, all three
+runtime jobs and Docs pass; Windows and Linux full suites remain running. The
+failed-job retry request is rejected by GitHub while its workflow is still
+running; it remains required after the other jobs finish. This is resource
+exhaustion, not evidence of a patched-runtime correctness failure.
+
+The rejected datetime console reports **13,268** executions: **12,570** passed,
+**60** skips and **638** failures, taking **27m48.600s** for testing and
+**28m43.064s** for the command. The retained six intermediate reports contain
+only **12,021** executions: **11,965** passed, **53** skips and **3** failures.
+All three retained failures directly report disk exhaustion. **1,247** final
+execution rows are missing, so the retained reports cannot independently verify
+the console's complete result and provide no acceptance. All **1,845** source
+inputs and **39** runtime payload inputs nevertheless match their preimages.
+
+After retaining reports and checking process ownership, cleanup removes only
+completed Ankus project `bin`/`obj` outputs from **304** directories. Their
+logical size is **16,511,803,671** bytes; measured available storage increases
+from **12 GiB** to **21 GiB**. Source, runtime payloads, reports and caches are
+preserved. The completed run's own marked temporary files are also removed.
+Independent full datetime acceptance starts on an idle Linux x64 machine with
+PostgreSQL **18.6**, Clang **23.1.2**, SDK **10.0.401**, the same **ankus.4**
+runtime and the exact **1,845**-input source manifest. No sample is promoted.
+
+### Custom SQL diagnostic preparation, 2026-10-06
+
+A separate normal-source prototype gives custom SQL input failures fixed
+descriptors and argument locations. The unchanged validator reproduces **36**
+precise-diagnostic failures while all **4** compiled controls pass. The corrected
+prototype passes the complete **4,357**-case generator suite without failures or
+skips in **59.060s**; command time is **1m04.174s**. All **1,841** source inputs
+match before and after. Independent actual-report checks verify all **40**
+new input cases and their required behavioral partitions. Rejected nullability
+build and legacy expectation runs remain retained. This is generator evidence
+only, with no production promotion or complete backend acceptance.
+
+The upstream source audit also finds that pgrx accepts empty custom SQL strings,
+whereas Ankus currently rejects them. That behavior requires a separate parity
+correction and dependency/backend tests before this prototype can be accepted.
+Remaining graph diagnostics are still explicitly outside this input correction.
+
+The **e41c687** Windows and Linux CI jobs subsequently pass in **38m03s** and
+**40m00s** respectively. All six actual Windows reports independently verify:
+**13,210** total, **13,182** passed, **28** platform skips and zero failures,
+including all **51** module-identity and **67** native recovery cases. Linux
+reports are being retained for independent verification. After confirming
+**21 GiB** free and no overlapping validation process, GitHub accepts the
+macOS-only retry as attempt **2**, queued at **11:50:48 UTC**. Its result remains
+pending; the initial failed attempt is not erased or counted as acceptance.
+
+The macOS retry starts at **11:50:50 UTC** and remains live. All twelve actual
+Windows/Linux reports verify, including **51** module cases and **67** native
+recovery cases per platform. Linux has **13,210** total, **13,162** passed,
+**48** platform skips and zero failures. Available macOS storage remains
+**20 GiB** during the retry; separate full datetime acceptance continues on
+Linux with **33 GiB** available.
+
+### Empty custom SQL and exact text regressions, 2026-10-06
+
+The read-only pgrx SQL parser accepts empty literals, and its graph renderer
+retains them as dependency nodes. Ankus instead rejects empty/whitespace SQL.
+An ordinary unchanged-validator baseline executes **51** new cases: **45**
+failures reproduce the coarse input and empty-node behavior, while **6** compiled
+controls pass. All **1,841** source inputs remain unchanged. A corrected full
+generator run executes **4,366** cases and rejects **3** expectations: one stale
+null-SQL diagnostic message and two exact CRLF preservation checks. Its
+**1,842** source inputs remain unchanged. The rejected reports remain retained.
+
+The CRLF cases expose another root cause: the common SQL output pipeline applies
+line-ending normalization to the entire script, including quoted text. This
+changes actual values in inline/file/replacement SQL, parameter defaults and enum
+labels. The corrected draft removes that blanket transformation; only the five
+generated base-type SQL framing calls need explicit LF endings. Managed/native
+source formatting remains separate.
+
+An expanded unchanged-renderer baseline independently reproduces all **55**
+required failures among **66** executions; all **11** controls pass. Testing takes
+**4.217s** and the command **10.030s**. All **1,842** source inputs match before
+and after, and actual-report checks verify each CR/CRLF/LF path as well as the
+diagnostic, inline/file, graph-edge and cycle partitions. A fresh normal-source
+correction is being tested. No prototype is promoted, and complete backend and
+release/documentation acceptance remain required.
+
+The exact-text correction's next normal full generator run executes **4,381**
+cases and rejects two legacy expectations that assumed normalization. Those
+expectations now retain their exact authored CR/CRLF while preserving graph
+ordering, placeholder substitution and export assertions. The fresh full run
+passes all **4,381** cases with zero failures/skips, taking **54.328s** for testing
+and **58.804s** for the command. All **1,843** source inputs match before and
+after. Independent checks verify every actual execution and all **66** new
+diagnostic/empty-anchor/exact-text partitions. The retained source/report archive
+contains **1,864** files and **9,643,269** bytes, with every byte independently
+verified. This remains generator-only evidence; real PostgreSQL value/ownership
+acceptance and the final gates are still required before promotion.
+
+### Completed primary CI retry and owned-output cleanup, 2026-10-06
+
+The macOS-only retry for **e41c687** finishes successfully at **12:19:19 UTC**,
+after **28m29s**. Primary CI and documentation now pass. All eighteen actual
+platform reports independently verify: **13,210** executions per platform,
+with **13,162 / 48** passed/skipped on Linux, **13,150 / 60** on macOS and
+**13,182 / 28** on Windows. Each platform also verifies every module-identity,
+callback, prefix and native-recovery partition. The failed disk-exhaustion
+attempt remains retained and is not counted as acceptance.
+
+The cleanup checks the completed private SDK PID and all **1,845** frozen source
+hashes, then removes only **97** project bin/obj directories representing
+**4,576,693,259** logical bytes. Evidence, runtime files, native publications and
+the active CI checkout are preserved. Available storage subsequently measures
+**20 GiB**; storage varies while CI is active, so this is not a claimed exact
+physical-space recovery. Private validation remains separated from CI.
+
+After verifying every byte of the **1,864**-file generator evidence archive,
+every **1,843** completed source input and all recorded SDK PIDs, the one owned
+local generator validator is removed. Its accepted actual report, all rejected
+reports and source archive remain retained.
+
+The datetime audit additionally finds that the upstream example marks four
+session-dependent functions immutable: current-zone ISO formatting,
+timestamp-with-time-zone interval addition/subtraction and timestamp conversion
+through the current session timezone. PostgreSQL's own calendar arithmetic is
+stable. A private correction preserves the upstream signatures but declares
+these functions stable; four prepared-query cases independently compare native
+results before and after a timezone change. Reproduction and corrected native
+acceptance remain required; the earlier immutable-source suite is not acceptance
+for this correction.
+
+The separate ordinary, unsharded Linux/PostgreSQL **18.6** datetime execution
+passes **13,268** total cases: **13,220** passed, **48** platform skips and zero
+failures. Testing takes **42m39.707s**, the command **43m45.767s**, and all
+**1,845** source inputs match before and after. Independent checks verify all
+six actual reports, the **58** datetime behavior cases and every required native
+recovery partition. Its **1,858**-file archive contains **9,174,685** bytes and
+matches every original byte; the independently retained copy has digest
+`1d8d934af6fb94835c6ef15338cce8d2d64aa72f960c22247cac467d63a06b53`.
+This source still declares the original immutable flags, so it does not accept
+the later stable-volatility correction.
+
+Automatic review rejects a broad completed-parent cleanup. A read-only inventory
+shows empty compiler/framework directories. The narrowed cleanup deletes only
+**392** empty directories nonrecursively, preserving every file, nonempty
+directory, checkout, runtime and report. With the complete suite archived and
+finished, the existing validator receives the frozen **1,845**-input reproduction
+containing four cached-plan cases and the original immutable sample source.
+The **1,851**-input proper SQL/datetime composition is prepared but unaccepted.
+
+The ordinary original-flag cached-plan reproduction executes **4** cases, all
+failing precisely at the second execution after switching from New York to UTC.
+The independent server expressions change while the cached example values do
+not. Each actual mismatch and execution identity independently verifies.
+Testing takes **3m21.284s**, the command **4m04.405s**, and all **1,845** source
+inputs remain unchanged. This is expected rejected-source evidence, not CI.
+
+The proper **1,851**-input composition then passes all **63** focused native
+cases with zero skips/failures: every **62** datetime case and the real SQL
+package/install/exact-text/NULL/same-backend recovery case. Testing takes
+**4m44.600s** and the command **6m11.612s**. Every frozen source byte matches
+before and after. Actual reports independently verify all behavior partitions,
+including four cached-plan regressions and all nine exact server UTF-8 values.
+The complete ordinary, unsharded Linux/PostgreSQL **18.6** suite is now running.
+No source promotion or complete acceptance is claimed for the corrected child.
+
+
+## Superseded active and primary acceptance detail before SQL/datetime acceptance, 2026-10-06
+
+| Source | Platform / PostgreSQL | Result | Duration |
+| --- | --- | --- | --- |
+| Module-identity composition, parent **a177cfc / ankus.4** | Linux x64 / 18.6 | 13,210 total; 13,162 passed; 48 platform skips; zero failures | 42m42.532s tests; 43m29.757s command |
+| Latest primary CI, **e41c687 / ankus.4** | Linux x64 / 18 | 13,210 total; 13,162 passed; 48 platform skips; zero failures | 40m00s job |
+| Same CI / revision / runtime | macOS ARM64 / 18 | 13,210 total; 13,150 passed; 60 platform skips; zero failures | 28m29s retry job; first attempt rejected after disk exhaustion |
+| Same CI / revision / runtime | Windows x64 / 17 | 13,210 total; 13,182 passed; 28 platform skips; zero failures | 38m03s job |
+| Latest primary CI, **a177cfc / ankus.4** | Linux x64 / 18 | 13,187 total; 13,139 passed; 48 platform skips; zero failures | 40m01s job |
+| Same CI / revision / runtime | macOS ARM64 / 18 | 13,187 total; 13,127 passed; 60 platform skips; zero failures | 29m08s job |
+| Same CI / revision / runtime | Windows x64 / 17 | 13,187 total; 13,159 passed; 28 platform skips; zero failures | 38m11s job |
+| Callback/prefix composition, **a177cfc / ankus.4** | macOS ARM64 / 18.6 | 13,187 total; 13,127 passed; 60 platform skips; zero failures | 28m21.670s tests; 29m17.922s command |
+| Earlier primary CI, **5a11b8c / ankus.4** | Linux x64 / 18 | 13,111 total; 13,063 passed; 48 platform skips; zero failures | 39m55s job |
+| Same CI / revision / runtime | macOS ARM64 / 18 | 13,111 total; 13,051 passed; 60 platform skips; zero failures | 29m33s job |
+| Same CI / revision / runtime | Windows x64 / 17 | 13,111 total; 13,083 passed; 28 platform skips; zero failures | 38m03s job |
+| Earlier primary CI, **ec19b55 / ankus.4** | Linux x64 / 18 | 13,015 total; 12,967 passed; 48 platform skips; zero failures | 39m52s job |
+| Same CI / revision / runtime | macOS ARM64 / 18 | 13,015 total; 12,955 passed; 60 platform skips; zero failures | 29m31s job |
+| Same CI / revision / runtime | Windows x64 / 17 | 13,015 total; 12,987 passed; 28 platform skips; zero failures | 38m14s job |
+| Earlier primary CI, **f86e0ac / ankus.4** | Linux x64 / 18 | 12,630 total; 12,582 passed; 48 platform skips; zero failures | 39m27s job |
+| Same CI / revision / runtime | macOS ARM64 / 18 | 12,630 total; 12,570 passed; 60 platform skips; zero failures | 34m10s job |
+| Same CI / revision / runtime | Windows x64 / 17 | 12,630 total; 12,602 passed; 28 platform skips; zero failures | 35m21s job |
+| [New primary CI](https://github.com/willibrandon/ankus/actions/runs/37401674049), **15efe37 / ankus.4** | macOS ARM64 / 18 | 12,799 total; 12,739 passed; 60 platform skips; zero failures | 29m40s job |
+| Same CI / revision / runtime | Linux x64 / 18 | 12,799 total; 12,751 passed; 48 platform skips; zero failures | 39m40s job |
+| Same CI / revision / runtime, rejected | Windows x64 / 17.11 | 12,799 total; 12,770 passed; 28 platform skips; one recovery timeout | 35m28s job; superseded by the successful crash-isolation replacement |
+| [Crash-isolation replacement CI](https://github.com/willibrandon/ankus/actions/runs/37410596204), **b2fe3e7 / ankus.4** | Windows x64 / 17 | 12,799 total; 12,771 passed; 28 platform skips; zero failures | 37m11s job |
+| Same replacement CI / revision / runtime | Linux x64 / 18 | 12,799 total; 12,751 passed; 48 platform skips; zero failures | 40m11s job |
+| Same replacement CI, rejected | macOS ARM64 / 18 | Generator allocation regression fails; only four of six module reports exist | 30m43s job; superseded by the successful declaration/cache CI milestone |
+| Allocation workload reproduction, **b2fe3e7 / ankus.4**, private phase observations | macOS ARM64 / 18.6 | 12,799 total; 12,739 passed; 60 platform skips; zero failures | 28m37.771s tests; 29m33.377s command; does not reproduce the CI failure |
+| Frozen owner-lookup measurement correction, runtime **ankus.4** | macOS ARM64 / 18.6 | 12,799 total; 12,739 passed; 60 platform skips; zero failures | 28m50.398s tests; 29m46.185s command |
+| Frozen crash-isolation repair, runtime **ankus.4** | Windows x64 / 17.11 | 12,799 total; 12,771 passed; 28 platform skips; zero failures | 50m30.838s tests; 51m21.747s command |
+| Frozen bytea/strings and SQL-identity composition, runtime **ankus.4** | Windows x64 / 17.11 | 12,799 total; 12,771 passed; 28 platform skips; zero failures | 48m38.373s tests; 49m26.804s command |
+| Frozen corrected SPI composition, **f86e0ac / ankus.4** | Windows x64 / 17.11 | 12,630 total; 12,602 passed; 28 platform skips; zero failures | 47m45.216s tests; 48m33.194s command |
+| Frozen raw transport / recovery composition, runtime **ankus.4** | Linux x64 / 18.6 | 12,561 total; 12,513 passed; 48 platform skips; zero failures | 41m19.728s tests |
+| Same frozen composition / runtime | Windows x64 / 17.11 | 12,561 total; 12,533 passed; 28 platform skips; zero failures | 47m38.639s tests; 48m23.936s command |
+
+The corrected SPI composition verifies all six reports, sixty-seven native
+recovery partitions and **1,791** source inputs. Its exact source/report archive
+matches all **1,802** retained files. Release, API freshness, site build and site
+diagnostics pass without warnings or errors. Replacement primary-platform CI
+passes; current supported-version and additional-platform acceptance remain required.
+The earlier frozen composition verifies all twelve reports and **1,788** source inputs.
+Its Release build, API freshness and site checks pass. These results prove the
+named source and PostgreSQL/platform combinations, not the complete port.
+
+
+## Active validation and work
+
+- **5a11b8c** is the accepted enum/backend-test milestone. Normal Release, API
+  freshness, both site checks and complete primary CI pass. All eighteen actual
+  reports and **67** required native recovery cases per platform independently
+  verify; no primary job times out. The matching docs deployment passes after
+  retrying a GitHub ID-token timeout. Crash tests retain their original deadlines,
+  fsync and durability checks; warmed owner lookups preserve their allocation
+  bound. The original macOS CI allocation variance remains unattributed.
+- **a177cfc** separates **39** actionable callback/prefix declaration errors
+  while preserving handler selection, native ABI and exact prefix registration.
+  Separate unchanged-validator baselines reproduce all **54** callback and **17**
+  prefix regressions; all compiled controls pass. Normal combined source passes
+  **4,294** generator cases and plain, unsharded macOS ARM64/PostgreSQL **18.6**
+  acceptance: **13,187** total, **13,127** passed, **60** platform skips and zero
+  failures. All six reports, **67** native recovery partitions, **158** callback
+  cases and **54** prefix cases verify. All **1,837** source inputs and **39**
+  runtime payload inputs match after execution. The exact **1,851**-file archive
+  is retained, and all **12** changed/new files are promoted byte-for-byte.
+  Normal Release, API freshness and both site checks pass.
+  [Replacement CI 37448633288](https://github.com/willibrandon/ankus/actions/runs/37448633288)
+  passes on all three platforms. All eighteen actual reports, **67** native
+  recovery cases, **158** callback cases and **54** prefix cases per platform
+  independently verify. The matching
+  [docs deployment](https://github.com/willibrandon/ankus/actions/runs/37448633273)
+  passes. Separate callback-only
+  Linux acceptance has **13,165** total, **13,117** passed, **48** skips and zero failures;
+  its rejected setup run remains recorded separately.
+- A separate module-identity prototype distinguishes name/version zero characters
+  and malformed Unicode without changing emitted native bytes or defaults. On
+  the accepted **5a11b8c** parent, the unchanged validator fails all **19** precise
+  regressions while **4** compiled Unicode controls pass. The correction passes
+  all **51** affected cases and **4,241** complete generator cases; all **1,840**
+  authoring/prototype inputs match before and after each run. The next normal-source
+  child passes all **4,317** generator cases, including both accepted corpora;
+  all **1,839** source/guide inputs match before and after. Its plain, unsharded
+  Linux/PostgreSQL **18.6** Native AOT suite passes: **13,210** total, **13,162**
+  passed, **48** platform skips and zero failures. All six reports and all
+  module/callback/prefix/native-recovery partitions verify. The **1,851**-file
+  source/report archive matches every byte; all **6** changed/new files are
+  promoted with **1,839** accepted inputs unchanged after the final gates.
+  Normal Release, API freshness and both site checks pass. Committed/pushed as
+  **e41c687**; [CI 37454418329](https://github.com/willibrandon/ankus/actions/runs/37454418329)
+  passes quality, all runtime jobs and all three full platform suites.
+  [Docs 37454418510](https://github.com/willibrandon/ankus/actions/runs/37454418510)
+  passes. The first macOS attempt failed after concurrent private validation
+  exhausted disk space. Completed owned outputs are removed, validation is
+  separated from CI, and macOS-only attempt **2** passes in **28m29s**.
+  All eighteen reports independently verify, including module identity,
+  callback, prefix and native recovery partitions on every platform.
+- The datetime sample draft maps all **21** upstream exports, including exact SQL
+  argument names, upper-exclusive sampler bounds, calendar arithmetic, timezone
+  projection and the four clock columns. Normal analyzers pass and all **58**
+  focused macOS ARM64/PostgreSQL **18.6** Native AOT cases pass. Actual-report
+  checks verify every behavioral partition, with all **1,845** source inputs
+  unchanged. Full macOS acceptance is rejected after disk exhaustion; its retained
+  reports are incomplete and establish no complete-suite result. Plain, unsharded
+  Linux/PostgreSQL **18.6** execution passes **13,268** total, **13,220** passed,
+  **48** platform skips and zero failures in **42m39.707s**. All six reports,
+  **58** datetime cases and native recovery partitions verify; every byte of
+  the **1,858**-file source/report archive matches. No datetime
+  source is promoted before complete acceptance. Rejected builds and executions
+  remain recorded without relaxed diagnostics.
+- The datetime audit also identifies four session-timezone-dependent functions
+  incorrectly marked immutable in the upstream sample. Stable declarations and
+  four cached-plan regressions independently reproduce stale results with those
+  immutable flags. The proper correction passes all **62** datetime cases and
+  the real SQL package/value/recovery case, with **1,851** inputs unchanged.
+  Corrected complete acceptance is running before promotion. The preceding full
+  suite used the original flags and does not establish this correction.
+- A separate custom SQL audit reproduces rejected empty dependency anchors and
+  altered CR/CRLF values from blanket SQL line-ending normalization. The proper
+  correction preserves authored SQL and uses LF only for generated framing.
+  All **4,381** complete generator cases pass, including **66** new cases;
+  the real PostgreSQL package/install/value/NULL/recovery case also passes. The
+  corrected combined full suite is running. Source and generator reports are
+  archived and verified, and the owned local generator validator is removed.
+
+Remaining diagnostics/code fixes, source-case mapping, samples, API and CLI
+contracts, supported PostgreSQL/platform combinations, .NET servicing and release
+acceptance remain in scope. Detailed accepted and rejected evidence is retained
+in the [history](docs/contributing/evidence/port-history.md).
+
+## SQL function-provider diagnostic draft, 2026-10-06
+
+The next bounded audit separates the function-provider branches of `ANKUS005`
+into eight actionable contracts, `ANKUS370`–`ANKUS377`. Detached constructor
+coordinates follow semantic parameter names through reordered and mixed
+arguments. SQL text, exact signature identity, duplicate ownership, graph
+selection and attachment behavior remain unchanged. Type-provider and general
+graph diagnostics remain separate open requirements.
+
+The unchanged validator executes **28** new cases: **24** fail with the original
+catch-all and **4** compiled Unicode/quoting controls pass. The corrected scope
+executes **45** cases, all passing, including existing ownership, caching,
+current-tree diagnostics and repaired-output checks. Complete generator
+validation passes **4,409** cases with zero failures or skips in **56.066s**
+tests / **58.5755261s** command. All **1,851** ordinary source inputs and ten
+prototype inputs match before and after. Independent actual-report checks
+verify every new and legacy partition.
+
+The first corrected compiler preparation failed because netstandard2.0 did not
+infer nonnull values from the whitespace guard and the precise graph overload
+did not accept identity substitutions. Its exact nine prototype inputs and
+compiler output are retained separately. Explicit null guards and typed message
+arguments fix the preparation; no diagnostic or analyzer setting is relaxed.
+All **1,889** source/evidence files are retained in an exact **7,912,112-byte**
+archive. This is generator evidence only. Ordinary-source full native acceptance,
+final public/API/site checks and promotion remain required.
+
+## SQL text, empty anchors and datetime acceptance, 2026-10-06
+
+The ordinary composition based on **e41c687** retains pgrx's empty custom SQL
+dependency anchors and preserves authored CR/CRLF characters inside SQL values.
+Generated framing uses LF explicitly; installation text is no longer normalized
+as a whole. Sixteen typed input diagnostics, `ANKUS354`–`ANKUS369`, identify the
+specific authored constructor argument or file-selection failure. General graph
+and provider diagnostics remain open. The unchanged expanded validator reproduces
+**55** failures while **11** controls pass; the corrected generator executes
+**4,381** cases, all passing, including **66** new SQL cases.
+
+The datetime sample ports all **21** upstream exports with their exact SQL
+argument names, upper-exclusive sampler ranges, full-range native values,
+calendar arithmetic, timezone projection and four clock columns. Four upstream
+immutable declarations depend on session timezone. Real prepared queries with
+forced generic plans reproduce stale results for all four; the proper stable
+declarations return the changed session's results. All **62** datetime cases pass.
+The ordinary SQL package/install case independently verifies nine exact UTF-8
+values, dependency edges, relocation, strict NULL and same-session recovery.
+
+Plain, unsharded `dotnet test -c Release` with real PostgreSQL **18.6** passes on
+Linux x64 with runtime **10.0.12-ankus.4**: **13,337** total, **13,289** passed,
+**48** platform skips and zero failures. Tests take **42m46.885s**; the command
+takes **43m41.5965517s**. All six actual reports independently verify, including
+every datetime/SQL partition and the existing **67** native recovery, **51**
+module-identity, **158** callback and **54** GUC-prefix cases. All **1,851** ordinary
+source inputs match after execution. The preceding original-flag datetime full
+suite and rejected macOS disk-exhaustion attempt remain distinct evidence.
+
+The retained **2,044**-file archive is **9,881,175 bytes**; every byte matches its
+original source, report or native log. Local and remote copies share SHA-256
+`188d40f8e413c338528b18668b38d7c4b6c376b58a84525f1623dfe3afd7763a`.
+Every existing authoring preimage and all eleven new destinations are checked
+before promoting the **31** changed/new files; all **1,851** accepted source inputs
+verify afterward. Normal Release passes with zero warnings/errors in **1m26.34s**.
+Official API generation and freshness verification pass (**244** pages / **2,791**
+members), and both site checks pass with zero diagnostics. All **1,851** accepted
+source inputs still match after these gates. Only the two generated API pages
+required by the updated XML comments change.
+
+The precommit check records primary
+[CI 37454418329](https://github.com/willibrandon/ankus/actions/runs/37454418329)
+and [Docs 37454418510](https://github.com/willibrandon/ankus/actions/runs/37454418510)
+on **e41c687** as successful. Earlier failed runs **37401674049** and
+**37410596204** remain retained and are superseded by the corrected complete
+primary evidence. [Intel refresh 37460600236](https://github.com/willibrandon/ankus/actions/runs/37460600236)
+has a successful runtime job and is still running its complete platform job.
+The completed private Linux run leaves no active test processes; **461** empty
+owned temporary directories are removed without recursion, preserving all files,
+the reusable validation checkout, runtime and retained evidence.
+This establishes the named source and Linux/PostgreSQL combination;
+it does not establish complete version/platform or full-port acceptance.

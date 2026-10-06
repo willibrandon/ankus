@@ -30,6 +30,13 @@ declarations. SQL is trusted extension source: PostgreSQL executes it when
 PostgreSQL records objects created by the script as extension members. A failed
 installation rolls back its objects and data changes.
 
+Empty and whitespace-only SQL blocks or tracked files are valid dependency
+anchors. They participate in ordering, duplicate-name checks and cycle
+detection even when they create no database objects. SQL text must be nonnull.
+
+Authored SQL retains its exact text, including CR and CRLF characters inside
+quoted values. Generated framing uses LF line endings.
+
 Generated installation scripts retain the block's SQL text and add separate
 source and dependency comments. `PgSqlFile` blocks also identify their SQL file.
 The same comments survive [schema extraction](/getting-started/publishing/#inspect-installation-sql),
@@ -389,9 +396,34 @@ There can be one bootstrap block and one final block, including file-based
 blocks. Bootstrap precedes generated schemas; final SQL follows all generated
 and custom declarations.
 
-`ANKUS005` reports duplicate or missing identifiers, dependency cycles, invalid
-ordering options, and missing/unreadable file inputs. SQL syntax, object names,
-and privileges are checked by PostgreSQL during installation.
+`ANKUS005` reports graph, provider and replacement errors, including duplicate
+or missing identifiers and dependency cycles. PostgreSQL checks SQL syntax,
+object names and privileges during installation.
+
+### Custom SQL input diagnostics
+
+Input errors point at the offending authored argument. Correct the declaration
+or tracked file before publishing; a failing block produces no installation
+manifest.
+
+| Diagnostic | Correction |
+|---|---|
+| `ANKUS354` | Supply both constructor arguments. |
+| `ANKUS355` | Supply a nonnull, non-whitespace dependency name. |
+| `ANKUS356` | Remove zero characters from the dependency name. |
+| `ANKUS357` | Replace unpaired UTF-16 surrogates in the dependency name. |
+| `ANKUS358` | Use a defined `PgSqlOrder` value. |
+| `ANKUS359` | Supply nonnull SQL text; empty SQL is valid. |
+| `ANKUS360` | Remove zero characters from inline or file SQL. |
+| `ANKUS361` | Replace unpaired UTF-16 surrogates in SQL. |
+| `ANKUS362` | Supply a nonnull, non-whitespace file path. |
+| `ANKUS363` | Remove zero characters from the file path. |
+| `ANKUS364` | Replace unpaired UTF-16 surrogates in the file path. |
+| `ANKUS365` | Use a path valid on the compilation platform. |
+| `ANKUS366` | Use `Ankus.Sdk` or expose `MSBuildProjectDirectory` as a compiler-visible property for relative paths. |
+| `ANKUS367` | Include the requested file in `AdditionalFiles`. |
+| `ANKUS368` | Remove duplicate or ambiguous tracked file paths. |
+| `ANKUS369` | Make the selected tracked file readable by the compiler. |
 
 ### Reference managed declarations
 

@@ -4,7 +4,7 @@ Rule ID | Category | Severity | Notes
 --------|----------|----------|------
 ANKUS002 | Ankus | Error | Invalid PostgreSQL function name
 ANKUS003 | Ankus | Error | Invalid numeric precision or scale constraint
-ANKUS005 | Ankus | Error | Invalid custom SQL input or installation dependency graph
+ANKUS005 | Ankus | Error | Invalid installation dependency graph or SQL replacement
 ANKUS008 | Ankus | Error | Invalid PostgreSQL set result or table columns
 ANKUS009 | Ankus | Error | Invalid named composite type or TABLE column binding
 ANKUS016 | Ankus | Error | Invalid raw PostgreSQL type or TABLE column binding
@@ -339,3 +339,19 @@ ANKUS350 | Ankus | Error | Module name cannot contain zero characters
 ANKUS351 | Ankus | Error | Module name requires well-formed Unicode
 ANKUS352 | Ankus | Error | Module version cannot contain zero characters
 ANKUS353 | Ankus | Error | Module version requires well-formed Unicode
+ANKUS354 | Ankus | Error | Precise custom SQL input declaration contract
+ANKUS355 | Ankus | Error | Precise custom SQL input declaration contract
+ANKUS356 | Ankus | Error | Precise custom SQL input declaration contract
+ANKUS357 | Ankus | Error | Precise custom SQL input declaration contract
+ANKUS358 | Ankus | Error | Precise custom SQL input declaration contract
+ANKUS359 | Ankus | Error | Precise custom SQL input declaration contract
+ANKUS360 | Ankus | Error | Precise custom SQL input declaration contract
+ANKUS361 | Ankus | Error | Precise custom SQL input declaration contract
+ANKUS362 | Ankus | Error | Precise custom SQL input declaration contract
+ANKUS363 | Ankus | Error | Precise custom SQL input declaration contract
+ANKUS364 | Ankus | Error | Precise custom SQL input declaration contract
+ANKUS365 | Ankus | Error | Precise custom SQL input declaration contract
+ANKUS366 | Ankus | Error | Precise custom SQL input declaration contract
+ANKUS367 | Ankus | Error | Precise custom SQL input declaration contract
+ANKUS368 | Ankus | Error | Precise custom SQL input declaration contract
+ANKUS369 | Ankus | Error | Precise custom SQL input declaration contract

@@ -17,6 +17,7 @@ public sealed class PgSqlFileAttribute : Attribute
 ```
 
 Declares a named SQL file without reading files from extension runtime code.
+Empty files remain dependency anchors, and authored SQL text is preserved.
 
 Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object), [Attribute](https://learn.microsoft.com/dotnet/api/system.attribute)
 
@@ -43,6 +44,7 @@ The unique, case-sensitive dependency identifier.
 The project-relative or absolute path of an AdditionalFiles input.
 
 Declares a named SQL file without reading files from extension runtime code.
+Empty files remain dependency anchors, and authored SQL text is preserved.
 
 
 ## Properties

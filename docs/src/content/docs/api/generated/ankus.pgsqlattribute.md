@@ -16,7 +16,8 @@ Includes trusted SQL text in the extension installation script with explicit dep
 public sealed class PgSqlAttribute : Attribute
 ```
 
-Declares a named SQL block.
+Declares a named SQL block. Empty SQL is a valid dependency anchor.
+Authored SQL text, including line endings inside quoted values, is preserved.
 
 Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object), [Attribute](https://learn.microsoft.com/dotnet/api/system.attribute)
 
@@ -42,7 +43,8 @@ The unique, case-sensitive dependency identifier.
 
 The complete SQL statements, including their terminators.
 
-Declares a named SQL block.
+Declares a named SQL block. Empty SQL is a valid dependency anchor.
+Authored SQL text, including line endings inside quoted values, is preserved.
 
 
 ## Properties

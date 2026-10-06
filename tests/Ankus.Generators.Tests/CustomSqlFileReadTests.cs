@@ -76,8 +76,8 @@ public sealed partial class PgFunctionGeneratorTests
             .RunGeneratorsAndUpdateCompilation(compilation, out _, out ImmutableArray<Diagnostic> diagnostics, context.CancellationToken);
 
         Diagnostic error = Assert.ContainsSingle(diagnostics);
-        Assert.AreEqual("ANKUS005", error.Id);
-        Assert.Contains("exactly one readable AdditionalFiles input", error.GetMessage(System.Globalization.CultureInfo.InvariantCulture));
+        Assert.AreEqual("ANKUS368", error.Id);
+        Assert.Contains("exactly one tracked input", error.GetMessage(System.Globalization.CultureInfo.InvariantCulture));
         Assert.AreEqual(1, firstFile.Reads);
         Assert.AreEqual(0, secondFile.Reads);
         Assert.IsNull(Assert.ContainsSingle(driver.GetRunResult().Results).Exception);

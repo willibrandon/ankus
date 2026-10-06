@@ -5,6 +5,7 @@ namespace Ankus;
 /// </summary>
 /// <remarks>
 /// Declares a named SQL file without reading files from extension runtime code.
+/// Empty files remain dependency anchors, and authored SQL text is preserved.
 /// </remarks>
 /// <param name="name">The unique, case-sensitive dependency identifier.</param>
 /// <param name="path">The project-relative or absolute path of an AdditionalFiles input.</param>

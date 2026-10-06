@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Ankus.Generators;
 
@@ -54,7 +55,31 @@ internal static class CustomSqlPipeline
                     attribute.ConstructorArguments.ElementAtOrDefault(1).Value as string, attribute.AttributeClass?.Name == "PgSqlFileAttribute"),
                 AttributeValues.Get(attribute, "Order", 0), AttributeValues.Get(attribute, "Relocatable", false),
                 SqlDeclarationOptions.Read(attribute)!,
-                GeneratorLocation.Create(attribute.ApplicationSyntaxReference?.GetSyntax(cancellationToken).GetLocation(), compilation))));
+                GeneratorLocation.Create(attribute.ApplicationSyntaxReference?.GetSyntax(cancellationToken).GetLocation(), compilation),
+                ArgumentLocation(attribute, 0, compilation, cancellationToken), ArgumentLocation(attribute, 1, compilation, cancellationToken),
+                GeneratorLocation.Create(FunctionDeclarationDiagnostics.Option(attribute, "Order", cancellationToken), compilation))));
+
+    /// <summary>
+    /// Locates a constructor value by its semantic parameter, preserving named and reordered arguments.
+    /// </summary>
+    /// <param name="attribute">The transient authored attribute.</param>
+    /// <param name="position">The semantic constructor parameter index.</param>
+    /// <param name="compilation">The current compilation owning the source.</param>
+    /// <param name="cancellationToken">The current generator token.</param>
+    /// <returns>The detached argument coordinates, or attribute coordinates for incomplete syntax.</returns>
+    private static GeneratorLocation? ArgumentLocation(AttributeData attribute, int position, Compilation compilation, CancellationToken cancellationToken)
+    {
+        var syntax = attribute.ApplicationSyntaxReference?.GetSyntax(cancellationToken) as AttributeSyntax;
+        string? parameter = attribute.AttributeConstructor?.Parameters.ElementAtOrDefault(position)?.Name;
+        AttributeArgumentSyntax? argument = syntax?.ArgumentList?.Arguments.FirstOrDefault(item => parameter is not null
+            && item.NameColon?.Name.Identifier.ValueText == parameter);
+        if (argument is null && syntax?.ArgumentList?.Arguments.ElementAtOrDefault(position) is { NameColon: null, NameEquals: null } positional)
+        {
+            argument = positional;
+        }
+
+        return GeneratorLocation.Create(argument?.Expression.GetLocation() ?? syntax?.GetLocation(), compilation);
+    }
 
     /// <summary>
     /// Contains only values needed to select and validate one SQL block's exact text.
@@ -73,7 +98,11 @@ internal static class CustomSqlPipeline
     /// <param name="Relocatable">Whether the block permits schema relocation.</param>
     /// <param name="Options">The detached dependency options.</param>
     /// <param name="Location">The current authored attribute coordinates.</param>
-    internal sealed record Analysis(Input Input, int Order, bool Relocatable, SqlDeclarationOptions Options, GeneratorLocation? Location);
+    /// <param name="NameLocation">The authored dependency-name argument.</param>
+    /// <param name="ContentLocation">The authored inline text or tracked-file path argument.</param>
+    /// <param name="OrderLocation">The explicitly authored ordering value.</param>
+    internal sealed record Analysis(Input Input, int Order, bool Relocatable, SqlDeclarationOptions Options, GeneratorLocation? Location,
+        GeneratorLocation? NameLocation, GeneratorLocation? ContentLocation, GeneratorLocation? OrderLocation);
 
     /// <summary>
     /// Owns compiler-tracked file content with ordered value equality.
@@ -87,7 +116,7 @@ internal static class CustomSqlPipeline
     /// </summary>
     /// <param name="Path">The original selected compiler path, or null when selection fails.</param>
     /// <param name="Error">The existing path-selection diagnostic.</param>
-    internal sealed record FileSelection(string? Path, string? Error);
+    internal sealed record FileSelection(string? Path, CustomSqlDiagnosticKind? Error);
 
     /// <summary>
     /// Contains only the selected SQL and diagnostics that affect text validation.
@@ -95,7 +124,7 @@ internal static class CustomSqlPipeline
     /// <param name="Name">The authored block name.</param>
     /// <param name="Sql">The exact selected SQL text.</param>
     /// <param name="Error">An input selection error, or null on success.</param>
-    internal sealed record Selection(string? Name, string? Sql, string? Error);
+    internal sealed record Selection(string? Name, string? Sql, CustomSqlDiagnosticKind? Error);
 
     /// <summary>
     /// Owns a validated block's text or error independently of graph and compiler state.
@@ -103,7 +132,7 @@ internal static class CustomSqlPipeline
     /// <param name="Name">The authored block name.</param>
     /// <param name="Sql">The validated exact SQL text, or null on failure.</param>
     /// <param name="Error">The validation error, or null on success.</param>
-    internal sealed record Resolution(string? Name, string? Sql, string? Error);
+    internal sealed record Resolution(string? Name, string? Sql, CustomSqlDiagnosticKind? Error);
 
     /// <summary>
     /// Supplies cached text and current metadata for one installation graph node.

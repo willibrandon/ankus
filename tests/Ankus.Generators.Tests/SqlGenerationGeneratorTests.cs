@@ -99,7 +99,7 @@ public sealed partial class PgFunctionGeneratorTests
             "-- @MODULE_PATHNAME@ @FUNCTION_NAME@ @function_name@";
         Compilation compilation = GenerateSqlControl(SqlControlSource("scalar", "Sql = " + SymbolDisplay.FormatLiteral(literal, quote: true)));
         string export = Assert.ContainsSingle(SqlControlExports(compilation));
-        Assert.AreEqual($"SELECT 'MODULE_PATHNAME', '{export}', $$quotes' ; \\ café 😀 {export}$$, '@UNKNOWN@', '{{value}}';\n" +
+        Assert.AreEqual($"SELECT 'MODULE_PATHNAME', '{export}', $$quotes' ; \\ café 😀 {export}$$, '@UNKNOWN@', '{{value}}';\r\n" +
             $"-- MODULE_PATHNAME {export} @function_name@\n", InstallationBody(compilation));
         Assert.Contains($"PG_FUNCTION_INFO_V1({export});", ManifestValue(compilation, "Ankus.NativeSource"));
         Assert.Contains("pg_finfo_" + export, ManifestValue(compilation, "Ankus.Exports").Split('\n'));
