@@ -144,7 +144,7 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.AreEqual(matchingNames, ManagedTypeIdentity.Create(method.ReturnType) == ManagedTypeIdentity.Create(supplied));
         if (!matchingNames)
         {
-            AssertDatumMappingError(source, "ANKUS005", "requires a PgSqlTypeProvider naming its managed identity");
+            AssertDatumMappingError(source, "ANKUS395", "requires a PgSqlTypeProvider naming its managed identity");
             return;
         }
 

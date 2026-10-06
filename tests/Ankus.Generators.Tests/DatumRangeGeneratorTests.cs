@@ -108,7 +108,7 @@ public sealed partial class PgFunctionGeneratorTests
         => AssertDatumMappingError("""
             [assembly: Ankus.PgSql("bound", "CREATE DOMAIN bound AS integer;", Relocatable=true)]
             [assembly: Ankus.PgSqlTypeProvider("bound", typeof(Value))]
-            """ + DatumRangeSource("\"bounds\"", scalarOwned: true), "ANKUS005", "requires a PgSqlTypeProvider");
+            """ + DatumRangeSource("\"bounds\"", scalarOwned: true), "ANKUS395", "requires a PgSqlTypeProvider");
 
     /// <summary>
     /// A hard subtype dependency rejects a reverse dependency instead of emitting an unusable installation order.

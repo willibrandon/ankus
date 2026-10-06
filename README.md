@@ -162,8 +162,10 @@ prerequisites and platform distribution availability.
 `PG13_PG_CONFIG` through `PG19_PG_CONFIG` provide defaults for `init`; explicit
 version options override them.
 
-For other tool commands, `PG_VERSION` selects a default major such as `18` or
-`pg18` before project defaults. Explicit selectors override it. `DBNAME` supplies
+For `run`, `start`, `stop`, `status`, `connect`, `test`, `regress` and `bench`,
+`PG_VERSION` selects a default major such as `18` or `pg18` before project
+defaults. Explicit selectors override it. Other commands ignore `PG_VERSION`.
+`DBNAME` supplies
 `connect`'s default database, and `ANKUS_PGCLI=true` selects pgcli for `run` and
 `connect`. See [environment selection](docs/src/content/docs/reference/cli.md#install-or-register-postgresql)
 for precedence and publication behavior.

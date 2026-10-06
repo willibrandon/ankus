@@ -16,8 +16,10 @@ namespace Ankus.Generators;
 /// <param name="Location">The current attribute diagnostic coordinates.</param>
 /// <param name="BlockLocation">The exact authored SQL block argument.</param>
 /// <param name="NameLocation">The exact authored catalog-name or function-signature argument.</param>
+/// <param name="SchemaLocation">The exact authored schema override expression.</param>
 internal sealed record SqlProviderModel(bool Function, string? BlockId, string? Name, string? Schema,
-    bool Managed, bool SchemaAuthored, ManagedTypeIdentity? Type, GeneratorLocation? Location, GeneratorLocation? BlockLocation, GeneratorLocation? NameLocation)
+    bool Managed, bool SchemaAuthored, ManagedTypeIdentity? Type, GeneratorLocation? Location, GeneratorLocation? BlockLocation,
+    GeneratorLocation? NameLocation, GeneratorLocation? SchemaLocation)
 {
     /// <summary>
     /// Freezes constructor shape and exact compiler identity without resolving catalog ownership or executing SQL.
@@ -39,7 +41,23 @@ internal sealed record SqlProviderModel(bool Function, string? BlockId, string? 
             attribute.NamedArguments.Any(static argument => argument.Key == "Schema"),
             validArity && attribute.ConstructorArguments[1].Value is ITypeSymbol supplied ? ManagedTypeIdentity.Create(supplied) : null,
             GeneratorLocation.Create(attribute.ApplicationSyntaxReference?.GetSyntax(cancellationToken).GetLocation(), compilation),
-            ArgumentLocation(attribute, 0, compilation, cancellationToken), ArgumentLocation(attribute, 1, compilation, cancellationToken));
+            ArgumentLocation(attribute, 0, compilation, cancellationToken), ArgumentLocation(attribute, 1, compilation, cancellationToken),
+            SchemaArgumentLocation(attribute, compilation, cancellationToken));
+    }
+
+    /// <summary>
+    /// Locates the authored schema property independently of constructor argument order.
+    /// </summary>
+    /// <param name="attribute">The transient selected provider attribute.</param>
+    /// <param name="compilation">The current compilation owning the source coordinates.</param>
+    /// <param name="cancellationToken">The current generator cancellation token.</param>
+    /// <returns>The detached schema expression coordinates, when authored.</returns>
+    private static GeneratorLocation? SchemaArgumentLocation(AttributeData attribute, Compilation compilation, CancellationToken cancellationToken)
+    {
+        var syntax = attribute.ApplicationSyntaxReference?.GetSyntax(cancellationToken) as AttributeSyntax;
+        AttributeArgumentSyntax? argument = syntax?.ArgumentList?.Arguments.FirstOrDefault(static item =>
+            item.NameEquals?.Name.Identifier.ValueText == "Schema");
+        return GeneratorLocation.Create(argument?.Expression.GetLocation(), compilation);
     }
 
     /// <summary>

@@ -287,6 +287,7 @@ public sealed class TransactionCallbackTests(TestContext context)
     /// </summary>
     /// <param name="write">Whether the transaction assigns an XID and durably commits a row.</param>
     [TestMethod]
+    [DoNotParallelize] // Crash recovery and fsync must not contend with other isolated crash clusters.
     [DataRow(false)]
     [DataRow(true)]
     public async Task CommitFailurePreservesTransactionOutcomeThroughRecovery(bool write)

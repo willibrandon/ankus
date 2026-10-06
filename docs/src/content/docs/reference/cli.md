@@ -311,7 +311,11 @@ paths or mismatched versions fail before changing the registry.
 are `13` through `19`, including labels such as `pg18`. Explicit command selectors
 and forwarded MSBuild properties take precedence; project defaults apply when
 the variable is absent or empty. An unavailable or invalid selection fails
-rather than selecting another version.
+rather than selecting another version. PostgreSQL's Docker image supplies a full
+package version, such as `18.x-1.pgdg...`, which is not a major selector. For these
+commands, pass `--pg` or a matching `--pg-config`, or set `PG_VERSION` to a
+supported major. The value `all` is currently unsupported; use `ankus test --all`
+to test every registered version.
 
 `build`, `publish`, `install`, `package`, `schema`, `get` and `info` use their
 ordinary explicit and project selections. They ignore `PG_VERSION`, including
@@ -359,8 +363,8 @@ rather than splitting it on whitespace.
 The optional positional major accepts `13` through `19`, with or without a
 `pg` prefix. You can instead use `--pg` and `--pg-config`, before or after the
 subcommand. If both major selectors are given, they must agree, and an explicit
-executable must match that major. Without selectors, `PG_VERSION` applies before
-the current project's unambiguous PostgreSQL selection, otherwise PostgreSQL 18.
+executable must match that major. Without selectors, `info` uses the current
+project's unambiguous PostgreSQL selection, otherwise PostgreSQL 18.
 Registry lookup honors `--home` and `ANKUS_HOME`.
 
 These commands do not start a server or update registrations. Failed selection
@@ -589,7 +593,9 @@ ankus connect --pg 18 --database playground
 `connect` starts a stopped development server and creates or reuses the database.
 Without `--database`, it uses `DBNAME` when that variable is nonempty, otherwise
 the selected project's extension name, including imported MSBuild properties.
-An explicit database name or `DBNAME` works outside a project. `DBNAME` applies
+An explicit database name or `DBNAME` works outside a project when you also
+select a PostgreSQL installation with `--pg`, `--pg-config` or `PG_VERSION`.
+`DBNAME` applies
 to `connect`; `run` retains its extension-name default unless you pass `--database`.
 Database names retain their exact spelling and must satisfy the selected server's
 rules. PostgreSQL 19 rejects names containing newline or carriage-return characters.

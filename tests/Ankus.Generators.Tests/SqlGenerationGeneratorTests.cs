@@ -494,12 +494,13 @@ public sealed partial class PgFunctionGeneratorTests
     /// <summary>
     /// Requires a source graph error and the absence of any partial installation manifest.
     /// </summary>
-    private static void AssertSqlControlGraphError(Compilation compilation, ImmutableArray<Diagnostic> diagnostics, string reason)
+    private static void AssertSqlControlGraphError(Compilation compilation, ImmutableArray<Diagnostic> diagnostics, string reason,
+        string diagnosticId = "ANKUS005")
     {
         Assert.IsNotEmpty(diagnostics);
         foreach (Diagnostic diagnostic in diagnostics)
         {
-            Assert.AreEqual("ANKUS005", diagnostic.Id);
+            Assert.AreEqual(diagnosticId, diagnostic.Id);
             Assert.AreEqual(DiagnosticSeverity.Error, diagnostic.Severity);
             Assert.IsTrue(diagnostic.Location.IsInSource);
             if (reason.Length != 0)

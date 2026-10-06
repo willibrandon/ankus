@@ -1,3 +1,4 @@
+using System.Text;
 using Microsoft.CodeAnalysis;
 
 namespace Ankus.Generators;
@@ -49,14 +50,23 @@ internal sealed class SqlTypeProviders(SqlGraph graph)
         foreach (SqlProviderModel provider in providers.Where(static item => !item.Function))
         {
             Location? location = provider.Location?.Resolve(compilation);
+            Location? blockLocation = provider.BlockLocation?.Resolve(compilation) ?? location;
+            Location? nameLocation = provider.NameLocation?.Resolve(compilation) ?? location;
+            Location? schemaLocation = provider.SchemaLocation?.Resolve(compilation) ?? location;
             string? sqlId = provider.BlockId;
             string? name = provider.Name;
             string? schema = provider.Schema;
             bool managed = provider.Managed;
             DatumTypeModel? mapping = null;
-            if (string.IsNullOrWhiteSpace(sqlId) || !SqlText.IsText(sqlId!))
+            if (sqlId is null || string.IsNullOrWhiteSpace(sqlId))
             {
-                graph.Error(location, "A type provider requires a nonempty SQL block identifier with valid Unicode and no zero characters.");
+                graph.Error(blockLocation, SqlTypeProviderDiagnostics.s_emptyBlock);
+                continue;
+            }
+
+            if (sqlId!.Contains('\0') || !SqlText.IsText(sqlId))
+            {
+                graph.Error(blockLocation, sqlId.Contains('\0') ? SqlTypeProviderDiagnostics.s_blockZero : SqlTypeProviderDiagnostics.s_blockUnicode);
                 continue;
             }
 
@@ -65,19 +75,19 @@ internal sealed class SqlTypeProviders(SqlGraph graph)
                 mapping = provider.Type is { } supplied ? mappings.FirstOrDefault(item => item.Reference.Type == supplied) : null;
                 if (mapping is null)
                 {
-                    graph.Error(location, "A managed type provider must name a registered PgDatumType mapping.");
+                    graph.Error(nameLocation, SqlTypeProviderDiagnostics.s_unregisteredManaged);
                     continue;
                 }
 
                 if (mapping.Reference.External)
                 {
-                    graph.Error(location, "External datum mappings cannot have an extension type provider.");
+                    graph.Error(nameLocation, SqlTypeProviderDiagnostics.s_externalManaged, mapping.Reference.Managed);
                     continue;
                 }
 
                 if (provider.SchemaAuthored)
                 {
-                    graph.Error(location, "A managed type provider obtains its schema from PgDatumType and cannot specify Schema.");
+                    graph.Error(schemaLocation, SqlTypeProviderDiagnostics.s_managedSchema);
                     continue;
                 }
 
@@ -85,21 +95,20 @@ internal sealed class SqlTypeProviders(SqlGraph graph)
                 schema = mapping.Reference.Schema;
             }
 
-            if (!SqlText.IsIdentifier(name) || schema is not null && !SqlText.IsIdentifier(schema))
+            if (!ValidateIdentifier(name, nameLocation, false) || schema is not null && !ValidateIdentifier(schema, schemaLocation, true))
             {
-                graph.Error(location, "Provider type and schema names must be nonempty identifiers of at most 63 UTF-8 bytes, without zero characters or invalid Unicode.");
                 continue;
             }
 
             if (!blocks.TryGetValue(sqlId!, out SqlEntity? block))
             {
-                graph.Error(location, $"Type provider '{sqlId}' must name a PgSql or PgSqlFile block.");
+                graph.Error(blockLocation, SqlTypeProviderDiagnostics.s_missingBlock, sqlId);
                 continue;
             }
 
             if (mapping is not null && _managed.ContainsKey(mapping.Reference.Type))
             {
-                graph.Error(location, "Managed datum type '" + mapping.Reference.Managed + "' has more than one provider.");
+                graph.Error(nameLocation, SqlTypeProviderDiagnostics.s_duplicateManaged, mapping.Reference.Managed);
                 continue;
             }
 
@@ -108,7 +117,7 @@ internal sealed class SqlTypeProviders(SqlGraph graph)
                 (!existing.Custom || existing.Entity != block))
             {
                 string identity = new SqlTypeReference(name!, schema).Sql;
-                graph.Error(location, $"PostgreSQL type {identity} has more than one provider, including generated type or enum declarations.");
+                graph.Error(nameLocation, SqlTypeProviderDiagnostics.s_duplicateCatalog, identity);
                 continue;
             }
 
@@ -135,7 +144,7 @@ internal sealed class SqlTypeProviders(SqlGraph graph)
         {
             if (!mapping.Reference.External && !_managed.ContainsKey(mapping.Reference.Type))
             {
-                graph.Error(mapping.Location?.Resolve(compilation), "Managed datum type '" + mapping.Reference.Managed + "' requires a PgSqlTypeProvider naming its managed identity.");
+                graph.Error(mapping.Location?.Resolve(compilation), SqlTypeProviderDiagnostics.s_missingManaged, mapping.Reference.Managed);
             }
 
             if (!mapping.Reference.External && mapping.RangeBound is { External: false } bound &&
@@ -147,6 +156,42 @@ internal sealed class SqlTypeProviders(SqlGraph graph)
         }
 
         return relocatable;
+    }
+
+    /// <summary>
+    /// Validates an exact catalog identifier without folding, trimming or truncating it.
+    /// </summary>
+    /// <param name="value">The authored unquoted catalog type or schema name.</param>
+    /// <param name="location">The exact authored expression requiring correction.</param>
+    /// <param name="schema">Whether the identifier names a fixed schema.</param>
+    /// <returns>Whether PostgreSQL can retain every UTF-8 byte of the complete identifier.</returns>
+    private bool ValidateIdentifier(string? value, Location? location, bool schema)
+    {
+        if (value is null || value.Length == 0)
+        {
+            graph.Error(location, schema ? SqlTypeProviderDiagnostics.s_emptySchema : SqlTypeProviderDiagnostics.s_emptyName);
+            return false;
+        }
+
+        if (value.Contains('\0'))
+        {
+            graph.Error(location, schema ? SqlTypeProviderDiagnostics.s_schemaZero : SqlTypeProviderDiagnostics.s_nameZero);
+            return false;
+        }
+
+        if (!SqlText.IsText(value))
+        {
+            graph.Error(location, schema ? SqlTypeProviderDiagnostics.s_schemaUnicode : SqlTypeProviderDiagnostics.s_nameUnicode);
+            return false;
+        }
+
+        if (Encoding.UTF8.GetByteCount(value) > 63)
+        {
+            graph.Error(location, schema ? SqlTypeProviderDiagnostics.s_schemaLength : SqlTypeProviderDiagnostics.s_nameLength);
+            return false;
+        }
+
+        return true;
     }
 
     /// <summary>

@@ -9,12 +9,41 @@ See [current status](../../../PROGRESS.md) and the [historical evidence](port-hi
 
 Reference: [pgrx](https://github.com/pgcentralfoundation/pgrx), commit `fc91c63ebad11784647b50ee7e265c1fd9c9924f`,
 workspace version `0.19.3`. Paths in this section are relative to that read-only repository.
-The inventory originated with 0.19.2; the 0.19.3 changes add build-option forwarding
-and package-prefix requirements below. Updating native inputs does not implement
-those command options or establish full API-by-API parity.
+The inventory originated with 0.19.2. The complete 0.19.3 release delta below is
+also required, including correctness, safety, maintenance and command changes.
+Updating native inputs does not establish full API-by-API parity.
 This inventory covers feature families discovered in the workspace, including features absent from its
 README. Each family's public APIs, options, error behavior, ownership rules, examples, and regression
 cases require implementation and evidence. Family coverage is not API-by-API completion evidence.
+
+### pgrx 0.19.3 release delta and refresh gates
+
+The [release](https://github.com/pgcentralfoundation/pgrx/releases/tag/v0.19.3)
+contains eleven commits after 0.19.2. The local reference and Ankus's catalog
+generator already select the exact release commit above. Audit every changed
+source and regression contract before accepting the refresh; a matching pin is
+only the first gate.
+
+| Upstream change | Required Ankus behavior and acceptance |
+| --- | --- |
+| Headers, #2377 / `4f36fae4` | Retain all seven expanded `pg13.h`–`pg19.h` manifests, foreign declarations, constants, node/type graphs, OIDs and attribution. The checked-in manifests currently match upstream byte for byte: 481, 490, 497, 501, 508, 524 and 535 direct includes, respectively. Verify deterministic regeneration and packaging. Add a .NET maintenance command equivalent to `pgrx-pg-sys/generate.sh`, discovering headers from a selected PostgreSQL server include tree with the same deliberate exclusions and version/platform guards. Test newly exposed functions, globals, callbacks, inline helpers and layouts against their actual target headers; catalog counts alone are insufficient. |
+| PostgreSQL 19 beta 4, #2383 / `46eae1dd` | Keep bindings, OIDs, SQLSTATEs, version metadata and server fixtures on the same beta. Current inputs are aligned; refresh complete PG19 backend evidence after the current runtime and cleanup changes. Stable supported majors retain their own APIs and headers. |
+| Cargo argument forwarding, #2343 / `bc09b536` | Audit the idiomatic `--property`/`-p` equivalent through initial project evaluation, restore, build, schema, publication and nested test/benchmark calls. Cover custom feed/configuration and output-directory selection from a parent or solution directory, explicit project selection, repeated values and paths with spaces. Existing forwarding is implemented; every changed upstream command and fixture still needs source-case reconciliation. |
+| Package prefix, #2382 / `577ee501` | Preserve custom installation-prefix layouts, libraries, control files and authored/upgrade SQL through relocation and PostgreSQL loading. `--prefix-dir` and backend package-prefix tests exist; retain them in refreshed platform/version acceptance. |
+| Lazy error allocations, #2369 / `b91a9ae0` | Review the corresponding CLI, declaration/type graph, binding, SPI and test-harness paths. Construct exceptions and diagnostic payloads only when needed, while retaining exact diagnostics and native ownership. Measure relevant successful paths before claiming an allocation improvement; do not copy Rust-only closure changes mechanically. This allocation audit remains open. |
+| Shared-memory macro lookup, #2371 / `7d512caf` | Generated shared-memory hooks must resolve framework helpers without incidental user imports or namespace names. Verify consumers with qualified attributes, missing imports and colliding names, plus real preload/chaining on every platform. Existing shared-memory APIs do not by themselves prove every source-case equivalent. |
+| Reporting interrupts, #2374 / `925e50fc` | Hold interrupts for non-ERROR reports and restore holdoff state after recoverable failures. Preserve real cancellation, FATAL/PANIC intent and managed unwinding in ordinary, GUC, worker and cleanup paths. Existing native guards and hook tests remain required; the newly confirmed cleanup-reporting defects must be fixed before accepting this safety gate. |
+| Varlena pointer safety, #2368 / `3223e80e` | Obtain payload addresses without constructing a span or slice with an unchecked or wrong-header length. Validate short, four-byte, compressed and external/toasted storage, zero payloads, exact boundaries and ownership. Ankus uses the selected headers' `VARDATA` helpers and has native ownership tests; reconcile every upstream variant and refresh supported-major evidence. |
+| Contribution rules, #2384 / `96284542` | Apply relevant ownership, minimal unsafe scope, measurement and evidence principles through Ankus's existing .NET conventions and user instructions. Rust-only rules are not automatic repository policy changes. No change to Ankus's `AGENTS.md` is required by this refresh. |
+| CLI skills/docs, #2385 / `c21c79e8` | Reconcile updated command options, defaults, examples and limitations with the CLI inventory and public guides. Keep maintainer commands in contributor documentation and personal validation details private. Do not import upstream shell scripts or Rust agent instructions into user workflows. |
+| Release metadata, #2386 / `fc91c63e` | Keep the reference revision consistent across catalogs, OIDs, notices and parity documentation. Ankus's initial package/tool/template version remains 0.1.0; it does not inherit pgrx's package version. Audit dependency and fixture changes for relevant .NET equivalents. |
+
+Work order: fix confirmed correctness and safety defects first; verify and finish
+the complete header/input refresh and its maintenance command; reconcile CLI,
+allocation and shared-memory source cases; then refresh complete primary and
+additional PostgreSQL/platform suites and release/package gates. Preserve all
+previously inventoried requirements and record the actual tested revisions.
+There are no deferred release-delta items.
 
 ### Development environment, commands, and distribution
 

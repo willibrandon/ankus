@@ -6,9 +6,7 @@ namespace Ankus.Generators.Tests;
 
 public sealed partial class PgFunctionGeneratorTests
 {
-    private const string ProviderBlockError = "A type provider requires a nonempty SQL block identifier with valid Unicode and no zero characters.";
-    private const string ProviderNameError = "Provider type and schema names must be nonempty identifiers of at most 63 UTF-8 bytes, without zero characters or invalid Unicode.";
-    private const string ProviderDuplicateError = "PostgreSQL type \"item\" has more than one provider, including generated type or enum declarations.";
+    private const string ProviderDuplicateError = "PostgreSQL type \"item\" has more than one provider, including generated type or enum declarations; retain one custom block or the generated declaration";
 
     /// <summary>
     /// Inferred providers preserve the complete contract produced by explicit prerequisites for every signature position.
@@ -376,27 +374,27 @@ public sealed partial class PgFunctionGeneratorTests
     /// Malformed, ambiguous and non-SQL provider targets fail before any partial native or SQL artifacts escape.
     /// </summary>
     /// <param name="inventory">The invalid declaration inventory.</param>
-    /// <param name="message">The precise rejected boundary.</param>
+    /// <param name="diagnosticId">The independently correctable rejected boundary.</param>
     [TestMethod]
-    [DataRow("[assembly: Ankus.PgSqlTypeProvider(null!, \"item\")]", ProviderBlockError)]
-    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"\", \"item\")]", ProviderBlockError)]
-    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\" \", \"item\")]", ProviderBlockError)]
-    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"types\\0\", \"item\")]", ProviderBlockError)]
-    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"types\\ud800\", \"item\")]", ProviderBlockError)]
-    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"missing\", \"item\")]", "Type provider 'missing' must name a PgSql or PgSqlFile block.")]
-    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"Types\", \"item\")]", "Type provider 'Types' must name a PgSql or PgSqlFile block.")]
-    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"types\", (string)null!)]", ProviderNameError)]
-    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"types\", \"\")]", ProviderNameError)]
-    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"types\", \"x\\0y\")]", ProviderNameError)]
-    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"types\", \"\\ud800\")]", ProviderNameError)]
-    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"types\", \"item\", Schema = \"\")]", ProviderNameError)]
-    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"types\", \"item\", Schema = \"x\\0y\")]", ProviderNameError)]
-    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"types\", \"item\", Schema = \"\\udc00\")]", ProviderNameError)]
-    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"function\", \"item\")]", "Type provider 'function' must name a PgSql or PgSqlFile block.")]
-    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"schema\", \"item\")]", "Type provider 'schema' must name a PgSql or PgSqlFile block.")]
-    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"types\", \"item\")][assembly: Ankus.PgSqlTypeProvider(\"types\", \"item\")]", ProviderDuplicateError)]
-    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"types\", \"item\")][assembly: Ankus.PgSqlTypeProvider(\"other\", \"item\")]", ProviderDuplicateError)]
-    public void InvalidDeclaredTypeProvidersSuppressAllArtifacts(string inventory, string message)
+    [DataRow("[assembly: Ankus.PgSqlTypeProvider(null!, \"item\")]", "ANKUS378")]
+    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"\", \"item\")]", "ANKUS378")]
+    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\" \", \"item\")]", "ANKUS378")]
+    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"types\\0\", \"item\")]", "ANKUS379")]
+    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"types\\ud800\", \"item\")]", "ANKUS380")]
+    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"missing\", \"item\")]", "ANKUS381")]
+    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"Types\", \"item\")]", "ANKUS381")]
+    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"types\", (string)null!)]", "ANKUS385")]
+    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"types\", \"\")]", "ANKUS385")]
+    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"types\", \"x\\0y\")]", "ANKUS386")]
+    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"types\", \"\\ud800\")]", "ANKUS387")]
+    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"types\", \"item\", Schema = \"\")]", "ANKUS389")]
+    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"types\", \"item\", Schema = \"x\\0y\")]", "ANKUS390")]
+    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"types\", \"item\", Schema = \"\\udc00\")]", "ANKUS391")]
+    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"function\", \"item\")]", "ANKUS381")]
+    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"schema\", \"item\")]", "ANKUS381")]
+    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"types\", \"item\")][assembly: Ankus.PgSqlTypeProvider(\"types\", \"item\")]", "ANKUS394")]
+    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"types\", \"item\")][assembly: Ankus.PgSqlTypeProvider(\"other\", \"item\")]", "ANKUS394")]
+    public void InvalidDeclaredTypeProvidersSuppressAllArtifacts(string inventory, string diagnosticId)
     {
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(inventory + """
             [assembly: Ankus.PgSql("types", "SELECT 1;")]
@@ -407,8 +405,8 @@ public sealed partial class PgFunctionGeneratorTests
                 [Ankus.PgFunction(Id = "function")] public static int Read() => 7;
             }
             """);
-        AssertDeclaredProviderError(compilation, diagnostics);
-        Assert.AreEqual(message, Assert.ContainsSingle(diagnostics).GetMessage(System.Globalization.CultureInfo.InvariantCulture));
+        AssertDeclaredProviderError(compilation, diagnostics, diagnosticId: diagnosticId);
+        Assert.AreEqual(diagnosticId, Assert.ContainsSingle(diagnostics).Id);
     }
 
     /// <summary>
@@ -449,8 +447,8 @@ public sealed partial class PgFunctionGeneratorTests
             "[assembly: Ankus.PgSqlTypeProvider(\"types\", " + argument + ")]");
         if (bytes == 64)
         {
-            AssertDeclaredProviderError(compilation, diagnostics);
-            Assert.AreEqual(ProviderNameError, Assert.ContainsSingle(diagnostics).GetMessage(System.Globalization.CultureInfo.InvariantCulture));
+            AssertDeclaredProviderError(compilation, diagnostics, diagnosticId: schema ? "ANKUS392" : "ANKUS388");
+            Assert.AreEqual(schema ? "ANKUS392" : "ANKUS388", Assert.ContainsSingle(diagnostics).Id);
         }
         else
         {
@@ -579,7 +577,7 @@ public sealed partial class PgFunctionGeneratorTests
         string source = kind == "generated" ? block + declarations : prefix + block +
             (kind == "schema" ? string.Empty : extra) + declarations + (kind == "schema" ? extra : string.Empty);
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source);
-        AssertDeclaredProviderError(compilation, diagnostics, "cycle");
+        AssertDeclaredProviderError(compilation, diagnostics, "cycle", "ANKUS005");
     }
 
     /// <summary>
@@ -696,9 +694,10 @@ public sealed partial class PgFunctionGeneratorTests
     /// <summary>
     /// Requires graph diagnostics and complete suppression of both managed dispatch and every manifest artifact.
     /// </summary>
-    private void AssertDeclaredProviderError(Compilation compilation, ImmutableArray<Diagnostic> diagnostics, string reason = "")
+    private void AssertDeclaredProviderError(Compilation compilation, ImmutableArray<Diagnostic> diagnostics, string reason = "",
+        string diagnosticId = "ANKUS394")
     {
-        AssertSqlControlGraphError(compilation, diagnostics, reason);
+        AssertSqlControlGraphError(compilation, diagnostics, reason, diagnosticId);
         Assert.IsEmpty(compilation.GetDiagnostics(context.CancellationToken).Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error));
         Assert.IsNull(compilation.GetTypeByMetadataName("Ankus.Generated.ExtensionDispatchers"));
         Assert.IsEmpty(compilation.Assembly.GetAttributes().Where(static attribute =>

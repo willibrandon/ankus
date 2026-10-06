@@ -91,6 +91,35 @@ managed conversion, or verify the type's native storage layout. PostgreSQL
 validates the objects when the extension installs. Keep explicit dependencies
 for SQL routines, default expressions and other objects used by custom SQL.
 
+### Type provider diagnostics
+
+Provider errors highlight the value to correct, including named or reordered
+constructor arguments and an authored `Schema` assignment. Ankus preserves
+valid identifier spelling and rejects values PostgreSQL would truncate.
+
+| Diagnostic | Correction |
+| --- | --- |
+| `ANKUS378` | Supply a nonempty SQL block ID containing a non-whitespace character. |
+| `ANKUS379` | Remove embedded zero characters from the block ID. |
+| `ANKUS380` | Replace unpaired Unicode surrogates in the block ID. |
+| `ANKUS381` | Name an existing `PgSql` or `PgSqlFile` block; function and schema aliases cannot supply types. |
+| `ANKUS382` | Select a registered, closed `PgDatumType` or `PgRange<T>` mapping with the managed overload. |
+| `ANKUS383` | Remove the provider for an external mapping, or declare ownership when the extension actually creates the type. |
+| `ANKUS384` | Remove `Schema` from a managed provider, including an explicit null; its mapping supplies the schema. |
+| `ANKUS385`, `ANKUS389` | Supply a nonempty catalog type name or schema. A named provider may use null for an unqualified schema. |
+| `ANKUS386`, `ANKUS390` | Remove embedded zero characters from the type name or schema. |
+| `ANKUS387`, `ANKUS391` | Replace unpaired Unicode surrogates in the type name or schema. |
+| `ANKUS388`, `ANKUS392` | Shorten the type name or schema to at most 63 UTF-8 bytes. |
+| `ANKUS393` | Keep one provider for each exact closed managed identity. |
+| `ANKUS394` | Keep one custom provider for the exact catalog identity, or retain its generated type/enum declaration. |
+| `ANKUS395` | Add a valid managed provider for the extension-owned mapping. A catalog-name claim does not satisfy managed identity. |
+
+Catalog names are exact, unquoted identifiers. Whitespace and embedded double
+quotes are retained and quoted for PostgreSQL; they are not trimmed or folded.
+Different managed mappings may share a catalog identity when the same block
+provides both. A rejected provider leaves an owned mapping unresolved, so its
+mapping declaration also reports `ANKUS395` until the provider is valid.
+
 ## Declare supplied functions
 
 Use `PgSqlFunctionProvider` to identify a function created by a custom block:

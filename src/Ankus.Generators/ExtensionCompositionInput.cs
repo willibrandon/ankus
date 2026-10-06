@@ -111,6 +111,7 @@ internal sealed record ExtensionCompositionInput(FunctionPipeline.MethodInputs M
             yield return provider.Location;
             yield return provider.BlockLocation;
             yield return provider.NameLocation;
+            yield return provider.SchemaLocation;
         }
 
         foreach (CustomSqlPipeline.Output output in CustomBlocks)

@@ -122,13 +122,13 @@ public sealed partial class PgFunctionGeneratorTests
         CSharpCompilation initial = ModuleCompilation(source);
         GeneratorDriver driver = ModuleDriver().RunGeneratorsAndUpdateCompilation(initial, out _,
             out ImmutableArray<Diagnostic> previous, context.CancellationToken);
-        Assert.AreEqual(function ? "ANKUS373" : "ANKUS005", Assert.ContainsSingle(previous).Id);
+        Assert.AreEqual(function ? "ANKUS373" : "ANKUS381", Assert.ContainsSingle(previous).Id);
         SyntaxTree tree = CSharpSyntaxTree.ParseText(source + "\n// independent edit", path: "Module.cs", cancellationToken: context.CancellationToken);
         CSharpCompilation edited = initial.ReplaceSyntaxTree(initial.SyntaxTrees.Single(), tree);
         driver = driver.RunGeneratorsAndUpdateCompilation(edited, out Compilation failed, out ImmutableArray<Diagnostic> errors, context.CancellationToken);
         Diagnostic error = Assert.ContainsSingle(errors);
 
-        Assert.AreEqual(function ? "ANKUS373" : "ANKUS005", error.Id);
+        Assert.AreEqual(function ? "ANKUS373" : "ANKUS381", error.Id);
         Assert.AreSame(tree, error.Location.SourceTree);
         Assert.AreEqual(Assert.ContainsSingle(previous).Location.SourceSpan, error.Location.SourceSpan);
         Assert.Contains(function ? "existing PgSql" : "must name a PgSql", error.GetMessage(CultureInfo.InvariantCulture));
@@ -156,7 +156,7 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.IsTrue(provider.SchemaAuthored);
         Assert.IsNull(provider.Schema);
         Assert.IsNotNull(provider.Type);
-        Assert.AreEqual("ANKUS005", Assert.ContainsSingle(errors.Where(static error =>
+        Assert.AreEqual("ANKUS384", Assert.ContainsSingle(errors.Where(static error =>
             error.GetMessage(CultureInfo.InvariantCulture).Contains("cannot specify Schema", StringComparison.Ordinal))).Id);
         driver = RunModule(driver, initial.ReplaceSyntaxTree(initial.SyntaxTrees.Single(), CSharpSyntaxTree.ParseText(
             ProviderInventorySource("managed"), path: "Module.cs", cancellationToken: context.CancellationToken)), out Compilation repaired);

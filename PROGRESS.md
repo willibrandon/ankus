@@ -18,9 +18,14 @@ extensions, backend recovery, complete suites and release/package validation.
 The initial release is **0.1.0**; no NuGet packages are published yet.
 
 The upstream inventory is pinned to pgrx **0.19.3**, commit
-`fc91c63ebad11784647b50ee7e265c1fd9c9924f`. See:
+`fc91c63ebad11784647b50ee7e265c1fd9c9924f`. The refresh covers every release
+change, including expanded headers and their source-derived maintenance command,
+PG19 beta 4, CLI options, allocation cleanups, shared-memory lookup, reporting
+interrupts and varlena safety. The pin and all seven header manifests already
+match; matching inputs do not complete the release audit. See:
 
 - [Complete requirement inventory](docs/contributing/evidence/parity-requirements.md): every inventoried command, API family, test corpus and release contract remains in scope.
+- [pgrx 0.19.3 refresh gates](docs/contributing/evidence/parity-requirements.md#pgrx-0193-release-delta-and-refresh-gates): all eleven release commits, their .NET equivalents, existing evidence and remaining acceptance.
 - [Original phase plan](docs/contributing/evidence/port-history.md#phase-plan): the full implementation requirements and original milestones.
 - [Implementation and acceptance history](docs/contributing/evidence/port-history.md): complete retained evidence, including failures and later corrections. Historical completion states may be superseded.
 - [Extension-author documentation](docs/src/content/docs/) and [development prerequisites](docs/contributing/development.md).
@@ -64,11 +69,11 @@ defines the full scope; family-level implementation is not API-by-API completion
 
 | Area | Verified implementation | Remaining work |
 | --- | --- | --- |
-| Errors and cancellation | Sticky query cancellation/FATAL, retained raw/memory errors, fail-fast backend access and explicit rollback recovery. Primary-platform full CI passes. | Preserve these guarantees in every remaining API and performance change; complete the version/platform matrix. |
+| Errors and cancellation | Sticky query cancellation/FATAL, retained raw/memory errors, fail-fast backend access and explicit rollback recovery. Primary-platform full CI passes. | Correct completion-cleanup terminal severity, reporter failures and original-error preservation; retain recovery guarantees and complete the version/platform matrix. |
 | Workers and shared memory | Native signal globals, lifecycle/transaction boundaries and shared memory. Idle Wait recovers repeated real cancellation; transaction waits still abort and terminal reports remain sticky. Complete primary-platform CI passes. | Full source-contract and complete version/platform acceptance remain required. |
 | Functions and callbacks | Scalar/array/SETOF/TABLE, triggers/events, lifecycle, native callbacks, operators/conversions and installation-schema search paths. | Full upstream declaration/option audit and complete version/platform evidence. |
 | Aggregates and SQL graph | Static abstract aggregate capabilities, typed Requires/Before/SupportFunction references, deterministic SQL provenance and extended module magic. Empty SQL dependency anchors and exact authored CR/CRLF values pass complete native acceptance. | Remaining precise provider/graph diagnostics, inventoried contracts and complete version/platform acceptance. |
-| Generator caching | Detached equatable declaration/provider/reference models, declaration-relative locations and cached dispatcher/C/SQL artifacts across multi-declaration body edits and unrelated file insertion. Only selected SQL files are read, with the complete path catalog retained. | Broader precise diagnostics, useful semantic code fixes and final inventory audit remain required. |
+| Generator caching | Detached equatable declaration/provider/reference models, declaration-relative locations and cached dispatcher/C/SQL artifacts across multi-declaration body edits and unrelated file insertion. Only selected SQL files are read, with the complete path catalog retained. | Inserting an unrelated member earlier in a file still invalidates composition. Broader precise diagnostics, useful semantic code fixes and final inventory audit remain required. |
 | Values and ownership | Documented scalar, array, composite, temporal, JSON, network, geometry, custom codec and raw datum contracts. Interval equality, hashing and ordering agree with PostgreSQL while retaining exact components; complete primary-platform CI passes. | Remaining mapped/container contracts, parsing/formatting ergonomics and complete source-case mapping remain required. |
 | Runtime performance | Owned binary PgNumeric, direct decimal coefficient encoding, constant-time fixed-width array indexing, and a measured native guard for allowlisted pure built-ins. Catalog-miss errors require actual rollback; real-resource regressions and complete primary-platform CI pass. Persistent in-backend benchmarks provide batching, transaction modes and statistical baseline comparisons. | Complete current guard supported-version acceptance. Extend that tier only where ownership proofs and measurements justify it. Never weaken error recovery to reduce overhead. |
 | Native bindings | pgrx 0.19.3 inventories, matching PostgreSQL 19 beta 4 inputs and target-compiler ABI checks; typed pointers and ANKUS129 make raw caller obligations explicit. Complete current primary-platform compositions pass, with focused binding checks on all seven majors. | Full supported-major/platform tests and final inventory audit. |
@@ -87,9 +92,9 @@ incorrect. See [the detailed review](docs/contributing/evidence/port-history.md#
 ## Current complete acceptance evidence
 
 Primary CI runs all six modules against real published Native AOT extensions.
-The latest successful primary CI source is **4da0bec**, with runtime **10.0.12-ankus.4**.
-[CI 37472689738](https://github.com/willibrandon/ankus/actions/runs/37472689738)
-and [Docs 37472689525](https://github.com/willibrandon/ankus/actions/runs/37472689525)
+The latest successful primary CI source is **97842d3**, with runtime **10.0.12-ankus.4**.
+[CI 37480623539](https://github.com/willibrandon/ankus/actions/runs/37480623539)
+and [Docs 37480623554](https://github.com/willibrandon/ankus/actions/runs/37480623554)
 pass. All eighteen actual reports and all sixty-seven required native recovery
 partitions independently verify, alongside the callback and prefix corpora on
 every platform; no primary job timed out.
@@ -99,11 +104,12 @@ platform outcome remains pending.
 
 | Source | Platform / PostgreSQL | Result | Duration |
 | --- | --- | --- | --- |
-| Latest primary CI, **4da0bec / ankus.4** | Linux x64 / 18 | 13,337 total; 13,289 passed; 48 platform skips; zero failures | 40m13s job |
-| Same CI / revision / runtime | macOS ARM64 / 18 | 13,337 total; 13,277 passed; 60 platform skips; zero failures | 29m27s job |
-| Same CI / revision / runtime | Windows x64 / 17 | 13,337 total; 13,309 passed; 28 platform skips; zero failures | 38m29s job |
+| Latest primary CI, **97842d3 / ankus.4** | Linux x64 / 18 | 13,365 total; 13,317 passed; 48 platform skips; zero failures | 40m24s job |
+| Same CI / revision / runtime | macOS ARM64 / 18 | 13,365 total; 13,305 passed; 60 platform skips; zero failures | 29m33s job |
+| Same CI / revision / runtime | Windows x64 / 17 | 13,365 total; 13,337 passed; 28 platform skips; zero failures | 39m27s job |
 | SQL/datetime composition, parent **e41c687 / ankus.4** | Linux x64 / 18.6 | 13,337 total; 13,289 passed; 48 platform skips; zero failures | 42m46.885s tests; 43m41.597s command |
 | Function-provider composition, parent **4da0bec / ankus.4** | Linux x64 / 18.6 | 13,365 total; 13,317 passed; 48 platform skips; zero failures | 42m39.165s tests; 43m46.937s command |
+| Type-provider composition, parent **97842d3 / ankus.4** | Linux x64 / 18.6 | 13,411 total; 13,363 passed; 48 platform skips; zero failures | 42m39.033s tests; 43m35.244s command |
 
 All eighteen primary reports and the module identity, callback, prefix and native
 recovery partitions independently verify. Normal Release, API freshness and site
@@ -126,9 +132,9 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
 
 ## Active validation and work
 
-- **4da0bec** passes complete primary CI, Release, API freshness and both site
-  checks. All eighteen platform reports and native recovery, datetime, SQL,
-  callback, prefix and module-identity partitions independently verify.
+- **97842d3** passes complete primary CI and docs. All eighteen platform reports
+  and native recovery, datetime, SQL, function-provider, callback, prefix and
+  module-identity partitions independently verify.
   Crash tests retain their deadlines, fsync and durability checks. The earlier
   macOS allocation variance remains unattributed.
 - Hosted Intel refresh **37460600236** has passed runtime preparation; its full
@@ -136,13 +142,29 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
 - Function-provider diagnostics pass complete Linux/PostgreSQL **18.6** acceptance:
   **13,365** total, zero failures. All **1,853** ordinary source inputs and the
   exact **2,038**-file evidence archive verify; ten changed/new files are promoted.
-  Release, API freshness and both site gates pass before commit. Its primary CI
-  remains required; the accepted parent evidence is recorded above.
-- Type-provider precise diagnostics are in private validation. The unchanged
-  validator reproduces **38** failures with **8** valid controls. Corrected
-  validation passes all **46** focused and **4,455** complete generator cases.
-  Complete native acceptance is running separately and remains required before
-  promotion.
+  Release, API freshness and both site gates pass. Committed/pushed as
+  **97842d3**; [primary CI](https://github.com/willibrandon/ankus/actions/runs/37480623539)
+  passes all jobs. [Docs](https://github.com/willibrandon/ankus/actions/runs/37480623554)
+  passes, including independent inspection of all eighteen platform reports.
+- Type-provider diagnostics pass **46** focused cases, **4,455** generator cases
+  and complete Linux/PostgreSQL **18.6** acceptance: **13,411** total, zero
+  failures. All **1,855** source inputs and the **1,872**-file evidence archive
+  verify. Sixteen changed/new files are promoted; Release, API freshness and both
+  site gates pass. The unchanged baseline retains **38** failures and **8** controls.
+- The new review confirms unsafe array-flow misses, a conditional-ref analyzer
+  crash and stale increment values. The correction passes all **14** focused and
+  **4,469** complete generator cases privately. Safe SQL loop widening and
+  bounded helper analysis remain open. Real executor abort tests reproduce the
+  FATAL-to-PANIC defect. The first correction preserves FATAL but recursively
+  enters abort; it is rejected. Reporter allocation/error-state preservation and
+  deferred terminal reporting must be fixed before accepting the cleanup change.
+- PostgreSQL-version documentation, LF source/SQL checkout attributes and the
+  missing crash-test isolation annotation are corrected. The complete v0.19.3
+  release audit and source-derived header maintenance command remain explicit
+  requirements; no release-delta item is deferred.
+- Earlier-member cache investigation confirms that declaration ordinals change
+  after unrelated insertions. Stable header identities and exact-current-span
+  regression tests are drafted separately; they have no execution evidence yet.
 
 Remaining diagnostics/code fixes, source-case mapping, samples, API and CLI
 contracts, supported PostgreSQL/platform combinations, .NET servicing and release
@@ -159,13 +181,14 @@ The Intel diagnostic retry exposed six path-related failures; the corrected
 complete Intel suite now passes. An explanation of the earlier hosted-runner
 disconnect and remaining version/platform acceptance are still required.
 
-1. Resolve discovered correctness and CI failures before accepting affected work, and finish the remaining declaration/source-case audits. Malformed AssemblyRef handling and the owner index are already implemented; all eight regressions pass in the current complete suite.
-2. Finish the Intel timing milestone and complete supported-major/platform coverage, including Intel macOS and the macOS 15/16 library-suffix boundary.
-3. Complete declaration diagnostics/code fixes, API discoverability and unsafe raw-call contracts.
-4. Use the in-backend baseline to finish measured hot-path improvements that preserve recovery and ownership guarantees.
-5. Close remaining CLI, account/privilege and platform-installation contracts.
-6. Complete framework/discovery support, parsing/formatting helpers, representative samples and documentation.
-7. Complete .NET servicing and every release requirement in the full inventory before publishing 0.1.0. If .NET 11 reaches GA first, complete its acceptance for that release; preview validation does not block the initial .NET 10 release.
+1. Resolve discovered correctness and CI failures before accepting affected work, including safe SQL loop analysis and cleanup reporter/terminal behavior. Finish the remaining declaration/source-case audits. Malformed AssemblyRef handling and the owner index already pass all eight regressions in the current complete suite.
+2. Complete every pgrx 0.19.3 release-delta gate, including deterministic header discovery/regeneration, newly exposed native contracts, all CLI/configuration/output forwarding and allocation/shared-memory/varlena audits. Refresh evidence against the corrected current source.
+3. Finish the Intel timing milestone and complete supported-major/platform coverage, including Intel macOS and the macOS 15/16 library-suffix boundary.
+4. Complete declaration diagnostics/code fixes, API discoverability and unsafe raw-call contracts.
+5. Use the in-backend baseline to finish measured hot-path improvements that preserve recovery and ownership guarantees.
+6. Close remaining CLI, account/privilege and platform-installation contracts.
+7. Complete framework/discovery support, parsing/formatting helpers, representative samples and documentation.
+8. Complete .NET servicing and every release requirement in the full inventory before publishing 0.1.0. If .NET 11 reaches GA first, complete its acceptance for that release; preview validation does not block the initial .NET 10 release.
 
 Continue independent work while CI runs. Before every commit and push, check and
 record previous run outcomes, including live runs, and resolve reported failures.

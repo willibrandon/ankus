@@ -286,19 +286,20 @@ public sealed partial class PgFunctionGeneratorTests
     /// <param name="claims">The invalid provider inventory.</param>
     /// <param name="external">Whether the mapping belongs outside this extension.</param>
     /// <param name="reason">The expected graph diagnostic reason.</param>
+    /// <param name="identities">The complete expected independently correctable rules.</param>
     [TestMethod]
-    [DataRow("", false, "requires a PgSqlTypeProvider naming its managed identity")]
-    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"one\", \"int4\", Schema=\"pg_catalog\")]", false, "requires a PgSqlTypeProvider naming its managed identity")]
-    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"one\", typeof(Value))]", true, "External datum mappings cannot")]
-    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"one\", typeof(Value))] [assembly: Ankus.PgSqlTypeProvider(\"one\", typeof(Value))]", false, "more than one provider")]
-    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"one\", typeof(Value))] [assembly: Ankus.PgSqlTypeProvider(\"two\", \"int4\", Schema=\"pg_catalog\")]", false, "more than one provider")]
-    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"one\", typeof(Value), Schema=\"pg_catalog\")]", false, "cannot specify Schema")]
-    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"absent\", typeof(Value))]", false, "must name a PgSql or PgSqlFile block")]
-    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"one\", typeof(int))]", true, "registered PgDatumType")]
-    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"one\", (System.Type)null!)]", true, "registered PgDatumType")]
-    public void DatumMappingProvidersRejectInvalidOwnership(string claims, bool external, string reason)
-        => AssertDatumMappingError("[assembly: Ankus.PgSql(\"one\", \"SELECT 1;\")] [assembly: Ankus.PgSql(\"two\", \"SELECT 2;\")]" +
-            claims + DatumMappingSource(external: external, schema: "pg_catalog"), "ANKUS005", reason);
+    [DataRow("", false, "requires a PgSqlTypeProvider naming its managed identity", "ANKUS395")]
+    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"one\", \"int4\", Schema=\"pg_catalog\")]", false, "requires a PgSqlTypeProvider naming its managed identity", "ANKUS395")]
+    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"one\", typeof(Value))]", true, "External datum mappings cannot", "ANKUS383")]
+    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"one\", typeof(Value))] [assembly: Ankus.PgSqlTypeProvider(\"one\", typeof(Value))]", false, "more than one provider", "ANKUS393")]
+    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"one\", typeof(Value))] [assembly: Ankus.PgSqlTypeProvider(\"two\", \"int4\", Schema=\"pg_catalog\")]", false, "more than one provider", "ANKUS394")]
+    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"one\", typeof(Value), Schema=\"pg_catalog\")]", false, "cannot specify Schema", "ANKUS384,ANKUS395")]
+    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"absent\", typeof(Value))]", false, "must name a PgSql or PgSqlFile block", "ANKUS381,ANKUS395")]
+    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"one\", typeof(int))]", true, "registered PgDatumType", "ANKUS382")]
+    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"one\", (System.Type)null!)]", true, "registered PgDatumType", "ANKUS382")]
+    public void DatumMappingProvidersRejectInvalidOwnership(string claims, bool external, string reason, string identities)
+        => AssertDatumProviderError("[assembly: Ankus.PgSql(\"one\", \"SELECT 1;\")] [assembly: Ankus.PgSql(\"two\", \"SELECT 2;\")]" +
+            claims + DatumMappingSource(external: external, schema: "pg_catalog"), reason, identities.Split(','));
 
     /// <summary>
     /// Generated type identities stay reserved under every SQL policy when a mapped provider claims the same catalog name.
@@ -316,8 +317,8 @@ public sealed partial class PgFunctionGeneratorTests
     {
         string generated = enumType ? "[Ankus.PgEnum(Name=\"item\"" + options + ")] public enum Existing { A }" :
             "[Ankus.PgType(Name=\"item\"" + options + ")] public record Existing(int Number);";
-        AssertDatumMappingError("[assembly: Ankus.PgSql(\"types\", \"SELECT 1;\")] [assembly: Ankus.PgSqlTypeProvider(\"types\", typeof(Value))]" +
-            DatumMappingSource(external: false, name: "item") + generated, "ANKUS005", "including generated type or enum declarations");
+        AssertDatumProviderError("[assembly: Ankus.PgSql(\"types\", \"SELECT 1;\")] [assembly: Ankus.PgSqlTypeProvider(\"types\", typeof(Value))]" +
+            DatumMappingSource(external: false, name: "item") + generated, "including generated type or enum declarations", "ANKUS394", "ANKUS395");
     }
 
     /// <summary>
@@ -886,6 +887,30 @@ public sealed partial class PgFunctionGeneratorTests
                 .FindNode(error.Location.SourceSpan).AncestorsAndSelf().OfType<Microsoft.CodeAnalysis.CSharp.Syntax.MethodDeclarationSyntax>()
                 .Any(method => method.Identifier.ValueText == aggregateRole) == true), string.Join(Environment.NewLine, diagnostics));
         }
+    }
+
+    /// <summary>
+    /// Requires the complete precise ownership diagnostic set and preserves rejection of every generated artifact.
+    /// </summary>
+    /// <param name="source">The independently authored invalid provider inventory.</param>
+    /// <param name="reason">The required actionable message contract.</param>
+    /// <param name="identities">Every independently expected diagnostic identity.</param>
+    private void AssertDatumProviderError(string source, string reason, params string[] identities)
+    {
+        (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source);
+        Assert.HasCount(identities.Length, diagnostics);
+        foreach (string identity in identities)
+        {
+            Diagnostic error = Assert.ContainsSingle(diagnostics.Where(item => item.Id == identity));
+            Assert.AreEqual(DiagnosticSeverity.Error, error.Severity);
+            Assert.IsTrue(error.Location.IsInSource);
+        }
+
+        Assert.Contains(error => error.GetMessage(CultureInfo.InvariantCulture).Contains(reason, StringComparison.Ordinal), diagnostics);
+        Assert.IsNull(compilation.GetTypeByMetadataName("Ankus.Generated.ExtensionDispatchers"));
+        Assert.IsEmpty(compilation.Assembly.GetAttributes().Where(static attribute =>
+            attribute.AttributeClass?.ToDisplayString() == "System.Reflection.AssemblyMetadataAttribute"));
+        Assert.IsEmpty(compilation.GetDiagnostics(context.CancellationToken).Where(static error => error.Severity == DiagnosticSeverity.Error));
     }
 
     /// <summary>

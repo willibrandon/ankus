@@ -2,6 +2,24 @@
 
 Rule ID | Category | Severity | Notes
 --------|----------|----------|------
+ANKUS378 | Ankus | Error | Empty type-provider SQL block identifier
+ANKUS379 | Ankus | Error | Zero character in type-provider SQL block identifier
+ANKUS380 | Ankus | Error | Invalid Unicode in type-provider SQL block identifier
+ANKUS381 | Ankus | Error | Missing custom SQL type-provider block
+ANKUS382 | Ankus | Error | Unregistered managed type-provider identity
+ANKUS383 | Ankus | Error | Provider claims an external datum mapping
+ANKUS384 | Ankus | Error | Managed type-provider schema override
+ANKUS385 | Ankus | Error | Empty type-provider catalog name
+ANKUS386 | Ankus | Error | Zero character in type-provider catalog name
+ANKUS387 | Ankus | Error | Invalid Unicode in type-provider catalog name
+ANKUS388 | Ankus | Error | Type-provider catalog name exceeds 63 UTF-8 bytes
+ANKUS389 | Ankus | Error | Empty type-provider schema
+ANKUS390 | Ankus | Error | Zero character in type-provider schema
+ANKUS391 | Ankus | Error | Invalid Unicode in type-provider schema
+ANKUS392 | Ankus | Error | Type-provider schema exceeds 63 UTF-8 bytes
+ANKUS393 | Ankus | Error | Duplicate closed managed type-provider identity
+ANKUS394 | Ankus | Error | Duplicate PostgreSQL catalog type-provider identity
+ANKUS395 | Ankus | Error | Owned datum mapping has no valid managed provider
 ANKUS370 | Ankus | Error | empty SQL block identifier
 ANKUS371 | Ankus | Error | zero in SQL block identifier
 ANKUS372 | Ankus | Error | invalid Unicode in SQL block identifier

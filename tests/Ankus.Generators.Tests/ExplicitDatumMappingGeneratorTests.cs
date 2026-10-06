@@ -193,7 +193,7 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.Contains("RETURNS \"narrow_key\"", sql);
         Assert.Contains("RETURNS \"wide_key\"", sql);
         AssertDatumMappingError(source.Replace("[assembly: Ankus.PgSqlTypeProvider(\"wide\", typeof(Box<long>))]", string.Empty, StringComparison.Ordinal),
-            "ANKUS005", "requires a PgSqlTypeProvider");
+            "ANKUS395", "requires a PgSqlTypeProvider");
     }
 
     /// <summary>

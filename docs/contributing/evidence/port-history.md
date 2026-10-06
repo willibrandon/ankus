@@ -28333,3 +28333,122 @@ The user's unrelated ignore-file changes are preserved and excluded from the
 milestone. The completed owned Linux temporary root has **389** empty temporary
 directories removed after exact archive verification; source and evidence are
 retained.
+
+The function-provider milestone is committed/pushed as **97842d3**. Fresh checks
+immediately before commit and push record successful primary **37472689738** and
+docs **37472689525**, with Intel **37460600236** still running. Its new primary
+**37480623539** has passed all runtime jobs; quality and all three complete
+platform suites are running. Docs **37480623554** passes. These live tests supply
+no final outcome yet.
+
+The type-provider macOS generator evidence archive contains **1,862** exact
+source/evidence files and **7,290,618** compressed bytes, SHA-256
+`c453b95c77f848b10b536c6b5d17b8474b67eb4d4dbeae849b71ffb1008e6237`.
+Every byte verifies. Independent readers verify all **46** precise type-provider
+cases plus the **45** function-provider, **66** SQL, **51** identity, **158**
+callback and **54** prefix cases in the actual **4,455**-case generator report.
+Its separate Linux native run has completed all **4,455** generator cases in
+**2m06.551s**; integration is still running. No source is promoted on that partial
+result. Private validation remains separate from the busy primary CI machines.
+
+## Review-status audit and earlier-member cache investigation — 2026-10-06
+
+The review is not fully resolved. The complete requirement inventory remains in scope; diagnostics and semantic code fixes, source-case mapping, remaining representative samples and API/CLI contracts, supported platform/version combinations, servicing and release gates still require acceptance. The full-scope engineering estimate remains about 90%, not a measured parity score.
+
+Primary CI 37480623539 now passes quality and all three runtime preparations. Its three complete platform suites remain in progress; docs 37480623554 passes. Intel refresh 37460600236 remains in progress with runtime preparation passed. No pending outcome is counted as acceptance.
+
+The remaining earlier-member cache defect is confirmed in source: diagnostic coordinates retain an ordinal among every declaration, so inserting an unrelated helper, nested type or field changes later composition inputs. A separate stable-header index and thirteen targeted regression executions are drafted but not compiled or executed. They retain current physical/mapped provenance and exact diagnostic navigation, and require actual cache decisions, compiled consumers and preserved installation/native semantics. No caching correction is promoted while the independent type-provider complete native suite is running.
+
+## Complete type-provider diagnostic acceptance — 2026-10-06
+
+The corrected ordinary-source composition passes plain, unsharded `dotnet test`
+against real PostgreSQL **18.6** on Linux x64 with runtime **10.0.12-ankus.4**.
+All six actual reports independently verify **13,411** total, **13,363** passed,
+**48** platform skips and zero failures. Test duration is **42m39.033s**;
+command duration is **43m35.2440682s**. Generator acceptance has **4,455**
+executions; integration retains its complete **5,019**-case corpus.
+
+The provider correction replaces independent type-provider failures with
+**ANKUS378–395**, pointing to the exact block ID, catalog name, schema or managed
+selector. It preserves registered closed identity, external/extension ownership,
+duplicate claims, exact Unicode and quoted names, relocation and generated
+behavior. Every new rule has a public help link. The actual **46**-case corpus
+contains the unchanged baseline's **38** failures and **8** valid controls;
+all corrected executions pass. Current-source navigation and repaired output are
+verified. Existing mapping/operator/SQL tests retain their original behavior
+with the precise expected identities.
+
+All **1,855** ordinary source inputs verify before and after execution. The
+native recovery, datetime, type-provider, function-provider, SQL, module identity,
+callback and prefix partitions independently verify from the actual reports.
+The exact evidence archive contains **1,872** files and **9,258,271** compressed
+bytes, SHA-256
+`dac758cb9a85fb7720af509ecb315964eedf9f968ad27b338a056fc58ef1ca6e`.
+Every archived byte matches its executed original. Sixteen changed/new files are
+promoted only after verifying every current main preimage and preserving the
+unrelated ignore-file change and orthogonal documentation/test-isolation edits.
+
+Final authoring Release passes with zero warnings/errors in **1m37.95s**.
+API freshness verifies **244** pages and **2,791** members. Site build passes
+**295** pages in **3.61s**; site check has zero errors, warnings and hints.
+LF checkout attributes for C# and SQL are verified through Git's actual clean
+filter. The intentional durable-commit PANIC test is now explicitly isolated;
+its deadlines, fsync and durability assertions are unchanged. PostgreSQL-version
+and outside-project connection documentation now states the implemented selection
+rules, including unsupported Docker full-version and `all` environment values.
+
+Primary **37480623539** and docs **37480623554**, source **97842d3**, now pass
+completely. All eighteen actual reports independently verify **13,365** total
+per platform: Linux x64/PostgreSQL 18 has **13,317** passed / **48** skips in
+**40m24s**; macOS ARM64/PostgreSQL 18 has **13,305** / **60** in **29m33s**;
+Windows x64/PostgreSQL 17 has **13,337** / **28** in **39m27s**. All required
+native recovery, datetime, SQL, function-provider, callback, prefix and identity
+partitions verify on each platform. No primary job times out. Intel refresh
+**37460600236** has passed runtime preparation and remains in progress; no
+platform outcome is inferred from that pending run.
+
+## pgrx 0.19.3 full-release refresh plan — 2026-10-06
+
+The local read-only reference is the user's existing pgrx clone at exact release
+**fc91c63ebad11784647b50ee7e265c1fd9c9924f**. Its current `develop` and release
+tag agree. The complete eleven-commit delta is now explicitly reconciled in the
+[required refresh gates](parity-requirements.md#pgrx-0193-release-delta-and-refresh-gates),
+covering headers/maintenance, PG19 beta 4, every CLI forwarding/prefix change,
+lazy allocations, shared-memory lookup, reporting interrupts, varlena safety,
+contribution guidance, CLI docs and release metadata. Matching inputs are not
+claimed as completed safety or API acceptance.
+
+All seven checked-in header manifests match release bytes exactly, with **481,
+490, 497, 501, 508, 524 and 535** direct includes. Actual catalog `--check` passes
+PostgreSQL **13–19**, including the expanded native inventories. OID freshness
+passes **349** native names and **339** numeric members. The source-derived header
+maintenance command must discover the selected server's headers with upstream's
+deliberate exclusions and version/platform guards; it remains required, implemented
+as .NET automation. Newly exposed contracts, CLI/source-case reconciliation,
+allocation measurement and complete current version/platform acceptance stay open.
+
+## Seventeen-commit review: reproduced corrections and rejected native draft
+
+The new review's conditional-ref parameter merge crash, unknown array-index miss
+and stale prefix/postfix increment values are reproduced in **14** actual cases:
+the unchanged baseline fails **12** and preserves **2** controls. The private
+correction passes all **14** and the complete **4,469**-case generator suite.
+Exact error identities, severities, argument locations and absence of AD0001 are
+checked alongside safe reaching-value controls. This draft is not promoted.
+Safe quoted-loop widening, layout-budget overflow, quoted joins and a shared
+analysis step budget still require proper soundness and execution evidence.
+
+Real executor-cleanup tests cover iterator/aggregate paths and FATAL/PANIC
+severities independently. The unchanged baseline fails both FATAL cases because
+the server reports PANIC; both deliberate PANIC controls pass. The first private
+correction preserves FATAL but fails both strengthened tests by recursively
+entering abort and logging `AbortTransaction while in ABORT state`; deliberate
+PANIC controls still pass. That draft is rejected and unpromoted. Terminal
+reports must occur after the abort boundary, and reporter allocation failures,
+original PostgreSQL error state and fallible post-commit reporting remain required
+correctness fixes. No focused generator run proves those native guarantees.
+
+Benchmark sampling bias, pattern-designation code fixes, shared-base aggregate
+diagnostics, the remaining provider/graph diagnostics, template names, source-case
+mapping, samples and complete supported platform/version evidence are also still
+required. No review or full-port completion is claimed.

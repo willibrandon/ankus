@@ -217,7 +217,7 @@ public sealed partial class PgFunctionGeneratorTests
             {
                 [PgFunction] public static int ReadLong(Box<long> value) => value.Word;
             }
-            """, "ANKUS005", "requires a PgSqlTypeProvider");
+            """, "ANKUS395", "requires a PgSqlTypeProvider");
 
     /// <summary>
     /// A finite selected generic derive emits only closed read-only helpers and their native input route.
