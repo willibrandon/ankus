@@ -51,6 +51,40 @@ committed query result from another PostgreSQL process. The
 [database observer sample](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.BackgroundWorkers)
 also publishes shared counters for SQL sessions.
 
+## Declaration diagnostics
+
+A worker entry must be an accessible, implemented static method that completes
+synchronously and returns `void`. Its single by-value `nuint` argument preserves
+PostgreSQL's native `Datum` width; `System.UIntPtr` is the same managed type.
+Declare entries in accessible, non-generic types. Local functions, lambdas and
+explicit interface implementations cannot supply the native worker entry.
+
+The generator points at the specific declaration, argument, modifier or attribute
+that must change. Fix that contract; valid workers and unrelated SQL declarations
+continue to generate their own output.
+
+| Diagnostic | Required correction |
+| --- | --- |
+| ANKUS250 | Use an ordinary named method for the entry. |
+| ANKUS251 | Make the entry static. |
+| ANKUS252 | Remove `async`; keep backend work on the worker thread. |
+| ANKUS253 | Remove method type parameters. |
+| ANKUS254–256 | Provide a concrete, non-virtual managed implementation. |
+| ANKUS257 | Return `void`. |
+| ANKUS258 | Declare exactly one argument. |
+| ANKUS259 | Pass the argument by value, without `ref`, `in` or `out`. |
+| ANKUS260 | Use `nuint` or `System.UIntPtr` for the argument. |
+| ANKUS261 | Use public, internal or protected internal accessibility. |
+| ANKUS262 | Implement the partial method. |
+| ANKUS263–265 | Use accessible enclosing types without generic parameters or `file` locality. |
+| ANKUS266–267 | Remove `Conditional` or `UnmanagedCallersOnly` so generated managed code can invoke the entry. |
+| ANKUS268–269 | Put initialization and SQL callback roles on separate methods. |
+| ANKUS270–271 | Remove SQL result or argument metadata; a worker has a native argument and no SQL result. |
+| ANKUS272 | Start the export name with an ASCII letter; use only ASCII letters, digits and underscores. |
+| ANKUS273 | Limit the export to 95 ASCII bytes. |
+| ANKUS274 | Avoid C keywords, PostgreSQL loader symbols, and the `ankus_` or `pg_finfo_` prefixes. |
+| ANKUS275 | Give every worker a distinct method name or explicit `EntryPoint`. |
+
 ## Register during preload
 
 Register a static worker from `[PgModuleLoad]`:

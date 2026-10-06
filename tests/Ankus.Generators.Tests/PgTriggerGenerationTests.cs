@@ -171,65 +171,68 @@ public sealed partial class PgFunctionGeneratorTests
     /// Trigger signature rejection produces one actionable diagnostic while the consumer source remains valid C#.
     /// </summary>
     /// <param name="method">The invalid trigger signature.</param>
+    /// <param name="diagnostic">The independently correctable callback contract.</param>
     [TestMethod]
-    [DataRow("public Ankus.PgHeapTuple? Audit(Ankus.PgTriggerContext context) => null;")]
-    [DataRow("private static Ankus.PgHeapTuple? Audit(Ankus.PgTriggerContext context) => null;")]
-    [DataRow("protected static Ankus.PgHeapTuple? Audit(Ankus.PgTriggerContext context) => null;")]
-    [DataRow("public static Ankus.PgHeapTuple? Audit<T>(Ankus.PgTriggerContext context) => null;")]
-    [DataRow("public static int Audit(Ankus.PgTriggerContext context) => 1;")]
-    [DataRow("public static void Audit(Ankus.PgTriggerContext context) { }")]
-    [DataRow("public static System.Threading.Tasks.Task<Ankus.PgHeapTuple?> Audit(Ankus.PgTriggerContext context) => null!;")]
-    [DataRow("public static async System.Threading.Tasks.Task<Ankus.PgHeapTuple?> Audit(Ankus.PgTriggerContext context) { await System.Threading.Tasks.Task.Yield(); return null; }")]
-    [DataRow("public static System.Collections.Generic.IEnumerable<Ankus.PgHeapTuple?> Audit(Ankus.PgTriggerContext context) => System.Array.Empty<Ankus.PgHeapTuple?>();")]
-    [DataRow("public static Ankus.PgHeapTuple? Audit() => null;")]
-    [DataRow("public static Ankus.PgHeapTuple? Audit(Ankus.PgTriggerContext context, int extra) => null;")]
-    [DataRow("public static Ankus.PgHeapTuple? Audit(Ankus.PgTriggerContext? context) => null;")]
-    [DataRow("public static Ankus.PgHeapTuple? Audit(object context) => null;")]
-    [DataRow("public static Ankus.PgHeapTuple? Audit(ref Ankus.PgTriggerContext context) => null;")]
-    [DataRow("public static Ankus.PgHeapTuple? Audit(in Ankus.PgTriggerContext context) => null;")]
-    [DataRow("public static Ankus.PgHeapTuple? Audit(out Ankus.PgTriggerContext context) { context = null!; return null; }")]
-    [DataRow("public static Ankus.PgHeapTuple? Audit(params Ankus.PgTriggerContext[] context) => null;")]
-    [DataRow("public static Ankus.PgHeapTuple? Audit(Ankus.PgTriggerContext context = null!) => null;")]
-    [DataRow("public static Ankus.PgHeapTuple? Audit([System.Runtime.InteropServices.Optional] Ankus.PgTriggerContext context) => null;")]
-    [DataRow("public static ref Ankus.PgHeapTuple? Audit(Ankus.PgTriggerContext context) => throw new System.InvalidOperationException();")]
-    [DataRow("public static ref readonly Ankus.PgHeapTuple? Audit(Ankus.PgTriggerContext context) => throw new System.InvalidOperationException();")]
-    public void InvalidTriggerSignaturesAreDiagnosed(string method)
-        => AssertInvalidTrigger("public class Functions { [Ankus.PgTrigger] " + method + " }", "ANKUS010");
+    [DataRow("public Ankus.PgHeapTuple? Audit(Ankus.PgTriggerContext context) => null;", "ANKUS208")]
+    [DataRow("private static Ankus.PgHeapTuple? Audit(Ankus.PgTriggerContext context) => null;", "ANKUS213")]
+    [DataRow("protected static Ankus.PgHeapTuple? Audit(Ankus.PgTriggerContext context) => null;", "ANKUS213")]
+    [DataRow("public static Ankus.PgHeapTuple? Audit<T>(Ankus.PgTriggerContext context) => null;", "ANKUS210")]
+    [DataRow("public static int Audit(Ankus.PgTriggerContext context) => 1;", "ANKUS214")]
+    [DataRow("public static void Audit(Ankus.PgTriggerContext context) { }", "ANKUS214")]
+    [DataRow("public static System.Threading.Tasks.Task<Ankus.PgHeapTuple?> Audit(Ankus.PgTriggerContext context) => null!;", "ANKUS228")]
+    [DataRow("public static async System.Threading.Tasks.Task<Ankus.PgHeapTuple?> Audit(Ankus.PgTriggerContext context) { await System.Threading.Tasks.Task.Yield(); return null; }", "ANKUS209")]
+    [DataRow("public static System.Collections.Generic.IEnumerable<Ankus.PgHeapTuple?> Audit(Ankus.PgTriggerContext context) => System.Array.Empty<Ankus.PgHeapTuple?>();", "ANKUS214")]
+    [DataRow("public static Ankus.PgHeapTuple? Audit() => null;", "ANKUS215")]
+    [DataRow("public static Ankus.PgHeapTuple? Audit(Ankus.PgTriggerContext context, int extra) => null;", "ANKUS215")]
+    [DataRow("public static Ankus.PgHeapTuple? Audit(Ankus.PgTriggerContext? context) => null;", "ANKUS219")]
+    [DataRow("public static Ankus.PgHeapTuple? Audit(object context) => null;", "ANKUS220")]
+    [DataRow("public static Ankus.PgHeapTuple? Audit(ref Ankus.PgTriggerContext context) => null;", "ANKUS216")]
+    [DataRow("public static Ankus.PgHeapTuple? Audit(in Ankus.PgTriggerContext context) => null;", "ANKUS216")]
+    [DataRow("public static Ankus.PgHeapTuple? Audit(out Ankus.PgTriggerContext context) { context = null!; return null; }", "ANKUS216")]
+    [DataRow("public static Ankus.PgHeapTuple? Audit(params Ankus.PgTriggerContext[] context) => null;", "ANKUS217")]
+    [DataRow("public static Ankus.PgHeapTuple? Audit(Ankus.PgTriggerContext context = null!) => null;", "ANKUS218")]
+    [DataRow("public static Ankus.PgHeapTuple? Audit([System.Runtime.InteropServices.Optional] Ankus.PgTriggerContext context) => null;", "ANKUS218")]
+    [DataRow("public static ref Ankus.PgHeapTuple? Audit(Ankus.PgTriggerContext context) => throw new System.InvalidOperationException();", "ANKUS212")]
+    [DataRow("public static ref readonly Ankus.PgHeapTuple? Audit(Ankus.PgTriggerContext context) => throw new System.InvalidOperationException();", "ANKUS212")]
+    public void InvalidTriggerSignaturesAreDiagnosed(string method, string diagnostic)
+        => AssertInvalidTrigger("public class Functions { [Ankus.PgTrigger] " + method + " }", diagnostic);
 
     /// <summary>
     /// Generic, inaccessible and abstract containers cannot supply a concrete trigger callback.
     /// </summary>
     /// <param name="source">The complete invalid container.</param>
+    /// <param name="diagnostic">The independently correctable callback contract.</param>
     [TestMethod]
-    [DataRow("public class Functions<T> { [Ankus.PgTrigger] public static Ankus.PgHeapTuple? Audit(Ankus.PgTriggerContext context) => null; }")]
-    [DataRow("public class Outer<T> { public class Inner { [Ankus.PgTrigger] public static Ankus.PgHeapTuple? Audit(Ankus.PgTriggerContext context) => null; } }")]
-    [DataRow("file class Functions { [Ankus.PgTrigger] public static Ankus.PgHeapTuple? Audit(Ankus.PgTriggerContext context) => null; }")]
-    [DataRow("public class Outer { private class Inner { [Ankus.PgTrigger] public static Ankus.PgHeapTuple? Audit(Ankus.PgTriggerContext context) => null; } }")]
-    [DataRow("public interface Functions { [Ankus.PgTrigger] static abstract Ankus.PgHeapTuple? Audit(Ankus.PgTriggerContext context); }")]
-    public void InvalidTriggerContainersAreDiagnosed(string source) => AssertInvalidTrigger(source, "ANKUS010");
+    [DataRow("public class Functions<T> { [Ankus.PgTrigger] public static Ankus.PgHeapTuple? Audit(Ankus.PgTriggerContext context) => null; }", "ANKUS221")]
+    [DataRow("public class Outer<T> { public class Inner { [Ankus.PgTrigger] public static Ankus.PgHeapTuple? Audit(Ankus.PgTriggerContext context) => null; } }", "ANKUS221")]
+    [DataRow("file class Functions { [Ankus.PgTrigger] public static Ankus.PgHeapTuple? Audit(Ankus.PgTriggerContext context) => null; }", "ANKUS222")]
+    [DataRow("public class Outer { private class Inner { [Ankus.PgTrigger] public static Ankus.PgHeapTuple? Audit(Ankus.PgTriggerContext context) => null; } }", "ANKUS223")]
+    [DataRow("public interface Functions { [Ankus.PgTrigger] static abstract Ankus.PgHeapTuple? Audit(Ankus.PgTriggerContext context); }", "ANKUS211")]
+    public void InvalidTriggerContainersAreDiagnosed(string source, string diagnostic) => AssertInvalidTrigger(source, diagnostic);
 
     /// <summary>
     /// Metadata for SQL operands, columns, parameter defaults and set execution is rejected on trigger callbacks.
     /// </summary>
     /// <param name="attribute">The conflicting method or return attribute.</param>
     /// <param name="parameterAttribute">The conflicting context parameter attribute.</param>
+    /// <param name="diagnostic">The independently correctable callback contract.</param>
     [TestMethod]
-    [DataRow("[Ankus.PgOperator(\"+\")]", "")]
-    [DataRow("[Ankus.PgCast]", "")]
-    [DataRow("[return: Ankus.PgCompositeType(\"dog\")]", "")]
-    [DataRow("[return: Ankus.PgNumericPrecision(5, 2)]", "")]
-    [DataRow("[return: Ankus.PgColumnNames(\"row\")]", "")]
-    [DataRow("", "[Ankus.PgCompositeType(\"dog\")]")]
-    [DataRow("", "[Ankus.PgNumericPrecision(5, 2)]")]
-    [DataRow("", "[Ankus.PgParameter(Name = \"arg\")]")]
-    [DataRow("", "[Ankus.PgParameter(Default = \"NULL\")]")]
-    [DataRow("[Ankus.PgFunction(Rows = 1000)]", "")]
-    [DataRow("[Ankus.PgFunction(Rows = 0)]", "")]
-    [DataRow("[Ankus.PgFunction(SetMode = Ankus.PgSetMode.Auto)]", "")]
-    [DataRow("[Ankus.PgFunction(SetMode = Ankus.PgSetMode.Materialize)]", "")]
-    public void ConflictingTriggerMetadataIsDiagnosed(string attribute, string parameterAttribute)
+    [DataRow("[Ankus.PgOperator(\"+\")]", "", "ANKUS224")]
+    [DataRow("[Ankus.PgCast]", "", "ANKUS224")]
+    [DataRow("[return: Ankus.PgCompositeType(\"dog\")]", "", "ANKUS225")]
+    [DataRow("[return: Ankus.PgNumericPrecision(5, 2)]", "", "ANKUS225")]
+    [DataRow("[return: Ankus.PgColumnNames(\"row\")]", "", "ANKUS225")]
+    [DataRow("", "[Ankus.PgCompositeType(\"dog\")]", "ANKUS225")]
+    [DataRow("", "[Ankus.PgNumericPrecision(5, 2)]", "ANKUS225")]
+    [DataRow("", "[Ankus.PgParameter(Name = \"arg\")]", "ANKUS225")]
+    [DataRow("", "[Ankus.PgParameter(Default = \"NULL\")]", "ANKUS225")]
+    [DataRow("[Ankus.PgFunction(Rows = 1000)]", "", "ANKUS226")]
+    [DataRow("[Ankus.PgFunction(Rows = 0)]", "", "ANKUS226")]
+    [DataRow("[Ankus.PgFunction(SetMode = Ankus.PgSetMode.Auto)]", "", "ANKUS227")]
+    [DataRow("[Ankus.PgFunction(SetMode = Ankus.PgSetMode.Materialize)]", "", "ANKUS227")]
+    public void ConflictingTriggerMetadataIsDiagnosed(string attribute, string parameterAttribute, string diagnostic)
         => AssertInvalidTrigger("public static class Functions { [Ankus.PgTrigger] " + attribute +
-            " public static Ankus.PgHeapTuple? Audit(" + parameterAttribute + " Ankus.PgTriggerContext context) => null; }", "ANKUS010");
+            " public static Ankus.PgHeapTuple? Audit(" + parameterAttribute + " Ankus.PgTriggerContext context) => null; }", diagnostic);
 
     /// <summary>
     /// Shared function option validation still applies without attempting to convert the trigger context into a SQL type.

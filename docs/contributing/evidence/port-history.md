@@ -26954,3 +26954,320 @@ repairs, contributor guidance and callback author/API documentation. Expected
 complete scope is 12,985 cases; those planned counts are not native acceptance.
 Main and the live 1,813-input Windows repair remain unchanged. Complete native,
 Release, API freshness, site and replacement CI checks remain required.
+
+### Conditional entry calls and complete packaging inputs — 2026-10-05
+
+The existing Linux validator initially lacked an unversioned supported Clang.
+Selecting its installed Clang 19 then failed the documented Clang 20-or-later
+requirement. These are rejected prerequisite attempts, with no test acceptance.
+Clang/libclang **22.1.8** from the configured distribution repository passes the
+frontend check and actual PostgreSQL 18 binding collection: 1,481 shared native
+declarations, 10,899 available inventory entries and 499 measured native values.
+
+The complete **1,826**-input composition then rejects its packaging fixture:
+`Directory.Build.props` includes the root `PACKAGE.md`, which was absent from the
+frozen archive. All six actual reports are retained and independently checked:
+**12,985** total, **12,398** passed, **48** platform skips and **539** failures.
+Every failed row carries `ToolCommandTests.InitializeAsync`, `NU5019` and the
+missing package README. The attempted run records **7m50.757s** test duration and
+**9m15.901s** command duration. It is rejected, regardless of its other passing
+reports. The source manifest matches both before and after execution.
+
+The immutable child preserves every parent source byte and adds `PACKAGE.md` as
+an explicit input, totaling **1,827** inputs. The same runtime-pack operation
+now succeeds. Complete Linux x64/PostgreSQL **18.6** acceptance passes:
+**12,985** total, **12,937** passed, **48** platform skips and zero failures.
+Actual test duration is **43m29.816s**; command duration is **44m16.086s**.
+All six actual reports, the trigger/initializer/worker/conditional-handler
+partitions and sixty-seven native recovery cases independently verify. The
+source manifest matches before and after execution. An immutable source/report
+archive retains **1,839** files (**9,023,949** bytes); independent rereading verifies
+every archived byte against its accepted original. No production source or
+runtime patch was changed to bypass the rejected packaging attempt.
+
+A controlled managed probe also executes the actual generated SQL, event and
+backend-test dispatchers with their respective six/five/six-argument ABIs. For
+each family, ordinary and globally enabled conditional methods return status
+zero and perform 73 recorded effects; an undefined conditional method returns
+the same success status with zero effects. All nine executions verify against
+the current composed generator/runtime. These are managed ABI observations,
+not Native AOT/PostgreSQL acceptance.
+
+The private shared `ANKUS277` validator rejects `Conditional` at its authored
+attribute, including metadata on either partial declaration. SQL signature,
+event callback and backend-test validators use that boundary. Public execution
+guidance and thirty cases cover eighteen invalid combinations, six compiled-call
+controls and six metadata/cache/repair cases. The unchanged validators fail all
+twenty-four rejection/edit cases while retaining the six compiled-call controls.
+The correction passes the complete **4,122**-case generator composition in
+**54.594s** test duration (**55.307s** command duration); actual report counts,
+outcomes and execution identities independently verify. Complete native
+acceptance of the frozen **1,829**-input child, Release, API freshness and site
+checks remain required before promotion. The accepted packaging parent was
+archived and independently verified before staging that child.
+
+The first **1,829**-input native child fails before test execution: its authored
+test helper declares a tuple that `IDE0042` requires deconstructing. The private
+`.draft` physical file had not matched the repository's `*.cs` style section.
+The actual-source build correctly rejects it in **1m01.890s**; source manifests
+match before and after that rejected attempt. The helper now deconstructs its
+tracked emission and reason. A separate immutable child preserves the rejection
+and reruns complete acceptance with the enforced severity unchanged.
+
+### Crash-isolation replacement CI and allocation investigation — 2026-10-05
+
+[CI 37410596204](https://github.com/willibrandon/ankus/actions/runs/37410596204),
+source **b2fe3e7**, passes quality and all three runtime jobs. Windows x64/PostgreSQL
+17 completes **12,799** cases: **12,771** passed, **28** platform skips and no
+failures, in **37m11s** job duration. Linux x64/PostgreSQL 18 completes **12,799**
+cases: **12,751** passed, **48** platform skips and no failures, in **40m11s**.
+All twelve actual reports independently verify counters, outcomes and distinct
+execution identities. All twenty-six Windows terminal cases pass with no
+overlapping integration execution; the sixty-seven native recovery partitions
+also pass. The previously reported Windows recovery timeout is repaired.
+
+The same run rejects macOS ARM64 after **30m43s**. Its generator module reports
+one failure, `OwnerIndexWarmReadsDoNotRescanUnrelatedTypes`: the large-image
+measurement allocates **143,408** bytes against the unchanged **126,976**-byte
+upper bound (small image **94,208**, allowance **32,768**). Build, Hello and
+Integration reports exist; PgConfig and Runtime reports do not, because the
+sequential unit-module chain stopped at the generator failure. Integration
+passes **4,929** cases with **27** platform skips. This is rejected platform
+acceptance, even though the native integration module passed.
+
+The exact failed source is under investigation on macOS ARM64. Complete original
+generator runs pass all **3,906** cases, both with four workers and with normal
+machine concurrency. A private measurement isolates reader calls from assertions
+without changing the warmup, read count, exact string checks or allocation bound.
+Its complete **3,906**-case run passes; original and corrected observations both
+measure **94,208** bytes for each image. This does not establish assertions as
+the cause of the CI variance. A deliberately uncached reader is rejected by the
+corrected test: **483,328** bytes for the small image and **41,344,000** for the
+large image. Complete **3,906**-case phase observations pass with normal machine
+concurrency: token and assertion phases allocate zero bytes; each reader phase
+allocates **94,208**. The assertion-contamination hypothesis is therefore not
+supported and that private correction is not promoted.
+
+The first complete-workload reproduction used consumer fixture directories
+inside the repository's build-policy hierarchy. Two native build fixtures
+therefore inherited repository analyzer settings and failed; the run is rejected
+and its owned processes were canceled. The corrected reproduction places owned
+consumer fixtures outside that hierarchy and is running the complete PostgreSQL
+18.6 suite. That live workload is not accepted evidence yet. The allocation bound
+and production cache reader remain unchanged; the CI root cause is still open.
+
+A private Linux x64/CoreCLR control applies concurrent Roslyn metadata pressure
+while recording the actual published owner-table identity. The first control
+uses warmed images and completes 45 unique-name pressure compilations; the
+second creates forty fresh small/large image pairs and completes 373 pressure
+compilations. Both actual focused reports pass and observe zero allocation
+difference, with the published table retained across subsequent reads. The fresh
+control records **7.131s** test duration (**7.846s** command duration); its actual
+execution identity and outcome independently verify. These controls do not
+reproduce the macOS failure or establish its root cause. Production sources,
+test thresholds and analyzer settings remain unchanged. Completed local pressure
+build outputs are removed while the actual reports and observations are retained.
+
+### Conditional-entry native acceptance and isolated owner lookup — 2026-10-05
+
+The style-corrected **1,829**-input conditional-entry child completes the full
+Linux x64/PostgreSQL **18.6** suite with runtime **ankus.4**: **13,015** total,
+**12,967** passed, **48** platform skips and zero failures. Test duration is
+**43m28.875s**; command duration is **44m07.173s**. All six actual module reports,
+the trigger/initializer/worker/conditional-callback/conditional-entry partitions
+and sixty-seven native recovery cases independently verify. Frozen source hashes
+match before and after execution. Release, API freshness and site gates remain
+required before promoting the declaration composition.
+
+The macOS ARM64/PostgreSQL **18.6** allocation workload reproduction completes
+**12,799** cases: **12,739** passed, **60** platform skips and no failures.
+Test duration is **28m37.771s**; command duration is **29m33.377s**. All six actual
+reports and sixty-seven native recovery cases independently verify. All **2,092**
+source inputs match after execution; the owned consumer cache is removed.
+The retained **2,100**-file source/driver/report archive (**9,965,362** bytes)
+independently matches every original byte. This baseline reproduction does not
+repair or reproduce the failed CI allocation measurement.
+
+The exact generator binary retained by failed CI **37410596204** passes three
+complete **3,906**-case repetitions on macOS ARM64/CoreCLR **10.0.12**, with twelve
+MSTest workers. Actual test durations are **44.549s**, **44.545s** and **40.641s**.
+All actual reports independently verify the originally failed case and every
+execution identity. All **287** original/copied binary inputs match after the
+runs; their **30,110,274**-byte archive independently matches the copied inputs.
+Both archives and all reports are retained locally before the completed macOS
+binary copies and scratch report directories are removed.
+
+A private reader-segment observation completes all **3,906** Linux x64 generator
+cases. For each image, the measured **94,208** bytes include **49,664** bytes
+inside constructor matching, **23,040** inside attribute decoding and **6,144**
+inside owner lookup and identity preparation. Cancellation and assertions again
+allocate zero. A separate forty-image-pair control with compiler and bounded
+generation-zero collection pressure preserves the actual published table and
+observes zero small/large allocation difference. These observations still do not
+attribute the exact **49,200**-byte CI variance.
+
+The private correction extracts the existing cached type lookup into an internal
+boundary without changing its image keys, index algorithm, synchronization or
+ownership. The allocation test warms that boundary through the real attribute
+decoder, then measures sixty-four lookups. Independent metadata enumeration
+provides the expected handle; every returned handle and all sixty-four exact
+attribute strings are verified outside the measured interval. The original
+**32,768**-byte allowance and thirty-two warmup reads remain unchanged.
+
+All eight owner-index contracts pass; both lookup measurements allocate zero.
+The complete corrected generator suite passes **3,906** cases in **56.063s**.
+The deliberate rescan mutation fails: small **389,120** bytes, large **41,249,816**.
+A separate decoder-cache-bypass mutation also fails: small **6,200**, large
+**644,584**. Thus the narrowed measurement still catches both a broken index and
+a decoder that does not use its shared cache. Complete corrected macOS native
+acceptance is running. Production sources remain unchanged; promotion and
+replacement CI acceptance are still required.
+
+The completed conditional-entry source/report archive retains **1,840** files
+(**9,032,363** bytes); independent rereading verifies every original byte and a
+copy is retained locally. Its subsequent Release solution build succeeds with
+zero warnings and errors in **1m23.740s**. API freshness and site checks are still
+required. The existing Linux validator has Node **20.19.2** and Corepack, but no
+standalone pnpm; documentation prerequisites must match the repository before
+those gates run. No unrelated source or user changes are included in this work.
+
+### Declaration documentation gates and owner-lookup working tree — 2026-10-05
+
+The accepted **1,829**-input Linux declaration candidate passes API freshness,
+`pnpm build` and `pnpm check`. The site builds **295** pages; Astro reports zero
+errors, warnings and hints. The validation machine's Node 20 did not match CI's
+Node 24 toolchain. Official Node **24.21.0** is installed into the owned validation
+artifacts after verifying its published SHA-256 digest; pnpm remains the repository's
+pinned **10.28.0**. The first frozen restore rejected the native-test bundle's
+missing lockfile. A separate, hashed companion supplies **267** tracked
+documentation inputs without overwriting any accepted native source; frozen
+restore and all documentation gates then pass. No dependency policy is relaxed.
+
+The owner-lookup correction is applied to its two production/test files with
+byte equality against the tested private candidate. Local Linux validation runs
+all **3,906** generator cases successfully: **55.987s** tests, **56.736s** command,
+zero failures and skips. Its Release solution build passes with zero warnings
+and errors in **1m26.470s**. API freshness, site build (**295** pages) and site
+diagnostics pass. Actual reports remain retained; full corrected macOS native
+acceptance is still running and is not counted as complete evidence.
+
+The correction preserves every existing cache key, synchronization and ownership
+contract. It measures the shared cache operation after warming it through the
+real decoder, excluding constructor matching, independent enumeration and test
+assertions. The deliberate rescan and decoder-bypass controls both fail the
+unchanged allocation bound. This resolves the measurement's conflated operations;
+it does not attribute the precise original CI variance or claim replacement CI
+acceptance. Original failed CI and unsuccessful reproduction controls remain
+recorded. User changes and ignored review material are excluded from promotion.
+
+The declaration milestone is promoted as **38** changed/new files, preserving
+the separate two-file cache correction. All **1,827** remaining accepted inputs
+match their archived bytes, and every previous main input is checked before
+promotion. The combined working tree passes all **4,122** generator cases in
+**58.166s** (**58.941s** command). Actual callback, initializer, worker,
+conditional-callback and conditional-entry partitions independently verify,
+including the originally failing owner-index test. Release passes with zero
+warnings/errors in **1m19.610s**; API freshness and both site gates also pass.
+The native-callback API page is regenerated from source XML comments. Full
+corrected macOS acceptance is still running; no fresh primary CI outcome is
+claimed for this working-tree composition.
+
+### Rejected owner-lookup full run: private overlay isolation — 2026-10-05
+
+The complete corrected macOS ARM64/PostgreSQL **18.6** run finishes **12,799**
+cases with **12,737** passed, **60** platform skips and **2** failures in
+**28m49.370s** (**29m46.574s** command). Both failures are the two
+`FreshEditorLoadPreparesDependenciesAndCompilerOptions` rows. Their standalone
+editor-fixture projects intentionally use the same names as repository tools.
+The private validation override matched only project names, so it injected the
+real generator source into their minimal stand-in project, which does not use
+the repository compiler settings or dependencies. This is a validation harness
+error; the completed full run is rejected rather than accepted by combining
+reports from different invocations.
+
+All **3,906** generator cases pass, including the owner-cache measurement.
+The real native integration module passes **4,929** cases with **27** platform
+skips; all sixty-seven native recovery cases independently verify. Every actual
+report and the exact two failed identities independently verify. All **2,093**
+original inputs remain unchanged. The retained **2,101**-file archive
+(**9,969,419** bytes) independently matches every original byte before the overlay
+is changed.
+
+The private override now matches the two exact repository project paths, so
+same-named stand-in projects retain their own source and compiler contracts.
+Production sources, test assertions and analysis standards are unchanged by this
+harness correction. Both affected fixtures and fresh full native acceptance
+remain required; no commit or replacement CI acceptance is claimed yet.
+
+Both affected editor fixtures pass with the scoped override: **2** passed, zero
+failures/skips, **3.890s** tests (**4.169s** command). Their actual execution
+identities independently verify. The initial focused command omitted dotnet
+from `PATH`; that failed prerequisite attempt is retained and not counted as
+acceptance. The corrected command uses the full workload's toolchain environment.
+The rejected run's marked consumer cache is deleted after checking that no live
+process uses it. A fresh complete macOS invocation now uses a new marked cache
+and result directory with the scoped override. Its outcome remains pending.
+
+### Precise enum declaration contracts: managed acceptance — 2026-10-05
+
+The enum validator previously combined unrelated declaration, container, name,
+schema, label and numeric-alias failures in `ANKUS006`. The private correction
+separates thirteen contracts as `ANKUS278`–`ANKUS290` and captures exact authored
+locations in detached models. Composition includes those diagnostic coordinates;
+the first corrected run exposed their missing source-map entries and is rejected.
+Generic-container errors identify the type that actually declares type parameters.
+Invalid attribute targets preserve C#'s own usage error alongside the enum error.
+
+All **38** new cases independently verify their actual execution identities and
+named partitions. The unchanged validator fails **27** diagnostic cases while
+passing **11** valid controls. The corrected complete generator module passes
+all **4,160** cases with zero failures/skips in **57.693s** tests (**58.783s** command).
+The cases verify precise errors and highlights, inherited schema failures,
+UTF-8 lengths below/at/above the limit, sibling output, cached diagnostic moves
+and repair, and valid empty labels/accessibility/default names and schemas.
+Existing source/imported metadata, all eight integer widths, ordering and SQL
+contracts remain enforced; malformed attribute metadata retains `ANKUS206`.
+
+An initial test adaptation fails the culture analyzer and is corrected without
+suppression. A later test incorrectly expects an explicit null optional name to
+be rejected; the established contract uses the default name. The corrected case
+verifies that valid default behavior rather than changing production semantics.
+Earlier failed/rejected reports remain separate from the accepted report.
+
+The frozen child verifies all **1,829** accepted declaration-parent inputs and
+enum preimages before preparing **1,831** exact source inputs. It includes the
+separate cache-measurement correction and author guidance. Complete unsharded
+Linux x64/PostgreSQL **18.6** validation is running in the existing idle validator.
+This managed evidence and source preparation do not establish native acceptance,
+promotion, fresh CI success or full port completion.
+
+### Complete owner-lookup correction acceptance — 2026-10-05
+
+The fresh macOS ARM64/PostgreSQL **18.6** invocation passes the complete unsharded
+suite: **12,799** total, **12,739** passed, **60** platform skips and zero failures
+in **28m50.398s** tests (**29m46.185s** command), using runtime **10.0.12-ankus.4**.
+All six actual reports independently verify, including all **3,906** generator
+cases and the corrected owner-index allocation regression. All sixty-seven
+required native recovery partitions independently verify. The two editor-load
+fixtures rejected by the earlier private overlay also pass in this full run.
+
+All **2,093** frozen source/control inputs remain unchanged after the invocation.
+The **2,101**-file source/report archive (**9,969,002** bytes) matches every
+original file and its retained local copy matches the verified archive digest.
+The run removes its marked consumer cache after successful source verification;
+completed report scratch is removed after the actual evidence is retained.
+
+This accepts the isolated cache-measurement correction on the named full platform
+suite. The separate declaration composition has complete Linux/PostgreSQL **18.6**
+acceptance and combined working-tree generator, Release and documentation gates.
+Fresh primary CI for their combined source remains required. The precise original
+CI allocation variance remains unattributed; no production cache ownership or
+synchronization behavior is changed by the extraction.
+
+Before the combined compiler milestone is committed, prior CI is checked again:
+**37410596204** is complete, with successful quality, all three runtime jobs,
+Windows/17 and Linux/18 suites, and the recorded macOS allocation failure.
+**37410596077** documentation CI passes. No previous run is still active.
+The reported Windows timeout is superseded by the accepted crash-isolation
+replacement; the separate cache-measurement correction has the complete macOS
+acceptance above. Fresh primary CI for the combined source remains required.

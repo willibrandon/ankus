@@ -1,4 +1,6 @@
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Ankus.Generators;
 
@@ -7,10 +9,6 @@ namespace Ankus.Generators;
 /// </summary>
 internal static class InitializeDeclaration
 {
-    private static readonly DiagnosticDescriptor s_invalid = new(
-        "ANKUS013", "Invalid PostgreSQL initialization declaration", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true,
-        helpLinkUri: "https://willibrandon.github.io/ankus/initialization/");
-
     /// <summary>
     /// Identifies initialization callbacks independently of SQL function discovery.
     /// </summary>
@@ -39,7 +37,7 @@ internal static class InitializeDeclaration
     /// <param name="moduleLoad">Whether the conflicting phase is module registration.</param>
     /// <param name="context">The current diagnostic receiver.</param>
     internal static void ReportDuplicate(Location? location, string name, bool moduleLoad, GeneratorDiagnostics context)
-        => context.Report(s_invalid, location, name, $"An assembly can declare only one {(moduleLoad ? "PgModuleLoad" : "PgInitialize")} callback.");
+        => context.Report(InitializerDeclarationDiagnostics.Duplicate, location, name, moduleLoad ? "PgModuleLoad" : "PgInitialize");
 
     /// <summary>
     /// Rejects unsupported signatures, inaccessible containers, and SQL-only metadata.
@@ -48,46 +46,128 @@ internal static class InitializeDeclaration
     {
         if (HasAttribute(method, "Ankus.PgInitializeAttribute") && HasAttribute(method, "Ankus.PgModuleLoadAttribute"))
         {
-            return Invalid("A method cannot declare both PgInitialize and PgModuleLoad phases.");
+            return Report(InitializerDeclarationDiagnostics.Phase, Attribute("Ankus.PgModuleLoadAttribute"));
         }
 
-        if (method.MethodKind != MethodKind.Ordinary || !method.IsStatic || method.IsAsync || method.PartialImplementationPart?.IsAsync == true ||
-            method.IsGenericMethod || method.IsAbstract || method.IsVirtual || method.IsExtern || !method.ReturnsVoid || method.Parameters.Length != 0 ||
-            method.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal or Accessibility.ProtectedOrInternal) ||
-            method.IsPartialDefinition && method.PartialImplementationPart is null)
+        if (method.MethodKind != MethodKind.Ordinary)
         {
-            return Invalid("Initialization requires an accessible, synchronous, non-generic, parameterless static void method with an implementation.");
+            return Report(InitializerDeclarationDiagnostics.Kind, Attribute("Ankus.PgInitializeAttribute") ?? Attribute("Ankus.PgModuleLoadAttribute"));
+        }
+
+        if (!method.IsStatic)
+        {
+            return Report(InitializerDeclarationDiagnostics.Static, method.Locations.FirstOrDefault());
+        }
+
+        if (method.IsAsync || method.PartialImplementationPart?.IsAsync == true)
+        {
+            return Report(InitializerDeclarationDiagnostics.Async, Modifier(SyntaxKind.AsyncKeyword));
+        }
+
+        if (method.IsGenericMethod)
+        {
+            return Report(InitializerDeclarationDiagnostics.Generic, Syntax()?.TypeParameterList?.GetLocation());
+        }
+
+        if (method.IsAbstract)
+        {
+            return Report(InitializerDeclarationDiagnostics.Abstract, Modifier(SyntaxKind.AbstractKeyword));
+        }
+
+        if (method.IsVirtual)
+        {
+            return Report(InitializerDeclarationDiagnostics.Virtual, Modifier(SyntaxKind.VirtualKeyword));
+        }
+
+        if (method.IsExtern)
+        {
+            return Report(InitializerDeclarationDiagnostics.Extern, Modifier(SyntaxKind.ExternKeyword));
+        }
+
+        if (!method.ReturnsVoid)
+        {
+            return Report(InitializerDeclarationDiagnostics.Result, FunctionDeclarationDiagnostics.Result(method, context.CancellationToken), method.ReturnType.ToDisplayString());
+        }
+
+        if (method.Parameters.Length != 0)
+        {
+            return Report(InitializerDeclarationDiagnostics.Parameters, Syntax()?.ParameterList.GetLocation());
+        }
+
+        if (method.IsPartialDefinition && method.PartialImplementationPart is null)
+        {
+            return Report(InitializerDeclarationDiagnostics.Implementation, method.Locations.FirstOrDefault());
+        }
+
+        if (method.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal or Accessibility.ProtectedOrInternal))
+        {
+            return Report(InitializerDeclarationDiagnostics.Accessibility, Modifier(method.DeclaredAccessibility is Accessibility.Private or
+                Accessibility.ProtectedAndInternal ? SyntaxKind.PrivateKeyword : SyntaxKind.ProtectedKeyword));
         }
 
         for (INamedTypeSymbol? type = method.ContainingType; type is not null; type = type.ContainingType)
         {
-            if (type.IsGenericType || type.IsFileLocal || type.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal or Accessibility.ProtectedOrInternal))
+            if (type.IsGenericType)
             {
-                return Invalid("Initialization callbacks must be declared in accessible, non-generic, non-file-local types.");
+                return Report(InitializerDeclarationDiagnostics.GenericContainer, type.Locations.FirstOrDefault(), type.Name);
+            }
+
+            if (type.IsFileLocal)
+            {
+                return Report(InitializerDeclarationDiagnostics.FileContainer, type.Locations.FirstOrDefault(), type.Name);
+            }
+
+            if (type.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal or Accessibility.ProtectedOrInternal))
+            {
+                return Report(InitializerDeclarationDiagnostics.ContainerAccessibility, type.Locations.FirstOrDefault(), type.Name);
             }
         }
 
-        if (method.GetAttributes().Any(static attribute => attribute.AttributeClass?.ToDisplayString() is
-                "System.Diagnostics.ConditionalAttribute" or "System.Runtime.InteropServices.UnmanagedCallersOnlyAttribute"))
+        if (Attribute("System.Diagnostics.ConditionalAttribute") is Location conditional)
         {
-            return Invalid("Initialization callbacks must be callable unconditionally from managed code and cannot use Conditional or UnmanagedCallersOnly.");
+            return Report(InitializerDeclarationDiagnostics.Conditional, conditional);
         }
 
-        if (method.GetAttributes().Any(static attribute => attribute.AttributeClass?.ToDisplayString() is
-                "Ankus.PgFunctionAttribute" or "Ankus.PgTriggerAttribute" or "Ankus.PgEventTriggerAttribute" or
-                "Ankus.PgOperatorAttribute" or "Ankus.PgCastAttribute") ||
-            method.GetReturnTypeAttributes().Any(static attribute => attribute.AttributeClass?.ToDisplayString() is
-                "Ankus.PgCompositeTypeAttribute" or "Ankus.PgNumericPrecisionAttribute" or "Ankus.PgColumnNamesAttribute"))
+        if (Attribute("System.Runtime.InteropServices.UnmanagedCallersOnlyAttribute") is Location unmanaged)
         {
-            return Invalid("Initialization callbacks cannot declare SQL functions, triggers, operators, casts, or SQL result metadata.");
+            return Report(InitializerDeclarationDiagnostics.UnmanagedOnly, unmanaged);
+        }
+
+        AttributeData? role = method.GetAttributes().FirstOrDefault(static attribute => attribute.AttributeClass?.ToDisplayString() is
+            "Ankus.PgFunctionAttribute" or "Ankus.PgTriggerAttribute" or "Ankus.PgEventTriggerAttribute" or "Ankus.PgOperatorAttribute" or "Ankus.PgCastAttribute");
+        if (role is not null)
+        {
+            return Report(InitializerDeclarationDiagnostics.SqlRole, role.ApplicationSyntaxReference?.GetSyntax(context.CancellationToken).GetLocation(),
+                role.AttributeClass!.Name.Replace("Attribute", string.Empty));
+        }
+
+        AttributeData? result = method.GetReturnTypeAttributes().FirstOrDefault(static attribute => attribute.AttributeClass?.ToDisplayString() is
+            "Ankus.PgCompositeTypeAttribute" or "Ankus.PgNumericPrecisionAttribute" or "Ankus.PgColumnNamesAttribute");
+        if (result is not null)
+        {
+            return Report(InitializerDeclarationDiagnostics.ResultMetadata, result.ApplicationSyntaxReference?.GetSyntax(context.CancellationToken).GetLocation(),
+                result.AttributeClass!.Name.Replace("Attribute", string.Empty));
         }
 
         return true;
 
-        bool Invalid(string reason)
+        bool Report(DiagnosticDescriptor descriptor, Location? location, params string[] details)
         {
-            context.Report(s_invalid, method.Locations.FirstOrDefault(), method.Name, reason);
+            context.Report(descriptor, location ?? method.Locations.FirstOrDefault(), [method.Name, .. details]);
             return false;
+        }
+
+        Location? Attribute(string name) => method.GetAttributes().FirstOrDefault(attribute => attribute.AttributeClass?.ToDisplayString() == name)?
+            .ApplicationSyntaxReference?.GetSyntax(context.CancellationToken).GetLocation();
+
+        MethodDeclarationSyntax? Syntax() => method.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax(context.CancellationToken) as MethodDeclarationSyntax;
+
+        Location? Modifier(SyntaxKind kind)
+        {
+            IMethodSymbol authored = method.PartialImplementationPart ?? method;
+            var syntax = authored.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax(context.CancellationToken) as MethodDeclarationSyntax;
+            SyntaxToken token = syntax?.Modifiers.FirstOrDefault(value => value.IsKind(kind)) ?? default;
+            return token.RawKind != 0 ? token.GetLocation() : method.Locations.FirstOrDefault();
         }
     }
 

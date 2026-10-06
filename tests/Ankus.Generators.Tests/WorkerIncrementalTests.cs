@@ -156,9 +156,9 @@ public sealed partial class PgFunctionGeneratorTests
         driver = driver.RunGeneratorsAndUpdateCompilation(edited, out _, out ImmutableArray<Diagnostic> diagnostics, context.CancellationToken);
         Diagnostic error = Assert.ContainsSingle(diagnostics);
 
-        Assert.AreEqual("ANKUS022", error.Id);
+        Assert.AreEqual("ANKUS260", error.Id);
         Assert.AreSame(current, error.Location.SourceTree);
-        Assert.AreEqual("Run", current.GetText(context.CancellationToken).ToString(error.Location.SourceSpan));
+        Assert.AreEqual("long", current.GetText(context.CancellationToken).ToString(error.Location.SourceSpan));
         Assert.AreEqual(edit == 2 ? "WorkerDefinition.cs" : "Current.cs", error.Location.GetMappedLineSpan().Path);
         Assert.AreEqual(edit switch { 1 => 3, 2 => 100, _ => 1 }, error.Location.GetMappedLineSpan().StartLinePosition.Line);
         Assert.AreEqual(previous.GetMessage(CultureInfo.InvariantCulture), error.GetMessage(CultureInfo.InvariantCulture));
@@ -183,13 +183,13 @@ public sealed partial class PgFunctionGeneratorTests
             .AddSyntaxTrees(CSharpSyntaxTree.ParseText(second, path: "Last.cs", cancellationToken: context.CancellationToken),
                 CSharpSyntaxTree.ParseText("public static class Names { public const string Export = \"Shared\"; }", path: "Names.cs", cancellationToken: context.CancellationToken));
         GeneratorDriver driver = ModuleDriver().RunGeneratorsAndUpdateCompilation(initial, out _, out ImmutableArray<Diagnostic> original, context.CancellationToken);
-        Assert.AreEqual("ANKUS022", Assert.ContainsSingle(original).Id);
+        Assert.AreEqual("ANKUS275", Assert.ContainsSingle(original).Id);
         SyntaxTree current = CSharpSyntaxTree.ParseText("\n\n" + second, path: "Current.cs", cancellationToken: context.CancellationToken);
         CSharpCompilation edited = initial.ReplaceSyntaxTree(initial.SyntaxTrees.ElementAt(1), current);
         driver = driver.RunGeneratorsAndUpdateCompilation(edited, out Compilation conflicted, out ImmutableArray<Diagnostic> diagnostics, context.CancellationToken);
         Diagnostic error = Assert.ContainsSingle(diagnostics);
 
-        Assert.AreEqual("ANKUS022", error.Id);
+        Assert.AreEqual("ANKUS275", error.Id);
         Assert.AreSame(current, error.Location.SourceTree);
         Assert.AreEqual("Last", current.GetText(context.CancellationToken).ToString(error.Location.SourceSpan));
         Assert.AreEqual(3, error.Location.GetLineSpan().StartLinePosition.Line);
@@ -259,8 +259,9 @@ public sealed partial class PgFunctionGeneratorTests
             path: "Implementation.cs", cancellationToken: context.CancellationToken));
         driver = driver.RunGeneratorsAndUpdateCompilation(invalid, out _, out ImmutableArray<Diagnostic> diagnostics, context.CancellationToken);
         Diagnostic error = Assert.ContainsSingle(diagnostics);
-        Assert.AreEqual("ANKUS022", error.Id);
-        Assert.AreSame(invalid.SyntaxTrees.First(), error.Location.SourceTree);
+        Assert.AreEqual("ANKUS252", error.Id);
+        Assert.AreSame(invalid.SyntaxTrees.Last(), error.Location.SourceTree);
+        Assert.AreEqual("async", error.Location.SourceTree!.GetText(context.CancellationToken).ToString(error.Location.SourceSpan));
         Assert.IsNull(Assert.ContainsSingle(driver.GetRunResult().Results).Exception);
 
         driver = RunModule(driver, edited, out Compilation repaired);

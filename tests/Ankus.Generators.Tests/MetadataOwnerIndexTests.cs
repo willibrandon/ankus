@@ -151,7 +151,7 @@ public sealed partial class PgFunctionGeneratorTests
     }
 
     /// <summary>
-    /// Warm exact-reader allocations remain independent of unrelated type-table size.
+    /// Warm owner-index lookups remain independent of unrelated type-table size, with exact decoding checked separately.
     /// </summary>
     [TestMethod]
     public void OwnerIndexWarmReadsDoNotRescanUnrelatedTypes()
@@ -161,11 +161,11 @@ public sealed partial class PgFunctionGeneratorTests
         long smallAllocation = OwnerIndexAllocations(small, smallAttribute);
         long largeAllocation = OwnerIndexAllocations(large, largeAttribute);
         Assert.IsInRange(0L, smallAllocation + 32768, largeAllocation,
-            "64 warm reads must not allocate new names for every unrelated type in the image.");
+            "64 warm owner lookups must not allocate new names for every unrelated type in the image.");
     }
 
     /// <summary>
-    /// Measures only exact warmed reads, excluding compilation, symbol lookup and metadata initialization.
+    /// Measures the shared index independently of constructor decoding and verifies every lookup and exact attribute value.
     /// </summary>
     private long OwnerIndexAllocations(ISymbol owner, AttributeData attribute)
     {
@@ -174,13 +174,31 @@ public sealed partial class PgFunctionGeneratorTests
             Read();
         }
 
+        using ModuleMetadata module = owner.ContainingModule.GetMetadata()!;
+        MetadataReader reader = module.GetMetadataReader();
+        string identity = MetadataTypeName.Create(owner.ContainingType!);
+        TypeDefinitionHandle expected = Assert.ContainsSingle(reader.TypeDefinitions.Where(handle =>
+            reader.GetString(reader.GetTypeDefinition(handle).Name) == "Target" &&
+            reader.GetString(reader.GetTypeDefinition(handle).Namespace) == "Imported"));
+        CancellationToken cancellationToken = context.CancellationToken;
+        bool[] found = new bool[64];
+        TypeDefinitionHandle[] handles = new TypeDefinitionHandle[64];
         long before = GC.GetAllocatedBytesForCurrentThread();
         for (int index = 0; index < 64; index++)
         {
+            found[index] = ExactAttributeStrings.TryFindOwnerType(reader, module.Id, identity, cancellationToken, out handles[index]);
+        }
+
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        for (int index = 0; index < 64; index++)
+        {
+            Assert.IsTrue(found[index]);
+            Assert.AreEqual(expected, handles[index]);
             Read();
         }
 
-        return GC.GetAllocatedBytesForCurrentThread() - before;
+        context.WriteLine(FormattableString.Invariant($"Warm owner lookup allocation: {allocated}."));
+        return allocated;
 
         void Read()
         {

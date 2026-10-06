@@ -160,6 +160,20 @@ callback completion. Query their helpers only through the current invocation's
 context and in the matching event phase. Nested callbacks restore their parent
 context before returning. See [event triggers](/event-triggers/).
 
+## Conditional entry methods
+
+Declare PostgreSQL functions, event triggers and `[PgTest]` methods without
+`System.Diagnostics.Conditional`. C# can omit a conditional method call entirely
+when its symbol is absent at the generated call site. That would let a database
+entry return successfully without performing its work, or let a backend test
+pass without executing its assertions.
+
+Ankus reports `ANKUS277` at the attribute, including attributes on either partial
+declaration. It rejects the attribute even when the symbol is currently enabled,
+so each publication retains the same entry contract. Put optional behavior inside
+the method body instead. Native callback handlers have the same restriction;
+see [managed native callbacks](../../raw-values/#managed-native-callbacks-and-hooks).
+
 ## Errors
 
 An unhandled managed exception becomes PostgreSQL ERROR after `finally` blocks

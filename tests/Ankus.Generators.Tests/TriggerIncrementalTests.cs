@@ -167,11 +167,11 @@ public sealed partial class PgFunctionGeneratorTests
             out _, out ImmutableArray<Diagnostic> diagnostics, context.CancellationToken);
         Diagnostic error = Assert.ContainsSingle(diagnostics);
 
-        Assert.AreEqual(eventTrigger ? "ANKUS011" : "ANKUS010", error.Id);
+        Assert.AreEqual("ANKUS214", error.Id);
         Assert.AreSame(current, error.Location.SourceTree);
         Assert.AreEqual("Current.cs", error.Location.GetLineSpan().Path);
         Assert.AreEqual(move ? 3 : 1, error.Location.GetLineSpan().StartLinePosition.Line);
-        Assert.AreEqual("Value", current.GetText(context.CancellationToken).ToString(error.Location.SourceSpan));
+        Assert.AreEqual(eventTrigger ? "int" : "string?", current.GetText(context.CancellationToken).ToString(error.Location.SourceSpan));
         Assert.AreEqual(previous.GetMessage(System.Globalization.CultureInfo.InvariantCulture), error.GetMessage(System.Globalization.CultureInfo.InvariantCulture));
         Assert.IsNull(Assert.ContainsSingle(driver.GetRunResult().Results).Exception);
         Assert.AreEqual(IncrementalStepRunReason.Cached, ModuleStep(driver, (eventTrigger ? "EventTrigger" : "Trigger") + "Emission"));

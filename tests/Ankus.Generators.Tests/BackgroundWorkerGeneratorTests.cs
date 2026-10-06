@@ -62,7 +62,7 @@ public sealed partial class PgFunctionGeneratorTests
         }
         else
         {
-            Assert.Contains("ANKUS022", diagnostics.Select(static diagnostic => diagnostic.Id));
+            Assert.Contains("ANKUS273", diagnostics.Select(static diagnostic => diagnostic.Id));
         }
     }
 
@@ -99,28 +99,29 @@ public sealed partial class PgFunctionGeneratorTests
     /// Invalid signatures and conflicting native metadata fail before emitting an unusable worker export.
     /// </summary>
     /// <param name="source">The invalid declaration.</param>
+    /// <param name="expected">The independently violated worker contract.</param>
     [TestMethod]
-    [DataRow("public class Workers { [Ankus.PgBackgroundWorker] public void Run(nuint argument) { } }")]
-    [DataRow("public static class Workers { [Ankus.PgBackgroundWorker] private static void Run(nuint argument) { } }")]
-    [DataRow("public static class Workers { [Ankus.PgBackgroundWorker] public static int Run(nuint argument) => 1; }")]
-    [DataRow("public static class Workers { [Ankus.PgBackgroundWorker] public static void Run(long argument) { } }")]
-    [DataRow("public static class Workers { [Ankus.PgBackgroundWorker] public static void Run(ref nuint argument) { } }")]
-    [DataRow("public static class Workers { [Ankus.PgBackgroundWorker] public static void Run() { } }")]
-    [DataRow("public static class Workers { [Ankus.PgBackgroundWorker] public static void Run<T>(nuint argument) { } }")]
-    [DataRow("public static class Workers<T> { [Ankus.PgBackgroundWorker] public static void Run(nuint argument) { } }")]
-    [DataRow("public static class Workers { [Ankus.PgBackgroundWorker] public static async void Run(nuint argument) { await System.Threading.Tasks.Task.Yield(); } }")]
-    [DataRow("public static class Workers { [Ankus.PgBackgroundWorker, Ankus.PgFunction] public static void Run(nuint argument) { } }")]
-    [DataRow("public static class Workers { [Ankus.PgBackgroundWorker, System.Diagnostics.Conditional(\"DEBUG\")] public static void Run(nuint argument) { } }")]
-    [DataRow("public static class Workers { [Ankus.PgBackgroundWorker(EntryPoint = \"\")] public static void Run(nuint argument) { } }")]
-    [DataRow("public static class Workers { [Ankus.PgBackgroundWorker(EntryPoint = \"for\")] public static void Run(nuint argument) { } }")]
-    [DataRow("public static class Workers { [Ankus.PgBackgroundWorker(EntryPoint = \"ankus_managed_worker\")] public static void Run(nuint argument) { } }")]
-    [DataRow("public static class Workers { [Ankus.PgBackgroundWorker(EntryPoint = \"Pg_magic_func\")] public static void Run(nuint argument) { } }")]
-    [DataRow("public static class Workers { [Ankus.PgBackgroundWorker(EntryPoint = \"bad-name\")] public static void Run(nuint argument) { } }")]
-    [DataRow("public static class Workers { [Ankus.PgBackgroundWorker] public static void Run(nuint argument) { } } public static class Other { [Ankus.PgBackgroundWorker] public static void Run(nuint argument) { } }")]
-    public void WorkerEntriesRejectInvalidDeclarations(string source)
+    [DataRow("public class Workers { [Ankus.PgBackgroundWorker] public void Run(nuint argument) { } }", "ANKUS251")]
+    [DataRow("public static class Workers { [Ankus.PgBackgroundWorker] private static void Run(nuint argument) { } }", "ANKUS261")]
+    [DataRow("public static class Workers { [Ankus.PgBackgroundWorker] public static int Run(nuint argument) => 1; }", "ANKUS257")]
+    [DataRow("public static class Workers { [Ankus.PgBackgroundWorker] public static void Run(long argument) { } }", "ANKUS260")]
+    [DataRow("public static class Workers { [Ankus.PgBackgroundWorker] public static void Run(ref nuint argument) { } }", "ANKUS259")]
+    [DataRow("public static class Workers { [Ankus.PgBackgroundWorker] public static void Run() { } }", "ANKUS258")]
+    [DataRow("public static class Workers { [Ankus.PgBackgroundWorker] public static void Run<T>(nuint argument) { } }", "ANKUS253")]
+    [DataRow("public static class Workers<T> { [Ankus.PgBackgroundWorker] public static void Run(nuint argument) { } }", "ANKUS263")]
+    [DataRow("public static class Workers { [Ankus.PgBackgroundWorker] public static async void Run(nuint argument) { await System.Threading.Tasks.Task.Yield(); } }", "ANKUS252")]
+    [DataRow("public static class Workers { [Ankus.PgBackgroundWorker, Ankus.PgFunction] public static void Run(nuint argument) { } }", "ANKUS269")]
+    [DataRow("public static class Workers { [Ankus.PgBackgroundWorker, System.Diagnostics.Conditional(\"DEBUG\")] public static void Run(nuint argument) { } }", "ANKUS266")]
+    [DataRow("public static class Workers { [Ankus.PgBackgroundWorker(EntryPoint = \"\")] public static void Run(nuint argument) { } }", "ANKUS272")]
+    [DataRow("public static class Workers { [Ankus.PgBackgroundWorker(EntryPoint = \"for\")] public static void Run(nuint argument) { } }", "ANKUS274")]
+    [DataRow("public static class Workers { [Ankus.PgBackgroundWorker(EntryPoint = \"ankus_managed_worker\")] public static void Run(nuint argument) { } }", "ANKUS274")]
+    [DataRow("public static class Workers { [Ankus.PgBackgroundWorker(EntryPoint = \"Pg_magic_func\")] public static void Run(nuint argument) { } }", "ANKUS274")]
+    [DataRow("public static class Workers { [Ankus.PgBackgroundWorker(EntryPoint = \"bad-name\")] public static void Run(nuint argument) { } }", "ANKUS272")]
+    [DataRow("public static class Workers { [Ankus.PgBackgroundWorker] public static void Run(nuint argument) { } } public static class Other { [Ankus.PgBackgroundWorker] public static void Run(nuint argument) { } }", "ANKUS275")]
+    public void WorkerEntriesRejectInvalidDeclarations(string source, string expected)
     {
         (_, ImmutableArray<Diagnostic> diagnostics) = Generate(source);
-        Assert.Contains("ANKUS022", diagnostics.Select(static diagnostic => diagnostic.Id));
+        Assert.Contains(expected, diagnostics.Select(static diagnostic => diagnostic.Id));
         Assert.DoesNotContain("CS8785", diagnostics.Select(static diagnostic => diagnostic.Id));
     }
 }

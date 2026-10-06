@@ -17,7 +17,9 @@ public sealed class PgNativeCallbackAttribute : Attribute
 ```
 
 Apply this attribute to a static partial getter-only property whose type is a generated native
-function pointer. The handler must match that type's Invoke signature exactly. The native entry
+function pointer. The handler must match that type's Invoke signature exactly and cannot
+declare System.Diagnostics.Conditional, including on either part of a partial handler.
+Every native invocation must execute the handler, independently of compilation symbols. The native entry
 point belongs to the loaded extension; storing its address does not extend the module's lifetime.
 Callback declarations may live in a referenced project using the same generated native binding contract.
 Use PgModuleLoad for native hook registration that must precede a parallel worker's first executor entry.
@@ -43,7 +45,9 @@ Parameters:
 The name of a synchronous static handler in the property's containing type.
 
 Apply this attribute to a static partial getter-only property whose type is a generated native
-function pointer. The handler must match that type's Invoke signature exactly. The native entry
+function pointer. The handler must match that type's Invoke signature exactly and cannot
+declare System.Diagnostics.Conditional, including on either part of a partial handler.
+Every native invocation must execute the handler, independently of compilation symbols. The native entry
 point belongs to the loaded extension; storing its address does not extend the module's lifetime.
 Callback declarations may live in a referenced project using the same generated native binding contract.
 Use PgModuleLoad for native hook registration that must precede a parallel worker's first executor entry.

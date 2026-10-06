@@ -100,7 +100,12 @@ partitions independently verify; no primary job timed out.
 | Same CI / revision / runtime | Windows x64 / 17 | 12,630 total; 12,602 passed; 28 platform skips; zero failures | 35m21s job |
 | [New primary CI](https://github.com/willibrandon/ankus/actions/runs/37401674049), **15efe37 / ankus.4** | macOS ARM64 / 18 | 12,799 total; 12,739 passed; 60 platform skips; zero failures | 29m40s job |
 | Same CI / revision / runtime | Linux x64 / 18 | 12,799 total; 12,751 passed; 48 platform skips; zero failures | 39m40s job |
-| Same CI / revision / runtime, rejected | Windows x64 / 17.11 | 12,799 total; 12,770 passed; 28 platform skips; one recovery timeout | 35m28s job; correction under validation |
+| Same CI / revision / runtime, rejected | Windows x64 / 17.11 | 12,799 total; 12,770 passed; 28 platform skips; one recovery timeout | 35m28s job; superseded by the successful crash-isolation replacement |
+| [Crash-isolation replacement CI](https://github.com/willibrandon/ankus/actions/runs/37410596204), **b2fe3e7 / ankus.4** | Windows x64 / 17 | 12,799 total; 12,771 passed; 28 platform skips; zero failures | 37m11s job |
+| Same replacement CI / revision / runtime | Linux x64 / 18 | 12,799 total; 12,751 passed; 48 platform skips; zero failures | 40m11s job |
+| Same replacement CI, rejected | macOS ARM64 / 18 | Generator allocation regression fails; only four of six module reports exist | 30m43s job; corrected complete validation passes; fresh CI remains required |
+| Allocation workload reproduction, **b2fe3e7 / ankus.4**, private phase observations | macOS ARM64 / 18.6 | 12,799 total; 12,739 passed; 60 platform skips; zero failures | 28m37.771s tests; 29m33.377s command; does not reproduce the CI failure |
+| Frozen owner-lookup measurement correction, runtime **ankus.4** | macOS ARM64 / 18.6 | 12,799 total; 12,739 passed; 60 platform skips; zero failures | 28m50.398s tests; 29m46.185s command |
 | Frozen crash-isolation repair, runtime **ankus.4** | Windows x64 / 17.11 | 12,799 total; 12,771 passed; 28 platform skips; zero failures | 50m30.838s tests; 51m21.747s command |
 | Frozen bytea/strings and SQL-identity composition, runtime **ankus.4** | Windows x64 / 17.11 | 12,799 total; 12,771 passed; 28 platform skips; zero failures | 48m38.373s tests; 49m26.804s command |
 | Frozen corrected SPI composition, **f86e0ac / ankus.4** | Windows x64 / 17.11 | 12,630 total; 12,602 passed; 28 platform skips; zero failures | 47m45.216s tests; 48m33.194s command |
@@ -142,7 +147,10 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   for the **26** terminal rows. Deadlines, fsync and durability checks remain.
   Release and documentation checks pass. The complete **1,813**-input Windows
   suite passes **12,799** cases; all six reports, **67** recovery cases and
-  actual crash-test intervals independently verify. Replacement CI remains required.
+  actual crash-test intervals independently verify. Replacement Windows and Linux
+  CI pass all **12,799** cases; Windows terminal intervals again prove zero overlap.
+  Replacement macOS CI rejects one generator allocation regression. Its native
+  integration module passes, but two later unit modules did not execute.
 - **7dca056** repairs reconnection before postmaster reinitialization finishes.
   Complete primary CI passes. The prior twenty Windows startup/recovery failures
   and their correction remain in the evidence archive.
@@ -154,22 +162,66 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   analysis. All **150** focused cases and complete primary CI pass; the unchanged
   analyzer fails **33** regressions. Hot-standby write-intent restrictions are
   documented from source; actual standby validation remains required.
-- Private trigger, initialization and worker drafts separate **68** declaration
+- Trigger, initialization and worker corrections separate **68** declaration
   contracts. Their **162** invalid cases detect the respective unchanged
-  validators; all **14** valid controls pass. Native acceptance remains required.
+  validators; all **14** valid controls pass. The combined native composition
+  passes all **12,985** cases on Linux x64/PostgreSQL **18.6**.
 - A conditional native handler can be silently omitted while its dispatcher
-  reports success. The private `ANKUS276` correction rejects that attribute,
+  reports success. The `ANKUS276` correction rejects that attribute,
   including partial handlers and currently defined symbols. All **10** focused
   cases pass; the unchanged validator fails **8**, retaining **2** real managed
   dispatch controls. Metadata edits and repair preserve sibling caches and
   current diagnostic locations. The combined generator module passes **4,092**
   actual executions in **1m24.739s**; all named partitions independently verify.
-  Its **1,826**-input candidate preserves crash isolation. The expected **12,985**
-  full cases are not native evidence: complete native, Release and documentation
-  acceptance remain required before promotion.
+  Its candidate preserves crash isolation. Complete Linux validation rejected the
+  **1,826**-input bundle because it omitted the shared package README. All **539**
+  failed rows independently match that packaging initialization error. The corrected
+  **1,827**-input bundle passes all **12,985** cases: **12,937** passed and **48**
+  platform skips. All six reports, named regressions, recovery cases and the
+  **1,839**-file source/report archive independently verify. Its conditional-entry
+  child also passes the Release and documentation gates; the separate macOS CI
+  repair remains under full validation before the next declaration milestone.
+- SQL functions, event triggers and backend tests have the same conditional-call
+  omission hazard. Nine actual managed dispatcher executions reproduce missing
+  effects and preserve ordinary/enabled-symbol controls. A shared `ANKUS277`
+  correction passes all **30** declaration, compiled-call and caching cases;
+  the unchanged validators fail **24**, retaining **6** compiled-call controls.
+  The combined module passes all **4,122** actual cases in **54.594s**. Complete
+  native acceptance of its frozen **1,829**-input child passes all **13,015**
+  cases on Linux x64/PostgreSQL **18.6**: **12,967** passed, **48** platform
+  skips and zero failures. All six reports, declaration partitions and native
+  recovery cases independently verify. Release, API freshness, site build and
+  site diagnostics pass with zero warnings and errors. Its first real-source
+  build exposed `IDE0042` in a test helper; the accepted child fixes it with
+  deconstruction. The retained archive independently matches **1,840** files.
+  All **38** changed/new declaration files now match the accepted source bytes
+  in the working tree. Combined with the separate cache-test correction, all
+  **4,122** generator cases and the Release/API/site gates pass locally; fresh
+  complete primary-platform CI remains required after publication.
+- The macOS allocation failure remains under investigation. Its exact CI binary
+  passes three complete **3,906**-case repetitions, and full workload reproduction
+  passes all **12,799** cases. Reader observations show that the measured interval
+  includes constructor decoding. A private correction measures the actual shared
+  owner lookup after the real decoder warms it; every returned handle and exact
+  string is still verified, with the original allocation bound retained. All
+  **3,906** generator cases pass. Independent rescan and decoder-cache-bypass
+  mutations both fail that test. The exact correction now passes all **3,906**
+  Linux generator cases, Release, API freshness and both site gates in the working
+  tree. The corrected macOS suite passes all **12,799** cases. All six actual
+  reports, **67** native recovery partitions, **2,093** source inputs and the
+  **2,101**-file source/report archive independently verify. The rejected private
+  overlay run remains recorded; its project-path scoping is corrected. Fresh
+  primary CI for the combined declaration/cache milestone remains required.
+  The precise original CI byte variance remains
+  unattributed; constructor decoding is outside the corrected cache measurement.
 - Precise diagnostics, remaining code fixes, source-case mapping, samples,
   supported PostgreSQL/platform combinations, .NET servicing and release gates
   remain in scope. Detailed accepted and rejected evidence lives in the archive.
+- The enum declaration correction separates thirteen contracts and preserves
+  exact labels, backing values and metadata handling. Its **38** focused cases
+  distinguish **27** baseline failures from **11** valid controls; all **4,160**
+  corrected generator cases pass. The frozen **1,831**-input composition is
+  running complete Linux/PostgreSQL **18.6** acceptance. It is not promoted yet.
 
 ## Remaining work order
 

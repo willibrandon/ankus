@@ -3,74 +3,24 @@ using Microsoft.CodeAnalysis;
 namespace Ankus.Generators;
 
 /// <summary>
-/// Validates trigger callbacks independently of ordinary SQL function parameter and result types.
+/// Preserves the PostgreSQL callback contract with independently actionable diagnostics.
 /// </summary>
 internal static class TriggerDeclaration
 {
-    private static readonly DiagnosticDescriptor s_invalid = new(
-        "ANKUS010", "Invalid PostgreSQL trigger declaration", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true,
-        helpLinkUri: "https://willibrandon.github.io/ankus/triggers/");
-
     /// <summary>
-    /// Gets whether a method declares a PostgreSQL trigger callback.
+    /// Identifies declarations carrying the callback marker.
     /// </summary>
-    /// <param name="method">The candidate method.</param>
-    /// <returns>Whether PgTrigger is present.</returns>
+    /// <param name="method">The transient attributed method.</param>
+    /// <returns>Whether this callback marker is present.</returns>
     internal static bool IsTrigger(IMethodSymbol method)
         => method.GetAttributes().Any(static attribute => attribute.AttributeClass?.ToDisplayString() == "Ankus.PgTriggerAttribute");
 
     /// <summary>
-    /// Validates the managed callback signature and rejects SQL metadata that has no trigger meaning.
+    /// Validates shape and metadata without interpreting context values as ordinary SQL inputs.
     /// </summary>
-    /// <param name="method">The attributed callback.</param>
-    /// <param name="context">The generator context receiving diagnostics.</param>
-    /// <returns>Whether the trigger callback can be generated.</returns>
+    /// <param name="method">The transient attributed callback.</param>
+    /// <param name="context">The diagnostic output context.</param>
+    /// <returns>Whether native and managed callback generation can proceed.</returns>
     internal static bool Validate(IMethodSymbol method, GeneratorDiagnostics context)
-    {
-        if (!method.IsStatic || method.IsAsync || method.IsGenericMethod || method.IsAbstract ||
-            method.ReturnsByRef || method.ReturnsByRefReadonly ||
-            method.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal or Accessibility.ProtectedOrInternal) ||
-            method.ReturnType.WithNullableAnnotation(NullableAnnotation.NotAnnotated).ToDisplayString() != "Ankus.PgHeapTuple" ||
-            method.Parameters.Length != 1)
-        {
-            return Invalid("A trigger must be an accessible, synchronous, non-generic static method returning PgHeapTuple (nullable when skipping rows) with one nonnull PgTriggerContext parameter.");
-        }
-
-        IParameterSymbol parameter = method.Parameters[0];
-        if (parameter.RefKind != RefKind.None || parameter.IsParams || parameter.IsOptional ||
-            parameter.NullableAnnotation == NullableAnnotation.Annotated || parameter.Type.ToDisplayString() != "Ankus.PgTriggerContext")
-        {
-            return Invalid("The trigger context must be one nonnull, required PgTriggerContext parameter passed by value.");
-        }
-
-        for (INamedTypeSymbol? type = method.ContainingType; type is not null; type = type.ContainingType)
-        {
-            if (type.IsGenericType || type.IsFileLocal || type.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal or Accessibility.ProtectedOrInternal))
-            {
-                return Invalid("Trigger callbacks must be declared in accessible, non-generic, non-file-local types.");
-            }
-        }
-
-        if (method.GetAttributes().Any(static attribute => attribute.AttributeClass?.ToDisplayString() is
-                "Ankus.PgEventTriggerAttribute" or "Ankus.PgOperatorAttribute" or "Ankus.PgCastAttribute") ||
-            method.GetReturnTypeAttributes().Concat(parameter.GetAttributes()).Any(static attribute => attribute.AttributeClass?.ToDisplayString() is
-                "Ankus.PgCompositeTypeAttribute" or "Ankus.PgNumericPrecisionAttribute" or "Ankus.PgColumnNamesAttribute" or "Ankus.PgParameterAttribute"))
-        {
-            return Invalid("Triggers cannot declare event triggers, operators, casts, SQL parameter metadata, or composite, numeric, or TABLE result bindings.");
-        }
-
-        AttributeData? function = method.GetAttributes().FirstOrDefault(static attribute => attribute.AttributeClass?.ToDisplayString() == "Ankus.PgFunctionAttribute");
-        if (function?.NamedArguments.Any(static argument => argument.Key is "Rows" or "SetMode") == true)
-        {
-            return Invalid("Triggers cannot declare Rows or SetMode.");
-        }
-
-        return true;
-
-        bool Invalid(string reason)
-        {
-            context.Report(s_invalid, method.Locations.FirstOrDefault(), method.Name, reason);
-            return false;
-        }
-    }
+        => BackendCallbackDeclaration.Validate(method, context, "PgTriggerAttribute", "PgEventTriggerAttribute", "PgTriggerContext", true);
 }

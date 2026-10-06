@@ -78,6 +78,11 @@ internal static class FunctionSignature
     internal static bool Validate(IMethodSymbol method, FunctionParameter[] parameters, SetResult? set, FunctionType? result,
         GeneratorDiagnostics diagnostics)
     {
+        if (!ConditionalEntryDeclaration.Validate(method, diagnostics))
+        {
+            return false;
+        }
+
         var syntax = method.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax(diagnostics.CancellationToken) as BaseMethodDeclarationSyntax;
         Location? name = MethodSyntax.Name(syntax) ?? method.Locations.FirstOrDefault();
         if (!method.IsStatic)

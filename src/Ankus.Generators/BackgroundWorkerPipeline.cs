@@ -16,7 +16,7 @@ internal static class BackgroundWorkerPipeline
     internal static IncrementalValueProvider<EquatableArray<WorkerOutput>> Register(IncrementalGeneratorInitializationContext context)
     {
         IncrementalValuesProvider<WorkerAnalysis> analysis = context.SyntaxProvider.ForAttributeWithMetadataName(
-            "Ankus.PgBackgroundWorkerAttribute", static (node, _) => node is MethodDeclarationSyntax,
+            "Ankus.PgBackgroundWorkerAttribute", static (node, _) => node is MethodDeclarationSyntax or LocalFunctionStatementSyntax or LambdaExpressionSyntax,
             static (attribute, token) => Analyze(attribute, token)).WithTrackingName("WorkerAnalysis");
         IncrementalValuesProvider<BackgroundWorkerDeclaration?> models = analysis.Select(static (value, _) => value.Model)
             .WithTrackingName("WorkerModel");
@@ -51,7 +51,7 @@ internal static class BackgroundWorkerPipeline
 
             if (!names.Add(model.EntryPoint))
             {
-                BackgroundWorkerDeclaration.ReportDuplicate(worker.Analysis.Location?.Resolve(compilation), worker.Analysis.Name, context);
+                BackgroundWorkerDeclaration.ReportDuplicate(worker.Analysis.Location?.Resolve(compilation), worker.Analysis.Name, model.EntryPoint, context);
                 continue;
             }
 

@@ -120,3 +120,28 @@ To share values across backends, register static `PgLwLock<T>` or `PgAtomic<T>` 
 To register a PostgreSQL process that runs a managed entry, use
 `PgBackgroundWorker.Register` during shared preload. See
 [background workers](/background-workers/) for registration, signals and database transactions.
+
+## Declaration diagnostics
+
+Each initialization error identifies the declaration requirement and highlights
+the relevant source. The same rules apply to `[PgInitialize]` and
+`[PgModuleLoad]`. A valid callback remains a synchronous, accessible,
+nongeneric, parameterless static `void` method with a managed implementation.
+
+| Diagnostic | Correction |
+| --- | --- |
+| `ANKUS230` | Declare separate methods for the two phases. |
+| `ANKUS231` | Use an ordinary named method instead of a local function, lambda or explicit interface implementation. |
+| `ANKUS232`, `ANKUS233` | Declare a static callback and complete its work synchronously on the backend thread. |
+| `ANKUS234` | Remove callback method type parameters. |
+| `ANKUS235`, `ANKUS236`, `ANKUS237` | Provide a concrete, nonvirtual managed implementation; callbacks cannot be abstract or extern. |
+| `ANKUS238`, `ANKUS239` | Return `void` and remove callback parameters. |
+| `ANKUS240`, `ANKUS244` | Make the method and enclosing types accessible to generated code: public, internal, or protected internal. |
+| `ANKUS241` | Implement the partial method definition. |
+| `ANKUS242`, `ANKUS243` | Use nongeneric enclosing types that are not file-local. |
+| `ANKUS245`, `ANKUS246` | Remove `Conditional` or `UnmanagedCallersOnly`; the callback must be callable unconditionally from managed code. |
+| `ANKUS247`, `ANKUS248` | Declare separate SQL exports and remove SQL result metadata from initialization. |
+| `ANKUS249` | Keep one callback per phase in the extension assembly. |
+
+Invalid initialization declarations do not remove unrelated valid SQL
+dispatchers. A rejected phase does not receive a PostgreSQL loader export.

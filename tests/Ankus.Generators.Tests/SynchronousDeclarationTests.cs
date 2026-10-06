@@ -236,11 +236,17 @@ public sealed partial class PgFunctionGeneratorTests
 
         string expected = role switch
         {
-            "event" => "ANKUS011",
+            "event" => "ANKUS209",
             "test" => "ANKUS023",
             _ => "ANKUS030",
         };
         Assert.AreEqual(expected, error.Id);
+        if (role == "event")
+        {
+            Assert.AreEqual("Implementation.cs", error.Location.SourceTree!.FilePath);
+            Assert.AreEqual("async", error.Location.SourceTree.GetText(context.CancellationToken).ToString(error.Location.SourceSpan));
+        }
+
         Assert.AreEqual(DiagnosticSeverity.Error, error.Severity);
         Assert.IsNull(Assert.ContainsSingle(driver.GetRunResult().Results).Exception);
         Assert.IsNull(output.GetTypeByMetadataName("Functions+PostgresTests"));

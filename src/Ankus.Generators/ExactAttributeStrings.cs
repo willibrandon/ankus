@@ -203,8 +203,7 @@ internal static class ExactAttributeStrings
         }
 
         string identity = MetadataTypeName.Create(type);
-        OwnerIndex index = s_owners.GetValue(image, static _ => new());
-        if (index.TryFind(reader, identity, cancellationToken, out TypeDefinitionHandle handle))
+        if (TryFindOwnerType(reader, image, identity, cancellationToken, out TypeDefinitionHandle handle))
         {
             TypeDefinition definition = reader.GetTypeDefinition(handle);
             if (owner is INamedTypeSymbol)
@@ -242,6 +241,22 @@ internal static class ExactAttributeStrings
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Finds a metadata type through the index shared by every reader of the same image.
+    /// </summary>
+    /// <param name="reader">The caller-owned reader of the image.</param>
+    /// <param name="image">The image identity shared by non-owning metadata copies.</param>
+    /// <param name="identity">The exact CLR definition name.</param>
+    /// <param name="cancellationToken">Cancels initial indexing and subsequent lookup.</param>
+    /// <param name="handle">The selected logical definition handle.</param>
+    /// <returns>Whether the selected image contains the named type.</returns>
+    internal static bool TryFindOwnerType(MetadataReader reader, MetadataId image, string identity,
+        CancellationToken cancellationToken, out TypeDefinitionHandle handle)
+    {
+        OwnerIndex index = s_owners.GetValue(image, static _ => new());
+        return index.TryFind(reader, identity, cancellationToken, out handle);
     }
 
     /// <summary>

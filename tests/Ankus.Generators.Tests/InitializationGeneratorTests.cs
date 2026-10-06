@@ -198,61 +198,64 @@ public sealed partial class PgFunctionGeneratorTests
     /// Unsupported attributed methods produce an actionable generator error instead of being silently ignored.
     /// </summary>
     /// <param name="source">A valid C# declaration with an unsupported initialization contract.</param>
+    /// <param name="diagnostic">The independently correctable initialization contract.</param>
     [TestMethod]
-    [DataRow("public class Functions { [Ankus.PgInitialize] public void Initialize() { } }")]
-    [DataRow("public class Functions { [Ankus.PgInitialize] private static void Initialize() { } }")]
-    [DataRow("public class Functions { [Ankus.PgInitialize] protected static void Initialize() { } }")]
-    [DataRow("public class Functions { [Ankus.PgInitialize] private protected static void Initialize() { } }")]
-    [DataRow("public class Functions { [Ankus.PgInitialize] public static int Initialize() => 1; }")]
-    [DataRow("public class Functions { [Ankus.PgInitialize] public static ref int Initialize() => throw new System.Exception(); }")]
-    [DataRow("public class Functions { [Ankus.PgInitialize] public static async void Initialize() { await System.Threading.Tasks.Task.Yield(); } }")]
-    [DataRow("public class Functions { [Ankus.PgInitialize] public static System.Threading.Tasks.Task Initialize() => System.Threading.Tasks.Task.CompletedTask; }")]
-    [DataRow("public class Functions { [Ankus.PgInitialize] public static System.Threading.Tasks.ValueTask Initialize() => default; }")]
-    [DataRow("public class Functions { [Ankus.PgInitialize] public static void Initialize<T>() { } }")]
-    [DataRow("public class Functions { [Ankus.PgInitialize] public static void Initialize(int value) { } }")]
-    [DataRow("public class Functions { [Ankus.PgInitialize] public static void Initialize(int value = 0) { } }")]
-    [DataRow("public class Functions { [Ankus.PgInitialize] public static void Initialize(params int[] values) { } }")]
-    [DataRow("public class Functions { [Ankus.PgInitialize] public static void Initialize(ref int value) { } }")]
-    [DataRow("public class Functions { [Ankus.PgInitialize, System.Runtime.InteropServices.DllImport(\"native\")] public static extern void Initialize(); }")]
-    [DataRow("public interface Functions { [Ankus.PgInitialize] public static abstract void Initialize(); }")]
-    [DataRow("public interface Functions { [Ankus.PgInitialize] public static virtual void Initialize() { } }")]
-    [DataRow("public partial class Functions { [Ankus.PgInitialize] static partial void Initialize(); }")]
-    [DataRow("public partial class Functions { [Ankus.PgInitialize] public static partial void Initialize(); public static async partial void Initialize() { await System.Threading.Tasks.Task.Yield(); } }")]
-    [DataRow("public class Functions<T> { [Ankus.PgInitialize] public static void Initialize() { } }")]
-    [DataRow("public class Outer<T> { public class Functions { [Ankus.PgInitialize] public static void Initialize() { } } }")]
-    [DataRow("public class Outer { private class Functions { [Ankus.PgInitialize] public static void Initialize() { } } }")]
-    [DataRow("file class Functions { [Ankus.PgInitialize] public static void Initialize() { } }")]
-    [DataRow("public interface IInit { static abstract void Initialize(); } public class Functions : IInit { [Ankus.PgInitialize] static void IInit.Initialize() { } }")]
-    [DataRow("public class Functions { public void Method() { [Ankus.PgInitialize] static void Initialize() { } Initialize(); } }")]
-    [DataRow("public class Functions { public System.Action Callback = [Ankus.PgInitialize] static () => { }; }")]
-    public void InvalidInitializationDeclarationsAreRejected(string source)
-        => AssertInvalidInitialization(source);
+    [DataRow("public class Functions { [Ankus.PgInitialize] public void Initialize() { } }", "ANKUS232")]
+    [DataRow("public class Functions { [Ankus.PgInitialize] private static void Initialize() { } }", "ANKUS240")]
+    [DataRow("public class Functions { [Ankus.PgInitialize] protected static void Initialize() { } }", "ANKUS240")]
+    [DataRow("public class Functions { [Ankus.PgInitialize] private protected static void Initialize() { } }", "ANKUS240")]
+    [DataRow("public class Functions { [Ankus.PgInitialize] public static int Initialize() => 1; }", "ANKUS238")]
+    [DataRow("public class Functions { [Ankus.PgInitialize] public static ref int Initialize() => throw new System.Exception(); }", "ANKUS238")]
+    [DataRow("public class Functions { [Ankus.PgInitialize] public static async void Initialize() { await System.Threading.Tasks.Task.Yield(); } }", "ANKUS233")]
+    [DataRow("public class Functions { [Ankus.PgInitialize] public static System.Threading.Tasks.Task Initialize() => System.Threading.Tasks.Task.CompletedTask; }", "ANKUS238")]
+    [DataRow("public class Functions { [Ankus.PgInitialize] public static System.Threading.Tasks.ValueTask Initialize() => default; }", "ANKUS238")]
+    [DataRow("public class Functions { [Ankus.PgInitialize] public static void Initialize<T>() { } }", "ANKUS234")]
+    [DataRow("public class Functions { [Ankus.PgInitialize] public static void Initialize(int value) { } }", "ANKUS239")]
+    [DataRow("public class Functions { [Ankus.PgInitialize] public static void Initialize(int value = 0) { } }", "ANKUS239")]
+    [DataRow("public class Functions { [Ankus.PgInitialize] public static void Initialize(params int[] values) { } }", "ANKUS239")]
+    [DataRow("public class Functions { [Ankus.PgInitialize] public static void Initialize(ref int value) { } }", "ANKUS239")]
+    [DataRow("public class Functions { [Ankus.PgInitialize, System.Runtime.InteropServices.DllImport(\"native\")] public static extern void Initialize(); }", "ANKUS237")]
+    [DataRow("public interface Functions { [Ankus.PgInitialize] public static abstract void Initialize(); }", "ANKUS235")]
+    [DataRow("public interface Functions { [Ankus.PgInitialize] public static virtual void Initialize() { } }", "ANKUS236")]
+    [DataRow("public partial class Functions { [Ankus.PgInitialize] static partial void Initialize(); }", "ANKUS241")]
+    [DataRow("public partial class Functions { [Ankus.PgInitialize] public static partial void Initialize(); public static async partial void Initialize() { await System.Threading.Tasks.Task.Yield(); } }", "ANKUS233")]
+    [DataRow("public class Functions<T> { [Ankus.PgInitialize] public static void Initialize() { } }", "ANKUS242")]
+    [DataRow("public class Outer<T> { public class Functions { [Ankus.PgInitialize] public static void Initialize() { } } }", "ANKUS242")]
+    [DataRow("public class Outer { private class Functions { [Ankus.PgInitialize] public static void Initialize() { } } }", "ANKUS244")]
+    [DataRow("file class Functions { [Ankus.PgInitialize] public static void Initialize() { } }", "ANKUS243")]
+    [DataRow("public interface IInit { static abstract void Initialize(); } public class Functions : IInit { [Ankus.PgInitialize] static void IInit.Initialize() { } }", "ANKUS231")]
+    [DataRow("public class Functions { public void Method() { [Ankus.PgInitialize] static void Initialize() { } Initialize(); } }", "ANKUS231")]
+    [DataRow("public class Functions { public System.Action Callback = [Ankus.PgInitialize] static () => { }; }", "ANKUS231")]
+    public void InvalidInitializationDeclarationsAreRejected(string source, string diagnostic)
+        => AssertInvalidInitialization(source, diagnostic);
 
     /// <summary>
     /// SQL metadata cannot turn an initialization callback into another kind of declaration.
     /// </summary>
     /// <param name="attributes">The conflicting SQL annotation.</param>
+    /// <param name="diagnostic">The independently correctable initialization contract.</param>
     [TestMethod]
-    [DataRow("[Ankus.PgFunction]")]
-    [DataRow("[Ankus.PgTrigger]")]
-    [DataRow("[Ankus.PgEventTrigger]")]
-    [DataRow("[Ankus.PgOperator(\"+\")]")]
-    [DataRow("[Ankus.PgCast]")]
-    [DataRow("[return: Ankus.PgNumericPrecision(5)]")]
-    [DataRow("[return: Ankus.PgCompositeType(\"thing\")]")]
-    [DataRow("[return: Ankus.PgColumnNames(\"value\")]")]
-    public void InitializationRejectsSqlFunctionAndResultMetadata(string attributes)
-        => AssertInvalidInitialization("public static class Functions { [Ankus.PgInitialize] " + attributes + " public static void Initialize() { } }");
+    [DataRow("[Ankus.PgFunction]", "ANKUS247")]
+    [DataRow("[Ankus.PgTrigger]", "ANKUS247")]
+    [DataRow("[Ankus.PgEventTrigger]", "ANKUS247")]
+    [DataRow("[Ankus.PgOperator(\"+\")]", "ANKUS247")]
+    [DataRow("[Ankus.PgCast]", "ANKUS247")]
+    [DataRow("[return: Ankus.PgNumericPrecision(5)]", "ANKUS248")]
+    [DataRow("[return: Ankus.PgCompositeType(\"thing\")]", "ANKUS248")]
+    [DataRow("[return: Ankus.PgColumnNames(\"value\")]", "ANKUS248")]
+    public void InitializationRejectsSqlFunctionAndResultMetadata(string attributes, string diagnostic)
+        => AssertInvalidInitialization("public static class Functions { [Ankus.PgInitialize] " + attributes + " public static void Initialize() { } }", diagnostic);
 
     /// <summary>
     /// An initializer cannot silently disappear through conditional call removal or require an unmanaged-only invocation.
     /// </summary>
     /// <param name="attributes">The attribute that prevents an unconditional managed invocation.</param>
+    /// <param name="diagnostic">The independently correctable initialization contract.</param>
     [TestMethod]
-    [DataRow("[System.Diagnostics.Conditional(\"FIRST_SYMBOL\"), System.Diagnostics.Conditional(\"SECOND_SYMBOL\")]")]
-    [DataRow("[System.Runtime.InteropServices.UnmanagedCallersOnly]")]
-    public void InitializationRejectsAttributesThatPreventManagedInvocation(string attributes)
-        => AssertInvalidInitialization("public static class Functions { [Ankus.PgInitialize] " + attributes + " public static void Initialize() { } }");
+    [DataRow("[System.Diagnostics.Conditional(\"FIRST_SYMBOL\"), System.Diagnostics.Conditional(\"SECOND_SYMBOL\")]", "ANKUS245")]
+    [DataRow("[System.Runtime.InteropServices.UnmanagedCallersOnly]", "ANKUS246")]
+    public void InitializationRejectsAttributesThatPreventManagedInvocation(string attributes, string diagnostic)
+        => AssertInvalidInitialization("public static class Functions { [Ankus.PgInitialize] " + attributes + " public static void Initialize() { } }", diagnostic);
 
     /// <summary>
     /// Multiple callbacks across types fail deterministically without choosing one or emitting a loader entry point.
@@ -266,7 +269,7 @@ public sealed partial class PgFunctionGeneratorTests
         {
             (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source);
             Diagnostic error = Assert.ContainsSingle(diagnostics);
-            Assert.AreEqual("ANKUS013", error.Id);
+            Assert.AreEqual("ANKUS249", error.Id);
             Assert.Contains("only one PgInitialize", error.GetMessage(CultureInfo.InvariantCulture));
             Assert.IsEmpty(compilation.GetDiagnostics(context.CancellationToken).Where(static item => item.Severity == DiagnosticSeverity.Error));
             Assert.AreSequenceEqual(["Pg_magic_func"], ManifestValue(compilation, "Ankus.Exports").Split('\n', StringSplitOptions.RemoveEmptyEntries));
@@ -349,11 +352,11 @@ public sealed partial class PgFunctionGeneratorTests
     /// <summary>
     /// Requires one initialization diagnostic, valid consumer C#, and no generated callback or loader export.
     /// </summary>
-    private void AssertInvalidInitialization(string source)
+    private void AssertInvalidInitialization(string source, string expected)
     {
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source);
         Diagnostic error = Assert.ContainsSingle(diagnostics);
-        Assert.AreEqual("ANKUS013", error.Id);
+        Assert.AreEqual(expected, error.Id);
         Assert.AreEqual(DiagnosticSeverity.Error, error.Severity);
         Assert.IsEmpty(compilation.GetDiagnostics(context.CancellationToken).Where(static item => item.Severity == DiagnosticSeverity.Error));
         Assert.AreEqual("-- No installable objects declared.\n", InstallationBody(compilation).ReplaceLineEndings("\n"));

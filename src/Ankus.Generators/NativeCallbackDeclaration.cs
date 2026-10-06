@@ -17,6 +17,15 @@ internal sealed class NativeCallbackDeclaration(IPropertySymbol property, IMetho
         helpLinkUri: "https://willibrandon.github.io/ankus/raw-values/#managed-native-callbacks-and-hooks");
 
     /// <summary>
+    /// Rejects handlers whose invocation can disappear during ordinary C# compilation.
+    /// </summary>
+    private static readonly DiagnosticDescriptor s_conditional = new(
+        "ANKUS276", "Native callback handler cannot be conditional",
+        "Native callback '{0}' cannot use conditional handler '{1}'; remove Conditional so every native invocation runs the handler",
+        "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true,
+        helpLinkUri: "https://willibrandon.github.io/ankus/raw-values/#managed-native-callbacks-and-hooks");
+
+    /// <summary>
     /// Gets the defining partial property.
     /// </summary>
     internal IPropertySymbol Property { get; } = property;
@@ -127,6 +136,17 @@ internal sealed class NativeCallbackDeclaration(IPropertySymbol property, IMetho
         if (handlers.Length != 1)
         {
             return Invalid("The handler must resolve to one synchronous, non-generic static method whose by-value parameters and return type exactly match Invoke.");
+        }
+
+        AttributeData? conditional = handlers[0].GetAttributes()
+            .Concat(handlers[0].PartialImplementationPart?.GetAttributes() ?? [])
+            .FirstOrDefault(static attribute => attribute.AttributeClass?.ToDisplayString() == "System.Diagnostics.ConditionalAttribute");
+        if (conditional is not null)
+        {
+            context.Report(s_conditional,
+                conditional.ApplicationSyntaxReference?.GetSyntax(context.CancellationToken).GetLocation() ?? handlers[0].Locations.FirstOrDefault(),
+                property.Name, handlers[0].Name);
+            return null;
         }
 
         return new(property, handlers[0], signature, index);

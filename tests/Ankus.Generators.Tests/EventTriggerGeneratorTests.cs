@@ -160,69 +160,72 @@ public sealed partial class PgFunctionGeneratorTests
     /// Every unsupported signature reports the dedicated diagnostic against otherwise compilable consumer code.
     /// </summary>
     /// <param name="method">The invalid callback declaration.</param>
+    /// <param name="diagnostic">The independently correctable callback contract.</param>
     [TestMethod]
-    [DataRow("public void Audit(Ankus.PgEventTriggerContext context) { }")]
-    [DataRow("private static void Audit(Ankus.PgEventTriggerContext context) { }")]
-    [DataRow("protected static void Audit(Ankus.PgEventTriggerContext context) { }")]
-    [DataRow("private protected static void Audit(Ankus.PgEventTriggerContext context) { }")]
-    [DataRow("public static void Audit<T>(Ankus.PgEventTriggerContext context) { }")]
-    [DataRow("public static int Audit(Ankus.PgEventTriggerContext context) => 1;")]
-    [DataRow("public static Ankus.PgHeapTuple? Audit(Ankus.PgEventTriggerContext context) => null;")]
-    [DataRow("public static System.Threading.Tasks.Task Audit(Ankus.PgEventTriggerContext context) => System.Threading.Tasks.Task.CompletedTask;")]
-    [DataRow("public static async void Audit(Ankus.PgEventTriggerContext context) { await System.Threading.Tasks.Task.Yield(); }")]
-    [DataRow("public static async System.Threading.Tasks.Task Audit(Ankus.PgEventTriggerContext context) { await System.Threading.Tasks.Task.Yield(); }")]
-    [DataRow("public static System.Collections.Generic.IEnumerable<int> Audit(Ankus.PgEventTriggerContext context) => System.Array.Empty<int>();")]
-    [DataRow("public static void Audit() { }")]
-    [DataRow("public static void Audit(Ankus.PgEventTriggerContext context, int extra) { }")]
-    [DataRow("public static void Audit(Ankus.PgEventTriggerContext? context) { }")]
-    [DataRow("public static void Audit(Ankus.PgTriggerContext context) { }")]
-    [DataRow("public static void Audit(object context) { }")]
-    [DataRow("public static void Audit(ref Ankus.PgEventTriggerContext context) { }")]
-    [DataRow("public static void Audit(in Ankus.PgEventTriggerContext context) { }")]
-    [DataRow("public static void Audit(out Ankus.PgEventTriggerContext context) { context = null!; }")]
-    [DataRow("public static void Audit(params Ankus.PgEventTriggerContext[] context) { }")]
-    [DataRow("public static void Audit(Ankus.PgEventTriggerContext context = null!) { }")]
-    [DataRow("public static void Audit([System.Runtime.InteropServices.Optional] Ankus.PgEventTriggerContext context) { }")]
-    [DataRow("public static ref int Audit(Ankus.PgEventTriggerContext context) => throw new System.InvalidOperationException();")]
-    [DataRow("public static ref readonly int Audit(Ankus.PgEventTriggerContext context) => throw new System.InvalidOperationException();")]
-    public void InvalidEventTriggerSignaturesAreDiagnosed(string method)
-        => AssertInvalidEventTrigger("public class Functions { [Ankus.PgEventTrigger] " + method + " }", "ANKUS011");
+    [DataRow("public void Audit(Ankus.PgEventTriggerContext context) { }", "ANKUS208")]
+    [DataRow("private static void Audit(Ankus.PgEventTriggerContext context) { }", "ANKUS213")]
+    [DataRow("protected static void Audit(Ankus.PgEventTriggerContext context) { }", "ANKUS213")]
+    [DataRow("private protected static void Audit(Ankus.PgEventTriggerContext context) { }", "ANKUS213")]
+    [DataRow("public static void Audit<T>(Ankus.PgEventTriggerContext context) { }", "ANKUS210")]
+    [DataRow("public static int Audit(Ankus.PgEventTriggerContext context) => 1;", "ANKUS214")]
+    [DataRow("public static Ankus.PgHeapTuple? Audit(Ankus.PgEventTriggerContext context) => null;", "ANKUS214")]
+    [DataRow("public static System.Threading.Tasks.Task Audit(Ankus.PgEventTriggerContext context) => System.Threading.Tasks.Task.CompletedTask;", "ANKUS228")]
+    [DataRow("public static async void Audit(Ankus.PgEventTriggerContext context) { await System.Threading.Tasks.Task.Yield(); }", "ANKUS209")]
+    [DataRow("public static async System.Threading.Tasks.Task Audit(Ankus.PgEventTriggerContext context) { await System.Threading.Tasks.Task.Yield(); }", "ANKUS209")]
+    [DataRow("public static System.Collections.Generic.IEnumerable<int> Audit(Ankus.PgEventTriggerContext context) => System.Array.Empty<int>();", "ANKUS214")]
+    [DataRow("public static void Audit() { }", "ANKUS215")]
+    [DataRow("public static void Audit(Ankus.PgEventTriggerContext context, int extra) { }", "ANKUS215")]
+    [DataRow("public static void Audit(Ankus.PgEventTriggerContext? context) { }", "ANKUS219")]
+    [DataRow("public static void Audit(Ankus.PgTriggerContext context) { }", "ANKUS220")]
+    [DataRow("public static void Audit(object context) { }", "ANKUS220")]
+    [DataRow("public static void Audit(ref Ankus.PgEventTriggerContext context) { }", "ANKUS216")]
+    [DataRow("public static void Audit(in Ankus.PgEventTriggerContext context) { }", "ANKUS216")]
+    [DataRow("public static void Audit(out Ankus.PgEventTriggerContext context) { context = null!; }", "ANKUS216")]
+    [DataRow("public static void Audit(params Ankus.PgEventTriggerContext[] context) { }", "ANKUS217")]
+    [DataRow("public static void Audit(Ankus.PgEventTriggerContext context = null!) { }", "ANKUS218")]
+    [DataRow("public static void Audit([System.Runtime.InteropServices.Optional] Ankus.PgEventTriggerContext context) { }", "ANKUS218")]
+    [DataRow("public static ref int Audit(Ankus.PgEventTriggerContext context) => throw new System.InvalidOperationException();", "ANKUS212")]
+    [DataRow("public static ref readonly int Audit(Ankus.PgEventTriggerContext context) => throw new System.InvalidOperationException();", "ANKUS212")]
+    public void InvalidEventTriggerSignaturesAreDiagnosed(string method, string diagnostic)
+        => AssertInvalidEventTrigger("public class Functions { [Ankus.PgEventTrigger] " + method + " }", diagnostic);
 
     /// <summary>
     /// Generic, inaccessible, file-local and abstract declarations cannot supply concrete event callbacks.
     /// </summary>
     /// <param name="source">The complete unsupported declaration.</param>
+    /// <param name="diagnostic">The independently correctable callback contract.</param>
     [TestMethod]
-    [DataRow("public class Functions<T> { [Ankus.PgEventTrigger] public static void Audit(Ankus.PgEventTriggerContext context) { } }")]
-    [DataRow("public class Outer<T> { public class Inner { [Ankus.PgEventTrigger] public static void Audit(Ankus.PgEventTriggerContext context) { } } }")]
-    [DataRow("file class Functions { [Ankus.PgEventTrigger] public static void Audit(Ankus.PgEventTriggerContext context) { } }")]
-    [DataRow("public class Outer { private class Inner { [Ankus.PgEventTrigger] public static void Audit(Ankus.PgEventTriggerContext context) { } } }")]
-    [DataRow("public interface Functions { [Ankus.PgEventTrigger] static abstract void Audit(Ankus.PgEventTriggerContext context); }")]
-    public void InvalidEventTriggerContainersAreDiagnosed(string source) => AssertInvalidEventTrigger(source, "ANKUS011");
+    [DataRow("public class Functions<T> { [Ankus.PgEventTrigger] public static void Audit(Ankus.PgEventTriggerContext context) { } }", "ANKUS221")]
+    [DataRow("public class Outer<T> { public class Inner { [Ankus.PgEventTrigger] public static void Audit(Ankus.PgEventTriggerContext context) { } } }", "ANKUS221")]
+    [DataRow("file class Functions { [Ankus.PgEventTrigger] public static void Audit(Ankus.PgEventTriggerContext context) { } }", "ANKUS222")]
+    [DataRow("public class Outer { private class Inner { [Ankus.PgEventTrigger] public static void Audit(Ankus.PgEventTriggerContext context) { } } }", "ANKUS223")]
+    [DataRow("public interface Functions { [Ankus.PgEventTrigger] static abstract void Audit(Ankus.PgEventTriggerContext context); }", "ANKUS211")]
+    public void InvalidEventTriggerContainersAreDiagnosed(string source, string diagnostic) => AssertInvalidEventTrigger(source, diagnostic);
 
     /// <summary>
     /// SQL operand, result and set metadata cannot silently acquire a meaning on event callbacks.
     /// </summary>
     /// <param name="attribute">The method or return attribute.</param>
     /// <param name="parameterAttribute">The context parameter metadata.</param>
+    /// <param name="diagnostic">The independently correctable callback contract.</param>
     [TestMethod]
-    [DataRow("[Ankus.PgTrigger]", "")]
-    [DataRow("[Ankus.PgOperator(\"+\")]", "")]
-    [DataRow("[Ankus.PgCast]", "")]
-    [DataRow("[return: Ankus.PgCompositeType(\"dog\")]", "")]
-    [DataRow("[return: Ankus.PgNumericPrecision(5, 2)]", "")]
-    [DataRow("[return: Ankus.PgColumnNames(\"row\")]", "")]
-    [DataRow("", "[Ankus.PgCompositeType(\"dog\")]")]
-    [DataRow("", "[Ankus.PgNumericPrecision(5, 2)]")]
-    [DataRow("", "[Ankus.PgParameter(Name = \"arg\")]")]
-    [DataRow("", "[Ankus.PgParameter(Default = \"NULL\")]")]
-    [DataRow("[Ankus.PgFunction(Rows = 1000)]", "")]
-    [DataRow("[Ankus.PgFunction(Rows = 0)]", "")]
-    [DataRow("[Ankus.PgFunction(SetMode = Ankus.PgSetMode.Auto)]", "")]
-    [DataRow("[Ankus.PgFunction(SetMode = Ankus.PgSetMode.Materialize)]", "")]
-    public void ConflictingEventTriggerMetadataIsDiagnosed(string attribute, string parameterAttribute)
+    [DataRow("[Ankus.PgTrigger]", "", "ANKUS224")]
+    [DataRow("[Ankus.PgOperator(\"+\")]", "", "ANKUS224")]
+    [DataRow("[Ankus.PgCast]", "", "ANKUS224")]
+    [DataRow("[return: Ankus.PgCompositeType(\"dog\")]", "", "ANKUS225")]
+    [DataRow("[return: Ankus.PgNumericPrecision(5, 2)]", "", "ANKUS225")]
+    [DataRow("[return: Ankus.PgColumnNames(\"row\")]", "", "ANKUS225")]
+    [DataRow("", "[Ankus.PgCompositeType(\"dog\")]", "ANKUS225")]
+    [DataRow("", "[Ankus.PgNumericPrecision(5, 2)]", "ANKUS225")]
+    [DataRow("", "[Ankus.PgParameter(Name = \"arg\")]", "ANKUS225")]
+    [DataRow("", "[Ankus.PgParameter(Default = \"NULL\")]", "ANKUS225")]
+    [DataRow("[Ankus.PgFunction(Rows = 1000)]", "", "ANKUS226")]
+    [DataRow("[Ankus.PgFunction(Rows = 0)]", "", "ANKUS226")]
+    [DataRow("[Ankus.PgFunction(SetMode = Ankus.PgSetMode.Auto)]", "", "ANKUS227")]
+    [DataRow("[Ankus.PgFunction(SetMode = Ankus.PgSetMode.Materialize)]", "", "ANKUS227")]
+    public void ConflictingEventTriggerMetadataIsDiagnosed(string attribute, string parameterAttribute, string diagnostic)
         => AssertInvalidEventTrigger("public static class Functions { [Ankus.PgEventTrigger] " + attribute +
-            " public static void Audit(" + parameterAttribute + " Ankus.PgEventTriggerContext context) { } }", "ANKUS011");
+            " public static void Audit(" + parameterAttribute + " Ankus.PgEventTriggerContext context) { } }", diagnostic);
 
     /// <summary>
     /// Dual markers report one event diagnostic even when the signature and attribute order otherwise favor a row trigger.
@@ -233,7 +236,7 @@ public sealed partial class PgFunctionGeneratorTests
     [DataRow("[Ankus.PgEventTrigger, Ankus.PgTrigger, Ankus.PgFunction]")]
     public void DualRowAndEventTriggerMarkersUseOneConsistentDiagnostic(string attributes)
         => AssertInvalidEventTrigger("public static class Functions { " + attributes +
-            " public static Ankus.PgHeapTuple? Audit(Ankus.PgTriggerContext context) => null; }", "ANKUS011");
+            " public static Ankus.PgHeapTuple? Audit(Ankus.PgTriggerContext context) => null; }", "ANKUS224");
 
     /// <summary>
     /// Shared invalid names and planner options keep their established diagnostics after event validation.
@@ -329,7 +332,7 @@ public sealed partial class PgFunctionGeneratorTests
     /// <param name="diagnostic">The expected diagnostic.</param>
     [TestMethod]
     [DataRow("Ankus.PgFunction", "ANKUS040")]
-    [DataRow("Ankus.PgTrigger", "ANKUS010")]
+    [DataRow("Ankus.PgTrigger", "ANKUS214")]
     public void EventTriggerContextRequiresTheEventMarker(string attribute, string diagnostic)
         => AssertInvalidEventTrigger("public static class Functions { [" + attribute + "] " +
             "public static void Audit(Ankus.PgEventTriggerContext context) { } }", diagnostic);

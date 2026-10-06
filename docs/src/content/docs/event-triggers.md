@@ -123,3 +123,32 @@ a login handler. The sample uses DDL events and does not install a login handler
 
 PostgreSQL 13–16 rejects `CREATE EVENT TRIGGER ... ON login` with SQLSTATE
 `42601`; no login handler is attached. DDL event handlers remain available.
+
+## Declaration diagnostics
+
+Row and event callbacks must run synchronously on the invoking PostgreSQL
+backend thread. Each declaration error identifies its own contract and
+highlights the relevant modifier, type, parameter, attribute or option.
+Row callbacks return `PgHeapTuple` or `PgHeapTuple?`; event callbacks return
+`void`. Their required context types are `PgTriggerContext` and
+`PgEventTriggerContext`, respectively.
+
+| Diagnostic | Correction |
+| --- | --- |
+| `ANKUS208` | Declare a static callback. |
+| `ANKUS209`, `ANKUS228`, `ANKUS229` | Perform the work synchronously; callbacks cannot use `async`, return `Task`/`ValueTask`, or return `IAsyncEnumerable`. |
+| `ANKUS210` | Remove callback method type parameters. |
+| `ANKUS211` | Provide a concrete method implementation. |
+| `ANKUS212`, `ANKUS214` | Return the callback's required result by value. |
+| `ANKUS213`, `ANKUS223` | Make the method and its enclosing types accessible to generated code: public, internal, or protected internal. |
+| `ANKUS215` | Declare exactly one required context parameter. |
+| `ANKUS216`, `ANKUS217`, `ANKUS218` | Pass that context by value without `ref`, `in`, `out`, `params`, a default, or `Optional`. |
+| `ANKUS219`, `ANKUS220` | Use the correct, nonnullable context type. |
+| `ANKUS221`, `ANKUS222` | Declare callbacks in non-generic types that are not file-local. |
+| `ANKUS224` | Choose one row/event callback or operator/cast export role. |
+| `ANKUS225` | Remove SQL value binding attributes from the context and result. |
+| `ANKUS226`, `ANKUS227` | Remove `Rows` and `SetMode`, which describe ordinary set-returning functions. |
+
+Invalid callback declarations do not prevent unrelated valid functions from
+receiving their generated dispatchers. Shared `[PgFunction]` names, schemas,
+security and dependency options retain their ordinary declaration diagnostics.

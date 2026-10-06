@@ -411,8 +411,8 @@ public sealed partial class PgFunctionGeneratorTests
     [DataRow("[Ankus.PgFunction(Sql = \"SELECT 1;\", NullInput = Ankus.PgNullInput.CalledOnNull)] public static int Bad(int value) => value;", "ANKUS049")]
     [DataRow("[Ankus.PgFunction(GenerateSql = false), Ankus.PgOperator(\"@\")] public static int Bad() => 1;", "ANKUS066")]
     [DataRow("[Ankus.PgFunction(Sql = \"SELECT 1;\"), Ankus.PgCast] public static int Bad(int value) => value;", "ANKUS079")]
-    [DataRow("[Ankus.PgFunction(GenerateSql = false), Ankus.PgTrigger] public static int Bad(Ankus.PgTriggerContext context) => 1;", "ANKUS010")]
-    [DataRow("[Ankus.PgFunction(Sql = \"\"), Ankus.PgEventTrigger] public static int Bad(Ankus.PgEventTriggerContext context) => 1;", "ANKUS011")]
+    [DataRow("[Ankus.PgFunction(GenerateSql = false), Ankus.PgTrigger] public static int Bad(Ankus.PgTriggerContext context) => 1;", "ANKUS214")]
+    [DataRow("[Ankus.PgFunction(Sql = \"\"), Ankus.PgEventTrigger] public static int Bad(Ankus.PgEventTriggerContext context) => 1;", "ANKUS214")]
     public void SqlGenerationDoesNotBypassExistingContractValidation(string declaration, string id)
     {
         (_, ImmutableArray<Diagnostic> diagnostics) = Generate("public static class Functions {" + declaration + "}");

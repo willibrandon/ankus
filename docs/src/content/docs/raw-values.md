@@ -352,6 +352,12 @@ static, non-generic, and match that type's `Invoke` parameters and return value
 exactly. Private handlers are supported. The containing types must be
 non-generic partial classes, structs or records.
 
+Do not apply `System.Diagnostics.Conditional` to the handler or either part of a
+partial handler. C# can omit calls to conditional methods while the native
+wrapper still reports success. `ANKUS276` points at that attribute; remove it
+so every native invocation executes the handler. This rule applies even when
+the conditional symbol is currently defined.
+
 For example, install an executor hook and retain the previous hook explicitly:
 
 ```csharp

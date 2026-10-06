@@ -436,8 +436,8 @@ public sealed partial class PgFunctionGeneratorTests
     /// <param name="method">The unsupported trigger declaration.</param>
     /// <param name="expected">The expected trigger diagnostic.</param>
     [TestMethod]
-    [DataRow("[Ankus.PgTrigger] public static Ankus.PgHeapTuple? Apply(Ankus.PgTriggerContext trigger, Ankus.PgMemoryContext context) => trigger.New;", "ANKUS010")]
-    [DataRow("[Ankus.PgEventTrigger] public static void Apply(Ankus.PgMemoryContext context, Ankus.PgEventTriggerContext trigger) { }", "ANKUS011")]
+    [DataRow("[Ankus.PgTrigger] public static Ankus.PgHeapTuple? Apply(Ankus.PgTriggerContext trigger, Ankus.PgMemoryContext context) => trigger.New;", "ANKUS215")]
+    [DataRow("[Ankus.PgEventTrigger] public static void Apply(Ankus.PgMemoryContext context, Ankus.PgEventTriggerContext trigger) { }", "ANKUS215")]
     public void VirtualContextsDoNotChangeDedicatedTriggerSignatures(string method, string expected)
     {
         (_, ImmutableArray<Diagnostic> diagnostics) = Generate("public static class Functions { " + method + " }");

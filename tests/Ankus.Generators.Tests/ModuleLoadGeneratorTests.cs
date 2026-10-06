@@ -56,17 +56,18 @@ public sealed partial class PgFunctionGeneratorTests
     /// Module registration rejects unsupported signatures and conflicting phase declarations.
     /// </summary>
     /// <param name="declaration">The invalid module registration declaration.</param>
+    /// <param name="diagnostic">The independently correctable initialization contract.</param>
     [TestMethod]
-    [DataRow("[Ankus.PgModuleLoad] public void Load() { }")]
-    [DataRow("[Ankus.PgModuleLoad] private static void Load() { }")]
-    [DataRow("[Ankus.PgModuleLoad] public static int Load() => 1;")]
-    [DataRow("[Ankus.PgModuleLoad] public static void Load(int value) { }")]
-    [DataRow("[Ankus.PgModuleLoad] public static void Load<T>() { }")]
-    [DataRow("[Ankus.PgModuleLoad] public static async void Load() { await System.Threading.Tasks.Task.Yield(); }")]
-    [DataRow("[Ankus.PgModuleLoad, Ankus.PgInitialize] public static void Load() { }")]
-    [DataRow("[Ankus.PgModuleLoad, Ankus.PgFunction] public static void Load() { }")]
-    [DataRow("[Ankus.PgModuleLoad, System.Diagnostics.Conditional(\"DEBUG\")] public static void Load() { }")]
-    [DataRow("[Ankus.PgModuleLoad] public static void First() { } [Ankus.PgModuleLoad] public static void Second() { }")]
-    public void InvalidModuleLoadDeclarationsAreRejected(string declaration)
-        => AssertInvalidInitialization("public class Startup { " + declaration + " }");
+    [DataRow("[Ankus.PgModuleLoad] public void Load() { }", "ANKUS232")]
+    [DataRow("[Ankus.PgModuleLoad] private static void Load() { }", "ANKUS240")]
+    [DataRow("[Ankus.PgModuleLoad] public static int Load() => 1;", "ANKUS238")]
+    [DataRow("[Ankus.PgModuleLoad] public static void Load(int value) { }", "ANKUS239")]
+    [DataRow("[Ankus.PgModuleLoad] public static void Load<T>() { }", "ANKUS234")]
+    [DataRow("[Ankus.PgModuleLoad] public static async void Load() { await System.Threading.Tasks.Task.Yield(); }", "ANKUS233")]
+    [DataRow("[Ankus.PgModuleLoad, Ankus.PgInitialize] public static void Load() { }", "ANKUS230")]
+    [DataRow("[Ankus.PgModuleLoad, Ankus.PgFunction] public static void Load() { }", "ANKUS247")]
+    [DataRow("[Ankus.PgModuleLoad, System.Diagnostics.Conditional(\"DEBUG\")] public static void Load() { }", "ANKUS245")]
+    [DataRow("[Ankus.PgModuleLoad] public static void First() { } [Ankus.PgModuleLoad] public static void Second() { }", "ANKUS249")]
+    public void InvalidModuleLoadDeclarationsAreRejected(string declaration, string diagnostic)
+        => AssertInvalidInitialization("public class Startup { " + declaration + " }", diagnostic);
 }

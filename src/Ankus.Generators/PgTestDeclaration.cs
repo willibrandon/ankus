@@ -34,6 +34,11 @@ internal sealed record PgTestDeclaration(PgTestCatalogModel.Owner Owner, PgTestC
     /// <returns>The detached discovery and SQL contracts, or null after a validation failure.</returns>
     internal static PgTestDeclaration? Create(IMethodSymbol method, GeneratorDiagnostics context)
     {
+        if (!ConditionalEntryDeclaration.Validate(method, context))
+        {
+            return null;
+        }
+
         if (!method.IsStatic || method.IsAsync || method.IsGenericMethod || method.IsAbstract || !method.ReturnsVoid ||
             method.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal or Accessibility.ProtectedOrInternal) ||
             FunctionParameter.Create(method).Any(static parameter => !parameter.IsInjected || parameter.RefKind != RefKind.None))

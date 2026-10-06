@@ -8,15 +8,11 @@ ANKUS005 | Ankus | Error | Invalid custom SQL input or installation dependency g
 ANKUS006 | Ankus | Error | Invalid PostgreSQL enum declaration or label mapping
 ANKUS008 | Ankus | Error | Invalid PostgreSQL set result or table columns
 ANKUS009 | Ankus | Error | Invalid named composite type or TABLE column binding
-ANKUS010 | Ankus | Error | Invalid PostgreSQL trigger declaration
-ANKUS011 | Ankus | Error | Invalid PostgreSQL event trigger declaration
-ANKUS013 | Ankus | Error | Invalid PostgreSQL initialization declaration
 ANKUS015 | Ankus | Error | Invalid PostgreSQL configuration prefix
 ANKUS016 | Ankus | Error | Invalid raw PostgreSQL type or TABLE column binding
 ANKUS017 | Ankus | Error | Invalid PostgreSQL base type or storage codec
 ANKUS018 | Ankus | Error | Invalid generated PostgreSQL operators
 ANKUS021 | Ankus | Error | Invalid static native callback declaration or handler
-ANKUS022 | Ankus | Error | Invalid PostgreSQL background-worker entry
 ANKUS023 | Ankus | Error | Invalid PostgreSQL backend test declaration or catalog
 ANKUS024 | Ankus | Error | Ambiguous reference nullability in a SQL parameter or result
 ANKUS025 | Ankus | Error | Invalid PostgreSQL native module identity
@@ -202,3 +198,74 @@ ANKUS204 | Ankus | Error | Unreadable datum mapping metadata
 ANKUS205 | Ankus | Error | Unreadable range mapping metadata
 ANKUS206 | Ankus | Error | Unreadable declaration attribute metadata
 ANKUS207 | Ankus | Error | Duplicate PostgreSQL input signature
+
+ANKUS208 | Ankus | Error | PostgreSQL callback must be static
+ANKUS209 | Ankus | Error | PostgreSQL callback must be synchronous
+ANKUS210 | Ankus | Error | PostgreSQL callback cannot be generic
+ANKUS211 | Ankus | Error | PostgreSQL callback requires an implementation
+ANKUS212 | Ankus | Error | PostgreSQL callback must return by value
+ANKUS213 | Ankus | Error | PostgreSQL callback must be accessible
+ANKUS214 | Ankus | Error | Invalid PostgreSQL callback result
+ANKUS215 | Ankus | Error | PostgreSQL callback requires one context
+ANKUS216 | Ankus | Error | PostgreSQL callback context must be passed by value
+ANKUS217 | Ankus | Error | PostgreSQL callback context cannot be variadic
+ANKUS218 | Ankus | Error | PostgreSQL callback context cannot be optional
+ANKUS219 | Ankus | Error | PostgreSQL callback context cannot be nullable
+ANKUS220 | Ankus | Error | Invalid PostgreSQL callback context type
+ANKUS221 | Ankus | Error | PostgreSQL callback container cannot be generic
+ANKUS222 | Ankus | Error | PostgreSQL callback container cannot be file-local
+ANKUS223 | Ankus | Error | PostgreSQL callback container must be accessible
+ANKUS224 | Ankus | Error | Conflicting PostgreSQL callback roles
+ANKUS225 | Ankus | Error | SQL value metadata does not apply to callbacks
+ANKUS226 | Ankus | Error | PostgreSQL callback cannot declare Rows
+ANKUS227 | Ankus | Error | PostgreSQL callback cannot declare SetMode
+ANKUS228 | Ankus | Error | PostgreSQL callback cannot return a task
+ANKUS229 | Ankus | Error | PostgreSQL callback cannot return an asynchronous set
+ANKUS230 | Ankus | Error | Conflicting PostgreSQL initialization phases
+ANKUS231 | Ankus | Error | Initialization requires an ordinary method
+ANKUS232 | Ankus | Error | Initialization callback must be static
+ANKUS233 | Ankus | Error | Initialization callback must be synchronous
+ANKUS234 | Ankus | Error | Initialization callback cannot be generic
+ANKUS235 | Ankus | Error | Initialization callback requires a concrete method
+ANKUS236 | Ankus | Error | Initialization callback cannot be virtual
+ANKUS237 | Ankus | Error | Initialization callback requires managed implementation
+ANKUS238 | Ankus | Error | Initialization callback must return void
+ANKUS239 | Ankus | Error | Initialization callback must be parameterless
+ANKUS240 | Ankus | Error | Initialization callback must be accessible
+ANKUS241 | Ankus | Error | Partial initialization callback requires implementation
+ANKUS242 | Ankus | Error | Initialization container cannot be generic
+ANKUS243 | Ankus | Error | Initialization container cannot be file-local
+ANKUS244 | Ankus | Error | Initialization container must be accessible
+ANKUS245 | Ankus | Error | Initialization callback cannot be conditional
+ANKUS246 | Ankus | Error | Initialization callback must support managed invocation
+ANKUS247 | Ankus | Error | Initialization callback cannot be a SQL export
+ANKUS248 | Ankus | Error | SQL result metadata does not apply to initialization
+ANKUS249 | Ankus | Error | Duplicate PostgreSQL initialization phase
+ANKUS250 | Ankus | Error | Worker entry requires an ordinary method
+ANKUS251 | Ankus | Error | Worker entry must be static
+ANKUS252 | Ankus | Error | Worker entry must be synchronous
+ANKUS253 | Ankus | Error | Worker entry cannot be generic
+ANKUS254 | Ankus | Error | Worker entry requires a concrete method
+ANKUS255 | Ankus | Error | Worker entry cannot be virtual
+ANKUS256 | Ankus | Error | Worker entry requires managed implementation
+ANKUS257 | Ankus | Error | Worker entry must return void
+ANKUS258 | Ankus | Error | Worker entry requires one argument
+ANKUS259 | Ankus | Error | Worker argument must be passed by value
+ANKUS260 | Ankus | Error | Worker argument must be a native unsigned integer
+ANKUS261 | Ankus | Error | Worker entry must be accessible
+ANKUS262 | Ankus | Error | Partial worker entry requires implementation
+ANKUS263 | Ankus | Error | Worker container cannot be generic
+ANKUS264 | Ankus | Error | Worker container cannot be file-local
+ANKUS265 | Ankus | Error | Worker container must be accessible
+ANKUS266 | Ankus | Error | Worker entry cannot be conditional
+ANKUS267 | Ankus | Error | Worker entry must support managed invocation
+ANKUS268 | Ankus | Error | Worker entry cannot initialize the extension
+ANKUS269 | Ankus | Error | Worker entry cannot be a SQL export
+ANKUS270 | Ankus | Error | SQL result metadata does not apply to workers
+ANKUS271 | Ankus | Error | SQL argument metadata does not apply to workers
+ANKUS272 | Ankus | Error | Invalid native worker export identifier
+ANKUS273 | Ankus | Error | Native worker export is too long
+ANKUS274 | Ankus | Error | Native worker export is reserved
+ANKUS275 | Ankus | Error | Duplicate native worker export
+ANKUS276 | Ankus | Error | Native callback handlers cannot declare Conditional
+ANKUS277 | Ankus | Error | PostgreSQL entry method cannot be conditional
