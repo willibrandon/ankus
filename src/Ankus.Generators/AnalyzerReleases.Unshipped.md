@@ -2,6 +2,14 @@
 
 Rule ID | Category | Severity | Notes
 --------|----------|----------|------
+ANKUS370 | Ankus | Error | empty SQL block identifier
+ANKUS371 | Ankus | Error | zero in SQL block identifier
+ANKUS372 | Ankus | Error | invalid Unicode in SQL block identifier
+ANKUS373 | Ankus | Error | missing SQL block
+ANKUS374 | Ankus | Error | empty SQL function signature
+ANKUS375 | Ankus | Error | zero in SQL function signature
+ANKUS376 | Ankus | Error | invalid Unicode in SQL function signature
+ANKUS377 | Ankus | Error | duplicate SQL function signature
 ANKUS002 | Ankus | Error | Invalid PostgreSQL function name
 ANKUS003 | Ankus | Error | Invalid numeric precision or scale constraint
 ANKUS005 | Ankus | Error | Invalid installation dependency graph or SQL replacement

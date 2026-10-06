@@ -108,16 +108,17 @@ public sealed partial class PgFunctionGeneratorTests
     /// </summary>
     /// <param name="provider">The invalid custom function declaration.</param>
     /// <param name="message">The actionable graph diagnostic.</param>
+    /// <param name="expected">The precise provider failure identity.</param>
     [TestMethod]
-    [DataRow("[assembly: Ankus.PgSqlFunctionProvider(\"missing\", \"f()\")]", "existing PgSql")]
-    [DataRow("[assembly: Ankus.PgSqlFunctionProvider(\"sql\", \"\")]", "nonempty SQL signature")]
-    [DataRow("[assembly: Ankus.PgSqlFunctionProvider(\"sql\", \"f\\0()\")]", "nonempty SQL signature")]
-    [DataRow("[assembly: Ankus.PgSqlFunctionProvider(\"sql\", \"f()\")] [assembly: Ankus.PgSqlFunctionProvider(\"sql\", \"f()\")]", "only one custom provider")]
-    public void SchemaGraphRejectsInvalidFunctionProviders(string provider, string message)
+    [DataRow("[assembly: Ankus.PgSqlFunctionProvider(\"missing\", \"f()\")]", "existing PgSql", "ANKUS373")]
+    [DataRow("[assembly: Ankus.PgSqlFunctionProvider(\"sql\", \"\")]", "including its argument types", "ANKUS374")]
+    [DataRow("[assembly: Ankus.PgSqlFunctionProvider(\"sql\", \"f\\0()\")]", "Remove embedded zero", "ANKUS375")]
+    [DataRow("[assembly: Ankus.PgSqlFunctionProvider(\"sql\", \"f()\")] [assembly: Ankus.PgSqlFunctionProvider(\"sql\", \"f()\")]", "only one custom provider", "ANKUS377")]
+    public void SchemaGraphRejectsInvalidFunctionProviders(string provider, string message, string expected)
     {
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate("""[assembly: Ankus.PgSql("sql", "SELECT 1;")]""" + provider);
         Diagnostic diagnostic = Assert.ContainsSingle(diagnostics);
-        Assert.AreEqual("ANKUS005", diagnostic.Id);
+        Assert.AreEqual(expected, diagnostic.Id);
         Assert.Contains(message, diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture));
         Assert.IsFalse(compilation.Assembly.GetAttributes().Any(static attribute => attribute.ConstructorArguments.Length == 2 &&
             attribute.ConstructorArguments[0].Value as string == "Ankus.SqlGraph"));

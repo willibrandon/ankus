@@ -28205,3 +28205,131 @@ owned temporary directories are removed without recursion, preserving all files,
 the reusable validation checkout, runtime and retained evidence.
 This establishes the named source and Linux/PostgreSQL combination;
 it does not establish complete version/platform or full-port acceptance.
+
+The accepted SQL/datetime milestone is committed and pushed as **4da0bec**.
+The prepush check again records the previous primary CI/docs as successful and
+Intel refresh as running. New
+[CI 37472689738](https://github.com/willibrandon/ankus/actions/runs/37472689738)
+has passed all three runtime jobs; quality and all three complete platform
+suites are running.
+[Docs 37472689525](https://github.com/willibrandon/ankus/actions/runs/37472689525)
+passes build and deployment. The next function-provider correction has **1,853**
+ordinary inputs frozen and is executing the complete Linux/PostgreSQL **18.6**
+suite independently of primary CI. Its exact generator evidence remains valid;
+complete native acceptance and promotion are pending.
+
+### Live follow-up checkpoint — 2026-10-06, 13:56 UTC
+
+The user-linked Windows job **112070449862** belongs to rejected run
+**37401674049**, revision **15efe37**. Its crash-isolation correction and complete
+replacement acceptance are recorded above. Fresh GitHub evidence reconfirms
+replacement **37454418329 / e41c687** is successful. The deadlines, fsync and
+durability/recovery assertions remain unchanged.
+
+Current **37472689738 / 4da0bec** passes quality and all three runtime jobs;
+Linux x64/PostgreSQL 18, macOS ARM64/PostgreSQL 18 and Windows x64/PostgreSQL 17
+full suites remain live. Intel refresh **37460600236** and the separate ordinary
+function-provider native composition also remain pending. No result is inferred
+from live execution. Independent type-provider diagnostic research is recorded
+privately while these exact source inputs remain frozen; no uncompiled draft is
+promoted or counted as verified implementation.
+
+### Ordinary function-provider generator report — 2026-10-06
+
+The live ordinary-source Linux/PostgreSQL **18.6** composition completes its
+generator module successfully in **2m03.682s**. The actual report independently
+verifies **4,409** passed executions with zero failures/skips and unique
+execution identities. All **45** new/existing function-provider partitions
+verify, alongside the **66** exact SQL input/empty-anchor/CR/CRLF cases,
+**158** callback cases, **54** prefix cases and **51** module-identity cases.
+These are the actual ordinary-source executions, separate from earlier private
+prototype evidence. The integration process remains live, so this is not
+complete platform acceptance or authorization to promote the source composition.
+
+The first callback report-reader invocation selected its unsupported `generators`
+phase and rejected before reading the report. The retained corrected invocation
+uses its documented `combined` phase and independently verifies every required
+case. No test, assertion, input or outcome was changed for this correction.
+
+### Current SQL/datetime primary CI — 2026-10-06
+
+Primary run **37472689738**, source **4da0bec**, and docs run **37472689525**
+complete successfully. Quality and all three runtime jobs pass. The full,
+unsharded published-extension suites use embedded runtime **10.0.12-ankus.4**:
+
+| Platform / PostgreSQL | Actual total / passed / skipped / failed | Job duration |
+| --- | --- | --- |
+| Linux x64 / 18 | 13,337 / 13,289 / 48 / 0 | 40m13s |
+| macOS ARM64 / 18 | 13,337 / 13,277 / 60 / 0 | 29m27s |
+| Windows x64 / 17 | 13,337 / 13,309 / 28 / 0 | 38m29s |
+
+All eighteen actual reports independently verify their counters and distinct
+execution identities. Each platform includes all **4,381** generator and
+**5,019** integration executions. Independent readers verify the **67** native
+recovery, **62** datetime, real SQL installation/value/recovery, **66** SQL
+generator, **51** module-identity, **158** callback and **54** prefix cases on
+every platform. No job timed out. Intel refresh **37460600236**, parent
+**e41c687**, remains in progress after successful runtime preparation; its live
+suite supplies no new acceptance yet.
+
+### Ordinary function-provider complete native acceptance — 2026-10-06
+
+The unchanged ordinary function-provider composition completes plain
+`dotnet test -c Release` against PostgreSQL **18.6**, Linux x64, SDK **10.0.401**,
+Clang **23.1.2**, embedded runtime **10.0.12-ankus.4**. All **1,853** frozen
+source inputs match before and after execution, with no conditional overlays.
+The actual six reports verify **13,365** total, **13,317** passed, **48** platform
+skips and zero failures. Test duration is **42m39.165s**; command duration is
+**43m46.9365752s**. The generator module passes **4,409** cases and integration
+passes its complete **5,019**-case corpus, including all required native recovery
+and datetime partitions and the real custom SQL installation/value/recovery case.
+The independent provider, SQL, identity, callback and prefix readers also pass.
+
+The exact source/report/native-log archive contains **2,038** ordinary files,
+**9,554,563** compressed bytes, SHA-256
+`687acfee9cdcb3a8ea76ce273acc3b9d0e96a0457c8a7b3d33cc38a138856c5d`.
+Every archived byte verifies against its executed original. Fresh guards verify
+all **1,851** accepted parent source inputs and both absent destinations before
+promotion. Ten changed/new files are promoted from the verified evidence archive.
+Normal Release and documentation gates remain required before this milestone's
+commit, followed by complete primary-platform CI. This named Linux composition
+does not establish untested combinations or full-port completion.
+
+### Type-provider diagnostic baseline — 2026-10-06
+
+The next private ordinary-source diagnostic baseline runs **46** actual cases:
+**38** intended precise-diagnostic failures and **8** valid controls, with no
+skips. The failures show the existing combined **ANKUS005** rule. The unchanged
+validator retains exact Unicode, quoted catalog identity, legal whitespace,
+63-byte boundaries, relocation and managed behavior in all valid controls.
+
+Earlier private attempts are retained as rejected evidence. Obsolete source files
+in the reused validator first caused duplicate types; their exact bytes were
+archived before removal from compiled trees. A test initially referred to a new
+internal coordinate property absent from the original validator; observable
+diagnostic-location assertions replace that coupling. An initial executed draft
+then failed six valid controls because it confused an internal identity separator
+with the public graph attachment and assumed ordering without a dependency.
+Those expectations are corrected to the existing attachment format and an
+explicit authored ordering edge. The actual 38/8 baseline now independently
+verifies. A corrected-source preparation has an explicit null-flow compile
+finding under the generator's target framework; it is being fixed in the private
+draft. Corrected tests, complete native acceptance and promotion remain pending.
+
+The corrected type-provider draft uses an explicit null-or-empty guard; all
+**46** focused and **4,455** complete generator executions now pass on macOS
+ARM64, SDK **10.0.401**. Source hashes match before and after execution. Complete
+generator command duration is **41.8024077s**. These are generator checks, not
+published-extension platform acceptance. A separate plain, unsharded Linux /
+PostgreSQL **18.6** run has been started against all **1,855** ordinary inputs;
+complete native acceptance and promotion remain pending.
+
+Before the function-provider commit, primary **37472689738** and docs
+**37472689525** remain successful; Intel **37460600236** remains in progress.
+Normal authoring Release passes with zero warnings/errors in **1m29.69s**.
+API freshness verifies **244** pages and **2,791** members; site build passes
+**295** pages in **3.59s**, and site check reports zero errors, warnings or hints.
+The user's unrelated ignore-file changes are preserved and excluded from the
+milestone. The completed owned Linux temporary root has **389** empty temporary
+directories removed after exact archive verification; source and evidence are
+retained.

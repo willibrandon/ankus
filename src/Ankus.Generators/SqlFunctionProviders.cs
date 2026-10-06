@@ -21,23 +21,43 @@ internal static class SqlFunctionProviders
         foreach (SqlProviderModel provider in providers.Where(static item => item.Function))
         {
             Location? location = provider.Location?.Resolve(compilation);
+            Location? blockLocation = provider.BlockLocation?.Resolve(compilation) ?? location;
+            Location? signatureLocation = provider.NameLocation?.Resolve(compilation) ?? location;
             string? blockId = provider.BlockId;
             string? signature = provider.Name;
-            if (string.IsNullOrWhiteSpace(blockId) || !blocks.TryGetValue(blockId!, out SqlEntity? block))
+            if (blockId is null || string.IsNullOrWhiteSpace(blockId))
             {
-                graph.Error(location, "A function provider must name an existing PgSql or PgSqlFile block.");
+                graph.Error(blockLocation, SqlFunctionProviderDiagnostics.s_emptyBlock);
                 continue;
             }
 
-            if (string.IsNullOrWhiteSpace(signature) || !SqlText.IsText(signature!))
+            if (blockId!.Contains('\0') || !SqlText.IsText(blockId))
             {
-                graph.Error(location, "A function provider requires a nonempty SQL signature with valid Unicode and no zero characters.");
+                graph.Error(blockLocation, blockId.Contains('\0') ? SqlFunctionProviderDiagnostics.s_blockZero : SqlFunctionProviderDiagnostics.s_blockUnicode);
+                continue;
+            }
+
+            if (!blocks.TryGetValue(blockId, out SqlEntity? block))
+            {
+                graph.Error(blockLocation, SqlFunctionProviderDiagnostics.s_missingBlock, blockId);
+                continue;
+            }
+
+            if (signature is null || string.IsNullOrWhiteSpace(signature))
+            {
+                graph.Error(signatureLocation, SqlFunctionProviderDiagnostics.s_emptySignature);
+                continue;
+            }
+
+            if (signature!.Contains('\0') || !SqlText.IsText(signature))
+            {
+                graph.Error(signatureLocation, signature.Contains('\0') ? SqlFunctionProviderDiagnostics.s_signatureZero : SqlFunctionProviderDiagnostics.s_signatureUnicode);
                 continue;
             }
 
             if (!claimed.Add(signature!))
             {
-                graph.Error(location, "A SQL function signature may have only one custom provider: " + signature + ".");
+                graph.Error(signatureLocation, SqlFunctionProviderDiagnostics.s_duplicateSignature, signature);
                 continue;
             }
 

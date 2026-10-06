@@ -136,10 +136,11 @@ internal sealed partial class SqlGraph
     /// </summary>
     /// <param name="location">The exact offending argument.</param>
     /// <param name="descriptor">The fixed validation contract.</param>
-    internal void Error(Location? location, DiagnosticDescriptor descriptor)
+    /// <param name="arguments">The exact authored identity substitutions.</param>
+    internal void Error(Location? location, DiagnosticDescriptor descriptor, params string[] arguments)
     {
         _invalid = true;
-        _context.Report(descriptor, location);
+        _context.Report(descriptor, location, arguments);
     }
 
     /// <summary>

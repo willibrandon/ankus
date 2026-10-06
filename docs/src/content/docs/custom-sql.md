@@ -115,6 +115,27 @@ identities. Custom blocks without a declared inventory produce a warning when
 selected with automatic attachments; tables and other undeclared objects still
 need explicit attachment SQL.
 
+### Function provider diagnostics
+
+Function-provider errors highlight the constructor argument that needs fixing.
+Named and reordered arguments follow their semantic parameter names, `sqlId`
+and `signature`. Invalid inventory prevents a partial installation graph.
+
+| Diagnostic | Correction |
+| --- | --- |
+| `ANKUS370` | Supply a nonnull SQL block identifier with at least one non-whitespace character. |
+| `ANKUS371` | Remove embedded zero characters from the SQL block identifier. |
+| `ANKUS372` | Replace unpaired UTF-16 surrogate characters in the SQL block identifier. |
+| `ANKUS373` | Select a successfully resolved `PgSql` or `PgSqlFile` block. Function and schema dependency aliases do not supply custom SQL. |
+| `ANKUS374` | Supply a nonnull SQL function signature with at least one non-whitespace character, including its argument types. |
+| `ANKUS375` | Remove embedded zero characters from the SQL signature. |
+| `ANKUS376` | Replace unpaired UTF-16 surrogate characters in the SQL signature. |
+| `ANKUS377` | Remove the second claim for an exact signature or select a distinct overload. This also applies when both claims name the same block. |
+
+Ankus preserves valid names and signatures exactly. It does not normalize SQL
+aliases, fold identifier case or parse these signatures. PostgreSQL validates
+their syntax and catalog identity when the script executes.
+
 ### Shell types and completion
 
 A manual base type often needs a shell declaration, native input/output

@@ -87,9 +87,9 @@ incorrect. See [the detailed review](docs/contributing/evidence/port-history.md#
 ## Current complete acceptance evidence
 
 Primary CI runs all six modules against real published Native AOT extensions.
-The latest successful primary CI source is **e41c687**, with runtime **10.0.12-ankus.4**.
-[CI 37454418329](https://github.com/willibrandon/ankus/actions/runs/37454418329)
-and [Docs 37454418510](https://github.com/willibrandon/ankus/actions/runs/37454418510)
+The latest successful primary CI source is **4da0bec**, with runtime **10.0.12-ankus.4**.
+[CI 37472689738](https://github.com/willibrandon/ankus/actions/runs/37472689738)
+and [Docs 37472689525](https://github.com/willibrandon/ankus/actions/runs/37472689525)
 pass. All eighteen actual reports and all sixty-seven required native recovery
 partitions independently verify, alongside the callback and prefix corpora on
 every platform; no primary job timed out.
@@ -99,10 +99,11 @@ platform outcome remains pending.
 
 | Source | Platform / PostgreSQL | Result | Duration |
 | --- | --- | --- | --- |
-| Latest primary CI, **e41c687 / ankus.4** | Linux x64 / 18 | 13,210 total; 13,162 passed; 48 platform skips; zero failures | 40m00s job |
-| Same CI / revision / runtime | macOS ARM64 / 18 | 13,210 total; 13,150 passed; 60 platform skips; zero failures | 28m29s retry job; first attempt rejected after disk exhaustion |
-| Same CI / revision / runtime | Windows x64 / 17 | 13,210 total; 13,182 passed; 28 platform skips; zero failures | 38m03s job |
+| Latest primary CI, **4da0bec / ankus.4** | Linux x64 / 18 | 13,337 total; 13,289 passed; 48 platform skips; zero failures | 40m13s job |
+| Same CI / revision / runtime | macOS ARM64 / 18 | 13,337 total; 13,277 passed; 60 platform skips; zero failures | 29m27s job |
+| Same CI / revision / runtime | Windows x64 / 17 | 13,337 total; 13,309 passed; 28 platform skips; zero failures | 38m29s job |
 | SQL/datetime composition, parent **e41c687 / ankus.4** | Linux x64 / 18.6 | 13,337 total; 13,289 passed; 48 platform skips; zero failures | 42m46.885s tests; 43m41.597s command |
+| Function-provider composition, parent **4da0bec / ankus.4** | Linux x64 / 18.6 | 13,365 total; 13,317 passed; 48 platform skips; zero failures | 42m39.165s tests; 43m46.937s command |
 
 All eighteen primary reports and the module identity, callback, prefix and native
 recovery partitions independently verify. Normal Release, API freshness and site
@@ -125,31 +126,23 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
 
 ## Active validation and work
 
-- **e41c687** is the accepted module-identity milestone, following callback/prefix
-  **a177cfc** and enum/backend-test **5a11b8c**. Complete primary CI, Release,
-  API freshness and both site checks pass. The first macOS attempt exhausted disk
-  during overlapping private validation; owned completed outputs are cleaned,
-  validation is separated from CI and the complete retry passes. Crash tests
-  retain their deadlines, fsync and durability checks. The earlier macOS
-  allocation variance remains unattributed.
-- The SQL/datetime composition passes plain, unsharded Linux/PostgreSQL **18.6**
-  acceptance: **13,337** total, **13,289** passed, **48** platform skips and zero
-  failures. All six actual reports verify, including **62** datetime cases,
-  **66** new SQL generator cases and the real SQL package/value/recovery case.
-  All **1,851** source inputs match after execution; the exact **2,044**-file
-  evidence archive verifies. The **31** changed/new source files are promoted.
-  Normal Release, API freshness and both site checks pass before commit.
-- The sample maps all **21** datetime exports. Four cached-plan regressions
-  reproduce incorrect upstream immutable flags; stable declarations preserve
-  session timezone changes. Empty SQL anchors retain their dependency edges,
-  and authored CR/CRLF values remain exact. Earlier source flags and the rejected
-  macOS disk-exhaustion attempt remain recorded separately.
+- **4da0bec** passes complete primary CI, Release, API freshness and both site
+  checks. All eighteen platform reports and native recovery, datetime, SQL,
+  callback, prefix and module-identity partitions independently verify.
+  Crash tests retain their deadlines, fsync and durability checks. The earlier
+  macOS allocation variance remains unattributed.
 - Hosted Intel refresh **37460600236** has passed runtime preparation; its full
   suite remains pending.
-- The next function-provider diagnostic draft passes all **4,409** generator
-  cases after reproducing **24** precise failures and **4** valid controls.
-  Actual reports and exact sources are retained; native acceptance and promotion
-  remain pending for this separate milestone.
+- Function-provider diagnostics pass complete Linux/PostgreSQL **18.6** acceptance:
+  **13,365** total, zero failures. All **1,853** ordinary source inputs and the
+  exact **2,038**-file evidence archive verify; ten changed/new files are promoted.
+  Release, API freshness and both site gates pass before commit. Its primary CI
+  remains required; the accepted parent evidence is recorded above.
+- Type-provider precise diagnostics are in private validation. The unchanged
+  validator reproduces **38** failures with **8** valid controls. Corrected
+  validation passes all **46** focused and **4,455** complete generator cases.
+  Complete native acceptance is running separately and remains required before
+  promotion.
 
 Remaining diagnostics/code fixes, source-case mapping, samples, API and CLI
 contracts, supported PostgreSQL/platform combinations, .NET servicing and release

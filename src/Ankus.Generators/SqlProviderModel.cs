@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Ankus.Generators;
 
@@ -13,8 +14,10 @@ namespace Ankus.Generators;
 /// <param name="SchemaAuthored">Whether Schema was explicitly supplied, including null.</param>
 /// <param name="Type">The exact managed type identity, absent for named or invalid selectors.</param>
 /// <param name="Location">The current attribute diagnostic coordinates.</param>
+/// <param name="BlockLocation">The exact authored SQL block argument.</param>
+/// <param name="NameLocation">The exact authored catalog-name or function-signature argument.</param>
 internal sealed record SqlProviderModel(bool Function, string? BlockId, string? Name, string? Schema,
-    bool Managed, bool SchemaAuthored, ManagedTypeIdentity? Type, GeneratorLocation? Location)
+    bool Managed, bool SchemaAuthored, ManagedTypeIdentity? Type, GeneratorLocation? Location, GeneratorLocation? BlockLocation, GeneratorLocation? NameLocation)
 {
     /// <summary>
     /// Freezes constructor shape and exact compiler identity without resolving catalog ownership or executing SQL.
@@ -35,6 +38,29 @@ internal sealed record SqlProviderModel(bool Function, string? BlockId, string? 
             AttributeValues.Get<string?>(attribute, "Schema", null), managed,
             attribute.NamedArguments.Any(static argument => argument.Key == "Schema"),
             validArity && attribute.ConstructorArguments[1].Value is ITypeSymbol supplied ? ManagedTypeIdentity.Create(supplied) : null,
-            GeneratorLocation.Create(attribute.ApplicationSyntaxReference?.GetSyntax(cancellationToken).GetLocation(), compilation));
+            GeneratorLocation.Create(attribute.ApplicationSyntaxReference?.GetSyntax(cancellationToken).GetLocation(), compilation),
+            ArgumentLocation(attribute, 0, compilation, cancellationToken), ArgumentLocation(attribute, 1, compilation, cancellationToken));
+    }
+
+    /// <summary>
+    /// Locates constructor values by semantic parameter rather than authored argument order.
+    /// </summary>
+    /// <param name="attribute">The transient selected provider attribute.</param>
+    /// <param name="position">The constructor parameter index.</param>
+    /// <param name="compilation">The current compilation owning the source coordinates.</param>
+    /// <param name="cancellationToken">The current generator cancellation token.</param>
+    /// <returns>The exact detached value coordinates, with an attribute fallback for incomplete syntax.</returns>
+    private static GeneratorLocation? ArgumentLocation(AttributeData attribute, int position, Compilation compilation, CancellationToken cancellationToken)
+    {
+        var syntax = attribute.ApplicationSyntaxReference?.GetSyntax(cancellationToken) as AttributeSyntax;
+        string? parameter = attribute.AttributeConstructor?.Parameters.ElementAtOrDefault(position)?.Name;
+        AttributeArgumentSyntax? argument = syntax?.ArgumentList?.Arguments.FirstOrDefault(item => parameter is not null
+            && item.NameColon?.Name.Identifier.ValueText == parameter);
+        if (argument is null && syntax?.ArgumentList?.Arguments.ElementAtOrDefault(position) is { NameColon: null, NameEquals: null } positional)
+        {
+            argument = positional;
+        }
+
+        return GeneratorLocation.Create(argument?.Expression.GetLocation() ?? syntax?.GetLocation(), compilation);
     }
 }

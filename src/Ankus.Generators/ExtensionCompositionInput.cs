@@ -109,6 +109,8 @@ internal sealed record ExtensionCompositionInput(FunctionPipeline.MethodInputs M
         foreach (SqlProviderModel provider in Providers)
         {
             yield return provider.Location;
+            yield return provider.BlockLocation;
+            yield return provider.NameLocation;
         }
 
         foreach (CustomSqlPipeline.Output output in CustomBlocks)

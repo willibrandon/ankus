@@ -35,8 +35,8 @@ public sealed partial class PgFunctionGeneratorTests
         SqlProviderModel after = Assert.ContainsSingle(SqlProviders(driver));
 
         Assert.AreEqual(move ? IncrementalStepRunReason.Modified : IncrementalStepRunReason.Unchanged, ModuleStep(driver, "SqlProviderAnalysis"));
-        Assert.AreEqual(before with { Location = null }, after with { Location = null });
-        Assert.AreEqual((before with { Location = null }).GetHashCode(), (after with { Location = null }).GetHashCode());
+        Assert.AreEqual(before with { Location = null, BlockLocation = null, NameLocation = null }, after with { Location = null, BlockLocation = null, NameLocation = null });
+        Assert.AreEqual((before with { Location = null, BlockLocation = null, NameLocation = null }).GetHashCode(), (after with { Location = null, BlockLocation = null, NameLocation = null }).GetHashCode());
         Assert.AreEqual(kind == "managed", after.Managed);
         Assert.AreEqual(kind == "function", after.Function);
         Assert.AreEqual(InstallationBody(first), InstallationBody(second));
@@ -122,13 +122,13 @@ public sealed partial class PgFunctionGeneratorTests
         CSharpCompilation initial = ModuleCompilation(source);
         GeneratorDriver driver = ModuleDriver().RunGeneratorsAndUpdateCompilation(initial, out _,
             out ImmutableArray<Diagnostic> previous, context.CancellationToken);
-        Assert.AreEqual("ANKUS005", Assert.ContainsSingle(previous).Id);
+        Assert.AreEqual(function ? "ANKUS373" : "ANKUS005", Assert.ContainsSingle(previous).Id);
         SyntaxTree tree = CSharpSyntaxTree.ParseText(source + "\n// independent edit", path: "Module.cs", cancellationToken: context.CancellationToken);
         CSharpCompilation edited = initial.ReplaceSyntaxTree(initial.SyntaxTrees.Single(), tree);
         driver = driver.RunGeneratorsAndUpdateCompilation(edited, out Compilation failed, out ImmutableArray<Diagnostic> errors, context.CancellationToken);
         Diagnostic error = Assert.ContainsSingle(errors);
 
-        Assert.AreEqual("ANKUS005", error.Id);
+        Assert.AreEqual(function ? "ANKUS373" : "ANKUS005", error.Id);
         Assert.AreSame(tree, error.Location.SourceTree);
         Assert.AreEqual(Assert.ContainsSingle(previous).Location.SourceSpan, error.Location.SourceSpan);
         Assert.Contains(function ? "existing PgSql" : "must name a PgSql", error.GetMessage(CultureInfo.InvariantCulture));
