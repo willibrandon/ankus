@@ -69,7 +69,7 @@ defines the full scope; family-level implementation is not API-by-API completion
 
 | Area | Verified implementation | Remaining work |
 | --- | --- | --- |
-| Errors and cancellation | Sticky query cancellation/FATAL, retained raw/memory errors, fail-fast backend access and explicit rollback recovery. Primary-platform full CI passes. | Correct completion-cleanup terminal severity, reporter failures and original-error preservation; retain recovery guarantees and complete the version/platform matrix. |
+| Errors and cancellation | Sticky query cancellation/FATAL, retained raw/memory errors, fail-fast backend access and explicit rollback recovery. Transaction-completion callback failures use a fixed-buffer emergency log path without PostgreSQL diagnostic allocation; it preserves the primary error and durable outcome. Abort-time FATAL remains FATAL while irreversible FATAL is promoted to PANIC. Primary-platform full CI passes. | Retain recovery guarantees and complete the version/platform matrix. |
 | Workers and shared memory | Native signal globals, lifecycle/transaction boundaries and shared memory. Idle Wait recovers repeated real cancellation; transaction waits still abort and terminal reports remain sticky. Complete primary-platform CI passes. | Full source-contract and complete version/platform acceptance remain required. |
 | Functions and callbacks | Scalar/array/SETOF/TABLE, triggers/events, lifecycle, native callbacks, operators/conversions and installation-schema search paths. | Full upstream declaration/option audit and complete version/platform evidence. |
 | Aggregates and SQL graph | Static abstract aggregate capabilities, typed Requires/Before/SupportFunction references, deterministic SQL provenance and extended module magic. Empty SQL dependency anchors and exact authored CR/CRLF values pass complete native acceptance. | Remaining precise provider/graph diagnostics, inventoried contracts and complete version/platform acceptance. |
@@ -92,24 +92,24 @@ incorrect. See [the detailed review](docs/contributing/evidence/port-history.md#
 ## Current complete acceptance evidence
 
 Primary CI runs all six modules against real published Native AOT extensions.
-The latest successful primary CI source is **97842d3**, with runtime **10.0.12-ankus.4**.
-[CI 37480623539](https://github.com/willibrandon/ankus/actions/runs/37480623539)
-and [Docs 37480623554](https://github.com/willibrandon/ankus/actions/runs/37480623554)
-pass. All eighteen actual reports and all sixty-seven required native recovery
+The latest successful primary CI source is **de27abd**, with runtime **10.0.12-ankus.4**.
+[CI 37491227831](https://github.com/willibrandon/ankus/actions/runs/37491227831)
+passes; the latest [Docs run 37488835665](https://github.com/willibrandon/ankus/actions/runs/37488835665)
+also passes. All eighteen actual reports and all sixty-seven required native recovery
 partitions independently verify, alongside the callback and prefix corpora on
 every platform; no primary job timed out.
-A current [Intel refresh](https://github.com/willibrandon/ankus/actions/runs/37460600236)
-has passed its runtime job and is running the complete macOS x64 suite. Its
-platform outcome remains pending.
+A complete [Intel refresh](https://github.com/willibrandon/ankus/actions/runs/37460600236)
+also passes on source **e41c687**.
 
 | Source | Platform / PostgreSQL | Result | Duration |
 | --- | --- | --- | --- |
-| Latest primary CI, **97842d3 / ankus.4** | Linux x64 / 18 | 13,365 total; 13,317 passed; 48 platform skips; zero failures | 40m24s job |
-| Same CI / revision / runtime | macOS ARM64 / 18 | 13,365 total; 13,305 passed; 60 platform skips; zero failures | 29m33s job |
-| Same CI / revision / runtime | Windows x64 / 17 | 13,365 total; 13,337 passed; 28 platform skips; zero failures | 39m27s job |
+| Latest primary CI, **de27abd / ankus.4** | Linux x64 / 18 | 13,411 total; 13,363 passed; 48 platform skips; zero failures | 40m21s job |
+| Same CI / revision / runtime | macOS ARM64 / 18 | 13,411 total; 13,351 passed; 60 platform skips; zero failures | 29m34s job |
+| Same CI / revision / runtime | Windows x64 / 17 | 13,411 total; 13,383 passed; 28 platform skips; zero failures | 39m28s job |
 | SQL/datetime composition, parent **e41c687 / ankus.4** | Linux x64 / 18.6 | 13,337 total; 13,289 passed; 48 platform skips; zero failures | 42m46.885s tests; 43m41.597s command |
 | Function-provider composition, parent **4da0bec / ankus.4** | Linux x64 / 18.6 | 13,365 total; 13,317 passed; 48 platform skips; zero failures | 42m39.165s tests; 43m46.937s command |
 | Type-provider composition, parent **97842d3 / ankus.4** | Linux x64 / 18.6 | 13,411 total; 13,363 passed; 48 platform skips; zero failures | 42m39.033s tests; 43m35.244s command |
+| Transaction-completion cleanup composition, parent **de27abd / ankus.4** | Linux x64 / 18.6 | 13,409 total; 13,361 passed; 48 platform skips; zero failures | 53m42.735s tests |
 
 All eighteen primary reports and the module identity, callback, prefix and native
 recovery partitions independently verify. Normal Release, API freshness and site
@@ -125,20 +125,20 @@ the current source remains required, alongside the never-covered combinations.
 | [Version CI 37154140634](https://github.com/willibrandon/ankus/actions/runs/37154140634), **c24297f / ankus.4** | Linux x64 / each of 13–17 and 19 beta 4 | 11,640 total per major; 11,623 passed; 17 platform skips; zero failures | 38m20s–40m57s jobs |
 | [Version CI 37145038020](https://github.com/willibrandon/ankus/actions/runs/37145038020), **b9b7eb5 / ankus.4** | macOS ARM64 / 15 and 16 | 11,609 total per major; 11,580 passed; 29 platform skips; zero failures | 26m17s / 26m32s jobs |
 | Same version CI / revision / runtime | Windows x64 / 13 and 18 | 11,609 total per major; 11,584 passed; 25 platform skips; zero failures | 33m51s / 31m46s jobs |
-| [Intel CI 37131051660](https://github.com/willibrandon/ankus/actions/runs/37131051660), **04f0a8a / ankus.4** | macOS x64 / 18.6 | 11,568 total; 11,541 passed; 27 platform skips; zero failures | 3h59m34s job |
+| [Intel CI 37460600236](https://github.com/willibrandon/ankus/actions/runs/37460600236), **e41c687 / ankus.4** | macOS x64 / 18.6 | 13,210 total; 13,150 passed; 60 platform skips; zero failures | 4h16m36s job |
 
 Earlier timings, outcomes, failed checks and superseded acceptance details remain
 in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-table-before-spi-flow-acceptance-2026-10-05).
 
 ## Active validation and work
 
-- **97842d3** passes complete primary CI and docs. All eighteen platform reports
+- **de27abd** passes complete primary CI; the latest docs run also passes. All eighteen platform reports
   and native recovery, datetime, SQL, function-provider, callback, prefix and
   module-identity partitions independently verify.
   Crash tests retain their deadlines, fsync and durability checks. The earlier
   macOS allocation variance remains unattributed.
-- Hosted Intel refresh **37460600236** has passed runtime preparation; its full
-  suite remains pending.
+- Hosted Intel refresh **37460600236** passes its complete **13,210**-case macOS
+  x64/PostgreSQL 18 suite with zero failures.
 - Function-provider diagnostics pass complete Linux/PostgreSQL **18.6** acceptance:
   **13,365** total, zero failures. All **1,853** ordinary source inputs and the
   exact **2,038**-file evidence archive verify; ten changed/new files are promoted.
@@ -154,10 +154,14 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
 - The new review confirms unsafe array-flow misses, a conditional-ref analyzer
   crash and stale increment values. The correction passes all **14** focused and
   **4,469** complete generator cases privately. Safe SQL loop widening and
-  bounded helper analysis remain open. Real executor abort tests reproduce the
-  FATAL-to-PANIC defect. The first correction preserves FATAL but recursively
-  enters abort; it is rejected. Reporter allocation/error-state preservation and
-  deferred terminal reporting must be fixed before accepting the cleanup change.
+  bounded helper analysis remain open. Transaction-completion cleanup now uses
+  a fixed-buffer, encoding-independent server-log path that bypasses PostgreSQL
+  diagnostic allocation and log hooks. All **33** focused executor cases pass, including abort, savepoint,
+  durable commit/prepare, reporter-allocation faults and exact FATAL/PANIC behavior.
+  The first complete run correctly rejected five stale client-notice expectations;
+  their corrected server-log replacements pass **7/7**. The clean complete
+  Linux/PostgreSQL **18.6** suite passes **13,409** cases with zero failures and
+  **48** platform skips in **53m42.735s**.
 - PostgreSQL-version documentation, LF source/SQL checkout attributes and the
   missing crash-test isolation annotation are corrected. The complete v0.19.3
   release audit and source-derived header maintenance command remain explicit
@@ -181,7 +185,7 @@ The Intel diagnostic retry exposed six path-related failures; the corrected
 complete Intel suite now passes. An explanation of the earlier hosted-runner
 disconnect and remaining version/platform acceptance are still required.
 
-1. Resolve discovered correctness and CI failures before accepting affected work, including safe SQL loop analysis and cleanup reporter/terminal behavior. Finish the remaining declaration/source-case audits. Malformed AssemblyRef handling and the owner index already pass all eight regressions in the current complete suite.
+1. Resolve discovered correctness and CI failures before accepting affected work, including safe SQL loop analysis. Finish the remaining declaration/source-case audits. Malformed AssemblyRef handling and the owner index already pass all eight regressions in the current complete suite.
 2. Complete every pgrx 0.19.3 release-delta gate, including deterministic header discovery/regeneration, newly exposed native contracts, all CLI/configuration/output forwarding and allocation/shared-memory/varlena audits. Refresh evidence against the corrected current source.
 3. Finish the Intel timing milestone and complete supported-major/platform coverage, including Intel macOS and the macOS 15/16 library-suffix boundary.
 4. Complete declaration diagnostics/code fixes, API discoverability and unsafe raw-call contracts.

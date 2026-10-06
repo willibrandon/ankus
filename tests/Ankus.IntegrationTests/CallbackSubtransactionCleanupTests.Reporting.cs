@@ -9,19 +9,15 @@ namespace Ankus.IntegrationTests;
 public sealed partial class CallbackSubtransactionCleanupTests
 {
     /// <summary>
-    /// A failing warning hook preserves rollback, the primary error and every remaining callback.
+    /// A failing warning hook is bypassed while rollback, the primary error and every remaining callback survive.
     /// </summary>
     /// <param name="abortKind">Zero for explicit rollback, one for failed transaction, or two for savepoint abort.</param>
-    /// <param name="persistent">Whether the native hook also rejects warning retries.</param>
     [TestMethod]
-    [DataRow(0, false)]
-    [DataRow(1, false)]
-    [DataRow(2, false)]
-    [DataRow(0, true)]
-    [DataRow(1, true)]
-    [DataRow(2, true)]
-    public Task CleanupReporterFailurePreservesAbortAndCallbackDrain(int abortKind, bool persistent)
-        => AssertAbortReporterRecoveryAsync(abortKind, persistent, encodingFailure: false);
+    [DataRow(0)]
+    [DataRow(1)]
+    [DataRow(2)]
+    public Task CleanupEmergencyLogBypassesHookAndPreservesAbortAndCallbackDrain(int abortKind)
+        => AssertAbortReporterRecoveryAsync(abortKind, encodingFailure: false);
 
     /// <summary>
     /// Client encoding conversion failures cannot panic the cluster or leave partially drained callbacks.
@@ -32,15 +28,14 @@ public sealed partial class CallbackSubtransactionCleanupTests
     [DataRow(1)]
     [DataRow(2)]
     public Task CleanupEncodingFailurePreservesAbortAndCallbackDrain(int abortKind)
-        => AssertAbortReporterRecoveryAsync(abortKind, persistent: false, encodingFailure: true);
+        => AssertAbortReporterRecoveryAsync(abortKind, encodingFailure: true);
 
     /// <summary>
-    /// Exercises warning failures across repeated real transaction boundaries on the same backend.
+    /// Exercises emergency cleanup reporting across repeated real transaction boundaries on the same backend.
     /// </summary>
     /// <param name="abortKind">The PostgreSQL abort boundary.</param>
-    /// <param name="persistent">Whether the native warning hook remains broken.</param>
     /// <param name="encodingFailure">Whether the diagnostic contains a character outside the client's encoding.</param>
-    private async Task AssertAbortReporterRecoveryAsync(int abortKind, bool persistent, bool encodingFailure)
+    private async Task AssertAbortReporterRecoveryAsync(int abortKind, bool encodingFailure)
     {
         CancellationToken token = context.CancellationToken;
         PostgresTestClusterOptions options = await IntegrationEnvironment.CreateOptionsAsync(token);
@@ -63,15 +58,14 @@ public sealed partial class CallbackSubtransactionCleanupTests
 
         for (int iteration = 0; iteration < 3; iteration++)
         {
-            int previousNotices = notices.Count;
-            if (!encodingFailure && (!persistent || iteration == 0))
+            if (!encodingFailure)
             {
-                command.CommandText = "SELECT tests.log_arm('callback café', $1)";
-                command.Parameters.AddWithValue(persistent ? 3 : 2);
+                command.CommandText = "SELECT tests.log_prefix_arm('callback café')";
                 await command.ExecuteNonQueryAsync(token);
-                command.Parameters.Clear();
             }
 
+            int previousNotices = notices.Count;
+            int logStart = cluster.ReadServerLog().Length;
             await using (NpgsqlTransaction transaction = await connection.BeginTransactionAsync(token))
             {
                 command.Transaction = transaction;
@@ -119,26 +113,39 @@ public sealed partial class CallbackSubtransactionCleanupTests
                 command.Transaction = null;
             }
 
-            PostgresNotice[] warnings = [.. notices.Skip(previousNotices)];
-            if (persistent)
+            Assert.HasCount(previousNotices, notices);
+            string diagnostic = CompletionLog(cluster, logStart, backend);
+            Assert.Contains(encodingFailure
+                ? "WARNING: 22023: callback \\xE2\\x82\\xAC"
+                : "WARNING: 22023: callback caf\\xC3\\xA9", diagnostic);
+            Assert.Contains(encodingFailure ? "DETAIL: secondary detail" : "DETAIL: detail na\\xC3\\xAFve", diagnostic);
+            Assert.Contains(encodingFailure ? "HINT: secondary hint" : "HINT: hint d\\xC3\\xA9j\\xC3\\xA0", diagnostic);
+            if (encodingFailure)
             {
-                Assert.IsEmpty(warnings);
-                string diagnostic = cluster.ReadServerLog();
-                Assert.Contains("WARNING: cleanup reporting failed (22023): native report hook failure", diagnostic);
-                Assert.Contains("DETAIL: persistent native hook detail", diagnostic);
-                Assert.Contains("HINT: repair the persistent warning hook", diagnostic);
-                Assert.Contains("QUERY: SELECT broken_warning_hook", diagnostic);
+                Assert.Contains("CONTEXT: cleanup context", diagnostic);
+                Assert.Contains("SCHEMA: sch\\xC3\\xA9ma", diagnostic);
+                Assert.Contains("TABLE: callback_table", diagnostic);
+                Assert.Contains("COLUMN: callback_column", diagnostic);
+                Assert.Contains("DATATYPE: callback_type", diagnostic);
+                Assert.Contains("CONSTRAINT: callback_constraint", diagnostic);
+                Assert.Contains("QUERY: SELECT callback", diagnostic);
+                Assert.Contains("FILE: MemoryCallbackFunctions.cs", diagnostic);
+                Assert.Contains("ROUTINE: MemoryCallbackPrepareEncoding", diagnostic);
+                Assert.Contains("DETAIL_LOG: server detail \\xE2\\x82\\xAC", diagnostic);
+                Assert.Contains("BACKTRACE: frame one\\nframe two", diagnostic);
                 Assert.Contains("POSITION: 17", diagnostic);
                 Assert.Contains("INTERNAL_POSITION: 3", diagnostic);
+                Assert.Contains("LINE: 911", diagnostic);
             }
-            else
+
+            if (!encodingFailure)
             {
-                PostgresNotice warning = Assert.ContainsSingle(warnings);
-                Assert.AreEqual("WARNING", warning.InvariantSeverity);
-                Assert.AreEqual(encodingFailure ? "22P05" : "22023", warning.SqlState);
-                Assert.AreEqual(encodingFailure
-                    ? "character with byte sequence 0xe2 0x82 0xac in encoding \"UTF8\" has no equivalent in encoding \"LATIN1\""
-                    : "native report hook failure", warning.MessageText);
+                command.CommandText = "SELECT tests.log_prefix_calls()";
+                Assert.AreEqual(0L, await command.ExecuteScalarAsync(token));
+                command.CommandText = "SELECT tests.log_prefix_active()";
+                Assert.IsTrue(Assert.IsInstanceOfType<bool>(await command.ExecuteScalarAsync(token)));
+                command.CommandText = "SELECT tests.log_prefix_restore()";
+                Assert.IsTrue(Assert.IsInstanceOfType<bool>(await command.ExecuteScalarAsync(token)));
             }
 
             command.CommandText = "SELECT datatype.memory_callback_implicit_state()";

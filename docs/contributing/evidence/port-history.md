@@ -28452,3 +28452,45 @@ Benchmark sampling bias, pattern-designation code fixes, shared-base aggregate
 diagnostics, the remaining provider/graph diagnostics, template names, source-case
 mapping, samples and complete supported platform/version evidence are also still
 required. No review or full-port completion is claimed.
+
+## Transaction-completion cleanup emergency reporting — 2026-10-06
+
+The accepted correction removes ordinary PostgreSQL error reporting from
+nonterminal transaction-completion cleanup. A callback failure is written through
+PostgreSQL's early emergency stderr API using fixed stack buffers. Every diagnostic
+field is retained, control and non-ASCII UTF-8 bytes are escaped exactly, and each
+line carries the backend process identifier. The path performs no PostgreSQL
+diagnostic allocation, client-encoding conversion, error-state flush or
+`emit_log_hook` invocation. Secondary failures therefore cannot replace the
+primary SQL error, recursively interrupt abort, or crash a cluster after a durable
+commit.
+
+Terminal intent remains separate. The transaction callback records successful
+commit, parallel commit or preparation, and the public VXID macro confirms that
+the outcome is irreversible. FATAL during ordinary abort remains FATAL; PANIC
+remains PANIC. FATAL after durable commit or preparation becomes PANIC because
+backend exit would try to abort an outcome PostgreSQL has already made visible.
+The earlier pre-boundary FATAL correction is retained only as rejected evidence:
+it re-entered abort and did not fix the transaction-state hazard.
+
+All **33** focused Linux x64/PostgreSQL **18.6** executor cases pass in
+**4m18.508s**. They execute ordinary abort, failed statements, savepoint rollback,
+commit, prepared transactions, iterator and aggregate cleanup, real failing log
+hooks, client encoding mismatch, staged reporter-allocation faults, fabricated
+SQLSTATE `57014`, complete diagnostic fields and exact FATAL/PANIC outcomes. The
+first complete run then reported exactly five stale tests that still expected
+client notices: **13,409** total, **13,356** passed, **48** skipped and **5** failed
+in **53m18.378s**. The corrected server-log assertions pass **7/7** in
+**3m01.345s**.
+
+The final plain, unsharded suite passes **13,409** total, **13,361** passed,
+**48** platform skips and zero failures in **53m42.735s** on Linux x64/PostgreSQL
+**18.6** with runtime **10.0.12-ankus.4**. The exact-current Release build has
+zero warnings and errors in **40.46s**. API freshness verifies **244** pages and
+**2,791** members; the site builds **295** pages and its check reports zero errors,
+warnings or hints. The completed validation checkout and its logs were deleted
+after recording these outcomes.
+
+Immediately before this milestone's commit, primary **37491227831** at
+**de27abd** and the latest docs run **37488835665** are complete and successful;
+no earlier reported failure or pending run remains unresolved.

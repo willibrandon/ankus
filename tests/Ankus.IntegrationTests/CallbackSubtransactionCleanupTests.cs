@@ -1,4 +1,3 @@
-using System.Net.Sockets;
 using Ankus.Testing;
 using Npgsql;
 
@@ -44,7 +43,7 @@ public sealed partial class CallbackSubtransactionCleanupTests(TestContext conte
                     : $"SELECT value::text FROM {source} value";
                 for (int index = 0; index < 10; index++)
                 {
-                    int previousNotices = notices.Count;
+                    int previousLogLength = PostgresFixture.Cluster.ReadServerLog().Length;
                     string[] error = await CaptureAsync(command, query, token);
                     Assert.AreSequenceEqual(executorFailure
                         ? ["22012", "division by zero", string.Empty, string.Empty]
@@ -59,7 +58,7 @@ public sealed partial class CallbackSubtransactionCleanupTests(TestContext conte
                     Assert.AreEqual(0, status[11]);
                     command.CommandText = "SELECT set_values.set_native_cleanup_caught()";
                     Assert.AreEqual(index + 1, await command.ExecuteScalarAsync(token));
-                    AssertNativeCleanupWarning(notices, previousNotices, executorFailure,
+                    AssertNativeCleanupWarning(PostgresFixture.Cluster, previousLogLength, backend, executorFailure,
                         "ExtensibleNodeMethods \"ankus_missing_iterator_cleanup\" was not registered");
                     await AssertRecoveredAsync(command, baseline, backend, token);
                 }
@@ -91,7 +90,7 @@ public sealed partial class CallbackSubtransactionCleanupTests(TestContext conte
                 string mode = transitionFailure ? "resources_native_transition" : "resources_native";
                 for (int index = 0; index < 10; index++)
                 {
-                    int previousNotices = notices.Count;
+                    int previousLogLength = PostgresFixture.Cluster.ReadServerLog().Length;
                     command.CommandText = $"SELECT aggregate_values.aggregate_reset('{mode}')";
                     await command.ExecuteNonQueryAsync(token);
                     string[] error = await CaptureAsync(command,
@@ -105,7 +104,7 @@ public sealed partial class CallbackSubtransactionCleanupTests(TestContext conte
                     Assert.AreEqual(transitionFailure ? 2 : 3, status[4]);
                     command.CommandText = "SELECT aggregate_values.aggregate_trace()";
                     Assert.AreSequenceEqual(["42704"], Assert.IsInstanceOfType<string[]>(await command.ExecuteScalarAsync(token)));
-                    AssertNativeCleanupWarning(notices, previousNotices, transitionFailure,
+                    AssertNativeCleanupWarning(PostgresFixture.Cluster, previousLogLength, backend, transitionFailure,
                         "ExtensibleNodeMethods \"ankus_missing_aggregate_cleanup\" was not registered");
                     await AssertRecoveredAsync(command, baseline, backend, token);
                 }
@@ -145,25 +144,23 @@ public sealed partial class CallbackSubtransactionCleanupTests(TestContext conte
                     """;
                 for (int index = 0; index < 10; index++)
                 {
-                    int previousNotices = notices.Count;
+                    int previousLogLength = PostgresFixture.Cluster.ReadServerLog().Length;
                     Assert.AreSequenceEqual(["23514", "primary callback failure", "primary detail", "primary hint"],
                         await CaptureAsync(command, query, token));
                     command.CommandText = "SELECT datatype.memory_callback_implicit_state()";
                     Assert.AreEqual("B73,A73|False,False|False|stale", await command.ExecuteScalarAsync(token));
                     command.CommandText = "SELECT count(*) FROM ankus_test_memory.contexts WHERE ident = 'implicit memory callback'";
                     Assert.AreEqual(0L, await command.ExecuteScalarAsync(token));
-                    PostgresNotice[] cleanup = [.. notices.Skip(previousNotices).Where(static notice => notice.SqlState == "22023")];
                     if (cleanupThrows)
                     {
-                        PostgresNotice warning = Assert.ContainsSingle(cleanup);
-                        Assert.AreEqual("WARNING", warning.InvariantSeverity);
-                        Assert.AreEqual("callback café", warning.MessageText);
-                        Assert.AreEqual("detail naïve", warning.Detail);
-                        Assert.AreEqual("hint déjà", warning.Hint);
+                        string cleanup = CompletionLog(PostgresFixture.Cluster, previousLogLength, backend);
+                        Assert.Contains("WARNING: 22023: callback caf\\xC3\\xA9", cleanup);
+                        Assert.Contains("DETAIL: detail na\\xC3\\xAFve", cleanup);
+                        Assert.Contains("HINT: hint d\\xC3\\xA9j\\xC3\\xA0", cleanup);
                     }
                     else
                     {
-                        Assert.IsEmpty(cleanup);
+                        Assert.IsEmpty(CompletionLog(PostgresFixture.Cluster, previousLogLength, backend));
                     }
 
                     await AssertRecoveredAsync(command, baseline, backend, token);
@@ -173,13 +170,10 @@ public sealed partial class CallbackSubtransactionCleanupTests(TestContext conte
             }, context.CancellationToken);
 
     /// <summary>
-    /// Fabricated cancellation stays a warning while a real native cancellation remains pending through callback drain.
+    /// Fabricated cancellation stays a warning without arming PostgreSQL cancellation during callback drain.
     /// </summary>
-    /// <param name="callbackCancellation">Whether the managed callback throws cancellation instead of the report hook injecting it.</param>
     [TestMethod]
-    [DataRow(false)]
-    [DataRow(true)]
-    public Task CleanupCancellationFinishesRollbackBeforeInterruptProcessing(bool callbackCancellation)
+    public Task CleanupCancellationFinishesRollbackBeforeInterruptProcessing()
         => PostgresFixture.Cluster.RunInTransactionAsync(nameof(CleanupCancellationFinishesRollbackBeforeInterruptProcessing),
             async (connection, transaction, token) =>
             {
@@ -190,43 +184,20 @@ public sealed partial class CallbackSubtransactionCleanupTests(TestContext conte
                 long[] baseline = await PrepareCaptureAsync(command, token);
                 command.CommandText = "SET LOCAL log_min_messages = warning";
                 await command.ExecuteNonQueryAsync(token);
-                if (!callbackCancellation)
-                {
-                    command.CommandText = "SELECT tests.log_arm('callback café', 1)";
-                    await command.ExecuteNonQueryAsync(token);
-                }
-
+                int previousLogLength = PostgresFixture.Cluster.ReadServerLog().Length;
                 await transaction.SaveAsync("callback_cancel", token);
-                string prepare = callbackCancellation ? "memory_callback_prepare_cancellation(2)" : "memory_callback_prepare(2, true)";
-                string query = $"SELECT datatype.{prepare}; DO $$ BEGIN RAISE EXCEPTION 'primary failure' USING ERRCODE='23514'; END $$";
-                if (callbackCancellation)
-                {
-                    Assert.AreSequenceEqual(["23514", "primary failure", string.Empty, string.Empty],
-                        await CaptureAsync(command, query, token));
-                }
-                else
-                {
-                    PostgresException cancel = await Assert.ThrowsExactlyAsync<PostgresException>(() => CaptureAsync(command, query, token));
-                    Assert.AreEqual("57014", cancel.SqlState);
-                    Assert.AreEqual("canceling statement due to user request", cancel.MessageText);
-                    await transaction.RollbackAsync("callback_cancel", token);
-                }
+                const string query = "SELECT datatype.memory_callback_prepare_cancellation(2); " +
+                    "DO $$ BEGIN RAISE EXCEPTION 'primary failure' USING ERRCODE='23514'; END $$";
+                Assert.AreSequenceEqual(["23514", "primary failure", string.Empty, string.Empty],
+                    await CaptureAsync(command, query, token));
 
                 await transaction.ReleaseAsync("callback_cancel", token);
-                PostgresNotice warning = Assert.ContainsSingle(notices.Where(notice => notice.SqlState ==
-                    (callbackCancellation ? "57014" : "22023")));
-                Assert.AreEqual("WARNING", warning.InvariantSeverity);
-                Assert.AreEqual(callbackCancellation ? "cleanup cancellation" : "callback café", warning.MessageText);
+                Assert.Contains("WARNING: 57014: cleanup cancellation",
+                    CompletionLog(PostgresFixture.Cluster, previousLogLength, backend));
                 command.CommandText = "SELECT datatype.memory_callback_implicit_state()";
                 Assert.AreEqual("B73,A73|False,False|False|stale", await command.ExecuteScalarAsync(token));
                 command.CommandText = "SELECT tests.raw_call_holdoffs()";
                 Assert.AreEqual(0L, await command.ExecuteScalarAsync(token));
-                if (!callbackCancellation)
-                {
-                    command.CommandText = "SELECT tests.log_holdoff()";
-                    Assert.IsGreaterThan(0L, Assert.IsInstanceOfType<long>(await command.ExecuteScalarAsync(token)));
-                }
-
                 await AssertRecoveredAsync(command, baseline, backend, token);
                 AssertNoInterruptedAbort(notices);
             }, context.CancellationToken);
@@ -252,7 +223,7 @@ public sealed partial class CallbackSubtransactionCleanupTests(TestContext conte
                 long[] baseline = Assert.IsInstanceOfType<long[]>(await command.ExecuteScalarAsync(token));
                 for (int index = 0; index < 10; index++)
                 {
-                    int previousNotices = notices.Count;
+                    int previousLogLength = PostgresFixture.Cluster.ReadServerLog().Length;
                     command.CommandText = "SELECT datatype.callback_subtransaction_recovery($1, $2)";
                     command.Parameters.AddWithValue(spi);
                     command.Parameters.AddWithValue(cleanupThrows);
@@ -268,18 +239,16 @@ public sealed partial class CallbackSubtransactionCleanupTests(TestContext conte
 
                     Assert.AreSequenceEqual<string>(["23514", "managed primary cleanup failure", "managed primary detail",
                         "managed primary hint", "B73,A73|False,False|False|stale", "42"], result);
-                    PostgresNotice[] cleanup = [.. notices.Skip(previousNotices).Where(static notice => notice.SqlState == "22023")];
                     if (cleanupThrows)
                     {
-                        PostgresNotice warning = Assert.ContainsSingle(cleanup);
-                        Assert.AreEqual("WARNING", warning.InvariantSeverity);
-                        Assert.AreEqual("callback café", warning.MessageText);
-                        Assert.AreEqual("detail naïve", warning.Detail);
-                        Assert.AreEqual("hint déjà", warning.Hint);
+                        string cleanup = CompletionLog(PostgresFixture.Cluster, previousLogLength, backend);
+                        Assert.Contains("WARNING: 22023: callback caf\\xC3\\xA9", cleanup);
+                        Assert.Contains("DETAIL: detail na\\xC3\\xAFve", cleanup);
+                        Assert.Contains("HINT: hint d\\xC3\\xA9j\\xC3\\xA0", cleanup);
                     }
                     else
                     {
-                        Assert.IsEmpty(cleanup);
+                        Assert.IsEmpty(CompletionLog(PostgresFixture.Cluster, previousLogLength, backend));
                     }
 
                     await AssertRecoveredAsync(command, baseline, backend, token);
@@ -289,20 +258,18 @@ public sealed partial class CallbackSubtransactionCleanupTests(TestContext conte
             }, context.CancellationToken);
 
     /// <summary>
-    /// An ERROR from the native report hook cannot undo a durable commit or prepared transaction.
+    /// A failing native report hook cannot run while durable cleanup is written through PostgreSQL's emergency log path.
     /// </summary>
     /// <param name="preparedTransaction">Whether PostgreSQL prepares the transaction instead of committing it.</param>
     [TestMethod]
-    [DoNotParallelize] // Crash reporting and recovery fsync share the host's disk with other isolated clusters.
+    [DoNotParallelize] // Isolated clusters share native fixture output paths.
     [DataRow(false)]
     [DataRow(true)]
-    public Task CleanupReporterFailurePanicsAfterManagedUnwindingAndPreservesCommit(bool preparedTransaction)
-        => AssertTerminalCleanupAsync("datatype.memory_callback_prepare(1, true)", true,
-            "P7521", "native failure before managed log handler", "owned native prefix detail", "retry native prefix report",
-            preparedTransaction: preparedTransaction);
+    public Task CleanupEmergencyLogBypassesFailingHookAndPreservesCommit(bool preparedTransaction)
+        => AssertCompletionCleanupAsync("datatype.memory_callback_prepare(1, true)", preparedTransaction, failingHook: true);
 
     /// <summary>
-    /// Reporter allocation failures remain terminal after durable completion without invalid critical-section allocations.
+    /// Durable cleanup reporting does not allocate PostgreSQL diagnostic state.
     /// </summary>
     /// <param name="stage">One for context creation or two for diagnostic copying.</param>
     /// <param name="preparedTransaction">Whether PostgreSQL prepares instead of committing the transaction.</param>
@@ -312,22 +279,24 @@ public sealed partial class CallbackSubtransactionCleanupTests(TestContext conte
     [DataRow(1, true)]
     [DataRow(2, false)]
     [DataRow(2, true)]
-    public Task CompletionReportingAllocationFailurePreservesDurableCompletion(int stage, bool preparedTransaction)
-        => AssertTerminalCleanupAsync(FormattableString.Invariant($"tests.completion_reporting_allocation_fault({stage})"), true,
-            "53200", "Unable to retain cleanup reporting diagnostics after durable transaction completion", null, null,
-            preparedTransaction: preparedTransaction);
+    public Task CompletionReportingDoesNotAllocatePostgreSqlDiagnostics(int stage, bool preparedTransaction)
+        => AssertCompletionCleanupAsync(FormattableString.Invariant($"tests.completion_reporting_allocation_fault({stage})"),
+            preparedTransaction, allocationStage: stage);
 
     /// <summary>
-    /// Caught FATAL and PANIC reports remain terminal without running abort cleanup after a durable commit.
+    /// Caught terminal reports preserve durable commit or preparation without attempting an illegal abort.
     /// </summary>
     /// <param name="level">The terminal logging level requested by the callback.</param>
+    /// <param name="preparedTransaction">Whether PostgreSQL prepares the transaction instead of committing it.</param>
     [TestMethod]
     [DoNotParallelize]
-    [DataRow((int)PgLogLevel.Fatal)]
-    [DataRow((int)PgLogLevel.Panic)]
-    public Task CleanupTerminalReportPanicsAndPreservesCommit(int level)
-        => AssertTerminalCleanupAsync(FormattableString.Invariant($"datatype.memory_callback_prepare_terminal({level})"), false,
-            "P7806", "terminal cleanup café", "terminal cleanup naïve", "restart after terminal cleanup déjà");
+    [DataRow((int)PgLogLevel.Fatal, false)]
+    [DataRow((int)PgLogLevel.Fatal, true)]
+    [DataRow((int)PgLogLevel.Panic, false)]
+    [DataRow((int)PgLogLevel.Panic, true)]
+    public Task CleanupTerminalReportPreservesCommitWithSafeSeverity(int level, bool preparedTransaction)
+        => AssertTerminalCleanupAsync(FormattableString.Invariant($"datatype.memory_callback_prepare_terminal({level})"), level,
+            preparedTransaction: preparedTransaction);
 
     /// <summary>
     /// Caught terminal intent from iterator or aggregate disposal terminates safely after an executor failure starts rollback.
@@ -340,29 +309,22 @@ public sealed partial class CallbackSubtransactionCleanupTests(TestContext conte
     [DataRow(false, (int)PgLogLevel.Panic)]
     [DataRow(true, (int)PgLogLevel.Fatal)]
     [DataRow(true, (int)PgLogLevel.Panic)]
-    public Task ExecutorCleanupTerminalReportPanicsAndRollsBackWrites(bool aggregate, int level)
-        => AssertTerminalCleanupAsync("42", false, "P7806", "terminal cleanup café", "terminal cleanup naïve",
-            "restart after terminal cleanup déjà", aggregate
+    public Task ExecutorCleanupTerminalReportPreservesSeverityAndRollsBackWrites(bool aggregate, int level)
+        => AssertTerminalCleanupAsync("42", level, aggregate
                 ? "SELECT aggregate_values.managed_sum(value) FROM (VALUES(1),(2),(3)) AS input(value)"
                 : FormattableString.Invariant($"SELECT 1/value FROM (SELECT set_values.set_terminal_cleanup({level}) AS value) AS input"),
             aggregate ? "SELECT aggregate_values.aggregate_reset('" +
                 (level == (int)PgLogLevel.Fatal ? "cleanup_terminal_fatal" : "cleanup_terminal_panic") + "')" : null);
 
     /// <summary>
-    /// Verifies complete terminal diagnostics and durable writes after cleanup terminates an isolated cluster's backend.
+    /// Verifies emergency cleanup diagnostics after a durable transaction boundary.
     /// </summary>
-    /// <param name="preparation">The fixture call retaining the callback until commit.</param>
-    /// <param name="failingReporter">Whether the native prefix hook rejects the callback's secondary diagnostic.</param>
-    /// <param name="sqlState">The original reporter or callback SQLSTATE.</param>
-    /// <param name="message">The original primary message.</param>
-    /// <param name="detail">The original diagnostic detail.</param>
-    /// <param name="hint">The original recovery hint.</param>
-    /// <param name="abortQuery">The executor failure initiating callback cleanup, or null for commit cleanup.</param>
-    /// <param name="setupStatement">Optional backend-local fixture setup before writes begin.</param>
+    /// <param name="preparation">The fixture call retaining the callback until completion.</param>
     /// <param name="preparedTransaction">Whether the irreversible completion prepares the transaction.</param>
-    private async Task AssertTerminalCleanupAsync(string preparation, bool failingReporter,
-        string sqlState, string message, string? detail, string? hint, string? abortQuery = null, string? setupStatement = null,
-        bool preparedTransaction = false)
+    /// <param name="failingHook">Whether a native emit-log hook would reject ordinary reporting.</param>
+    /// <param name="allocationStage">The staged PostgreSQL allocation failure that must remain unused.</param>
+    private async Task AssertCompletionCleanupAsync(string preparation, bool preparedTransaction,
+        bool failingHook = false, int allocationStage = 0)
     {
         CancellationToken token = context.CancellationToken;
         PostgresTestClusterOptions options = await IntegrationEnvironment.CreateOptionsAsync(token);
@@ -385,117 +347,174 @@ public sealed partial class CallbackSubtransactionCleanupTests(TestContext conte
             NativeRawCallFixtureCompiler.InstallationSql + AllocatorFaultFixtureCompiler.CompletionReportingSql, observer);
         await setup.ExecuteNonQueryAsync(token);
         await using NpgsqlConnection connection = await cluster.OpenConnectionAsync(token);
-        string marker = "callback-reporter-" + Guid.NewGuid().ToString("N");
-        await using var command = new NpgsqlCommand($"SET application_name='{marker}'; SET log_error_verbosity=verbose; " +
-            "SET log_min_messages=warning" + (failingReporter ? "; SELECT tests.log_prefix_arm('callback café')" : string.Empty), connection);
+        int backend = connection.ProcessID;
+        await using var command = new NpgsqlCommand("SET log_min_messages=warning" +
+            (failingHook ? "; SELECT tests.log_prefix_arm('callback café')" : string.Empty), connection);
         await command.ExecuteNonQueryAsync(token);
-        await using (NpgsqlTransaction transaction = await connection.BeginTransactionAsync(token))
+        int logStart = cluster.ReadServerLog().Length;
+        command.CommandText = "BEGIN; INSERT INTO callback_reporter_commit VALUES(73); SELECT " + preparation;
+        Assert.AreEqual(42, await command.ExecuteScalarAsync(token));
+        command.CommandText = preparedTransaction ? "PREPARE TRANSACTION 'cleanup_reporter_prepared'" : "COMMIT";
+        await command.ExecuteNonQueryAsync(token);
+        Assert.AreEqual(System.Data.ConnectionState.Open, connection.State);
+        command.CommandText = "SELECT pg_backend_pid()";
+        Assert.AreEqual(backend, await command.ExecuteScalarAsync(token));
+        if (allocationStage != 0)
         {
-            command.Transaction = transaction;
-            if (setupStatement is not null)
-            {
-                command.CommandText = setupStatement;
-                await command.ExecuteNonQueryAsync(token);
-            }
-
-            command.CommandText = "INSERT INTO callback_reporter_commit VALUES(73); SELECT " + preparation;
-            Assert.AreEqual(42, await command.ExecuteScalarAsync(token));
-            NpgsqlException failure;
-            if (preparedTransaction)
-            {
-                command.CommandText = "PREPARE TRANSACTION 'cleanup_reporter_prepared'";
-                failure = await Assert.ThrowsAsync<NpgsqlException>(() => command.ExecuteNonQueryAsync(token));
-            }
-            else if (abortQuery is null)
-            {
-                failure = await Assert.ThrowsAsync<NpgsqlException>(() => transaction.CommitAsync(token));
-            }
-            else
-            {
-                command.CommandText = abortQuery;
-                failure = await Assert.ThrowsAsync<NpgsqlException>(() => command.ExecuteScalarAsync(token));
-            }
-
-            if (failure is PostgresException error)
-            {
-                // PostgreSQL sends the executor ERROR before aborting its transaction.
-                // That message may reach the client before cleanup sends PANIC and exits.
-                if (abortQuery is not null && error.InvariantSeverity == "ERROR")
-                {
-                    bool aggregate = setupStatement is not null;
-                    Assert.AreEqual(aggregate ? "P7801" : "22012", error.SqlState);
-                    Assert.AreEqual(aggregate ? "aggregate transition failed" : "division by zero", error.MessageText);
-                    Assert.AreEqual(aggregate ? "owned aggregate detail" : null, error.Detail);
-                    Assert.AreEqual(aggregate ? "retry valid inputs" : null, error.Hint);
-                }
-                else
-                {
-                    Assert.AreEqual("PANIC", error.InvariantSeverity);
-                    Assert.AreEqual(sqlState, error.SqlState);
-                    Assert.AreEqual(message, error.MessageText);
-                    Assert.AreEqual(detail, error.Detail);
-                    Assert.AreEqual(hint, error.Hint);
-                }
-            }
-            else
-            {
-                Assert.IsTrue(OperatingSystem.IsWindows());
-                IOException transport = Assert.IsInstanceOfType<IOException>(failure.InnerException);
-                SocketException socket = Assert.IsInstanceOfType<SocketException>(transport.InnerException);
-                Assert.AreEqual(SocketError.ConnectionReset, socket.SocketErrorCode);
-            }
+            command.CommandText = "SELECT tests.completion_reporting_allocation_remaining()";
+            Assert.AreEqual(allocationStage, await command.ExecuteScalarAsync(token));
         }
 
-        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
-        deadline.CancelAfter(TimeSpan.FromSeconds(30));
-        string recoveredLog = await CrashRecovery.WaitAsync(cluster, deadline.Token);
-        Assert.DoesNotContain("the database system is in recovery mode", recoveredLog);
-        Assert.DoesNotContain("the database system is not yet accepting connections", recoveredLog);
+        if (failingHook)
+        {
+            command.CommandText = "SELECT tests.log_prefix_calls()";
+            Assert.AreEqual(0L, await command.ExecuteScalarAsync(token));
+            command.CommandText = "SELECT tests.log_prefix_active()";
+            Assert.IsTrue(Assert.IsInstanceOfType<bool>(await command.ExecuteScalarAsync(token)));
+            command.CommandText = "SELECT tests.log_prefix_restore()";
+            Assert.IsTrue(Assert.IsInstanceOfType<bool>(await command.ExecuteScalarAsync(token)));
+        }
+
+        string log = CompletionLog(cluster, logStart, backend);
+        Assert.Contains("WARNING: 22023: callback caf\\xC3\\xA9", log);
+        if (allocationStage == 0)
+        {
+            Assert.Contains("DETAIL: detail na\\xC3\\xAFve", log);
+            Assert.Contains("HINT: hint d\\xC3\\xA9j\\xC3\\xA0", log);
+        }
+
+        string completeLog = cluster.ReadServerLog()[logStart..];
+        Assert.DoesNotContain("PANIC:", completeLog);
+        Assert.DoesNotContain("reinitializing", completeLog);
+        if (preparedTransaction)
+        {
+            await using var prepared = new NpgsqlCommand("SELECT count(*) FROM pg_prepared_xacts WHERE gid='cleanup_reporter_prepared'", observer);
+            Assert.AreEqual(1L, await prepared.ExecuteScalarAsync(token));
+            prepared.CommandText = "COMMIT PREPARED 'cleanup_reporter_prepared'";
+            await prepared.ExecuteNonQueryAsync(token);
+        }
+
+        await using var query = new NpgsqlCommand("SELECT ARRAY(SELECT value FROM callback_reporter_commit)", observer);
+        Assert.AreSequenceEqual([73], Assert.IsInstanceOfType<int[]>(await query.ExecuteScalarAsync(token)));
+    }
+
+    /// <summary>
+    /// Verifies exact terminal severity and transaction durability after cleanup terminates a backend.
+    /// </summary>
+    /// <param name="preparation">The fixture call retaining the callback until cleanup.</param>
+    /// <param name="level">The requested FATAL or PANIC level.</param>
+    /// <param name="abortQuery">The executor failure initiating callback cleanup, or null for durable completion.</param>
+    /// <param name="setupStatement">Optional backend-local fixture setup before writes begin.</param>
+    /// <param name="preparedTransaction">Whether the irreversible completion prepares the transaction.</param>
+    private async Task AssertTerminalCleanupAsync(string preparation, int level, string? abortQuery = null,
+        string? setupStatement = null, bool preparedTransaction = false)
+    {
+        CancellationToken token = context.CancellationToken;
+        PostgresTestClusterOptions options = await IntegrationEnvironment.CreateOptionsAsync(token);
+        if (preparedTransaction)
+        {
+            options = new()
+            {
+                Installation = options.Installation,
+                DataDirectoryBase = options.DataDirectoryBase,
+                LogDirectory = options.LogDirectory,
+                StartupTimeout = options.StartupTimeout,
+                PostgreSqlConfiguration = [.. options.PostgreSqlConfiguration, "max_prepared_transactions=10"],
+            };
+        }
+
+        await using PostgresTestCluster cluster = await PostgresTestCluster.StartAsync(options, token);
+        await using NpgsqlConnection observer = await cluster.OpenConnectionAsync(token);
+        await using var setup = new NpgsqlCommand("CREATE SCHEMA datatype; CREATE EXTENSION ankus_test WITH SCHEMA datatype; " +
+            "CREATE TABLE callback_reporter_commit(value integer)", observer);
+        await setup.ExecuteNonQueryAsync(token);
+        await using NpgsqlConnection connection = await cluster.OpenConnectionAsync(token);
+        string marker = "callback-terminal-" + Guid.NewGuid().ToString("N");
+        await using var command = new NpgsqlCommand($"SET application_name='{marker}'; SET log_error_verbosity=verbose", connection);
+        await command.ExecuteNonQueryAsync(token);
+        int logStart = cluster.ReadServerLog().Length;
+        command.CommandText = "BEGIN";
+        await command.ExecuteNonQueryAsync(token);
+        if (setupStatement is not null)
+        {
+            command.CommandText = setupStatement;
+            await command.ExecuteNonQueryAsync(token);
+        }
+
+        command.CommandText = "INSERT INTO callback_reporter_commit VALUES(73); SELECT " + preparation;
+        Assert.AreEqual(42, await command.ExecuteScalarAsync(token));
+        command.CommandText = preparedTransaction
+            ? "PREPARE TRANSACTION 'cleanup_reporter_prepared'"
+            : abortQuery ?? "COMMIT";
+        NpgsqlException failure = await Assert.ThrowsAsync<NpgsqlException>(() => command.ExecuteNonQueryAsync(token));
+        bool irreversible = abortQuery is null;
+        string severity = level == (int)PgLogLevel.Panic || irreversible ? "PANIC" : "FATAL";
+        if (failure is PostgresException error)
+        {
+            if (error.InvariantSeverity == "ERROR" && abortQuery is not null)
+            {
+                bool aggregate = setupStatement is not null;
+                Assert.AreEqual(aggregate ? "P7801" : "22012", error.SqlState);
+                Assert.AreEqual(aggregate ? "aggregate transition failed" : "division by zero", error.MessageText);
+                Assert.AreEqual(aggregate ? "owned aggregate detail" : null, error.Detail);
+                Assert.AreEqual(aggregate ? "retry valid inputs" : null, error.Hint);
+            }
+            else
+            {
+                Assert.AreEqual(severity, error.InvariantSeverity);
+                Assert.AreEqual("P7806", error.SqlState);
+                Assert.AreEqual("terminal cleanup café", error.MessageText);
+                Assert.AreEqual("terminal cleanup naïve", error.Detail);
+                Assert.AreEqual("restart after terminal cleanup déjà", error.Hint);
+            }
+        }
 
         Assert.AreEqual(System.Data.ConnectionState.Closed, connection.State);
-        string log = string.Join('\n', recoveredLog.Split('\n')
+        string completeLog;
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
+        deadline.CancelAfter(TimeSpan.FromSeconds(30));
+        if (severity == "PANIC")
+        {
+            completeLog = await CrashRecovery.WaitAsync(cluster, deadline.Token);
+        }
+        else
+        {
+            completeLog = cluster.ReadServerLog();
+            await using var observerCheck = new NpgsqlCommand("SELECT 42", observer);
+            Assert.AreEqual(42, await observerCheck.ExecuteScalarAsync(deadline.Token));
+        }
+
+        string log = string.Join('\n', completeLog[logStart..].Split('\n')
             .Where(line => line.Contains($"[{marker}]:", StringComparison.Ordinal)));
-        string terminal = $"PANIC:  {sqlState}: {message}";
-        Assert.Contains(terminal, log);
-        if (abortQuery is not null)
-        {
-            string primary = setupStatement is null ? "ERROR:  22012: division by zero" : "ERROR:  P7801: aggregate transition failed";
-            Assert.Contains(primary, log);
-            Assert.IsLessThan(log.IndexOf(terminal, StringComparison.Ordinal), log.IndexOf(primary, StringComparison.Ordinal));
-        }
-
-        if (detail is not null)
-        {
-            Assert.Contains(detail, log);
-        }
-
-        if (hint is not null)
-        {
-            Assert.Contains(hint, log);
-        }
-
-        Assert.DoesNotContain("TRAP: failed Assert", cluster.ReadServerLog());
-        Assert.DoesNotContain("AbortTransaction while", log);
+        Assert.Contains($"{severity}:  P7806: terminal cleanup café", log);
+        Assert.Contains("terminal cleanup naïve", log);
+        Assert.Contains("restart after terminal cleanup déjà", log);
+        Assert.DoesNotContain("TRAP: failed Assert", completeLog);
         Assert.DoesNotContain("it was already committed", log);
-        await using (NpgsqlConnection recovered = await cluster.OpenConnectionAsync(deadline.Token))
+        if (severity == "FATAL")
         {
-            if (preparedTransaction)
-            {
-                await using var prepared = new NpgsqlCommand("SELECT count(*) FROM pg_prepared_xacts WHERE gid='cleanup_reporter_prepared'", recovered);
-                Assert.AreEqual(1L, await prepared.ExecuteScalarAsync(deadline.Token));
-                prepared.CommandText = "COMMIT PREPARED 'cleanup_reporter_prepared'";
-                await prepared.ExecuteNonQueryAsync(deadline.Token);
-            }
-
-            await using var query = new NpgsqlCommand("SELECT ARRAY(SELECT value FROM callback_reporter_commit)", recovered);
-            Assert.AreSequenceEqual(abortQuery is null ? [73] : [], Assert.IsInstanceOfType<int[]>(await query.ExecuteScalarAsync(deadline.Token)));
-            query.CommandText = "SELECT datatype.log_message(9, 'cleanup reporter recovered'), 42";
-            await using NpgsqlDataReader reader = await query.ExecuteReaderAsync(deadline.Token);
-            Assert.IsTrue(await reader.ReadAsync(deadline.Token));
-            Assert.AreEqual(42, reader.GetInt32(0));
-            Assert.AreEqual(42, reader.GetInt32(1));
-            Assert.IsFalse(await reader.ReadAsync(deadline.Token));
+            int abortWarnings = log.Split("AbortTransaction while in ABORT state", StringSplitOptions.None).Length - 1;
+            Assert.AreEqual(1, abortWarnings);
+            Assert.DoesNotContain("reinitializing", completeLog[logStart..]);
         }
+
+        await using NpgsqlConnection recovered = await cluster.OpenConnectionAsync(deadline.Token);
+        if (preparedTransaction)
+        {
+            await using var prepared = new NpgsqlCommand("SELECT count(*) FROM pg_prepared_xacts WHERE gid='cleanup_reporter_prepared'", recovered);
+            Assert.AreEqual(1L, await prepared.ExecuteScalarAsync(deadline.Token));
+            prepared.CommandText = "COMMIT PREPARED 'cleanup_reporter_prepared'";
+            await prepared.ExecuteNonQueryAsync(deadline.Token);
+        }
+
+        await using var query = new NpgsqlCommand("SELECT ARRAY(SELECT value FROM callback_reporter_commit)", recovered);
+        Assert.AreSequenceEqual(abortQuery is null ? [73] : [], Assert.IsInstanceOfType<int[]>(await query.ExecuteScalarAsync(deadline.Token)));
+        query.CommandText = "SELECT datatype.log_message(9, 'cleanup reporter recovered'), 42";
+        await using NpgsqlDataReader reader = await query.ExecuteReaderAsync(deadline.Token);
+        Assert.IsTrue(await reader.ReadAsync(deadline.Token));
+        Assert.AreEqual(42, reader.GetInt32(0));
+        Assert.AreEqual(42, reader.GetInt32(1));
+        Assert.IsFalse(await reader.ReadAsync(deadline.Token));
     }
 
     /// <summary>
@@ -560,26 +579,34 @@ public sealed partial class CallbackSubtransactionCleanupTests(TestContext conte
     /// <summary>
     /// Proves a caught raw failure remains visible after callback unwinding without replacing the primary error.
     /// </summary>
-    /// <param name="notices">The actual PostgreSQL warnings for this session.</param>
-    /// <param name="start">The count before this iteration.</param>
+    /// <param name="cluster">The PostgreSQL cluster whose server log receives emergency cleanup diagnostics.</param>
+    /// <param name="start">The server-log length before this iteration.</param>
+    /// <param name="backend">The backend executing cleanup.</param>
     /// <param name="completion">Whether cleanup runs during transaction completion.</param>
     /// <param name="message">The independent native lookup diagnostic.</param>
-    private static void AssertNativeCleanupWarning(List<PostgresNotice> notices, int start, bool completion, string message)
+    private static void AssertNativeCleanupWarning(PostgresTestCluster cluster, int start, int backend, bool completion, string message)
     {
-        PostgresNotice[] warnings = [.. notices.Skip(start).Where(static notice => notice.SqlState == "42704")];
+        string cleanup = CompletionLog(cluster, start, backend);
         if (completion)
         {
-            PostgresNotice warning = Assert.ContainsSingle(warnings);
-            Assert.AreEqual("WARNING", warning.InvariantSeverity);
-            Assert.AreEqual(message, warning.MessageText);
-            Assert.IsNull(warning.Detail);
-            Assert.IsNull(warning.Hint);
+            Assert.Contains("WARNING: 42704: " + message, cleanup);
         }
         else
         {
-            Assert.IsEmpty(warnings);
+            Assert.IsEmpty(cleanup);
         }
     }
+
+    /// <summary>
+    /// Reads allocation-free completion diagnostics for one backend after the supplied server-log offset.
+    /// </summary>
+    /// <param name="cluster">The PostgreSQL cluster.</param>
+    /// <param name="start">The server-log length before cleanup.</param>
+    /// <param name="backend">The backend process identifier.</param>
+    /// <returns>Only Ankus completion lines for the backend.</returns>
+    private static string CompletionLog(PostgresTestCluster cluster, int start, int backend)
+        => string.Join('\n', cluster.ReadServerLog()[start..].Split('\n').Where(line =>
+            line.Contains($"ANKUS CLEANUP [backend {backend}]", StringComparison.Ordinal)));
 
     /// <summary>
     /// Rejects transaction-state warnings from repeated attempts to abort the same unfinished cleanup.

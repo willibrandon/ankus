@@ -360,7 +360,23 @@ public static class MemoryCallbackFunctions
         s_implicitSecond = owner.RegisterResetCallback(() =>
         {
             s_implicitEvents.Add($"B{value.Read<int>()}");
-            throw new PgException("22023", "callback €", "secondary detail", "secondary hint");
+            throw new PgException("22023", "callback €", "secondary detail", "secondary hint")
+            {
+                Context = "cleanup context",
+                SchemaName = "schéma",
+                TableName = "callback_table",
+                ColumnName = "callback_column",
+                DataTypeName = "callback_type",
+                ConstraintName = "callback_constraint",
+                Position = 17,
+                InternalPosition = 3,
+                InternalQuery = "SELECT callback",
+                File = "MemoryCallbackFunctions.cs",
+                Line = 911,
+                Routine = nameof(MemoryCallbackPrepareEncoding),
+                DetailLog = "server detail €",
+                Backtrace = "frame one\nframe two",
+            };
         });
         return result;
     }

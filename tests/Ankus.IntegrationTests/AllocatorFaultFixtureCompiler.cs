@@ -19,6 +19,8 @@ internal static class AllocatorFaultFixtureCompiler
     internal static string CompletionReportingSql { get; } = $$"""
         CREATE FUNCTION tests.completion_reporting_allocation_fault(integer) RETURNS integer
         AS '{{ModuleFileName}}', 'ankus_test_completion_reporting_allocation_fault' LANGUAGE c STRICT;
+        CREATE FUNCTION tests.completion_reporting_allocation_remaining() RETURNS integer
+        AS '{{ModuleFileName}}', 'ankus_test_completion_reporting_allocation_remaining' LANGUAGE c STRICT;
         """;
 
     /// <summary>

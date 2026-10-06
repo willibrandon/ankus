@@ -159,6 +159,7 @@ public sealed partial class AggregateTests
             connection.Notice += (_, args) => notices.Add(args.Notice);
             await Reset(connection, transaction, mode, token);
             await transaction.SaveAsync("native_cleanup", token);
+            int logStart = PostgresFixture.Cluster.ReadServerLog().Length;
             string operation;
             if (mode == "cleanup_native")
             {
@@ -185,14 +186,16 @@ public sealed partial class AggregateTests
             Assert.AreEqual(transitionFailure ? "owned aggregate detail" : null, error.Detail);
             Assert.AreEqual(transitionFailure ? "retry valid inputs" : null, error.Hint);
             await transaction.RollbackAsync("native_cleanup", token);
-            PostgresNotice[] cleanupWarnings = [.. notices.Where(static notice => notice.SqlState == "42704")];
-            Assert.HasCount(transitionFailure ? 1 : 0, cleanupWarnings);
-            foreach (PostgresNotice warning in cleanupWarnings)
+            Assert.IsEmpty(notices.Where(static notice => notice.SqlState == "42704"));
+            string cleanup = string.Join('\n', PostgresFixture.Cluster.ReadServerLog()[logStart..].Split('\n').Where(line =>
+                line.Contains($"ANKUS CLEANUP [backend {backend}]", StringComparison.Ordinal)));
+            if (transitionFailure)
             {
-                Assert.AreEqual("WARNING", warning.InvariantSeverity);
-                Assert.AreEqual("ExtensibleNodeMethods \"ankus_missing_aggregate_cleanup\" was not registered", warning.MessageText);
-                Assert.IsNull(warning.Detail);
-                Assert.IsNull(warning.Hint);
+                Assert.Contains("WARNING: 42704: ExtensibleNodeMethods \"ankus_missing_aggregate_cleanup\" was not registered", cleanup);
+            }
+            else
+            {
+                Assert.IsEmpty(cleanup);
             }
 
             await AssertBalancedRelease(connection, transaction, token);

@@ -247,135 +247,145 @@ internal static class NativeMemoryBridge
             return !IsTransactionState() && CurTransactionContext != NULL;
         }
 
+        static size_t
+        ankus_escape_completion_chunk(const unsigned char *text, int length, int *position, char *output, size_t capacity)
+        {
+            static const char hex[] = "0123456789ABCDEF";
+            size_t used = 0;
+            while (*position < length)
+            {
+                unsigned char value = text[*position];
+                char escaped[4];
+                const char *source = (const char *) &value;
+                size_t count = 1;
+                if (value == '\\' || value == '\n' || value == '\r' || value == '\t' || value < 0x20 || value >= 0x7f)
+                {
+                    escaped[0] = '\\';
+                    if (value == '\\')
+                    {
+                        escaped[1] = '\\';
+                        count = 2;
+                    }
+                    else if (value == '\n' || value == '\r' || value == '\t')
+                    {
+                        escaped[1] = value == '\n' ? 'n' : value == '\r' ? 'r' : 't';
+                        count = 2;
+                    }
+                    else
+                    {
+                        escaped[1] = 'x';
+                        escaped[2] = hex[value >> 4];
+                        escaped[3] = hex[value & 0x0f];
+                        count = 4;
+                    }
+
+                    source = escaped;
+                }
+
+                if (used + count > capacity)
+                {
+                    break;
+                }
+
+                memcpy(output + used, source, count);
+                used += count;
+                (*position)++;
+            }
+
+            return used;
+        }
+
+        static void
+        ankus_write_completion_field(int backend, const char *name, const unsigned char *text, int length)
+        {
+            if (text == NULL)
+            {
+                return;
+            }
+
+            int position = 0;
+            int part = 0;
+            do
+            {
+                char output[1024];
+                size_t used = ankus_escape_completion_chunk(text, length, &position, output, sizeof(output));
+                write_stderr("ANKUS CLEANUP [backend %d] %s%s: %.*s\n", backend, name,
+                    part == 0 ? "" : " CONTINUED", (int) used, output);
+                part++;
+            }
+            while (position < length);
+        }
+
+        static void
+        ankus_write_completion_warning(AnkusError *error)
+        {
+            static const char *names[] = {"MESSAGE", "DETAIL", "HINT", "CONTEXT", "SCHEMA", "TABLE", "COLUMN",
+                "DATATYPE", "CONSTRAINT", "QUERY", "FILE", "ROUTINE", "DETAIL_LOG", "BACKTRACE"};
+            int backend = MyProcPid;
+            const char *sqlstate = unpack_sql_state(error->sqlstate);
+            AnkusValue *message = &error->fields[ANKUS_ERROR_MESSAGE];
+            char message_name[32];
+            snprintf(message_name, sizeof(message_name), "WARNING: %s", sqlstate);
+            if (message->data != NULL)
+            {
+                ankus_write_completion_field(backend, message_name, message->data, message->length);
+            }
+            else
+            {
+                ankus_write_completion_field(backend, message_name, (const unsigned char *) error->message,
+                    (int) strnlen(error->message, sizeof(error->message)));
+            }
+
+            for (int index = ANKUS_ERROR_DETAIL; index < ANKUS_ERROR_FIELD_COUNT; index++)
+            {
+                AnkusValue *value = &error->fields[index];
+                ankus_write_completion_field(backend, names[index], value->data, value->length);
+            }
+
+            if (error->position > 0)
+            {
+                write_stderr("ANKUS CLEANUP [backend %d] POSITION: %d\n", backend, error->position);
+            }
+
+            if (error->internal_position > 0)
+            {
+                write_stderr("ANKUS CLEANUP [backend %d] INTERNAL_POSITION: %d\n", backend, error->internal_position);
+            }
+
+            if (error->line > 0)
+            {
+                write_stderr("ANKUS CLEANUP [backend %d] LINE: %d\n", backend, error->line);
+            }
+
+            ankus_release_error(error);
+        }
+
         static void
         ankus_report_completion_cleanup(AnkusError *error)
         {
-            MemoryContext recovery = ankus_error_recovery_context(CurrentMemoryContext);
-            uint32 interrupt_holdoff = InterruptHoldoffCount;
-            bool irreversible = ankus_memory_completion_after_commit();
-            MemoryContext volatile diagnostic = NULL;
-            AnkusError *volatile reporter = NULL;
-            HOLD_INTERRUPTS();
-            PG_TRY();
+            if (error->report_level >= 12)
             {
+                uint32 interrupt_holdoff = InterruptHoldoffCount;
+                HOLD_INTERRUPTS();
                 PG_TRY();
                 {
-                    ankus_report(error, error->report_level >= 12 ? PANIC : WARNING);
+                    /* FATAL runs AbortTransaction during process exit. A durable commit
+                     * or prepare can no longer be aborted, so PostgreSQL requires PANIC. */
+                    ankus_report(error, error->report_level == 12 && !ankus_memory_completion_after_commit()
+                        ? FATAL : PANIC);
                 }
-                PG_CATCH();
+                PG_FINALLY();
                 {
-                    /* Context creation and diagnostic copying must precede the critical
-                     * section: PostgreSQL forbids creating contexts there, and ordinary
-                     * contexts also reject allocations. ErrorContext is reserved for the
-                     * terminal report after all diagnostic ownership is established. */
-                    ErrorData *volatile failure = NULL;
-                    PG_TRY();
-                    {
-                        MemoryContextSwitchTo(recovery);
-                        diagnostic = AllocSetContextCreate(TopMemoryContext,
-                            "Ankus cleanup reporting failure", ALLOCSET_SMALL_SIZES);
-                        MemoryContextSwitchTo((MemoryContext) diagnostic);
-                        failure = ankus_copy_error_data();
-                        if (!irreversible)
-                        {
-                            reporter = palloc0(sizeof(AnkusError));
-                        }
-
-                        FlushErrorState();
-                    }
-                    PG_CATCH();
-                    {
-                        if (irreversible)
-                        {
-                            /* Failure to retain diagnostics cannot start an abort after
-                             * commit/preparation. The emergency report allocates only in
-                             * PostgreSQL's critical-section-safe ErrorContext. */
-                            int sqlstate = geterrcode();
-                            START_CRIT_SECTION();
-                            ereport(PANIC, (errcode(sqlstate),
-                                errmsg("Unable to retain cleanup reporting diagnostics after durable transaction completion")));
-                        }
-
-                        PG_RE_THROW();
-                    }
-                    PG_END_TRY();
-                    if (irreversible)
-                    {
-                        ((ErrorData *) failure)->elevel = PANIC;
-                        START_CRIT_SECTION();
-                        ThrowErrorData((ErrorData *) failure);
-                    }
-
-                    /* Transport the reporter's own diagnostic through the same owned
-                     * warning boundary. An encoding failure therefore yields an ASCII
-                     * conversion warning. A repeatedly failing reporter needs the
-                     * nonrecursive native fallback below so abort can finish. */
-                    ankus_capture_error((ErrorData *) failure, (AnkusError *) reporter);
-                    ankus_free_error_data((ErrorData *) failure);
-                    PG_TRY();
-                    {
-                        ankus_report((AnkusError *) reporter, WARNING);
-                    }
-                    PG_CATCH();
-                    {
-                        /* A broken persistent log hook cannot be entered repeatedly
-                         * from PostgreSQL's own abort retries. Preserve its diagnostics
-                         * through the native error reporter's nonrecursive stderr path. */
-                        MemoryContextSwitchTo((MemoryContext) diagnostic);
-                        ErrorData *fallback = ankus_copy_error_data();
-                        FlushErrorState();
-                        write_stderr("WARNING: cleanup reporting failed (%s): %s\n",
-                            unpack_sql_state(fallback->sqlerrcode), fallback->message);
-                        const char *names[] = {"DETAIL", "HINT", "CONTEXT", "SCHEMA", "TABLE", "COLUMN", "DATATYPE",
-                            "CONSTRAINT", "QUERY", "FILE", "ROUTINE", "DETAIL_LOG", "BACKTRACE"};
-                        const char *values[] = {fallback->detail, fallback->hint, fallback->context, fallback->schema_name,
-                            fallback->table_name, fallback->column_name, fallback->datatype_name, fallback->constraint_name,
-                            fallback->internalquery, fallback->filename, fallback->funcname, fallback->detail_log, fallback->backtrace};
-                        for (size_t index = 0; index < lengthof(values); index++)
-                        {
-                            if (values[index] != NULL)
-                            {
-                                write_stderr("%s: %s\n", names[index], values[index]);
-                            }
-                        }
-
-                        if (fallback->cursorpos > 0)
-                        {
-                            write_stderr("POSITION: %d\n", fallback->cursorpos);
-                        }
-
-                        if (fallback->internalpos > 0)
-                        {
-                            write_stderr("INTERNAL_POSITION: %d\n", fallback->internalpos);
-                        }
-
-                        if (fallback->lineno > 0)
-                        {
-                            write_stderr("LINE: %d\n", fallback->lineno);
-                        }
-
-                        ankus_free_error_data(fallback);
-                    }
-                    PG_END_TRY();
+                    InterruptHoldoffCount = interrupt_holdoff;
                 }
                 PG_END_TRY();
             }
-            PG_FINALLY();
-            {
-                MemoryContextSwitchTo(recovery);
-                if (reporter != NULL)
-                {
-                    ankus_release_error((AnkusError *) reporter);
-                }
 
-                if (diagnostic != NULL)
-                {
-                    MemoryContextDelete((MemoryContext) diagnostic);
-                }
-
-                InterruptHoldoffCount = interrupt_holdoff;
-            }
-            PG_END_TRY();
+            /* Transaction completion cannot safely allocate, invoke log hooks, perform
+             * client-encoding conversion, or flush PostgreSQL's active error stack.
+             * PostgreSQL's emergency stderr path is deliberately valid before ordinary
+             * error reporting is available and cannot start a second abort. */
+            ankus_write_completion_warning(error);
         }
 
         typedef int (*AnkusMemoryCallbackFunction)(intptr_t, AnkusMemoryApi *, AnkusError *);

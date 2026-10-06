@@ -355,22 +355,21 @@ PostgreSQL error after the managed callback returns. An explicit managed
 the surrounding subtransaction to roll back before retrying.
 
 Commit and abort cleanup must finish draining the transaction's callbacks.
-A secondary callback failure is reported as a warning with its diagnostic fields.
-It neither replaces the original SQL error nor turns a completed commit into a
-failed transaction. A real native cancellation request remains pending until a
-later interrupt boundary. A callback exception with SQLSTATE `57014` becomes a
-warning without creating a cancellation request.
+A secondary callback failure is written to PostgreSQL's server log as an Ankus
+cleanup warning with its SQLSTATE and diagnostic fields. This emergency path does
+not allocate PostgreSQL diagnostic state, convert through the client encoding,
+invoke `emit_log_hook`, or flush an active PostgreSQL error. It therefore cannot
+replace the original SQL error, interrupt rollback, or turn a completed commit or
+`PREPARE TRANSACTION` into a cluster restart. Control characters and non-ASCII
+UTF-8 bytes are escaped exactly, and the backend process identifier labels every
+line.
 
-During rollback, a log-hook or encoding failure while emitting that warning
-becomes a warning carrying the reporter's diagnostic. If a persistent hook also
-rejects that warning, Ankus writes its diagnostic directly to PostgreSQL's server
-stderr and finishes draining the callbacks. It preserves the original SQL error
-and the backend remains usable after rollback.
-
-After a durable commit or `PREPARE TRANSACTION`, a reporter failure requires
-PostgreSQL `PANIC` with the reporter's diagnostic after managed unwinding.
-`FATAL` would try to abort an irreversible transaction. Explicit terminal callback
-reports also retain their terminal intent. See the
+A real native cancellation request remains pending until a later interrupt
+boundary. A callback exception with SQLSTATE `57014` is logged without creating a
+cancellation request. During abort, `FATAL` terminates that backend and `PANIC`
+requests PostgreSQL crash recovery. After a durable commit or preparation,
+`FATAL` is promoted to `PANIC` because PostgreSQL can no longer abort that
+transaction during backend exit. Durable changes remain durable. See the
 [transaction-completion contract](/transaction-callbacks/).
 Write callbacks to release their resources without throwing.
 `PgLog.Write(PgLogLevel.Fatal, ...)` and `PgLog.Write(PgLogLevel.Panic, ...)` retain terminal intent

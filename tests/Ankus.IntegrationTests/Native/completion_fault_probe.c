@@ -12,6 +12,8 @@ completion_fault_callback(void *argument)
 
 PGDLLEXPORT Datum ankus_test_completion_reporting_allocation_fault(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ankus_test_completion_reporting_allocation_fault);
+PGDLLEXPORT Datum ankus_test_completion_reporting_allocation_remaining(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(ankus_test_completion_reporting_allocation_remaining);
 
 Datum
 ankus_test_completion_reporting_allocation_fault(PG_FUNCTION_ARGS)
@@ -22,7 +24,6 @@ ankus_test_completion_reporting_allocation_fault(PG_FUNCTION_ARGS)
         ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg("unknown completion reporting allocation stage")));
     }
 
-    ankus_memory_completion_ensure();
     MemoryContext owner = AllocSetContextCreate(TopTransactionContext, "completion diagnostic fault", ALLOCSET_SMALL_SIZES);
     MemoryContextCallback *callback = MemoryContextAlloc(owner, sizeof(MemoryContextCallback));
     callback->func = completion_fault_callback;
@@ -30,4 +31,11 @@ ankus_test_completion_reporting_allocation_fault(PG_FUNCTION_ARGS)
     MemoryContextRegisterResetCallback(owner, callback);
     completion_diagnostic_fault = stage;
     PG_RETURN_INT32(42);
+}
+
+Datum
+ankus_test_completion_reporting_allocation_remaining(PG_FUNCTION_ARGS)
+{
+    (void) fcinfo;
+    PG_RETURN_INT32(completion_diagnostic_fault);
 }

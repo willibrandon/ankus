@@ -258,6 +258,7 @@ public sealed class SetReturningTests(TestContext context)
             await using var command = new NpgsqlCommand("SELECT set_values.set_reset()", connection, transaction);
             await command.ExecuteNonQueryAsync(token);
             await transaction.SaveAsync("set_native_cleanup", token);
+            int logStart = PostgresFixture.Cluster.ReadServerLog().Length;
             command.CommandText = mode switch
             {
                 0 => "SELECT array_agg(v) FROM set_values.set_probe_streaming(3,9,false) AS v",
@@ -280,14 +281,16 @@ public sealed class SetReturningTests(TestContext context)
             Assert.IsNull(error.Detail);
             Assert.IsNull(error.Hint);
             await transaction.RollbackAsync("set_native_cleanup", token);
-            PostgresNotice[] cleanupWarnings = [.. notices.Where(static notice => notice.SqlState == "42704")];
-            Assert.HasCount(mode == 1 ? 1 : 0, cleanupWarnings);
-            foreach (PostgresNotice warning in cleanupWarnings)
+            Assert.IsEmpty(notices.Where(static notice => notice.SqlState == "42704"));
+            string cleanup = string.Join('\n', PostgresFixture.Cluster.ReadServerLog()[logStart..].Split('\n').Where(line =>
+                line.Contains($"ANKUS CLEANUP [backend {backend}]", StringComparison.Ordinal)));
+            if (mode == 1)
             {
-                Assert.AreEqual("WARNING", warning.InvariantSeverity);
-                Assert.AreEqual("ExtensibleNodeMethods \"ankus_missing_iterator_cleanup\" was not registered", warning.MessageText);
-                Assert.IsNull(warning.Detail);
-                Assert.IsNull(warning.Hint);
+                Assert.Contains("WARNING: 42704: ExtensibleNodeMethods \"ankus_missing_iterator_cleanup\" was not registered", cleanup);
+            }
+            else
+            {
+                Assert.IsEmpty(cleanup);
             }
 
             int[] status = await ReadStatusAsync(command, token);
@@ -343,24 +346,28 @@ public sealed class SetReturningTests(TestContext context)
     public Task ExecutorErrorsAbortEnumeratorsWithoutReplacingTheError(int failure)
         => PostgresFixture.Cluster.RunInTransactionAsync(nameof(ExecutorErrorsAbortEnumeratorsWithoutReplacingTheError), async (connection, transaction, token) =>
         {
+            int backend = connection.ProcessID;
             var notices = new List<PostgresNotice>();
             connection.Notice += (_, args) => notices.Add(args.Notice);
             await using var command = new NpgsqlCommand("CREATE TEMP TABLE set_cleanup(value int); SELECT set_values.set_reset()", connection, transaction);
             await command.ExecuteNonQueryAsync(token);
             await transaction.SaveAsync("set_executor_failure", token);
+            int logStart = PostgresFixture.Cluster.ReadServerLog().Length;
             command.CommandText = $"SELECT 1/(v-1) FROM (SELECT set_values.set_probe_streaming(3,{failure},true) AS v) s";
             PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => command.ExecuteScalarAsync(token));
             Assert.AreEqual(PostgresErrorCodes.DivisionByZero, error.SqlState);
             await transaction.RollbackAsync("set_executor_failure", token);
             Assert.AreSequenceEqual([1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 0, 0], await ReadStatusAsync(command, token));
-            PostgresNotice[] disposalWarnings = [.. notices.Where(static notice => notice.SqlState == "P7107")];
-            Assert.HasCount(failure == 7 ? 1 : 0, disposalWarnings);
-            foreach (PostgresNotice warning in disposalWarnings)
+            Assert.IsEmpty(notices.Where(static notice => notice.SqlState == "P7107"));
+            string cleanup = string.Join('\n', PostgresFixture.Cluster.ReadServerLog()[logStart..].Split('\n').Where(line =>
+                line.Contains($"ANKUS CLEANUP [backend {backend}]", StringComparison.Ordinal)));
+            if (failure == 7)
             {
-                Assert.AreEqual("WARNING", warning.InvariantSeverity);
-                Assert.AreEqual("set Dispose failure", warning.MessageText);
-                Assert.IsNull(warning.Detail);
-                Assert.IsNull(warning.Hint);
+                Assert.Contains("WARNING: P7107: set Dispose failure", cleanup);
+            }
+            else
+            {
+                Assert.IsEmpty(cleanup);
             }
 
             command.CommandText = "SELECT count(*) FROM set_cleanup";

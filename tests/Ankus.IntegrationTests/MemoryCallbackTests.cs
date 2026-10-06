@@ -210,6 +210,7 @@ public sealed class MemoryCallbackTests(TestContext context)
             await setup.ExecuteNonQueryAsync(token);
         }
 
+        int logStart = PostgresFixture.Cluster.ReadServerLog().Length;
         await using (NpgsqlTransaction transaction = await connection.BeginTransactionAsync(token))
         {
             await using var command = new NpgsqlCommand("INSERT INTO callback_commit VALUES(73); SELECT datatype.memory_callback_prepare(1, true)", connection, transaction);
@@ -217,8 +218,8 @@ public sealed class MemoryCallbackTests(TestContext context)
             await transaction.CommitAsync(token);
         }
 
-        PostgresNotice warning = Assert.ContainsSingle(notices.Where(static notice => notice.SqlState == "22023"));
-        AssertCallbackWarning(warning);
+        Assert.IsEmpty(notices);
+        AssertCallbackWarning(CompletionLog(logStart, backend));
         await using (var committed = new NpgsqlCommand("SELECT array_agg(value) FROM callback_commit", connection))
         {
             Assert.AreSequenceEqual([73], Assert.IsInstanceOfType<int[]>(await committed.ExecuteScalarAsync(token)));
@@ -248,16 +249,18 @@ public sealed class MemoryCallbackTests(TestContext context)
         string session = "cleanup-" + Guid.NewGuid().ToString("N");
         command.CommandText = $"SET application_name = '{session}'; SET log_error_verbosity = verbose";
         await command.ExecuteNonQueryAsync(token);
+        int logStart = PostgresFixture.Cluster.ReadServerLog().Length;
         command.CommandText = $"SELECT datatype.memory_callback_prepare(1, {cleanupThrows}); DO $$ BEGIN RAISE EXCEPTION 'primary cleanup failure' USING ERRCODE = '23514', DETAIL = 'primary detail', HINT = 'primary hint'; END $$";
         PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => command.ExecuteNonQueryAsync(token));
         Assert.AreEqual("23514", error.SqlState);
         Assert.AreEqual("primary cleanup failure", error.MessageText);
         Assert.AreEqual("primary detail", error.Detail);
         Assert.AreEqual("primary hint", error.Hint);
-        PostgresNotice[] cleanup = [.. notices.Where(static notice => notice.SqlState == "22023")];
+        Assert.IsEmpty(notices);
+        string cleanup = CompletionLog(logStart, backend);
         if (cleanupThrows)
         {
-            AssertCallbackWarning(Assert.ContainsSingle(cleanup));
+            AssertCallbackWarning(cleanup);
         }
         else
         {
@@ -274,26 +277,28 @@ public sealed class MemoryCallbackTests(TestContext context)
         string backendLog = string.Join('\n', backendLines);
         Assert.Contains("DETAIL:  primary detail", backendLog);
         Assert.Contains("HINT:  primary hint", backendLog);
-        if (cleanupThrows)
-        {
-            Assert.Contains(": WARNING:  22023: callback café", backendLog);
-            Assert.Contains("DETAIL:  detail naïve", backendLog);
-            Assert.Contains("HINT:  hint déjà", backendLog);
-        }
     }
 
     /// <summary>
     /// Validates complete secondary callback diagnostics without replacing the transaction's outcome.
     /// </summary>
-    /// <param name="warning">The native warning emitted after managed unwinding.</param>
-    private static void AssertCallbackWarning(PostgresNotice warning)
+    /// <param name="warning">The emergency server-log warning emitted after managed unwinding.</param>
+    private static void AssertCallbackWarning(string warning)
     {
-        Assert.AreEqual("WARNING", warning.InvariantSeverity);
-        Assert.AreEqual("22023", warning.SqlState);
-        Assert.AreEqual("callback café", warning.MessageText);
-        Assert.AreEqual("detail naïve", warning.Detail);
-        Assert.AreEqual("hint déjà", warning.Hint);
+        Assert.Contains("WARNING: 22023: callback caf\\xC3\\xA9", warning);
+        Assert.Contains("DETAIL: detail na\\xC3\\xAFve", warning);
+        Assert.Contains("HINT: hint d\\xC3\\xA9j\\xC3\\xA0", warning);
     }
+
+    /// <summary>
+    /// Reads allocation-free completion diagnostics for one backend after the supplied server-log offset.
+    /// </summary>
+    /// <param name="start">The server-log length before cleanup.</param>
+    /// <param name="backend">The backend process identifier.</param>
+    /// <returns>Only Ankus completion lines for the backend.</returns>
+    private static string CompletionLog(int start, int backend)
+        => string.Join('\n', PostgresFixture.Cluster.ReadServerLog()[start..].Split('\n').Where(line =>
+            line.Contains($"ANKUS CLEANUP [backend {backend}]", StringComparison.Ordinal)));
 
     /// <summary>
     /// Explicit reset permits only owned SPI disposal, removes both native resources, and does not repeat cleanup.
