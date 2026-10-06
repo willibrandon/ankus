@@ -143,14 +143,16 @@ public sealed partial class PgFunctionGeneratorTests
     /// </summary>
     /// <param name="enabled">Whether valid backend tests are included in the native publication.</param>
     /// <param name="invalid">The invalid declaration placed before its valid sibling.</param>
+    /// <param name="expected">The dedicated declaration error.</param>
+    /// <param name="highlight">The authored cause requiring correction.</param>
     [TestMethod]
-    [DataRow("true", "[Ankus.PgTest] public static int AInvalid() => 1;")]
-    [DataRow("false", "[Ankus.PgTest] public static int AInvalid() => 1;")]
-    [DataRow("true", "[Ankus.PgTest] public static void AInvalid(int value) { }")]
-    [DataRow("false", "[Ankus.PgTest] public static void AInvalid(int value) { }")]
-    [DataRow("true", "[Ankus.PgTest, Ankus.PgFunction] public static void AInvalid() { }")]
-    [DataRow("false", "[Ankus.PgTest, Ankus.PgFunction] public static void AInvalid() { }")]
-    public void InvalidBackendTestDoesNotDropValidDeclarations(string enabled, string invalid)
+    [DataRow("true", "[Ankus.PgTest] public static int AInvalid() => 1;", "ANKUS295", "int")]
+    [DataRow("false", "[Ankus.PgTest] public static int AInvalid() => 1;", "ANKUS295", "int")]
+    [DataRow("true", "[Ankus.PgTest] public static void AInvalid(int value) { }", "ANKUS297", "value")]
+    [DataRow("false", "[Ankus.PgTest] public static void AInvalid(int value) { }", "ANKUS297", "value")]
+    [DataRow("true", "[Ankus.PgTest, Ankus.PgFunction] public static void AInvalid() { }", "ANKUS299", "Ankus.PgFunction")]
+    [DataRow("false", "[Ankus.PgTest, Ankus.PgFunction] public static void AInvalid() { }", "ANKUS299", "Ankus.PgFunction")]
+    public void InvalidBackendTestDoesNotDropValidDeclarations(string enabled, string invalid, string expected, string highlight)
     {
         string source = """
             namespace Extension;
@@ -170,9 +172,9 @@ public sealed partial class PgFunctionGeneratorTests
             """.Replace("INVALID", invalid, StringComparison.Ordinal);
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source, options: new BackendOptions(enabled));
         Diagnostic error = Assert.ContainsSingle(diagnostics);
-        Assert.AreEqual("ANKUS023", error.Id);
+        Assert.AreEqual(expected, error.Id);
         Assert.IsTrue(error.Location.IsInSource);
-        Assert.Contains("AInvalid", error.Location.SourceTree!.GetText(context.CancellationToken).ToString(error.Location.SourceSpan));
+        Assert.AreEqual(highlight, error.Location.SourceTree!.GetText(context.CancellationToken).ToString(error.Location.SourceSpan));
         Assert.IsEmpty(compilation.GetDiagnostics(context.CancellationToken)
             .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error));
         PgTestCase sibling = Assert.ContainsSingle(ReadBackendCatalog(compilation, "Extension.Checks+PostgresTests"));
@@ -193,30 +195,31 @@ public sealed partial class PgFunctionGeneratorTests
     /// Invalid test declarations produce one actionable diagnostic before exposing a partial catalog.
     /// </summary>
     /// <param name="source">An invalid declaration.</param>
+    /// <param name="expected">The dedicated declaration error.</param>
     [TestMethod]
-    [DataRow("public partial class Checks { [Ankus.PgTest] public void Test() { } }")]
-    [DataRow("public static partial class Checks { [Ankus.PgTest] public static int Test() => 1; }")]
-    [DataRow("public static partial class Checks { [Ankus.PgTest] public static void Test(int value) { } }")]
-    [DataRow("public static class Checks { [Ankus.PgTest] public static void Test() { } }")]
-    [DataRow("public static partial class Checks<T> { [Ankus.PgTest] public static void Test() { } }")]
-    [DataRow("public static partial class Checks { [Ankus.PgTest, Ankus.PgFunction] public static void Test() { } }")]
-    [DataRow("public static partial class Checks { public static int PostgresTests => 1; [Ankus.PgTest] public static void Test() { } }")]
-    [DataRow("public static partial class Checks { [Ankus.PgTest(IgnoreReason = \"\")] public static void Test() { } }")]
-    [DataRow("public static partial class Checks { [Ankus.PgTest(ExpectedError = \"bad\\0text\")] public static void Test() { } }")]
-    [DataRow("public static partial class Checks { [Ankus.PgTest] private static void Test() { } }")]
-    [DataRow("public static partial class Checks { [Ankus.PgTest] public static void Test<T>() { } }")]
-    [DataRow("public static partial class Checks { [Ankus.PgTest] public static async void Test() { await System.Threading.Tasks.Task.Yield(); } }")]
-    [DataRow("public static partial class Checks { [Ankus.PgTest] public static void Test(ref Ankus.PgFunctionContext context) { } }")]
-    [DataRow("public class Outer { public static partial class Checks { [Ankus.PgTest] public static void Test() { } } }")]
-    [DataRow("public partial class Outer { private static partial class Checks { [Ankus.PgTest] public static void Test() { } } }")]
-    [DataRow("public class Base { public static int PostgresTests => 1; } public partial class Checks : Base { [Ankus.PgTest] public static void Test() { } }")]
-    [DataRow("public static partial class Checks { [Ankus.PgTest(IgnoreReason = \" \")] public static void Test() { } }")]
-    [DataRow("public static partial class Checks { [Ankus.PgTest(ExpectedError = \"\\ud800\")] public static void Test() { } }")]
-    [DataRow("public static partial class PostgresTests { [Ankus.PgTest] public static void Test() { } }")]
-    public void RejectsInvalidBackendTestDeclarations(string source)
+    [DataRow("public partial class Checks { [Ankus.PgTest] public void Test() { } }", "ANKUS291")]
+    [DataRow("public static partial class Checks { [Ankus.PgTest] public static int Test() => 1; }", "ANKUS295")]
+    [DataRow("public static partial class Checks { [Ankus.PgTest] public static void Test(int value) { } }", "ANKUS297")]
+    [DataRow("public static class Checks { [Ankus.PgTest] public static void Test() { } }", "ANKUS304")]
+    [DataRow("public static partial class Checks<T> { [Ankus.PgTest] public static void Test() { } }", "ANKUS301")]
+    [DataRow("public static partial class Checks { [Ankus.PgTest, Ankus.PgFunction] public static void Test() { } }", "ANKUS299")]
+    [DataRow("public static partial class Checks { public static int PostgresTests => 1; [Ankus.PgTest] public static void Test() { } }", "ANKUS306")]
+    [DataRow("public static partial class Checks { [Ankus.PgTest(IgnoreReason = \"\")] public static void Test() { } }", "ANKUS309")]
+    [DataRow("public static partial class Checks { [Ankus.PgTest(ExpectedError = \"bad\\0text\")] public static void Test() { } }", "ANKUS307")]
+    [DataRow("public static partial class Checks { [Ankus.PgTest] private static void Test() { } }", "ANKUS296")]
+    [DataRow("public static partial class Checks { [Ankus.PgTest] public static void Test<T>() { } }", "ANKUS293")]
+    [DataRow("public static partial class Checks { [Ankus.PgTest] public static async void Test() { await System.Threading.Tasks.Task.Yield(); } }", "ANKUS292")]
+    [DataRow("public static partial class Checks { [Ankus.PgTest] public static void Test(ref Ankus.PgFunctionContext context) { } }", "ANKUS298")]
+    [DataRow("public class Outer { public static partial class Checks { [Ankus.PgTest] public static void Test() { } } }", "ANKUS304")]
+    [DataRow("public partial class Outer { private static partial class Checks { [Ankus.PgTest] public static void Test() { } } }", "ANKUS303")]
+    [DataRow("public class Base { public static int PostgresTests => 1; } public partial class Checks : Base { [Ankus.PgTest] public static void Test() { } }", "ANKUS306")]
+    [DataRow("public static partial class Checks { [Ankus.PgTest(IgnoreReason = \" \")] public static void Test() { } }", "ANKUS309")]
+    [DataRow("public static partial class Checks { [Ankus.PgTest(ExpectedError = \"\\ud800\")] public static void Test() { } }", "ANKUS307")]
+    [DataRow("public static partial class PostgresTests { [Ankus.PgTest] public static void Test() { } }", "ANKUS305")]
+    public void RejectsInvalidBackendTestDeclarations(string source, string expected)
     {
         (_, ImmutableArray<Diagnostic> diagnostics) = Generate(source);
-        Assert.AreEqual("ANKUS023", Assert.ContainsSingle(diagnostics).Id);
+        Assert.AreEqual(expected, Assert.ContainsSingle(diagnostics).Id);
     }
 
     /// <summary>

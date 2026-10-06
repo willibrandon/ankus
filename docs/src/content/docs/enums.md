@@ -74,6 +74,32 @@ distinct numeric values. `[Flags]` and numeric aliases are rejected because
 PostgreSQL enums represent individual labels. Casting an undeclared number to
 the C# enum throws when it is converted to a PostgreSQL value.
 
+## Declaration diagnostics
+
+Enum declaration errors point at the attribute value, member or containing type
+that needs correction. An invalid enum is excluded from generated registrations
+and SQL; unrelated valid declarations still generate normally.
+
+| Diagnostic | Correction |
+| --- | --- |
+| `ANKUS278` | Put `[PgEnum]` on an enum declaration. C# also reports invalid attribute targets. |
+| `ANKUS279` | Remove `[Flags]`; PostgreSQL labels represent individual values. |
+| `ANKUS280` | Move the enum out of its generic containing type. |
+| `ANKUS281` | Make the enum and its containing types accessible from generated files, without `file`. |
+| `ANKUS282` | Use `public`, `internal` or `protected internal` accessibility for the enum and its containing types. |
+| `ANKUS283` | Give `PgEnum.Name` a nonempty, valid Unicode identifier of at most 63 UTF-8 bytes, without zero characters. |
+| `ANKUS284` | Give the explicit or inherited schema a valid nonempty identifier with the same byte and text limits. |
+| `ANKUS285` | Give the enclosing `[PgSchema]` a non-null name. |
+| `ANKUS286` | Use a non-null label. An empty label remains valid. |
+| `ANKUS287` | Remove zero characters and unpaired UTF-16 surrogates from the label. |
+| `ANKUS288` | Shorten the label to at most 63 UTF-8 bytes. |
+| `ANKUS289` | Assign a distinct label to each member. |
+| `ANKUS290` | Assign distinct numeric values; aliases cannot preserve distinct PostgreSQL labels. |
+
+These checks preserve exact labels and source ordering for all eight C# integer
+backing types. Invalid text from a referenced assembly is rejected as well;
+unreadable referenced attribute metadata retains the `ANKUS206` diagnostic.
+
 ## Schemas and dependencies
 
 By default, the type belongs to the extension's installation schema and moves

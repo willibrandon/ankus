@@ -237,11 +237,11 @@ public sealed partial class PgFunctionGeneratorTests
         string expected = role switch
         {
             "event" => "ANKUS209",
-            "test" => "ANKUS023",
+            "test" => "ANKUS292",
             _ => "ANKUS030",
         };
         Assert.AreEqual(expected, error.Id);
-        if (role == "event")
+        if (role is "event" or "test")
         {
             Assert.AreEqual("Implementation.cs", error.Location.SourceTree!.FilePath);
             Assert.AreEqual("async", error.Location.SourceTree.GetText(context.CancellationToken).ToString(error.Location.SourceSpan));

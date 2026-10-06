@@ -16,10 +16,6 @@ namespace Ankus.Generators;
 /// <param name="Function">The validated native test's SQL declaration.</param>
 internal sealed record PgTestDeclaration(PgTestCatalogModel.Owner Owner, PgTestCatalogModel.Case Case, string Order, FunctionDeclaration Function)
 {
-    private static readonly DiagnosticDescriptor s_invalid = new(
-        "ANKUS023", "Invalid PostgreSQL test declaration", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true,
-        helpLinkUri: "https://willibrandon.github.io/ankus/getting-started/testing/#declare-tests-inside-the-extension");
-
     /// <summary>
     /// Identifies test methods independently of whether this build enables their native exports.
     /// </summary>
@@ -39,11 +35,50 @@ internal sealed record PgTestDeclaration(PgTestCatalogModel.Owner Owner, PgTestC
             return null;
         }
 
-        if (!method.IsStatic || method.IsAsync || method.IsGenericMethod || method.IsAbstract || !method.ReturnsVoid ||
-            method.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal or Accessibility.ProtectedOrInternal) ||
-            FunctionParameter.Create(method).Any(static parameter => !parameter.IsInjected || parameter.RefKind != RefKind.None))
+        if (!method.IsStatic)
         {
-            return Invalid("PgTest requires an accessible synchronous static void method with no SQL arguments.");
+            return Invalid(PgTestDeclarationDiagnostics.Static, method.Locations.FirstOrDefault());
+        }
+
+        if (method.IsAsync)
+        {
+            return Invalid(PgTestDeclarationDiagnostics.Synchronous, Modifier(SyntaxKind.AsyncKeyword));
+        }
+
+        if (method.IsGenericMethod)
+        {
+            return Invalid(PgTestDeclarationDiagnostics.GenericMethod, method.Locations.FirstOrDefault());
+        }
+
+        if (method.IsAbstract)
+        {
+            return Invalid(PgTestDeclarationDiagnostics.Abstract, Modifier(SyntaxKind.AbstractKeyword));
+        }
+
+        if (!method.ReturnsVoid)
+        {
+            return Invalid(PgTestDeclarationDiagnostics.Result, FunctionDeclarationDiagnostics.Result(method, context.CancellationToken));
+        }
+
+        if (method.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal or Accessibility.ProtectedOrInternal))
+        {
+            return Invalid(PgTestDeclarationDiagnostics.Accessibility, method.Locations.FirstOrDefault());
+        }
+
+        FunctionParameter[] parameters = FunctionParameter.Create(method);
+        for (int index = 0; index < parameters.Length; index++)
+        {
+            FunctionParameter parameter = parameters[index];
+            IParameterSymbol symbol = method.Parameters[index];
+            if (!parameter.IsInjected)
+            {
+                return Invalid(PgTestDeclarationDiagnostics.SqlArgument, symbol.Locations.FirstOrDefault(), symbol.Name);
+            }
+
+            if (parameter.RefKind != RefKind.None)
+            {
+                return Invalid(PgTestDeclarationDiagnostics.ReferenceArgument, symbol.Locations.FirstOrDefault(), symbol.Name);
+            }
         }
 
         foreach (AttributeData attribute in method.GetAttributes())
@@ -52,41 +87,76 @@ internal sealed record PgTestDeclaration(PgTestCatalogModel.Owner Owner, PgTestC
                 "Ankus.PgCastAttribute" or "Ankus.PgTriggerAttribute" or "Ankus.PgEventTriggerAttribute" or
                 "Ankus.PgInitializeAttribute" or "Ankus.PgModuleLoadAttribute" or "Ankus.PgBackgroundWorkerAttribute")
             {
-                return Invalid("PgTest cannot also declare a production export or initialization callback.");
+                return Invalid(PgTestDeclarationDiagnostics.ConflictingRole,
+                    attribute.ApplicationSyntaxReference?.GetSyntax(context.CancellationToken).GetLocation(), attribute.AttributeClass.Name);
             }
         }
 
         for (INamedTypeSymbol? type = method.ContainingType; type is not null; type = type.ContainingType)
         {
-            if (type.TypeKind != TypeKind.Class || type.IsGenericType || type.IsFileLocal ||
-                type.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal or Accessibility.ProtectedOrInternal) ||
-                !type.DeclaringSyntaxReferences.All(static reference => reference.GetSyntax() is TypeDeclarationSyntax declaration &&
-                    declaration.Modifiers.Any(SyntaxKind.PartialKeyword)))
+            if (type.TypeKind != TypeKind.Class)
             {
-                return Invalid("Backend tests require accessible, nongeneric partial classes, including every containing type.");
+                return Invalid(PgTestDeclarationDiagnostics.ContainerKind, type.Locations.FirstOrDefault(), type.Name);
+            }
+
+            if (type.Arity != 0)
+            {
+                return Invalid(PgTestDeclarationDiagnostics.GenericContainer, type.Locations.FirstOrDefault(), type.Name);
+            }
+
+            if (type.IsFileLocal)
+            {
+                return Invalid(PgTestDeclarationDiagnostics.FileContainer, type.Locations.FirstOrDefault(), type.Name);
+            }
+
+            if (type.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal or Accessibility.ProtectedOrInternal))
+            {
+                return Invalid(PgTestDeclarationDiagnostics.ContainerAccessibility, type.Locations.FirstOrDefault(), type.Name);
+            }
+
+            SyntaxNode? incomplete = type.DeclaringSyntaxReferences.Select(reference => reference.GetSyntax(context.CancellationToken))
+                .FirstOrDefault(static declaration => declaration is not TypeDeclarationSyntax syntax ||
+                    !syntax.Modifiers.Any(SyntaxKind.PartialKeyword));
+            if (incomplete is not null)
+            {
+                return Invalid(PgTestDeclarationDiagnostics.PartialContainer,
+                    (incomplete as TypeDeclarationSyntax)?.Identifier.GetLocation() ?? incomplete.GetLocation(), type.Name);
             }
         }
 
         if (method.ContainingType.Name == "PostgresTests")
         {
-            return Invalid("PostgresTests is reserved for the generated backend test catalog.");
+            return Invalid(PgTestDeclarationDiagnostics.ReservedOwner, method.ContainingType.Locations.FirstOrDefault());
         }
 
         for (INamedTypeSymbol? type = method.ContainingType; type is not null; type = type.BaseType)
         {
-            if (type.GetMembers("PostgresTests").Length != 0)
+            ISymbol? conflict = type.GetMembers("PostgresTests").FirstOrDefault();
+            if (conflict is not null)
             {
-                return Invalid("PostgresTests is reserved for the generated backend test catalog.");
+                Location? location = SymbolEqualityComparer.Default.Equals(conflict.ContainingAssembly, method.ContainingAssembly)
+                    ? conflict.Locations.FirstOrDefault(static value => value.IsInSource)
+                    : method.Locations.FirstOrDefault(static value => value.IsInSource);
+                return Invalid(PgTestDeclarationDiagnostics.ReservedMember, location, type.Name);
             }
         }
 
         AttributeData test = method.GetAttributes().First(static attribute => attribute.AttributeClass?.ToDisplayString() == "Ankus.PgTestAttribute");
         string? expected = test.NamedArguments.FirstOrDefault(static argument => argument.Key == "ExpectedError").Value.Value as string;
         string? ignored = test.NamedArguments.FirstOrDefault(static argument => argument.Key == "IgnoreReason").Value.Value as string;
-        if (expected is not null && !SqlText.IsText(expected) ||
-            ignored is not null && (string.IsNullOrWhiteSpace(ignored) || !SqlText.IsText(ignored)))
+        if (expected is not null && !SqlText.IsText(expected))
         {
-            return Invalid("ExpectedError and IgnoreReason must contain valid Unicode without zero characters; an ignore reason cannot be empty.");
+            return Invalid(PgTestDeclarationDiagnostics.ExpectedError, FunctionDeclarationDiagnostics.Option(test, "ExpectedError", context.CancellationToken));
+        }
+
+        if (ignored is not null && !SqlText.IsText(ignored))
+        {
+            return Invalid(PgTestDeclarationDiagnostics.IgnoreText, FunctionDeclarationDiagnostics.Option(test, "IgnoreReason", context.CancellationToken));
+        }
+
+        if (ignored is not null && string.IsNullOrWhiteSpace(ignored))
+        {
+            return Invalid(PgTestDeclarationDiagnostics.IgnoreReason, FunctionDeclarationDiagnostics.Option(test, "IgnoreReason", context.CancellationToken));
         }
 
         string name = method.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
@@ -97,11 +167,18 @@ internal sealed record PgTestDeclaration(PgTestCatalogModel.Owner Owner, PgTestC
         return declaration is null ? null : new(PgTestCatalogModel.Owner.Create(method.ContainingType),
             new(name, sqlName, declaration.Schema, expected, ignored), method.ToDisplayString(), declaration);
 
-        PgTestDeclaration? Invalid(string message)
+        PgTestDeclaration? Invalid(DiagnosticDescriptor descriptor, Location? location, params string[] details)
         {
-            context.Report(s_invalid, method.Locations.FirstOrDefault(), method.Name, message);
+            context.Report(descriptor, location ?? method.Locations.FirstOrDefault(), [method.Name, .. details]);
             return null;
         }
+
+        Location? Modifier(SyntaxKind kind)
+            => new[] { method, method.PartialImplementationPart, method.PartialDefinitionPart }.OfType<IMethodSymbol>()
+                .SelectMany(static declaration => declaration.DeclaringSyntaxReferences)
+                .Select(reference => reference.GetSyntax(context.CancellationToken)).OfType<MethodDeclarationSyntax>()
+                .SelectMany(static declaration => declaration.Modifiers).Where(modifier => modifier.IsKind(kind))
+                .Select(static modifier => modifier.GetLocation()).FirstOrDefault();
     }
 
     /// <summary>

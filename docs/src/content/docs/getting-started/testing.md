@@ -88,7 +88,8 @@ memory contexts and other backend APIs there. Methods accept no SQL arguments;
 injected `PgFunctionContext` and `PgMemoryContext` parameters remain available.
 Methods and containing classes must be accessible to generated code and cannot
 be generic. Every containing class must be partial. Invalid declarations produce
-`ANKUS023` rather than silently disappearing from discovery.
+an error at the declaration or option that needs correction; valid sibling tests
+and production exports remain available.
 
 `BackendChecks.PostgresTests.Cases` contains immutable `PgTestCase` values.
 Reading this catalog does not run the enclosing class's static constructor or
@@ -166,6 +167,40 @@ Normal `dotnet publish` excludes test functions. The fixture explicitly sets
 `AnkusIncludeTests=true` only when `IncludeTests` is enabled. Other test hosts
 can consume the same framework-neutral catalog and fixture. Use
 [`[PgBenchmark]` and `ankus bench`](/benchmarks/) for measured backend work.
+
+## Declaration diagnostics
+
+Backend-test errors identify the requirement and its authored source.
+Correct the highlighted method, containing class, conflicting attribute or
+metadata value. Each valid test keeps its discovery catalog and normal native
+publication behavior even when another declaration is invalid.
+
+| Diagnostic | Requirement |
+| --- | --- |
+| `ANKUS291` | PostgreSQL backend test must be static. |
+| `ANKUS292` | PostgreSQL backend test must be synchronous. |
+| `ANKUS293` | PostgreSQL backend test cannot be generic. |
+| `ANKUS294` | PostgreSQL backend test must have an implementation. |
+| `ANKUS295` | PostgreSQL backend test must return void. |
+| `ANKUS296` | PostgreSQL backend test must be accessible. |
+| `ANKUS297` | PostgreSQL backend test cannot have SQL arguments. |
+| `ANKUS298` | PostgreSQL backend test context must be passed by value. |
+| `ANKUS299` | PostgreSQL backend test has a conflicting role. |
+| `ANKUS300` | PostgreSQL backend test requires a class. |
+| `ANKUS301` | PostgreSQL backend test cannot have a generic container. |
+| `ANKUS302` | PostgreSQL backend test cannot be file-local. |
+| `ANKUS303` | PostgreSQL backend test container must be accessible. |
+| `ANKUS304` | PostgreSQL backend test container must be partial. |
+| `ANKUS305` | PostgreSQL backend test owner has a reserved name. |
+| `ANKUS306` | PostgreSQL backend test catalog name is already declared. |
+| `ANKUS307` | Invalid PostgreSQL backend test expected error. |
+| `ANKUS308` | Invalid PostgreSQL backend test ignore text. |
+| `ANKUS309` | PostgreSQL backend test requires a nonempty ignore reason. |
+
+`ExpectedError = null` means successful execution is expected; an empty string
+remains an exact expected message. `IgnoreReason = null` runs the test, while a
+non-null reason must explain its omission. Both options preserve exact Unicode
+and reject zero characters or unpaired surrogates.
 
 ## Use the fixture
 

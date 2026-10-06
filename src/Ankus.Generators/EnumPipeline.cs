@@ -10,10 +10,6 @@ namespace Ankus.Generators;
 /// </summary>
 internal static class EnumPipeline
 {
-    private static readonly DiagnosticDescriptor s_invalid = new(
-        "ANKUS006", "Invalid PostgreSQL enum", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true,
-        helpLinkUri: "https://willibrandon.github.io/ankus/enums/#names-labels-and-ordering");
-
     /// <summary>
     /// Registers independent immutable enum contracts and their managed, native and SQL emission.
     /// </summary>
@@ -22,7 +18,7 @@ internal static class EnumPipeline
     internal static IncrementalValueProvider<EquatableArray<EnumOutput>> Register(IncrementalGeneratorInitializationContext context)
     {
         IncrementalValuesProvider<EnumAnalysis> analysis = context.SyntaxProvider.ForAttributeWithMetadataName(
-            "Ankus.PgEnumAttribute", static (node, _) => node is EnumDeclarationSyntax,
+            "Ankus.PgEnumAttribute", static (node, _) => node is BaseTypeDeclarationSyntax,
             static (attribute, token) => Analyze(attribute, token)).WithTrackingName("EnumAnalysis");
         IncrementalValuesProvider<EnumDeclaration?> models = analysis.Select(static (value, _) => value.Declaration)
             .WithTrackingName("EnumModel");
@@ -39,11 +35,13 @@ internal static class EnumPipeline
     {
         cancellationToken.ThrowIfCancellationRequested();
         var type = (INamedTypeSymbol)context.TargetSymbol;
-        string? error = null;
+        var problems = new List<GeneratorProblem>();
+        var diagnostics = new GeneratorDiagnostics((descriptor, location, arguments) => problems.Add(
+            new(descriptor, GeneratorLocation.Create(location, context.SemanticModel.Compilation), new(arguments))), cancellationToken);
         AttributeMetadataFailure? metadata = null;
-        EnumDeclaration? declaration = EnumDeclaration.Create(type, message => error = message, value => metadata = value, cancellationToken);
+        EnumDeclaration? declaration = EnumDeclaration.Create(type, diagnostics, value => metadata = value, cancellationToken);
         return new(DeclarationIdentity.Create(type), type.ToDisplayString(), type.Name, declaration,
-            SqlDeclarationOptions.Read(context.Attributes[0])!, GeneratorLocation.Create(type.Locations.FirstOrDefault(), context.SemanticModel.Compilation), error, metadata);
+            SqlDeclarationOptions.Read(context.Attributes[0])!, GeneratorLocation.Create(type.Locations.FirstOrDefault(), context.SemanticModel.Compilation), new(problems), metadata);
     }
 
     /// <summary>
@@ -81,9 +79,12 @@ internal static class EnumPipeline
         {
             analysis.Metadata.Report(analysis.Location?.Resolve(compilation), context);
         }
-        else if (analysis.Error is not null)
+        else
         {
-            context.Report(s_invalid, analysis.Location?.Resolve(compilation), analysis.Name, analysis.Error);
+            foreach (GeneratorProblem problem in analysis.Problems)
+            {
+                problem.Report(compilation, context);
+            }
         }
     }
 
@@ -96,10 +97,10 @@ internal static class EnumPipeline
     /// <param name="Declaration">The validated type contract, or null on failure.</param>
     /// <param name="Options">The authored SQL graph and replacement policy.</param>
     /// <param name="Location">Detached source coordinates.</param>
-    /// <param name="Error">The optional contract validation failure.</param>
+    /// <param name="Problems">The detached precise contract failures.</param>
     /// <param name="Metadata">The exact attribute decoding failure, if any.</param>
     internal sealed record EnumAnalysis(DeclarationIdentity Identity, string Display, string Name, EnumDeclaration? Declaration,
-        SqlDeclarationOptions Options, GeneratorLocation? Location, string? Error, AttributeMetadataFailure? Metadata = null);
+        SqlDeclarationOptions Options, GeneratorLocation? Location, EquatableArray<GeneratorProblem> Problems, AttributeMetadataFailure? Metadata = null);
 
     /// <summary>
     /// Contains the independently cached source fragments for one enum contract.

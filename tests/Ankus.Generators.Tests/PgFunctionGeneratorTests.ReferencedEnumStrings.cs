@@ -26,10 +26,10 @@ public sealed partial class PgFunctionGeneratorTests
         INamedTypeSymbol? type = input.GetTypeByMetadataName("Imported.Types+Mood");
         Assert.IsNotNull(type);
         string? reason = null;
-        EnumDeclaration? model = EnumDeclaration.Create(type, error => reason = error, cancellationToken: context.CancellationToken);
+        EnumDeclaration? model = EnumDeclaration.Create(type, new GeneratorDiagnostics((descriptor, _, arguments) => reason = string.Format(System.Globalization.CultureInfo.InvariantCulture, descriptor.MessageFormat.ToString(System.Globalization.CultureInfo.InvariantCulture), arguments.Cast<object>().ToArray()), context.CancellationToken), cancellationToken: context.CancellationToken);
         Assert.IsNull(model);
         Assert.IsNotNull(reason);
-        Assert.Contains(role == "label" ? "without zero characters" : "nonempty identifiers", reason);
+        Assert.Contains(role == "label" ? "without zero characters" : "nonempty SQL", reason);
 
         ModuleDriver().RunGeneratorsAndUpdateCompilation(input, out Compilation output,
             out ImmutableArray<Diagnostic> diagnostics, context.CancellationToken);
@@ -84,7 +84,7 @@ public sealed partial class PgFunctionGeneratorTests
         INamedTypeSymbol? type = input.GetTypeByMetadataName("Imported.Types+Mood");
         Assert.IsNotNull(type);
         string? reason = null;
-        EnumDeclaration? model = EnumDeclaration.Create(type, error => reason = error, cancellationToken: context.CancellationToken);
+        EnumDeclaration? model = EnumDeclaration.Create(type, new GeneratorDiagnostics((descriptor, _, arguments) => reason = string.Format(System.Globalization.CultureInfo.InvariantCulture, descriptor.MessageFormat.ToString(System.Globalization.CultureInfo.InvariantCulture), arguments.Cast<object>().ToArray()), context.CancellationToken), cancellationToken: context.CancellationToken);
         if (bytes > 63)
         {
             Assert.IsNull(model);

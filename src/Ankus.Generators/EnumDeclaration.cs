@@ -22,11 +22,11 @@ internal sealed record EnumDeclaration(string Name, string? Schema, string Manag
     /// Reads and validates an attributed enum, optionally reporting diagnostics.
     /// </summary>
     /// <param name="type">The attributed enum to analyze.</param>
-    /// <param name="reportError">The optional destination for a contract validation failure.</param>
+    /// <param name="diagnostics">The optional destination for precise contract failures.</param>
     /// <param name="cancellationToken">Cancels exact attribute analysis.</param>
     /// <param name="metadataFailure">Receives a structured unreadable attribute failure.</param>
     /// <returns>The detached immutable contract, or null when invalid or not attributed.</returns>
-    internal static EnumDeclaration? Create(INamedTypeSymbol type, Action<string>? reportError = null,
+    internal static EnumDeclaration? Create(INamedTypeSymbol type, GeneratorDiagnostics? diagnostics = null,
         Action<AttributeMetadataFailure>? metadataFailure = null, CancellationToken cancellationToken = default)
     {
         AttributeData? attribute = type.GetAttributes().FirstOrDefault(static item => item.AttributeClass?.ToDisplayString() == "Ankus.PgEnumAttribute");
@@ -35,27 +35,44 @@ internal sealed record EnumDeclaration(string Name, string? Schema, string Manag
             return null;
         }
 
-        if (type.TypeKind != TypeKind.Enum || type.GetAttributes().Any(static item => item.AttributeClass?.ToDisplayString() == "System.FlagsAttribute"))
+        if (type.TypeKind != TypeKind.Enum)
         {
-            return Invalid("PgEnum requires an enum without Flags; PostgreSQL enums are distinct labels, not bit masks.");
+            return Invalid(EnumDeclarationDiagnostics.Kind, Location(attribute));
+        }
+
+        AttributeData? flags = type.GetAttributes().FirstOrDefault(static item => item.AttributeClass?.ToDisplayString() == "System.FlagsAttribute");
+        if (flags is not null)
+        {
+            return Invalid(EnumDeclarationDiagnostics.Flags, Location(flags));
         }
 
         for (INamedTypeSymbol? container = type; container is not null; container = container.ContainingType)
         {
-            if (container.IsGenericType || container.IsFileLocal || container.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal or Accessibility.ProtectedOrInternal))
+            if (container.Arity != 0)
             {
-                return Invalid("Enum declarations and their containing types must be accessible, non-generic, and not file-local.");
+                return Invalid(EnumDeclarationDiagnostics.GenericContainer, container.Locations.FirstOrDefault(), container.Name);
+            }
+
+            if (container.IsFileLocal)
+            {
+                return Invalid(EnumDeclarationDiagnostics.FileContainer, container.Locations.FirstOrDefault(), container.Name);
+            }
+
+            if (container.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal or Accessibility.ProtectedOrInternal))
+            {
+                return Invalid(EnumDeclarationDiagnostics.Accessibility, container.Locations.FirstOrDefault(), container.Name);
             }
         }
 
         if (!ExactAttributeStrings.TryRead(type, attribute, cancellationToken, out AttributeStrings? options) || options is null)
         {
             metadataFailure?.Invoke(AttributeMetadataFailure.Create(type, attribute));
-            return Invalid("The enum's exact attribute metadata cannot be read; rebuild its defining assembly.");
+            return null;
         }
 
         string name = options.Property("Name", SqlText.SnakeCase(type.Name))!;
         string? schemaName = options.Property("Schema", null);
+        AttributeData? schemaAttribute = schemaName is null ? null : attribute;
         for (INamedTypeSymbol? container = type.ContainingType; schemaName is null && container is not null; container = container.ContainingType)
         {
             AttributeData? schema = container.GetAttributes().FirstOrDefault(static item => item.AttributeClass?.ToDisplayString() == "Ankus.PgSchemaAttribute");
@@ -64,20 +81,29 @@ internal sealed record EnumDeclaration(string Name, string? Schema, string Manag
                 if (!ExactAttributeStrings.TryRead(container, schema, cancellationToken, out AttributeStrings? inherited) || inherited is null)
                 {
                     metadataFailure?.Invoke(AttributeMetadataFailure.Create(container, schema));
-                    return Invalid("The enclosing schema's exact attribute metadata cannot be read; rebuild its defining assembly.");
+                    return null;
                 }
 
                 schemaName = inherited.Arguments[0];
+                schemaAttribute = schema;
                 if (schemaName is null)
                 {
-                    return Invalid("The inherited schema must have a non-null identifier.");
+                    return Invalid(EnumDeclarationDiagnostics.InheritedSchema, FunctionDeclarationDiagnostics.ConstructorArgument(schema, cancellationToken));
                 }
             }
         }
 
-        if (!SqlText.IsIdentifier(name) || (schemaName is not null && !SqlText.IsIdentifier(schemaName)))
+        if (!SqlText.IsIdentifier(name))
         {
-            return Invalid("Enum type and schema names must be nonempty identifiers of at most 63 UTF-8 bytes.");
+            return Invalid(EnumDeclarationDiagnostics.Name, FunctionDeclarationDiagnostics.Option(attribute, "Name", cancellationToken));
+        }
+
+        if (schemaName is not null && !SqlText.IsIdentifier(schemaName))
+        {
+            Location? location = schemaAttribute == attribute
+                ? FunctionDeclarationDiagnostics.Option(attribute, "Schema", cancellationToken)
+                : FunctionDeclarationDiagnostics.ConstructorArgument(schemaAttribute!, cancellationToken);
+            return Invalid(EnumDeclarationDiagnostics.Schema, location);
         }
 
         var values = new HashSet<object>();
@@ -92,20 +118,37 @@ internal sealed record EnumDeclaration(string Name, string? Schema, string Manag
                 if (!ExactAttributeStrings.TryRead(field, labelAttribute, cancellationToken, out AttributeStrings? item) || item is null)
                 {
                     metadataFailure?.Invoke(AttributeMetadataFailure.Create(field, labelAttribute));
-                    return Invalid("The enum label's exact attribute metadata cannot be read; rebuild its defining assembly.");
+                    return null;
                 }
 
                 label = item.Arguments[0];
             }
 
-            if (label is null || !SqlText.IsText(label) || Encoding.UTF8.GetByteCount(label) > 63 || !labels.Add(label))
+            Location? labelLocation = labelAttribute is null ? field.Locations.FirstOrDefault() :
+                FunctionDeclarationDiagnostics.ConstructorArgument(labelAttribute, cancellationToken);
+            if (label is null)
             {
-                return Invalid("Enum labels must be distinct, valid Unicode of at most 63 UTF-8 bytes without zero characters.");
+                return Invalid(EnumDeclarationDiagnostics.NullLabel, labelLocation, field.Name);
+            }
+
+            if (!SqlText.IsText(label))
+            {
+                return Invalid(EnumDeclarationDiagnostics.LabelText, labelLocation, field.Name);
+            }
+
+            if (Encoding.UTF8.GetByteCount(label) > 63)
+            {
+                return Invalid(EnumDeclarationDiagnostics.LabelLength, labelLocation, field.Name);
+            }
+
+            if (!labels.Add(label))
+            {
+                return Invalid(EnumDeclarationDiagnostics.DuplicateLabel, labelLocation, field.Name);
             }
 
             if (!values.Add(field.ConstantValue!))
             {
-                return Invalid("Enum members must have distinct numeric values; aliases cannot preserve distinct PostgreSQL labels.");
+                return Invalid(EnumDeclarationDiagnostics.NumericAlias, field.Locations.FirstOrDefault(), field.Name);
             }
 
             members.Add(new(field.Name, field.ConstantValue!, label));
@@ -113,11 +156,14 @@ internal sealed record EnumDeclaration(string Name, string? Schema, string Manag
 
         return new(name, schemaName, type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat), new(members));
 
-        EnumDeclaration? Invalid(string reason)
+        EnumDeclaration? Invalid(DiagnosticDescriptor descriptor, Location? location, params string[] details)
         {
-            reportError?.Invoke(reason);
+            diagnostics?.Report(descriptor, location ?? type.Locations.FirstOrDefault(), [type.Name, .. details]);
             return null;
         }
+
+        Location? Location(AttributeData selected)
+            => selected.ApplicationSyntaxReference?.GetSyntax(cancellationToken).GetLocation();
     }
 
     /// <summary>

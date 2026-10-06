@@ -468,7 +468,7 @@ public sealed partial class PgFunctionGeneratorTests
     /// <param name="id">The independently expected existing diagnostic.</param>
     [TestMethod]
     [DataRow("[Ankus.PgType(POLICY)] public readonly record struct Value(System.Uri Location);", "ANKUS017")]
-    [DataRow("[Ankus.PgEnum(POLICY), System.Flags] public enum Value { First = 1, Last = 2 }", "ANKUS006")]
+    [DataRow("[Ankus.PgEnum(POLICY), System.Flags] public enum Value { First = 1, Last = 2 }", "ANKUS279")]
     [DataRow("[Ankus.PgAggregate(POLICY)] public sealed class Value : Ankus.IPgAggregate<long,int> { " +
         "public static long Transition(Ankus.PgAggregateContext context,long state, int input) => state + input; }", "ANKUS107")]
     [DataRow("[Ankus.PgType, Ankus.PgEquality, Ankus.PgOrdering(POLICY)] public readonly record struct Value(int Number);", "ANKUS018")]

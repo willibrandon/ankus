@@ -27271,3 +27271,248 @@ Windows/17 and Linux/18 suites, and the recorded macOS allocation failure.
 The reported Windows timeout is superseded by the accepted crash-isolation
 replacement; the separate cache-measurement correction has the complete macOS
 acceptance above. Fresh primary CI for the combined source remains required.
+
+The coherent compiler milestone is committed and pushed as **ec19b55**. Prior
+CI outcomes are rechecked and unchanged before push. New primary
+[CI 37426534475](https://github.com/willibrandon/ankus/actions/runs/37426534475)
+and [Docs 37426534451](https://github.com/willibrandon/ankus/actions/runs/37426534451)
+are in progress; no success or combined-platform acceptance is claimed yet.
+The independent enum native composition remains under validation. Unrelated
+user changes and ignored review material are not committed.
+## Enum declaration precision and inherited-schema attribution
+
+The private enum correction replaces the broad declaration error with thirteen
+independently correctable contracts. Existing source and imported metadata
+contracts retain exact labels, numeric backing values, source order, empty labels,
+all eight integer widths, registration and native catalog identity checks.
+Malformed exact metadata still uses the established structured diagnostic.
+
+The final original baseline runs **38** actual cases: **27** fail their precise
+contract expectations, while **11** valid controls pass. The corrected complete
+generator module runs **4,160** cases with no failures or skips. Full plain,
+unsharded Release acceptance of the **1,831**-input composition on Linux x64,
+PostgreSQL **18.6**, Clang **22.1.8**, SDK **10.0.401** and patched runtime
+**10.0.12-ankus.4** passes:
+
+| Actual module | Total | Passed | Platform skips | Failed |
+| --- | ---: | ---: | ---: | ---: |
+| Generators | 4,160 | 4,160 | 0 | 0 |
+| Integration | 4,956 | 4,941 | 15 | 0 |
+| Build | 1,223 | 1,214 | 9 | 0 |
+| Runtime | 2,226 | 2,226 | 0 | 0 |
+| PostgreSQL configuration | 483 | 459 | 24 | 0 |
+| Hello | 5 | 5 | 0 | 0 |
+| Complete suite | **13,053** | **13,005** | **48** | **0** |
+
+Tests take **43m31.384s**, the complete command **44m22.713s**, and native
+integration **43m29.803s**. Frozen inputs match before and after execution.
+The six actual reports, every enum partition and all sixty-seven required native
+recovery partitions independently verify. The retained source/report archive
+matches all **1,842** original files; its **9,044,293** bytes retain digest
+`2a76237dbabbd40b34a213866e0d804d9250421f2829c60069cce493d301d72e`
+locally and on the validator. This composition remains unpromoted pending the
+following source-attribution correction and final gates.
+
+Further review found that the presence of an explicit `Schema = null` option
+incorrectly selected its syntax when an inherited schema supplied the invalid
+value. The corrected validator retains the attribute that actually supplied the
+selected schema. Schema resolution, exact decoding and emitted values remain
+unchanged. Expanded tests verify both option forms for every inherited invalid
+value, valid null inheritance, and the duplicate label's second source occurrence.
+
+The first expanded parent report has **43** cases, **39** passing and **4**
+failing. Three failures reproduce the misplaced highlight; one independent
+control expectation omitted the correctly generated CREATE SCHEMA statement.
+Its exact **1,835**-file source/report archive is retained and verified before
+correcting that expectation. The repeated unchanged validator then has **40**
+passing controls and exactly **3** reproduced highlight failures in **3.553s**.
+The corrected complete generator module passes all **4,165** cases in
+**1m04.735s**; actual counters, execution identities and all expanded partitions
+independently verify. The combined reproduction/correction archive matches all
+**1,836** retained source/report files. No failed report is substituted with a
+passing report from another revision.
+
+The frozen **1,831**-input schema child is verified and staged only after the
+parent's exact evidence is retained. Its complete plain native suite is running.
+Complete native acceptance, Release, API/site gates, promotion and current
+primary/version/platform evidence remain required. No completion claim is made
+for that child or the full port.
+
+The next backend-test declaration audit confirms nineteen independently
+correctable method, container, catalog and metadata requirements behind the
+existing catch-all error. Their private validator, rule record, author guidance
+and **51** focused cases are drafted; syntax and XML-comment checks pass, but
+normal compiler/analyzer, generator and native acceptance are not yet run.
+Existing partial-async tests already prove rejection, so that behavior is not
+misreported as a new correctness defect.
+
+### Complete primary CI for the declaration/cache milestone
+
+Source **ec19b552fec6057681f3c067e294ef5696c3cb2f**, runtime
+**10.0.12-ankus.4**, passes
+[CI 37426534475](https://github.com/willibrandon/ankus/actions/runs/37426534475)
+and [Docs 37426534451](https://github.com/willibrandon/ankus/actions/runs/37426534451).
+Quality, all three runtime jobs and all three complete native platform suites
+succeed. The eighteen actual TRX reports are retained and independently checked
+for module totals, outcome counts and unique execution identities. Each platform
+also verifies all **67** required native value, ownership and recovery cases.
+
+| Platform / PostgreSQL | Actual full-suite result | Job duration |
+| --- | --- | --- |
+| Linux x64 / 18 | 13,015 total; 12,967 passed; 48 platform skips; zero failures | 39m52s |
+| macOS ARM64 / 18 | 13,015 total; 12,955 passed; 60 platform skips; zero failures | 29m31s |
+| Windows x64 / 17 | 13,015 total; 12,987 passed; 28 platform skips; zero failures | 38m14s |
+
+Every platform includes **4,122** successful generator cases, **4,956** integration
+executions, **1,223** build-tool cases, **2,226** runtime cases, **483** installation
+cases and **5** minimal-sample cases. These results supersede the Windows
+crash-recovery failure and macOS allocation-regression failure of the previous
+runs. The original macOS allocation variance remains unattributed; the corrected
+workload measures warmed owner lookups and retains its real decoder, exact
+returned values and original allocation bound. This milestone establishes the
+named current source/platform/major combinations, not complete supported-version
+or full-port acceptance.
+
+### Precise backend-test declaration contracts: managed evidence
+
+The private backend-test correction replaces catch-all **ANKUS023** with nineteen
+independently correctable method, container, catalog and metadata contracts,
+**ANKUS291–309**. Diagnostics point at the actual async modifier, result type,
+parameter, conflicting attribute, enclosing class, reserved member or text
+expression. An inherited reserved member from a genuine source or emitted
+dependency reports at the extension's authored test; it does not use foreign or
+missing source coordinates. Existing discovery metadata, generated SQL names,
+immutable catalogs, publication inclusion and native boundaries retain their
+contracts. The partial-async path was already rejected and is not described as
+a new correctness bug.
+
+The first focused filter selected zero tests and is retained as rejected
+execution evidence. Discovery showed parameterized names, so the corrected
+filter selects the actual fully qualified methods. The final unchanged-validator
+run executes **53** cases: **49** fail on the old catch-all diagnostic and **4**
+exact valid metadata controls pass, with zero skips. Every rejected case and
+named partition independently verifies from its actual TRX report.
+
+The corrected composition, including the enum-schema correction, passes all
+**4,218** generator cases with zero failures or skips in **56.389s** test time
+and **57.134s** command time. Independent report checks include all **41** precise
+invalid declaration cases, **6** malformed-metadata sibling/publication cases,
+**4** exact catalog metadata controls, both real referenced-assembly cases,
+and the preserved sibling, declaration, caching, inherited-member and partial
+callback regression partitions. Catalog controls emit and read actual managed
+assemblies; the unrelated generated function still executes and returns **42**.
+
+The initial child freeze rejected a missing public testing guide before creating
+any candidate archive. The corrected freeze includes that guide and checks all
+authoring preimages, producing **1,834** exact source inputs. This is managed
+preparation, not native acceptance. The preceding enum-schema complete suite
+remains running unchanged. Neither private correction is promoted; full native,
+Release, API freshness and site acceptance remain required.
+
+The exact enum composition also passes the complete local Release build with
+zero warnings and errors in **1m20.65s**. Its API freshness check succeeds for
+**244** pages and **2,791** members. The combined backend-test/enum composition
+passes the complete local Release build with zero warnings and errors in
+**44.02s**. These preparation results do not replace complete native or site
+acceptance.
+
+The complete enum-schema suite remains live on Linux. An independently verified
+idle macOS ARM64 checkout has no user changes or running CI worker. It preserves
+its replaced source inputs before staging the exact **1,834**-input backend-test
+child. The staged runtime and compiler match the completed **ankus.4** payload;
+both package phases succeed. A plain, unsharded complete PostgreSQL **18.6**
+suite is now live for that child, with its actual SDK process ID retained.
+Inputs are checked before and after the run. The run's marked consumer cache is
+removed after successful completion. No CI checkout is changed and no passing
+subset is presented as full-platform evidence.
+
+The active progress section is reduced to current accepted and pending evidence;
+its exact old text is preserved privately, with implementation and rejected-run
+details retained in this history. Authoring promotion guards verify **1,829**
+original enum inputs or **1,830** original combined inputs before any source
+promotion. Neither private child is promoted while complete native acceptance
+remains pending.
+
+### Corrected enum complete acceptance, 2026-10-06
+
+The exact **1,831**-input enum-schema child completes plain, unsharded Linux
+x64/PostgreSQL **18.6** validation: **13,058 total / 13,010 passed / 48 platform
+skips / zero failures**, in **43m50.773s** test time and **45m27.022s** command
+time. Its six actual reports independently verify their counters and unique
+execution identities. The generator report includes all **4,165** cases and
+every expanded enum/schema diagnostic, movement, repair and valid-value control.
+The integration report verifies all **67** required native recovery executions.
+The driver verifies every frozen source input before and after execution.
+
+The retained acceptance archive contains **1,843** exact source, report and driver
+files. Every file verifies against the original validation bytes, and the copied
+archive matches digest
+`226e87c488d45fac2f5df221d3457b94daa5ca87f91e2211d4ca96c8be3316f7`.
+The combined backend-test child remains under complete macOS validation; its
+completion, site checks and guarded source promotion remain required.
+
+### Native callback diagnostic preparation, 2026-10-06
+
+The remaining native-callback catch-all is prepared as **37** independent error
+contracts, preserving the accepted handler-selection predicate and native ABI.
+The existing conditional-handler rule remains unchanged. The focused unchanged
+validator executes **67** cases: all **40** precise cause/location regressions
+fail on **ANKUS021**, while **27** compiled declaration and managed dispatch
+controls pass. The correction passes all **67**. Independent report verification
+checks every diagnostic and all three compiled-control partitions.
+
+The first corrected build is rejected because its private analyzer release file
+had not been prepared; no tests executed. Preparing all release records resolves
+that setup failure without lowering analyzers. The first adapted callback-only
+suite rejects two obsolete async-message expectations. Their replacement checks
+the exact actionable message and actual `async` modifier, preserving all boundary,
+native-value, caching and repair assertions. All **144** affected callback cases
+then pass with zero failures/skips in **4.699s**. Complete generator, native,
+documentation and promotion acceptance remain required for this private draft.
+
+The callback-only correction subsequently passes the complete generator suite:
+**4,162 passed / zero failures / zero skips**, in **55.485s** module time and
+**56.213s** command time. Actual report verification checks every execution
+identity, all **144** callback cases, precise causes, compiled transport and
+dispatcher controls, current-source diagnostic movement, removal and repair.
+This composition starts from ec19b55 and does not include the private enum or
+backend-test child; no reports are combined to claim acceptance of another
+source composition. Matching public help is prepared without publishing it.
+Complete combined and native acceptance remain required for the callback draft.
+
+After retaining and verifying the corrected enum acceptance archive locally,
+the completed Linux run's owned temporary parent is cleaned. The first cleanup
+stops before deleting anything because another process's working directory
+cannot be inspected. The elevated inspection checks active process
+working directories and the exact evidence digest before removing **1,760**
+completed temporary entries. The existing checkout, runtime and all evidence
+are preserved.
+
+### Precise enum/backend-test combined native acceptance, 2026-10-06
+
+The exact **1,834**-input backend-test/enum composition completes plain,
+unsharded macOS ARM64/PostgreSQL **18.6** validation: **13,111 total / 13,051
+passed / 60 platform skips / zero failures**, in **28m27.598s** test time and
+**29m32.629s** command time. All six actual reports independently verify their
+counters and unique execution identities. The generator report includes all
+**4,218** cases and every named precise backend-test, compiled catalog,
+referenced-assembly, partial-async, movement and repair partition. The integration
+report verifies all **67** required native recovery executions. The driver verifies
+all frozen inputs before and after execution and removes its owned consumer cache.
+
+The retained archive contains **1,844** exact source, report and driver files,
+each verified against the original validation bytes. Its local copy matches
+digest `c22eca1e4d4b8496745b391544b931f76d2783cfce27cbde20558945847a9a69`.
+The guarded main promotion first verifies all **1,830** original inputs, preserves
+the replaced files and promotes exactly **18** changed/new files. Every **1,834**
+accepted input then matches the actual native acceptance archive. Unrelated user
+changes remain outside the promotion. The normal Release/API/site gates and
+replacement primary CI remain required before accepting the committed milestone.
+
+The promoted source passes the normal Release build with **zero warnings/errors**
+in **34.43s**. API freshness verifies **244** pages and **2,791** members. The
+documentation build produces **295** pages in **3.76s**, and site checking reports
+zero errors, warnings or hints. The fresh pre-commit CI record confirms primary
+CI **37426534475** and Docs **37426534451** pass for ec19b55. Earlier failed runs
+remain recorded with their verified replacement outcomes; no recent run is live.
+Replacement CI for the precise enum/backend-test milestone remains required.

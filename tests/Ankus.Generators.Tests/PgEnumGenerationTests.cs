@@ -234,7 +234,7 @@ public sealed partial class PgFunctionGeneratorTests
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(attribute + " public enum Mood { " + member + " }");
         if (byteLength > 63)
         {
-            Assert.AreEqual("ANKUS006", Assert.ContainsSingle(diagnostics).Id);
+            Assert.AreEqual(target switch { "Name" => "ANKUS283", "Schema" => "ANKUS284", _ => "ANKUS288" }, Assert.ContainsSingle(diagnostics).Id);
             return;
         }
 
@@ -248,30 +248,31 @@ public sealed partial class PgFunctionGeneratorTests
     /// Invalid enum shape, inaccessible declarations, aliases, labels, and identifiers fail before extension generation.
     /// </summary>
     /// <param name="source">The invalid enum declaration.</param>
+    /// <param name="expected">The dedicated declaration diagnostic.</param>
     /// <param name="message">The expected diagnostic reason.</param>
     [TestMethod]
-    [DataRow("[System.Flags, Ankus.PgEnum] public enum Mood { Happy = 1, Sad = 2 }", "without Flags")]
-    [DataRow("[Ankus.PgEnum] public enum Mood { Happy = 1, Sad = 1 }", "distinct numeric values")]
-    [DataRow("[Ankus.PgEnum] public enum Mood { [Ankus.PgEnumLabel(\"same\")] Happy, [Ankus.PgEnumLabel(\"same\")] Sad }", "labels must be distinct")]
-    [DataRow("[Ankus.PgEnum] public enum Mood { [Ankus.PgEnumLabel(null!)] Happy }", "labels must be distinct")]
-    [DataRow("[Ankus.PgEnum] public enum Mood { [Ankus.PgEnumLabel(\"a\\0b\")] Happy }", "labels must be distinct")]
-    [DataRow("[Ankus.PgEnum] public enum Mood { [Ankus.PgEnumLabel(\"\\ud800\")] Happy }", "labels must be distinct")]
-    [DataRow("[Ankus.PgEnum] public enum Mood { [Ankus.PgEnumLabel(\"\\udc00\")] Happy }", "labels must be distinct")]
-    [DataRow("[Ankus.PgEnum(Name = \"\")] public enum Mood { Happy }", "nonempty identifiers")]
-    [DataRow("[Ankus.PgEnum(Name = \"a\\0b\")] public enum Mood { Happy }", "nonempty identifiers")]
-    [DataRow("[Ankus.PgEnum(Name = \"\\ud800\")] public enum Mood { Happy }", "nonempty identifiers")]
-    [DataRow("[Ankus.PgEnum(Schema = \"\")] public enum Mood { Happy }", "nonempty identifiers")]
-    [DataRow("[Ankus.PgEnum(Schema = \"a\\0b\")] public enum Mood { Happy }", "nonempty identifiers")]
-    [DataRow("[Ankus.PgEnum(Schema = \"\\ud800\")] public enum Mood { Happy }", "nonempty identifiers")]
-    [DataRow("public class Container { [Ankus.PgEnum] private enum Mood { Happy } }", "accessible, non-generic")]
-    [DataRow("public class Outer { private class Container { [Ankus.PgEnum] public enum Mood { Happy } } }", "accessible, non-generic")]
-    [DataRow("public class Container<T> { [Ankus.PgEnum] public enum Mood { Happy } }", "accessible, non-generic")]
-    [DataRow("[Ankus.PgEnum] file enum Mood { Happy }", "accessible, non-generic")]
-    public void InvalidEnumDeclarationsAreDiagnosed(string source, string message)
+    [DataRow("[System.Flags, Ankus.PgEnum] public enum Mood { Happy = 1, Sad = 2 }", "ANKUS279", "without Flags")]
+    [DataRow("[Ankus.PgEnum] public enum Mood { Happy = 1, Sad = 1 }", "ANKUS290", "distinct numeric values")]
+    [DataRow("[Ankus.PgEnum] public enum Mood { [Ankus.PgEnumLabel(\"same\")] Happy, [Ankus.PgEnumLabel(\"same\")] Sad }", "ANKUS289", "labels must be distinct")]
+    [DataRow("[Ankus.PgEnum] public enum Mood { [Ankus.PgEnumLabel(null!)] Happy }", "ANKUS286", "non-null label")]
+    [DataRow("[Ankus.PgEnum] public enum Mood { [Ankus.PgEnumLabel(\"a\\0b\")] Happy }", "ANKUS287", "valid Unicode without zero characters")]
+    [DataRow("[Ankus.PgEnum] public enum Mood { [Ankus.PgEnumLabel(\"\\ud800\")] Happy }", "ANKUS287", "valid Unicode without zero characters")]
+    [DataRow("[Ankus.PgEnum] public enum Mood { [Ankus.PgEnumLabel(\"\\udc00\")] Happy }", "ANKUS287", "valid Unicode without zero characters")]
+    [DataRow("[Ankus.PgEnum(Name = \"\")] public enum Mood { Happy }", "ANKUS283", "nonempty SQL type name")]
+    [DataRow("[Ankus.PgEnum(Name = \"a\\0b\")] public enum Mood { Happy }", "ANKUS283", "nonempty SQL type name")]
+    [DataRow("[Ankus.PgEnum(Name = \"\\ud800\")] public enum Mood { Happy }", "ANKUS283", "nonempty SQL type name")]
+    [DataRow("[Ankus.PgEnum(Schema = \"\")] public enum Mood { Happy }", "ANKUS284", "nonempty SQL schema name")]
+    [DataRow("[Ankus.PgEnum(Schema = \"a\\0b\")] public enum Mood { Happy }", "ANKUS284", "nonempty SQL schema name")]
+    [DataRow("[Ankus.PgEnum(Schema = \"\\ud800\")] public enum Mood { Happy }", "ANKUS284", "nonempty SQL schema name")]
+    [DataRow("public class Container { [Ankus.PgEnum] private enum Mood { Happy } }", "ANKUS282", "must be public, internal or protected internal")]
+    [DataRow("public class Outer { private class Container { [Ankus.PgEnum] public enum Mood { Happy } } }", "ANKUS282", "must be public, internal or protected internal")]
+    [DataRow("public class Container<T> { [Ankus.PgEnum] public enum Mood { Happy } }", "ANKUS280", "generic type")]
+    [DataRow("[Ankus.PgEnum] file enum Mood { Happy }", "ANKUS281", "cannot be file-local")]
+    public void InvalidEnumDeclarationsAreDiagnosed(string source, string expected, string message)
     {
         (_, ImmutableArray<Diagnostic> diagnostics) = Generate(source);
         Diagnostic diagnostic = Assert.ContainsSingle(diagnostics);
-        Assert.AreEqual("ANKUS006", diagnostic.Id);
+        Assert.AreEqual(expected, diagnostic.Id);
         Assert.Contains(message, diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture));
     }
 

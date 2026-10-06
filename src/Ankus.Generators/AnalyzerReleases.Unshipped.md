@@ -5,7 +5,6 @@ Rule ID | Category | Severity | Notes
 ANKUS002 | Ankus | Error | Invalid PostgreSQL function name
 ANKUS003 | Ankus | Error | Invalid numeric precision or scale constraint
 ANKUS005 | Ankus | Error | Invalid custom SQL input or installation dependency graph
-ANKUS006 | Ankus | Error | Invalid PostgreSQL enum declaration or label mapping
 ANKUS008 | Ankus | Error | Invalid PostgreSQL set result or table columns
 ANKUS009 | Ankus | Error | Invalid named composite type or TABLE column binding
 ANKUS015 | Ankus | Error | Invalid PostgreSQL configuration prefix
@@ -13,7 +12,6 @@ ANKUS016 | Ankus | Error | Invalid raw PostgreSQL type or TABLE column binding
 ANKUS017 | Ankus | Error | Invalid PostgreSQL base type or storage codec
 ANKUS018 | Ankus | Error | Invalid generated PostgreSQL operators
 ANKUS021 | Ankus | Error | Invalid static native callback declaration or handler
-ANKUS023 | Ankus | Error | Invalid PostgreSQL backend test declaration or catalog
 ANKUS024 | Ankus | Error | Ambiguous reference nullability in a SQL parameter or result
 ANKUS025 | Ankus | Error | Invalid PostgreSQL native module identity
 ANKUS026 | Ankus | Error | Invalid managed SQL dependency reference
@@ -269,3 +267,35 @@ ANKUS274 | Ankus | Error | Native worker export is reserved
 ANKUS275 | Ankus | Error | Duplicate native worker export
 ANKUS276 | Ankus | Error | Native callback handlers cannot declare Conditional
 ANKUS277 | Ankus | Error | PostgreSQL entry method cannot be conditional
+ANKUS278 | Ankus | Error | PostgreSQL enum requires an enum declaration
+ANKUS279 | Ankus | Error | PostgreSQL enum cannot use Flags
+ANKUS280 | Ankus | Error | PostgreSQL enum cannot have a generic container
+ANKUS281 | Ankus | Error | PostgreSQL enum cannot be file-local
+ANKUS282 | Ankus | Error | PostgreSQL enum must be accessible
+ANKUS283 | Ankus | Error | Invalid PostgreSQL enum type name
+ANKUS284 | Ankus | Error | Invalid PostgreSQL enum schema
+ANKUS285 | Ankus | Error | PostgreSQL enum cannot inherit a null schema
+ANKUS286 | Ankus | Error | PostgreSQL enum label cannot be null
+ANKUS287 | Ankus | Error | Invalid PostgreSQL enum label text
+ANKUS288 | Ankus | Error | PostgreSQL enum label exceeds UTF-8 limit
+ANKUS289 | Ankus | Error | Duplicate PostgreSQL enum label
+ANKUS290 | Ankus | Error | PostgreSQL enum cannot contain numeric aliases
+ANKUS291 | Ankus | Error | PostgreSQL backend test must be static
+ANKUS292 | Ankus | Error | PostgreSQL backend test must be synchronous
+ANKUS293 | Ankus | Error | PostgreSQL backend test cannot be generic
+ANKUS294 | Ankus | Error | PostgreSQL backend test must have an implementation
+ANKUS295 | Ankus | Error | PostgreSQL backend test must return void
+ANKUS296 | Ankus | Error | PostgreSQL backend test must be accessible
+ANKUS297 | Ankus | Error | PostgreSQL backend test cannot have SQL arguments
+ANKUS298 | Ankus | Error | PostgreSQL backend test context must be passed by value
+ANKUS299 | Ankus | Error | PostgreSQL backend test has a conflicting role
+ANKUS300 | Ankus | Error | PostgreSQL backend test requires a class
+ANKUS301 | Ankus | Error | PostgreSQL backend test cannot have a generic container
+ANKUS302 | Ankus | Error | PostgreSQL backend test cannot be file-local
+ANKUS303 | Ankus | Error | PostgreSQL backend test container must be accessible
+ANKUS304 | Ankus | Error | PostgreSQL backend test container must be partial
+ANKUS305 | Ankus | Error | PostgreSQL backend test owner has a reserved name
+ANKUS306 | Ankus | Error | PostgreSQL backend test catalog name is already declared
+ANKUS307 | Ankus | Error | Invalid PostgreSQL backend test expected error
+ANKUS308 | Ankus | Error | Invalid PostgreSQL backend test ignore text
+ANKUS309 | Ankus | Error | PostgreSQL backend test requires a nonempty ignore reason

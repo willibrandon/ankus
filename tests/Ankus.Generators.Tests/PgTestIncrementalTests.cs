@@ -172,12 +172,13 @@ public sealed partial class PgFunctionGeneratorTests
     /// Invalid cached test declarations report on the current tree and recover without stale catalogs or boundaries.
     /// </summary>
     /// <param name="invalid">The invalid replacement test shape.</param>
+    /// <param name="expected">Its dedicated diagnostic.</param>
     [TestMethod]
-    [DataRow("public static int First() => 1;")]
-    [DataRow("private static void First() { }")]
-    [DataRow("public static void First(int value) { }")]
-    [DataRow("public static void First(ref Ankus.PgFunctionContext call) { }")]
-    public void PgTestDiagnosticsUseCurrentSourceAndRecover(string invalid)
+    [DataRow("public static int First() => 1;", "ANKUS295")]
+    [DataRow("private static void First() { }", "ANKUS296")]
+    [DataRow("public static void First(int value) { }", "ANKUS297")]
+    [DataRow("public static void First(ref Ankus.PgFunctionContext call) { }", "ANKUS298")]
+    public void PgTestDiagnosticsUseCurrentSourceAndRecover(string invalid, string expected)
     {
         const string declaration = "public static void First() => System.GC.KeepAlive(1);";
         string valid = PgTestCacheSource();
@@ -185,12 +186,12 @@ public sealed partial class PgFunctionGeneratorTests
         CSharpCompilation initial = ModuleCompilation(source);
         GeneratorDriver driver = PgTestDriver(true).RunGeneratorsAndUpdateCompilation(initial, out _, out ImmutableArray<Diagnostic> first,
             context.CancellationToken);
-        Assert.AreEqual("ANKUS023", Assert.ContainsSingle(first).Id);
+        Assert.AreEqual(expected, Assert.ContainsSingle(first).Id);
         SyntaxTree current = CSharpSyntaxTree.ParseText("\n\n" + source, path: "Current.cs", cancellationToken: context.CancellationToken);
         CSharpCompilation edited = initial.ReplaceSyntaxTree(initial.SyntaxTrees.Single(), current);
         driver = driver.RunGeneratorsAndUpdateCompilation(edited, out Compilation partial, out ImmutableArray<Diagnostic> errors, context.CancellationToken);
         Diagnostic error = Assert.ContainsSingle(errors);
-        Assert.AreEqual("ANKUS023", error.Id);
+        Assert.AreEqual(expected, error.Id);
         Assert.AreSame(current, error.Location.SourceTree);
         Assert.AreEqual(Assert.ContainsSingle(first).Location.SourceSpan.Start + 2, error.Location.SourceSpan.Start);
         string catalog = PgTestCatalogSource(driver)!;
@@ -373,9 +374,10 @@ public sealed partial class PgFunctionGeneratorTests
         CSharpCompilation invalid = initial.ReplaceSyntaxTree(initial.SyntaxTrees.Last(), inherited);
         driver = driver.RunGeneratorsAndUpdateCompilation(invalid, out _, out ImmutableArray<Diagnostic> diagnostics, context.CancellationToken);
         Diagnostic error = Assert.ContainsSingle(diagnostics);
-        Assert.AreEqual("ANKUS023", error.Id);
-        Assert.AreSame(initial.SyntaxTrees.First(), error.Location.SourceTree);
-        Assert.Contains("PostgresTests is reserved", error.GetMessage(CultureInfo.InvariantCulture));
+        Assert.AreEqual("ANKUS306", error.Id);
+        Assert.AreSame(inherited, error.Location.SourceTree);
+        Assert.AreEqual("PostgresTests", inherited.GetText(context.CancellationToken).ToString(error.Location.SourceSpan));
+        Assert.Contains("'Base' already declares PostgresTests", error.GetMessage(CultureInfo.InvariantCulture));
         Assert.IsNull(PgTestCatalogSource(driver));
         driver = RunModule(driver, initial, out Compilation repaired);
         Assert.AreEqual(catalog, PgTestCatalogSource(driver));

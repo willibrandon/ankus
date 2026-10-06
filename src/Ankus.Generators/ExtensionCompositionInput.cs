@@ -119,6 +119,10 @@ internal sealed record ExtensionCompositionInput(FunctionPipeline.MethodInputs M
         foreach (EnumPipeline.EnumOutput output in Enums)
         {
             yield return output.Analysis.Location;
+            foreach (GeneratorProblem problem in output.Analysis.Problems)
+            {
+                yield return problem.Location;
+            }
         }
 
         foreach (AggregatePipeline.Output output in Aggregates)
