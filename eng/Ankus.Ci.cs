@@ -389,7 +389,7 @@ static void VerifyNativeHostBehavior(
         "--configuration", "Release", "--runtime", runtimeIdentifier, "--output", output,
         $"-p:IlcSdkPath={GetBuiltRuntimePath(repositoryRoot, platform, architecture)}{Path.DirectorySeparatorChar}",
         $"-p:IlcToolsPath={GetBuiltCompilerPath(repositoryRoot, platform, architecture)}{Path.DirectorySeparatorChar}",
-    ]);
+    ], environment: environment);
 
     string host = Path.Combine(output, "host");
     List<string> compilerArguments =

@@ -146,8 +146,10 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   provisioning exposed a missing `pkg-config` installation and an unset macOS SDK
   root during Native AOT linking. The dependency is installed; runtime builds now
   select Apple Clang and the active SDK explicitly while binding generation retains
-  LLVM 20. A full manual runtime, ILCompiler and native-probe build passes. The first
-  complete live suite remains pending.
+  LLVM 20. The first corrected CI attempt exposed one missed environment handoff
+  in the Native AOT host publish. The exact CI command now passes the runtime,
+  ILCompiler, Native AOT host and native-probe builds. The first complete live
+  suite remains pending.
 - Function-provider diagnostics pass complete Linux/PostgreSQL **18.6** acceptance:
   **13,365** total, zero failures. All **1,853** ordinary source inputs and the
   exact **2,038**-file evidence archive verify; ten changed/new files are promoted.

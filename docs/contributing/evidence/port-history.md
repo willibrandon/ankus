@@ -28542,3 +28542,16 @@ Immediately before this correction's commit, docs run **37518295279** is complet
 and successful. Primary run **37518295419** has successful quality and all three
 runtime jobs; its Linux, macOS ARM64 and Windows complete test jobs remain in
 progress. The failed dedicated run above is the failure addressed by this change.
+
+The first corrected [Intel run 37521646285](https://github.com/willibrandon/ankus/actions/runs/37521646285)
+passes the runtime and ILCompiler builds but exposes one missed environment
+handoff: the Native AOT host-probe `dotnet publish` still runs without the selected
+SDK root and fails to resolve `-ldl`. Passing the same toolchain environment to
+that final publish corrects the failure. The exact file-based CI command then
+passes a clean runtime build, ILCompiler publish, Native AOT host publish, all
+three shutdown probes and all eight signal-mask probe cases on the Intel runner.
+
+Immediately before this follow-up commit, the failed Intel run above is complete.
+Primary **37518295419** remains in progress with quality, all runtime jobs and
+macOS ARM64 complete; docs **37518295279** succeeds. Replacement primary
+**37521629720** is queued and docs **37521629544** is waiting.
