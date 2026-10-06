@@ -76,7 +76,7 @@ defines the full scope; family-level implementation is not API-by-API completion
 | .NET templates | Version-matched ordinary extension and worker templates reuse the CLI assets and pin local tools. Optional xUnit/NUnit consumers exercise managed and named backend cases, ignore reasons, worker processes and cleanup alongside default MSTest consumers. Complete primary-platform CI passes. | Remaining discovery contracts and complete version/platform acceptance. |
 | API discoverability | Idiomatic attributed declarations, documented runtime APIs, named logging helpers and typed SPI interpolation. Compiler transport helpers are isolated in Ankus.CompilerServices and hidden from IntelliSense; complete primary-platform CI passes. | Remaining value/assertion helpers and final inventory audit. |
 | Packages and release | MIT license, Brandon Williams copyright, author/repository/project metadata and deliberate SDK/runtime boundaries. | Full release gates and supported-platform packages before publishing 0.1.0. |
-| Documentation and samples | Public guides, generated API pages, pgrx migration and backend-execution guidance; current status separated from historical evidence. SPI, error/reporting and in-backend benchmark samples cover their complete authoring loops. | Every remaining inventoried representative sample and final usage/limitation review. |
+| Documentation and samples | Public guides, generated API pages, pgrx migration and backend-execution guidance; current status separated from historical evidence. SPI, error/reporting, bytea, strings and in-backend benchmark samples cover their complete authoring loops. | Every remaining inventoried representative sample and final usage/limitation review. |
 
 The custom-type alignment review found no defect: variable-length PostgreSQL
 types require at least four-byte datum alignment. Managed codec payload layout
@@ -98,6 +98,10 @@ partitions independently verify; no primary job timed out.
 | Latest primary CI, **f86e0ac / ankus.4** | Linux x64 / 18 | 12,630 total; 12,582 passed; 48 platform skips; zero failures | 39m27s job |
 | Same CI / revision / runtime | macOS ARM64 / 18 | 12,630 total; 12,570 passed; 60 platform skips; zero failures | 34m10s job |
 | Same CI / revision / runtime | Windows x64 / 17 | 12,630 total; 12,602 passed; 28 platform skips; zero failures | 35m21s job |
+| [New primary CI](https://github.com/willibrandon/ankus/actions/runs/37401674049), **15efe37 / ankus.4** | macOS ARM64 / 18 | 12,799 total; 12,739 passed; 60 platform skips; zero failures | 29m40s job |
+| Same CI / revision / runtime | Linux x64 / 18 | 12,799 total; 12,751 passed; 48 platform skips; zero failures | 39m40s job |
+| Same CI / revision / runtime, rejected | Windows x64 / 17.11 | 12,799 total; 12,770 passed; 28 platform skips; one recovery timeout | 35m28s job; correction under validation |
+| Frozen crash-isolation repair, runtime **ankus.4** | Windows x64 / 17.11 | 12,799 total; 12,771 passed; 28 platform skips; zero failures | 50m30.838s tests; 51m21.747s command |
 | Frozen bytea/strings and SQL-identity composition, runtime **ankus.4** | Windows x64 / 17.11 | 12,799 total; 12,771 passed; 28 platform skips; zero failures | 48m38.373s tests; 49m26.804s command |
 | Frozen corrected SPI composition, **f86e0ac / ankus.4** | Windows x64 / 17.11 | 12,630 total; 12,602 passed; 28 platform skips; zero failures | 47m45.216s tests; 48m33.194s command |
 | Frozen raw transport / recovery composition, runtime **ankus.4** | Linux x64 / 18.6 | 12,561 total; 12,513 passed; 48 platform skips; zero failures | 41m19.728s tests |
@@ -127,68 +131,45 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
 
 ## Active validation and work
 
-- **7dca056** fixes recovery-test reconnection before postmaster reinitialization
-  finishes. The original thirty-second deadline and durability assertions remain.
-  All **122** affected Windows/**17.11** cases and complete primary CI pass.
-  The prior [CI 37343346227](https://github.com/willibrandon/ankus/actions/runs/37343346227)
-  reported twenty Windows startup/crash-recovery timeouts; its other jobs and
-  [Docs 37343346223](https://github.com/willibrandon/ankus/actions/runs/37343346223)
-  passed. The failure and diagnosis remain recorded in the archive.
-- Seventeen remaining arbitrary-address/handle compiler transport methods require
-  unsafe contexts. All **21** regressions fail against the unchanged baseline and
-  pass with the correction; the accepted complete suites preserve native recovery.
-  Full source-contract and current supported-version acceptance remain required.
-- Milestone **f86e0ac** accepts SPI construction/alias/control-flow analysis and
-  SQL token-context checking. All **150** focused cases pass; the unchanged analyzer
-  fails **33**. Docs and complete primary CI pass, including all eighteen reports
-  and sixty-seven required native recovery partitions per platform. The rejected
-  predecessor and detailed results remain in the archive; supported-version and
-  additional-platform acceptance remain required.
-- The bytea/strings samples preserve pgrx's gzip member policy, exact
-  UTF-8 byte slices and Rust terminator splitting. Unicode **17.0** casing matches
-  Rust **1.97.1** for all **1,112,064** valid scalars and final-sigma contexts.
-  The complete runtime module passes **2,226** cases, independently verifying all
-  **78** new managed executions across **25** required partitions. The first full
-  Windows x64/PostgreSQL **17.11** composition is rejected: **12,750** pass,
-  **28** skip and **5** fail in **50m20.537s**. Parameterized setup batches caused
-  all five failures. Separate inserts preserve the original connection, transaction
-  and ownership assertions; all five corrected native cases pass and verify
-  in **4m33.772s**. The corrected full unsharded suite passes **12,799** cases
-  (**12,771** passed; **28** skips; zero failures). All six reports, **75** new
-  native sample cases, **67** recovery cases and **1,813** inputs verify.
-  All **1,825** archived source/evidence files match exactly. The **40** accepted
-  files are promoted. Release passes with zero warnings/errors in **2m17.57s**;
-  API freshness verifies **244** pages and **2,791** members. The site builds
-  **295** pages and reports zero errors, warnings or hints. Replacement CI follows.
-- The accepted diagnostic correction separates malformed names (`ANKUS002`) from
-  duplicate SQL input signatures (`ANKUS207`), including aggregate/helper conflicts.
-  All **13** regressions fail against the unchanged generator; all **3** valid-overload
-  controls pass. The corrected complete generator module passes **3,906** executions
-  in **2m39.190s**. Reports and named partitions independently verify. A coherent
-  **1,813**-input composition includes both samples, corrected fixtures and these
-  diagnostics; its complete Windows/**17.11** suite, Release and documentation
-  checks pass. Replacement primary CI remains required for the milestone.
-- SPI guidance documents hot-standby restrictions on write-intent helpers. This
-  is source-derived guidance, not standby test evidence. Precise diagnostics,
-  remaining code fixes, source-case mapping and samples remain open. The full
-  PostgreSQL/platform, .NET servicing and release requirements remain in scope.
-- A private callback validator separates the row/event trigger catch-all errors
-  into **22** precise contracts with authored source locations and help links.
-  The unchanged generator fails all **60** new invalid-declaration regressions;
-  all **4** valid controls pass. The corrected focused scope passes all **64**.
-  The first complete run exposes **11** legacy expectations; corrected IDs and
-  authored partial-implementation locations then pass the complete **3,970**-case
-  generator module in **1m30.781s**. Actual reports and named partitions verify.
-  Its immutable candidate freezes **1,818** inputs. Complete native and
-  documentation acceptance remain required before promotion.
-- The separate initialization diagnostic draft distinguishes **20** phase,
-  signature, container, invocation and metadata contracts. All **42** new
-  regressions fail against the unchanged initializer validator; all **4** valid
-  controls pass. The correction passes all **46** focused executions, with
-  independently verified reports. The combined complete generator module passes
-  all **4,016** cases in **1m16.403s**, and the new composition freezes **1,821**
-  inputs. Native and documentation acceptance remain required; main and the
-  running sample composition remain unchanged.
+- **15efe37** implements the bytea/strings samples and separates invalid names
+  (`ANKUS002`) from duplicate SQL signatures (`ANKUS207`). The immutable Windows
+  composition passes all **12,799** cases, including **75** new native sample
+  executions. Release, API freshness and site checks pass. Its primary CI passes
+  Linux and macOS but reports one Windows recovery timeout; that run is rejected.
+- Four concurrent allocation-fault crash cases exceed the recovery deadline.
+  Six terminal methods now run without parallel integration cases. All **122**
+  affected Windows/**17.11** cases pass; actual timestamps prove zero overlap
+  for the **26** terminal rows. Deadlines, fsync and durability checks remain.
+  Release and documentation checks pass. The complete **1,813**-input Windows
+  suite passes **12,799** cases; all six reports, **67** recovery cases and
+  actual crash-test intervals independently verify. Replacement CI remains required.
+- **7dca056** repairs reconnection before postmaster reinitialization finishes.
+  Complete primary CI passes. The prior twenty Windows startup/recovery failures
+  and their correction remain in the evidence archive.
+- Seventeen arbitrary-address compiler transport methods require unsafe
+  contexts. All **21** regressions detect the unchanged baseline and pass with
+  the correction; complete primary-platform suites preserve native recovery.
+  Full source-contract and supported-version acceptance remain required.
+- **f86e0ac** accepts SPI construction, alias, control-flow and SQL token-context
+  analysis. All **150** focused cases and complete primary CI pass; the unchanged
+  analyzer fails **33** regressions. Hot-standby write-intent restrictions are
+  documented from source; actual standby validation remains required.
+- Private trigger, initialization and worker drafts separate **68** declaration
+  contracts. Their **162** invalid cases detect the respective unchanged
+  validators; all **14** valid controls pass. Native acceptance remains required.
+- A conditional native handler can be silently omitted while its dispatcher
+  reports success. The private `ANKUS276` correction rejects that attribute,
+  including partial handlers and currently defined symbols. All **10** focused
+  cases pass; the unchanged validator fails **8**, retaining **2** real managed
+  dispatch controls. Metadata edits and repair preserve sibling caches and
+  current diagnostic locations. The combined generator module passes **4,092**
+  actual executions in **1m24.739s**; all named partitions independently verify.
+  Its **1,826**-input candidate preserves crash isolation. The expected **12,985**
+  full cases are not native evidence: complete native, Release and documentation
+  acceptance remain required before promotion.
+- Precise diagnostics, remaining code fixes, source-case mapping, samples,
+  supported PostgreSQL/platform combinations, .NET servicing and release gates
+  remain in scope. Detailed accepted and rejected evidence lives in the archive.
 
 ## Remaining work order
 

@@ -26818,3 +26818,139 @@ Docs 37361236408 passed on 7dca056. The earlier CI 37343346227 remains a
 recorded failure, corrected by 7dca056; its documentation job passed.
 No observed run is in progress. Replacement primary CI and supported-version
 acceptance of this new milestone remain required.
+
+The pre-push check confirms those same outcomes. The verified milestone is
+committed and pushed as 15efe37. CI 37401674049 and Docs 37401674065 are
+in progress; no outcome for the new source is claimed. The combined callback
+and initialization candidate awaits complete native acceptance.
+
+### Precise worker declaration diagnostics, 2026-10-06
+
+The worker validator's ANKUS022 combines signature, container, conflicting
+metadata and native export errors. A private correction introduces twenty-six
+separately correctable ANKUS250–275 contracts and their authored source locations.
+It preserves the by-value native unsigned argument, synchronous void entry,
+accessible implementation, symbol boundaries and collision selection. Discovery
+also reports unsupported local functions and lambdas rather than silently ignoring
+their worker attributes. Valid workers and unrelated SQL output remain available.
+
+On an independent Linux x64 validator with SDK 10.0.401, the unchanged worker
+validator fails all fifty-eight invalid-declaration cases and both duplicate-export
+cases; all six valid controls pass. The baseline executes all sixty-six cases in
+3.559s. The correction builds with zero warnings/errors in 12.73s and passes
+the same sixty-six cases in 3.824s. The complete generator module then passes
+all 4,082 executions with zero failures/skips in 1m23.192s. Independent inspection
+verifies each actual report's counters, unique execution IDs and named partitions.
+The driver verifies all 1,821 parent inputs and twelve isolated source/test/driver
+inputs before and after execution. Existing symbol, compilation, caching and
+repair assertions remain enforced with their specific IDs and current argument
+or partial implementation locations.
+
+The immutable worker composition preserves the callback/initialization parent
+and freezes nine changed/new sources into 1,824 inputs. It remains unstaged;
+expected complete scope is 12,975 cases, including 4,082 generator and 4,956
+integration cases. These expectations are not native acceptance. Complete native,
+Release, documentation and replacement CI checks remain required before promotion.
+Main retains 15efe37. Its documentation and quality/runtime jobs pass; macOS
+ARM64/PostgreSQL 18 completes successfully in 29m40s. Linux and Windows jobs
+remain in progress, and the new platform reports require independent verification.
+
+The completed macOS ARM64/PostgreSQL 18 job's actual reports subsequently
+verify: 12,799 total, 12,739 passed, sixty platform skips and zero failures.
+All six reports have consistent counters and unique execution identities.
+The integration module verifies all sixty-seven required native recovery
+executions and all seventy-five bytea/strings cases across fifteen partitions.
+This accepts the named 15efe37/macOS evidence; Linux and Windows remain live.
+
+### Primary Windows crash-test isolation correction
+
+CI **37401674049**, revision **15efe37**, completes with one Windows
+x64/PostgreSQL **17.11** failure:
+`CompletionReportingAllocationFailurePreservesDurableCompletion (1,False)`.
+Its six actual reports independently verify **12,799 total / 12,770 passed /
+28 skips / one failure**; the Windows job takes **35m28s**. This run is rejected.
+Linux x64/PostgreSQL 18 passes **12,799 total / 12,751 passed / 48 skips /
+zero failures** in **39m40s**. Its six reports, sixty-seven required recovery
+executions and seventy-five bytea/strings executions independently verify.
+macOS, quality, runtime and documentation jobs also pass.
+
+All four allocation-fault rows start within twenty-eight milliseconds. The
+failed backend emits its expected PANIC at 19:04:44.852 and the postmaster
+observes its exit at 19:05:02.686: **17.834s** later. Startup subsequently
+spends **13.573s** syncing the data directory before redo begins. The original
+thirty-second recovery deadline expires, and fixture shutdown interrupts redo.
+Other concurrent crash cases show data-directory sync and checkpoint delays too.
+This is observed host-resource contention during intentional crash recovery;
+the log does not identify the cause of the backend-exit delay independently.
+No runtime correctness defect is inferred from that expected PANIC.
+
+Six terminal-test methods now use MSTest's nonparallel execution boundary.
+Their twenty-six rows retain all real crash, rollback, prepared-transaction,
+commit-durability, managed-unwinding, diagnostic and recovery assertions.
+The assembly's parallel settings, fsync and thirty-second deadlines remain.
+The contributor guide explains this shared-resource boundary. An immutable
+**1,813**-input repair is staged in the existing idle Windows validator; affected
+real-server validation is running. Actual corrected execution timestamps must
+also prove that the terminal rows do not overlap other integration cases.
+Complete acceptance and replacement CI remain required.
+
+The crash-isolation correction subsequently passes all **122** affected Windows
+x64/PostgreSQL **17.11** executions with zero failures/skips in **6m35.440s**;
+the complete build-and-test command takes **7m22.228s**. Independent verification
+checks exact counters, unique execution identities and the originally failed
+allocation-fault row. All twenty-six terminal rows pass and their actual time
+intervals overlap no other integration execution. All 1,813 inputs verify before
+and after execution. Release passes with zero warnings/errors in **3m51.42s**;
+the site builds 295 pages in 5.17s and reports zero errors, warnings or hints.
+The complete plain, unsharded Windows suite starts against the same frozen
+inputs. Its completion and replacement CI remain required before committing.
+
+The complete plain, unsharded Windows x64/PostgreSQL 17.11 suite subsequently
+passes: 12,799 total, 12,771 passed, twenty-eight platform skips and zero failures
+in 50m30.838s; the complete command takes 51m21.747s. All six actual reports
+independently verify, including sixty-seven required native recovery executions,
+seventy-five native sample executions and seventy-eight managed sample executions.
+All twenty-six terminal rows pass without overlapping any other integration
+execution. The driver verifies all 1,813 frozen inputs before and after execution.
+The immutable acceptance archive retains 1,824 exact source/report/telemetry files.
+Release, API freshness and site checks passed for the repair. The fresh pre-commit
+CI check confirms 37401674049 failed only on Windows; 37401674065 passed. The
+earlier replacement CI 37386501183 and its documentation run passed. No run
+remains live in the latest recorded list. Replacement CI for this repair remains
+required; deadlines, fsync and observable assertions were not relaxed.
+
+### Conditional native callback invocation contract, 2026-10-06
+
+The existing native callback validator accepts a matching static void handler
+with `System.Diagnostics.Conditional`. C# omits its generated direct call when
+the symbol is undefined; the dispatcher nevertheless returns success. Adding
+only that attribute to the existing observable void-handler test reproduces
+status zero with zero effects instead of one. The fifteen unchanged native-value
+controls pass. This is real generated managed-dispatch execution through an ABI
+shim, not PostgreSQL or published Native AOT acceptance.
+
+The private correction reports `ANKUS276` on the authored Conditional attribute
+and excludes only that invalid callback. It covers ordinary handlers and both
+partial-method placements regardless of whether the symbol is currently defined.
+Unrelated SQL output, valid void callbacks and exact source highlights remain
+enforced. Two real controls execute once with status zero and effects seventy-three.
+Attribute addition, location movement and removal use the same generator driver,
+preserving sibling rendering caches and clearing the diagnostic after repair.
+
+The unchanged validator fails all eight invalid/edit regressions while both
+dispatch controls pass. The correction passes all ten cases in 5.994s, builds
+with zero warnings/errors, and passes the complete 3,916-case generator module
+in 1m49.874s. Independent actual-report inspection verifies counters, unique
+execution identities, outcomes and every placement/symbol/cache partition.
+
+Combining the correction with the previously verified trigger, initialization
+and worker drafts builds without warnings/errors in 15.05s. Its complete
+generator module passes all 4,092 cases with zero skips/failures in 1m24.739s.
+Four independent report checks retain all sixty-four trigger, forty-six
+initialization, sixty-six worker and ten conditional-handler partitions.
+One immutable candidate freezes 1,826 inputs with nine changed/new sources
+relative to the worker parent. It includes the three crash-isolation test
+repairs, contributor guidance and callback author/API documentation. Expected
+complete scope is 12,985 cases; those planned counts are not native acceptance.
+Main and the live 1,813-input Windows repair remain unchanged. Complete native,
+Release, API freshness, site and replacement CI checks remain required.

@@ -233,6 +233,7 @@ public sealed partial class PgLogTests(TestContext context)
     /// <param name="mode">The managed propagation or swallowing path.</param>
     /// <param name="helper">Whether to use the structured terminal helper.</param>
     [TestMethod]
+    [DoNotParallelize] // Intentional crashes must not contend with other clusters' recovery fsync.
     [DataRow(11, "FATAL", 0, false)]
     [DataRow(12, "PANIC", 0, false)]
     [DataRow(11, "FATAL", 1, false)]

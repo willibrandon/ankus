@@ -140,6 +140,12 @@ publishes the extensions, starts an isolated cluster, installs the extensions,
 and invokes their functions through SQL. Test transactions roll back before their
 connections close. The cluster shuts down after the run.
 
+Tests that intentionally crash PostgreSQL run without parallel integration cases.
+Independent data directories still share the host's disk and crash-reporting
+resources; simultaneous restarts can exhaust the recovery deadline. These tests
+retain their thirty-second deadline, real fsync, diagnostic and durability checks.
+Other integration cases continue to use the assembly's parallel execution policy.
+
 The optional xUnit and NUnit consumer templates use their selected framework's
 own test packages. Those consumer test dependencies and their template
 acceptance tests are an approved exception to the Microsoft/.NET package rule.

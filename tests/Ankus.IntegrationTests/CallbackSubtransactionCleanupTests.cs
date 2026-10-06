@@ -293,6 +293,7 @@ public sealed partial class CallbackSubtransactionCleanupTests(TestContext conte
     /// </summary>
     /// <param name="preparedTransaction">Whether PostgreSQL prepares the transaction instead of committing it.</param>
     [TestMethod]
+    [DoNotParallelize] // Crash reporting and recovery fsync share the host's disk with other isolated clusters.
     [DataRow(false)]
     [DataRow(true)]
     public Task CleanupReporterFailurePanicsAfterManagedUnwindingAndPreservesCommit(bool preparedTransaction)
@@ -306,6 +307,7 @@ public sealed partial class CallbackSubtransactionCleanupTests(TestContext conte
     /// <param name="stage">One for context creation or two for diagnostic copying.</param>
     /// <param name="preparedTransaction">Whether PostgreSQL prepares instead of committing the transaction.</param>
     [TestMethod]
+    [DoNotParallelize]
     [DataRow(1, false)]
     [DataRow(1, true)]
     [DataRow(2, false)]
@@ -320,6 +322,7 @@ public sealed partial class CallbackSubtransactionCleanupTests(TestContext conte
     /// </summary>
     /// <param name="level">The terminal logging level requested by the callback.</param>
     [TestMethod]
+    [DoNotParallelize]
     [DataRow((int)PgLogLevel.Fatal)]
     [DataRow((int)PgLogLevel.Panic)]
     public Task CleanupTerminalReportPanicsAndPreservesCommit(int level)
@@ -332,6 +335,7 @@ public sealed partial class CallbackSubtransactionCleanupTests(TestContext conte
     /// <param name="aggregate">Whether an aggregate owns cleanup rather than an iterator.</param>
     /// <param name="level">The callback's requested FATAL or PANIC severity.</param>
     [TestMethod]
+    [DoNotParallelize]
     [DataRow(false, (int)PgLogLevel.Fatal)]
     [DataRow(false, (int)PgLogLevel.Panic)]
     [DataRow(true, (int)PgLogLevel.Fatal)]
