@@ -320,6 +320,15 @@ ANKUS044 accepts these direct helper calls and locals whose reaching values rema
 continues to reject an unquoted runtime value mixed into the same raw command;
 bind values separately with positional parameters, as above.
 
+Quoted fragments can also be accumulated in a loop or joined after selecting
+an actual `Spi.QuoteIdentifier` or `Spi.QuoteLiteral` method. Every dynamic
+fragment must stay a complete SQL atom:
+
+```csharp
+string fields = string.Join(", ", names.Select(Spi.QuoteIdentifier));
+Spi.Execute("SELECT " + fields + " FROM " + Spi.QuoteIdentifier(tableName));
+```
+
 `Spi.QuoteLiteral(text)` produces a SQL text literal, escaping apostrophes and
 backslashes. Its output is valid with either `standard_conforming_strings`
 setting on PostgreSQL 13–18. PostgreSQL 19 requires that setting to stay `on`

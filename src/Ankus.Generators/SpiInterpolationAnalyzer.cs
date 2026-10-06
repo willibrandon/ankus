@@ -34,6 +34,7 @@ public sealed partial class SpiInterpolationAnalyzer : DiagnosticAnalyzer
         {
             INamedTypeSymbol? spi = start.Compilation.GetTypeByMetadataName("Ankus.Spi");
             INamedTypeSymbol? session = start.Compilation.GetTypeByMetadataName("Ankus.SpiSession");
+            INamedTypeSymbol? enumerable = start.Compilation.GetTypeByMetadataName("System.Linq.Enumerable");
             if (spi?.ContainingAssembly.Name != "Ankus.Runtime" || session?.ContainingAssembly.Name != "Ankus.Runtime")
             {
                 return;
@@ -69,9 +70,10 @@ public sealed partial class SpiInterpolationAnalyzer : DiagnosticAnalyzer
                     Dictionary<(SyntaxTree Tree, Microsoft.CodeAnalysis.Text.TextSpan Span), bool> results = [];
                     foreach (IOperation root in end.OperationBlocks)
                     {
-                        var analysis = new SqlFlowAnalysis(spi, session,
+                        var analysis = new SqlFlowAnalysis(spi, session, enumerable,
                             start.Compilation.GetSpecialType(SpecialType.System_String).ContainingAssembly, end.CancellationToken);
-                        foreach (KeyValuePair<(SyntaxTree Tree, Microsoft.CodeAnalysis.Text.TextSpan Span), bool> result in analysis.Analyze(end.GetControlFlowGraph(root)))
+                        foreach (KeyValuePair<(SyntaxTree Tree, Microsoft.CodeAnalysis.Text.TextSpan Span), bool> result in
+                            analysis.Analyze(end.GetControlFlowGraph(root), root))
                         {
                             results[result.Key] = result.Value || results.TryGetValue(result.Key, out bool previous) && previous;
                         }

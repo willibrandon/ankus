@@ -167,10 +167,14 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   failures. All **1,855** source inputs and the **1,872**-file evidence archive
   verify. Sixteen changed/new files are promoted; Release, API freshness and both
   site gates pass. The unchanged baseline retains **38** failures and **8** controls.
-- The new review confirms unsafe array-flow misses, a conditional-ref analyzer
-  crash and stale increment values. The correction passes all **14** focused and
-  **4,469** complete generator cases privately. Safe SQL loop widening and
-  bounded helper analysis remain open. Transaction-completion cleanup now uses
+- The SQL flow analyzer now preserves only independently verified complete quoted
+  atoms through loop widening and layout overflow, recognizes direct runtime quote
+  selectors in joined sequences, and fails closed after a shared **10,000-step**
+  analysis budget. Unsafe array-flow misses, conditional-ref crashes and stale
+  increment values are also corrected. All **14** focused cases, **4,468** generator
+  cases and the complete Linux/PostgreSQL **18.6** suite pass: **13,422** total,
+  **13,374** passed, **48** platform skips and zero failures in **42m54s**. Release,
+  API freshness and both site gates pass. Transaction-completion cleanup now uses
   a fixed-buffer, encoding-independent server-log path that bypasses PostgreSQL
   diagnostic allocation and log hooks. All **33** focused executor cases pass, including abort, savepoint,
   durable commit/prepare, reporter-allocation faults and exact FATAL/PANIC behavior.
@@ -201,7 +205,7 @@ The Intel diagnostic retry exposed six path-related failures; the corrected
 complete Intel suite now passes. An explanation of the earlier hosted-runner
 disconnect and remaining version/platform acceptance are still required.
 
-1. Resolve discovered correctness and CI failures before accepting affected work, including safe SQL loop analysis. Finish the remaining declaration/source-case audits. Malformed AssemblyRef handling and the owner index already pass all eight regressions in the current complete suite.
+1. Resolve discovered correctness and CI failures before accepting affected work. Finish the remaining declaration/source-case audits. Malformed AssemblyRef handling and the owner index already pass all eight regressions in the current complete suite.
 2. Complete every pgrx 0.19.3 release-delta gate, including deterministic header discovery/regeneration, newly exposed native contracts, all CLI/configuration/output forwarding and allocation/shared-memory/varlena audits. Refresh evidence against the corrected current source.
 3. Verify the dedicated Intel runner with a complete live run and finish supported-major/platform coverage, including Intel macOS and the macOS 15/16 library-suffix boundary.
 4. Complete declaration diagnostics/code fixes, API discoverability and unsafe raw-call contracts.

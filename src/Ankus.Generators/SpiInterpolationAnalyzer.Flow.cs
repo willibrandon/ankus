@@ -13,8 +13,10 @@ public sealed partial class SpiInterpolationAnalyzer
     /// <summary>
     /// Follows the actual reaching command values and builder objects rather than every historical write.
     /// </summary>
-    private sealed class SqlFlowAnalysis(INamedTypeSymbol spi, INamedTypeSymbol session, IAssemblySymbol core, CancellationToken cancellationToken)
+    private sealed class SqlFlowAnalysis(INamedTypeSymbol spi, INamedTypeSymbol session, INamedTypeSymbol? enumerable,
+        IAssemblySymbol core, CancellationToken cancellationToken)
     {
+        private const int MaxAnalysisSteps = 10_000;
         private readonly Dictionary<(SyntaxTree Tree, TextSpan Span), bool> _results = [];
         private readonly Dictionary<ControlFlowGraph, FlowState?[]> _observed = [];
         private readonly Dictionary<int, ControlFlowGraph> _functions = [];
@@ -22,16 +24,25 @@ public sealed partial class SpiInterpolationAnalyzer
         private readonly Dictionary<IMethodSymbol, ControlFlowGraph> _localFunctions = new(SymbolEqualityComparer.Default);
         private readonly HashSet<ControlFlowGraph> _active = [];
         private ControlFlowGraph _graph = null!;
+        private int _analysisSteps;
+        private bool _budgetExceeded;
         private bool _report;
 
         /// <summary>
         /// Resolves reaching command values to diagnostic decisions after the control-flow entries converge.
         /// </summary>
         /// <param name="graph">The compiler-owned graph for the current operation block.</param>
+        /// <param name="root">The complete operation tree used to fail closed if the analysis budget is exhausted.</param>
         /// <returns>Exact source identities and whether their raw command construction is unsafe.</returns>
-        internal Dictionary<(SyntaxTree Tree, TextSpan Span), bool> Analyze(ControlFlowGraph graph)
+        internal Dictionary<(SyntaxTree Tree, TextSpan Span), bool> Analyze(ControlFlowGraph graph, IOperation root)
         {
             _ = Solve(graph, 0, graph.Blocks.Length - 1, new());
+            if (_budgetExceeded)
+            {
+                MarkCommandsUnsafe(root);
+                return _results;
+            }
+
             _report = true;
             foreach (KeyValuePair<ControlFlowGraph, FlowState?[]> observed in _observed.ToArray())
             {
@@ -43,6 +54,11 @@ public sealed partial class SpiInterpolationAnalyzer
                         EvaluateBlock(block, state.Clone());
                     }
                 }
+            }
+
+            if (_budgetExceeded)
+            {
+                MarkCommandsUnsafe(root);
             }
 
             return _results;
@@ -65,6 +81,13 @@ public sealed partial class SpiInterpolationAnalyzer
             while (work.Count != 0)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                if (++_analysisSteps > MaxAnalysisSteps)
+                {
+                    _budgetExceeded = true;
+                    _graph = previousGraph;
+                    return Conservative(initial);
+                }
+
                 int ordinal = work.Dequeue();
                 BasicBlock block = graph.Blocks[ordinal];
                 FlowState state = incoming[ordinal]!.Clone();
@@ -172,6 +195,44 @@ public sealed partial class SpiInterpolationAnalyzer
             }
         }
 
+        private static FlowState Conservative(FlowState state)
+        {
+            FlowState conservative = state.Clone();
+            Mark(conservative.Locals);
+            Mark(conservative.Captures);
+            Mark(conservative.Builders);
+            conservative.Returned = Value.Raw().WithUnsafe();
+            return conservative;
+
+            static void Mark<TKey>(Dictionary<TKey, Value> values) where TKey : notnull
+            {
+                foreach (TKey key in values.Keys.ToArray())
+                {
+                    values[key] = Value.Unspecified(values[key]).WithUnsafe();
+                }
+            }
+        }
+
+        private void MarkCommandsUnsafe(IOperation root)
+        {
+            foreach (IInvocationOperation invocation in Descendants(root).OfType<IInvocationOperation>())
+            {
+                if (!SymbolEqualityComparer.Default.Equals(invocation.TargetMethod.ContainingType, spi) &&
+                    !SymbolEqualityComparer.Default.Equals(invocation.TargetMethod.ContainingType, session))
+                {
+                    continue;
+                }
+
+                foreach (IArgumentOperation argument in invocation.Arguments)
+                {
+                    if (argument.Parameter is { Name: "commandText", Type.SpecialType: SpecialType.System_String })
+                    {
+                        _results[(argument.Value.Syntax.SyntaxTree, argument.Value.Syntax.Span)] = true;
+                    }
+                }
+            }
+        }
+
         private static bool CanThrow(IOperation operation)
             => operation is IInvocationOperation or IObjectCreationOperation or IPropertyReferenceOperation or IAwaitOperation or
                 IInterpolatedStringOperation or IThrowOperation or IDynamicInvocationOperation ||
@@ -268,7 +329,16 @@ public sealed partial class SpiInterpolationAnalyzer
                         return elements.Elements[elementIndex];
                     }
 
-                    return Value.Raw();
+                    return elements.Elements.IsDefault ? Value.Unspecified(elements) :
+                        elements.Elements.Aggregate((Value?)null, static (previous, value) => previous is null ? value : Value.Merge(previous, value)) ?? Value.Raw();
+                case IIncrementOrDecrementOperation increment:
+                    Value prior = Evaluate(increment.Target, state);
+                    bool increase = increment.Kind == OperationKind.Increment;
+                    Value next = prior is { HasConstant: true, ConstantObject: int number } &&
+                        (increase ? number < int.MaxValue : number > int.MinValue)
+                        ? Value.Constant(number + (increase ? 1 : -1)) : Value.Unspecified(prior);
+                    Assign(increment.Target, next, state);
+                    return increment.IsPostfix ? prior : next;
                 case ICompoundAssignmentOperation assignment:
                     Value combined = Join(Evaluate(assignment.Target, state), Evaluate(assignment.Value, state));
                     Assign(assignment.Target, combined, state);
@@ -329,7 +399,6 @@ public sealed partial class SpiInterpolationAnalyzer
             {
                 arguments.Add((argument, Evaluate(argument.Value, state)));
             }
-
 
             IMethodSymbol method = invocation.TargetMethod;
             if (_localFunctions.TryGetValue(method.OriginalDefinition, out ControlFlowGraph? localFunction))
@@ -409,6 +478,47 @@ public sealed partial class SpiInterpolationAnalyzer
                 return Format(invocation, arguments, state);
             }
 
+            if (method.Name == "Select" && enumerable is not null &&
+                SymbolEqualityComparer.Default.Equals(method.ContainingType, enumerable))
+            {
+                (IArgumentOperation Argument, Value Value) selector = arguments.FirstOrDefault(static pair => pair.Argument.Parameter?.Name == "selector");
+                if (selector.Argument is not null && TryQuotedSelector(selector.Argument.Value, out Value quoted))
+                {
+                    return Value.Array([quoted, quoted]);
+                }
+
+                return Value.Array([Value.Raw().WithUnsafe()]);
+            }
+
+            if (method.Name == "Join" && method.ContainingType.SpecialType == SpecialType.System_String)
+            {
+                (IArgumentOperation Argument, Value Value) separator = arguments.FirstOrDefault(static pair => pair.Argument.Parameter?.Name == "separator");
+                (IArgumentOperation Argument, Value Value) values = arguments.FirstOrDefault(static pair => pair.Argument.Parameter?.Name == "values");
+                if (separator.Argument is null || values.Argument is null)
+                {
+                    return Value.Raw().WithUnsafe();
+                }
+
+                Value sequence = values.Value.References.IsEmpty ? values.Value : ReadBuilders(values.Value, state);
+                if (sequence.Elements.IsDefault)
+                {
+                    return Value.Raw().WithUnsafe();
+                }
+
+                Value joined = Value.Constant(string.Empty);
+                for (int index = 0; index < sequence.Elements.Length; index++)
+                {
+                    if (index != 0)
+                    {
+                        joined = Join(joined, separator.Value);
+                    }
+
+                    joined = Join(joined, sequence.Elements[index]);
+                }
+
+                return joined;
+            }
+
             if (_report && (SymbolEqualityComparer.Default.Equals(method.ContainingType, spi) ||
                 SymbolEqualityComparer.Default.Equals(method.ContainingType, session)))
             {
@@ -460,6 +570,46 @@ public sealed partial class SpiInterpolationAnalyzer
             }
 
             return Value.Raw();
+        }
+
+        /// <summary>
+        /// Recognizes a framework delegate bound directly to one of the runtime-owned quoting methods.
+        /// </summary>
+        /// <param name="operation">The selector conversion or method reference.</param>
+        /// <param name="quoted">The representative complete quoted atom.</param>
+        /// <returns>Whether the selector quotes every input without user code.</returns>
+        private bool TryQuotedSelector(IOperation operation, out Value quoted)
+        {
+            while (true)
+            {
+                if (operation is IConversionOperation { OperatorMethod: null } conversion)
+                {
+                    operation = conversion.Operand;
+                }
+                else if (operation is IParenthesizedOperation parentheses)
+                {
+                    operation = parentheses.Operand;
+                }
+                else if (operation is IDelegateCreationOperation creation)
+                {
+                    operation = creation.Target;
+                }
+                else
+                {
+                    break;
+                }
+            }
+
+            if (operation is IMethodReferenceOperation { Method: { IsStatic: true, ReturnType.SpecialType: SpecialType.System_String } method } &&
+                SymbolEqualityComparer.Default.Equals(method.ContainingType, spi) &&
+                method.Name is "QuoteIdentifier" or "QuoteLiteral")
+            {
+                quoted = Value.Quote(method.Name == "QuoteLiteral" ? '\'' : '"');
+                return true;
+            }
+
+            quoted = Value.Raw();
+            return false;
         }
 
         private Value Execute(ControlFlowGraph function, FlowState state, IMethodSymbol? signature = null,
@@ -679,7 +829,7 @@ public sealed partial class SpiInterpolationAnalyzer
         }
 
         private static bool RequiresDiagnostic(Value value)
-            => value.Unsafe || value.Unknown && value.Quoted || value.Texts.Any(static text =>
+            => value.Unsafe || value.Unknown && value.Quoted && !value.SafeSummary || value.Texts.Any(static text =>
                 SpiSqlTokenLayout.Check(text.Sql, text.Positions, allowLiteralParameters: true, quotedFragments: true) != SqlInterpolationFailure.None);
 
         private static Value ReadBuilders(Value references, FlowState state)
@@ -718,7 +868,8 @@ public sealed partial class SpiInterpolationAnalyzer
                 {
                     foreach (ISymbol symbol in targets)
                     {
-                        state.Locals[symbol] = targets.Length == 1 ? value : Value.Merge(state.Locals[symbol], value);
+                        Value previous = state.Locals.TryGetValue(symbol, out Value? tracked) ? tracked : Value.Raw();
+                        state.Locals[symbol] = targets.Length == 1 ? value : Value.Merge(previous, value);
                     }
                 }
 
@@ -785,16 +936,30 @@ public sealed partial class SpiInterpolationAnalyzer
 
         private static Value Join(Value left, Value right)
         {
-            bool unknown = left.Unknown || right.Unknown || !left.References.IsEmpty || !right.References.IsEmpty;
+            bool unknown = left.Unknown || right.Unknown || !left.References.IsEmpty || !right.References.IsEmpty ||
+                left.Texts.IsEmpty && !left.SafeSummary || right.Texts.IsEmpty && !right.SafeSummary;
             bool unsafeText = left.Unsafe || right.Unsafe || left.Input || right.Input;
             if (unknown)
             {
+                if (!unsafeText && left.IsCompleteSafe && right.IsCompleteSafe &&
+                    (!left.MayBeNonEmpty || !right.MayBeNonEmpty || left.EndsWithBoundary || right.StartsWithBoundary))
+                {
+                    return Value.SafeConcatenation(left, right);
+                }
+
                 return new([], unsafeText, true, left.Quoted || right.Quoted, false, []);
             }
 
-            return new([.. left.Texts.SelectMany(first => right.Texts.Select(second =>
-                new Text(first.Sql + second.Sql, [.. first.Positions, .. second.Positions.Select(position => position + first.Sql.Length)]))).Take(Value.MaxLayouts + 1)],
-                unsafeText, false, left.Quoted || right.Quoted, false, []);
+            ImmutableArray<Text> layouts = [.. left.Texts.SelectMany(first => right.Texts.Select(second =>
+                new Text(first.Sql + second.Sql, [.. first.Positions, .. second.Positions.Select(position => position + first.Sql.Length)])))
+                .Take(Value.MaxLayouts + 1)];
+            if (layouts.Length > Value.MaxLayouts && !unsafeText && left.IsCompleteSafe && right.IsCompleteSafe &&
+                (!left.MayBeNonEmpty || !right.MayBeNonEmpty || left.EndsWithBoundary || right.StartsWithBoundary))
+            {
+                return Value.SafeConcatenation(left, right);
+            }
+
+            return new(layouts, unsafeText, false, left.Quoted || right.Quoted, false, []);
         }
 
         /// <summary>
@@ -833,8 +998,14 @@ public sealed partial class SpiInterpolationAnalyzer
         /// <param name="references">The possible builder or array heap identities.</param>
         /// <param name="elements">The known tuple or array element values.</param>
         /// <param name="functions">The possible local callback identities.</param>
+        /// <param name="safeSummary">Whether every summarized layout places complete quoted atoms outside other SQL tokens.</param>
+        /// <param name="startsWithBoundary">Whether every summarized nonempty layout starts at a safe concatenation boundary.</param>
+        /// <param name="endsWithBoundary">Whether every summarized nonempty layout ends at a safe concatenation boundary.</param>
+        /// <param name="nonEmpty">Whether every summarized layout contains at least one character.</param>
+        /// <param name="mayBeNonEmpty">Whether at least one summarized layout contains a character.</param>
         private sealed class Value(ImmutableArray<Text> texts, bool unsafeText, bool unknown, bool quoted, bool input, ImmutableArray<int> references,
-            ImmutableArray<Value> elements = default, ImmutableArray<int> functions = default)
+            ImmutableArray<Value> elements = default, ImmutableArray<int> functions = default, bool safeSummary = false,
+            bool startsWithBoundary = false, bool endsWithBoundary = false, bool nonEmpty = false, bool mayBeNonEmpty = false)
         {
             /// <summary>
             /// Bounds exact alternatives before preserving a conservative unknown layout.
@@ -859,6 +1030,10 @@ public sealed partial class SpiInterpolationAnalyzer
             /// </summary>
             internal bool Quoted { get; } = quoted;
             /// <summary>
+            /// Gets whether every summarized layout keeps complete quoted atoms outside other SQL tokens.
+            /// </summary>
+            internal bool SafeSummary { get; } = safeSummary;
+            /// <summary>
             /// Gets whether the value is an unbound, unquoted external input.
             /// </summary>
             internal bool Input { get; } = input;
@@ -873,7 +1048,32 @@ public sealed partial class SpiInterpolationAnalyzer
             /// <summary>
             /// Gets the possible local callback targets.
             /// </summary>
-            internal ImmutableArray<int> Functions { get; } = functions.IsDefault ? [] : functions;
+            internal ImmutableArray<int> Functions { get; } = functions.IsDefault ? [] : [.. functions.Distinct().OrderBy(static site => site)];
+            /// <summary>
+            /// Gets whether every possible text has closed token contexts and safe quoted-atom placement.
+            /// </summary>
+            internal bool IsCompleteSafe => !Unsafe && !Input && References.IsEmpty && Elements.IsDefault && Functions.IsEmpty &&
+                (SafeSummary || !Unknown && Texts.Length != 0 && Texts.All(static text =>
+                    SpiSqlTokenLayout.HasCompleteQuotedLayout(text.Sql, text.Positions)));
+            /// <summary>
+            /// Gets whether every nonempty layout begins with a character that cannot continue a preceding SQL token.
+            /// </summary>
+            internal bool StartsWithBoundary => SafeSummary ? startsWithBoundary : !Unknown && Texts.Length != 0 &&
+                Texts.All(static text => text.Sql.Length == 0 || IsStartBoundary(text.Sql[0]));
+            /// <summary>
+            /// Gets whether every nonempty layout ends with a character that cannot begin a later compound SQL token.
+            /// </summary>
+            internal bool EndsWithBoundary => SafeSummary ? endsWithBoundary : !Unknown && Texts.Length != 0 &&
+                Texts.All(static text => text.Sql.Length == 0 || IsEndBoundary(text.Sql[text.Sql.Length - 1]));
+            /// <summary>
+            /// Gets whether every possible layout contains at least one character.
+            /// </summary>
+            internal bool NonEmpty => SafeSummary ? nonEmpty : !Unknown && Texts.Length != 0 &&
+                Texts.All(static text => text.Sql.Length != 0);
+            /// <summary>
+            /// Gets whether at least one possible layout contains a character.
+            /// </summary>
+            internal bool MayBeNonEmpty => SafeSummary ? mayBeNonEmpty : !Unknown && Texts.Any(static text => text.Sql.Length != 0);
             /// <summary>
             /// Gets whether the exact compiler constant is retained for inert framework formatting.
             /// </summary>
@@ -896,10 +1096,16 @@ public sealed partial class SpiInterpolationAnalyzer
             /// Gets the deterministic comparison representation used by the flow worklist.
             /// </summary>
             internal string Key => string.Join("|", Texts.Select(static text => TextKey(text)).OrderBy(static item => item, StringComparer.Ordinal)) +
-                $"\0{Unsafe},{Unknown},{Quoted},{Input}\0" + string.Join(",", References) +
+                $"\0{Unsafe},{Unknown},{Quoted},{SafeSummary},{StartsWithBoundary},{EndsWithBoundary},{NonEmpty},{MayBeNonEmpty},{Input}\0" + string.Join(",", References) +
                 (Elements.IsDefault ? "" : string.Join(";", Elements.Select(static value => value.Key.Length + ":" + value.Key))) + "\0" + string.Join(",", Functions);
 
             private static string TextKey(Text text) => text.Sql.Length + ":" + text.Sql + ":" + string.Join(",", text.Positions);
+
+            private static bool IsStartBoundary(char value)
+                => char.IsWhiteSpace(value) || value is ';' or ',' or '(' or ')' or '[' or ']' or '=' or '+' or '<' or '>' or '!' or '~' or '^' or '%' or '?' or ':';
+
+            private static bool IsEndBoundary(char value)
+                => IsStartBoundary(value);
 
             /// <summary>
             /// Preserves an inert compiler constant and its exact formatting type.
@@ -944,23 +1150,47 @@ public sealed partial class SpiInterpolationAnalyzer
             }
 
             /// <summary>
+            /// Summarizes alternatives whose complete quoted-fragment layouts were independently verified.
+            /// </summary>
+            internal static Value SafeChoice(Value left, Value right)
+                => new([], false, true, left.Quoted || right.Quoted, false, [], safeSummary: true,
+                    startsWithBoundary: left.StartsWithBoundary && right.StartsWithBoundary,
+                    endsWithBoundary: left.EndsWithBoundary && right.EndsWithBoundary,
+                    nonEmpty: left.NonEmpty && right.NonEmpty,
+                    mayBeNonEmpty: left.MayBeNonEmpty || right.MayBeNonEmpty);
+
+            /// <summary>
+            /// Summarizes a verified concatenation without enumerating every possible layout.
+            /// </summary>
+            internal static Value SafeConcatenation(Value left, Value right)
+                => new([], false, true, left.Quoted || right.Quoted, false, [], safeSummary: true,
+                    startsWithBoundary: left.StartsWithBoundary && (left.NonEmpty || right.StartsWithBoundary),
+                    endsWithBoundary: right.EndsWithBoundary && (right.NonEmpty || left.EndsWithBoundary),
+                    nonEmpty: left.NonEmpty || right.NonEmpty,
+                    mayBeNonEmpty: left.MayBeNonEmpty || right.MayBeNonEmpty);
+
+            /// <summary>
             /// Retains known hazards and identities after an unmodeled transformation.
             /// </summary>
             internal static Value Unspecified(Value previous) => new([], previous.Unsafe, true, previous.Quoted, true, previous.References);
             /// <summary>
             /// Marks a formatted unquoted value without discarding its other flow properties.
             /// </summary>
-            internal Value WithUnsafe() => new(Texts, true, Unknown, Quoted, Input, References);
+            internal Value WithUnsafe() => new(Texts, true, Unknown, Quoted, Input, References, Elements, Functions);
             /// <summary>
             /// Converges changing loop text while retaining hazards and object identities.
             /// </summary>
-            internal Value Widen() => new([], Unsafe, true, Quoted, Input, References);
+            internal Value Widen(Value previous)
+                => IsCompleteSafe && previous.IsCompleteSafe ? SafeChoice(this, previous) :
+                    new([], Unsafe || previous.Unsafe, true, Quoted || previous.Quoted, Input || previous.Input,
+                        [.. References, .. previous.References], functions: [.. Functions, .. previous.Functions]);
             /// <summary>
             /// Redirects aliases when a prior recent object moves into an allocation summary.
             /// </summary>
             internal Value ReplaceReference(int from, int to) => new(Texts, Unsafe, Unknown, Quoted, Input,
                 [.. References.Select(reference => reference == from ? to : reference)],
-                Elements.IsDefault ? default : [.. Elements.Select(value => value.ReplaceReference(from, to))], Functions)
+                Elements.IsDefault ? default : [.. Elements.Select(value => value.ReplaceReference(from, to))], Functions,
+                SafeSummary, StartsWithBoundary, EndsWithBoundary, NonEmpty, MayBeNonEmpty)
             {
                 HasConstant = HasConstant,
                 ConstantObject = ConstantObject,
@@ -976,7 +1206,13 @@ public sealed partial class SpiInterpolationAnalyzer
                     return left;
                 }
 
-                return new(left.Unknown || right.Unknown ? [] : [.. left.Texts.Concat(right.Texts).Take(MaxLayouts + 1)], left.Unsafe || right.Unsafe,
+                ImmutableArray<Text> layouts = left.Unknown || right.Unknown ? [] : [.. left.Texts.Concat(right.Texts).Take(MaxLayouts + 1)];
+                if ((left.Unknown || right.Unknown || layouts.Length > MaxLayouts) && left.IsCompleteSafe && right.IsCompleteSafe)
+                {
+                    return SafeChoice(left, right);
+                }
+
+                return new(layouts, left.Unsafe || right.Unsafe,
                     left.Unknown || right.Unknown, left.Quoted || right.Quoted, left.Input || right.Input, [.. left.References, .. right.References],
                     !left.Elements.IsDefault && !right.Elements.IsDefault && left.Elements.Length == right.Elements.Length
                         ? [.. left.Elements.Zip(right.Elements, static (first, second) => Merge(first, second))] : default,
@@ -1130,7 +1366,7 @@ public sealed partial class SpiInterpolationAnalyzer
                 WidenMap(Builders, previous.Builders);
                 if (Returned is { } value && previous.Returned is { } old && value.Key != old.Key)
                 {
-                    Returned = value.Widen();
+                    Returned = value.Widen(old);
                 }
             }
 
@@ -1168,7 +1404,7 @@ public sealed partial class SpiInterpolationAnalyzer
                 {
                     if (previous.TryGetValue(pair.Key, out Value? old) && pair.Value.Key != old.Key)
                     {
-                        current[pair.Key] = pair.Value.Widen();
+                        current[pair.Key] = pair.Value.Widen(old);
                     }
                 }
             }

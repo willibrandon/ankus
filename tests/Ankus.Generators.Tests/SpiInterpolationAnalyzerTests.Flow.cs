@@ -98,6 +98,148 @@ public sealed partial class SpiInterpolationAnalyzerTests
         => Assert.IsEmpty(await Analyze(body, FlowHelpers, "bool flag = number != 0;"));
 
     /// <summary>
+    /// Preserves correctly quoted identifier and literal fragments across loop convergence.
+    /// </summary>
+    /// <param name="body">The variable-length quoted command construction.</param>
+    [TestMethod]
+    [DataRow("string sql = \"SELECT * FROM t WHERE true\"; string[] filters = [value, value]; foreach (string filter in filters) { sql += \" AND \" + Spi.QuoteIdentifier(filter) + \" = \" + Spi.QuoteLiteral(filter); } Spi.Execute(sql);")]
+    [DataRow("var sql = new System.Text.StringBuilder(\"SELECT \"); string[] columns = [value, value]; foreach (string column in columns) { sql.Append(Spi.QuoteIdentifier(column)); sql.Append(\", \"); } Spi.Execute(sql.ToString());")]
+    public async Task QuotedLoopConstructionRemainsValid(string body)
+        => Assert.IsEmpty(await Analyze(body));
+
+    /// <summary>
+    /// Preserves a variable-length sequence whose framework selector is the actual SPI quoting method.
+    /// </summary>
+    /// <param name="selector">The runtime-owned quoting method.</param>
+    [TestMethod]
+    [DataRow("Spi.QuoteIdentifier")]
+    [DataRow("Spi.QuoteLiteral")]
+    public async Task QuotedSelectCanBuildAJoinedFragmentList(string selector)
+        => Assert.IsEmpty(await Analyze("string[] columns = [value, value]; " +
+            "Spi.Execute(\"SELECT \" + string.Join(\", \", System.Linq.Enumerable.Select(columns, " + selector + ")));"));
+
+    /// <summary>
+    /// Rejects the same joined sequence when its selector leaves runtime values unquoted.
+    /// </summary>
+    [TestMethod]
+    public async Task UnquotedSelectCannotBuildAJoinedIdentifierList()
+    {
+        const string body = "string[] columns = [value, value]; " +
+            "Spi.Execute(\"SELECT \" + string.Join(\", \", System.Linq.Enumerable.Select(columns, column => column)));";
+        Diagnostic error = Assert.ContainsSingle(await Analyze(body));
+        Assert.AreEqual("ANKUS044", error.Id);
+        Assert.AreEqual("\"SELECT \" + string.Join(\", \", System.Linq.Enumerable.Select(columns, column => column))",
+            error.Location.SourceTree!.GetText(context.CancellationToken).ToString(error.Location.SourceSpan));
+    }
+
+    /// <summary>
+    /// Preserves every safely quoted branch after the exact-layout representation reaches its bound.
+    /// </summary>
+    [TestMethod]
+    public async Task QuotedOptionalClausesRemainValidBeyondLayoutBound()
+    {
+        string clauses = string.Join(' ', Enumerable.Range(0, 9).Select(index =>
+            FormattableString.Invariant($"if ((number & {1 << index}) != 0) {{ sql += \" AND value{index} = \" + Spi.QuoteLiteral(value); }}")));
+        Assert.IsEmpty(await Analyze("string sql = \"SELECT * FROM t WHERE true\"; " + clauses + " Spi.Execute(sql);"));
+    }
+
+    /// <summary>
+    /// Keeps unquoted loop input rejected while accepting quoted loop summaries.
+    /// </summary>
+    [TestMethod]
+    public async Task LoopSummaryRetainsUnquotedInputHazards()
+    {
+        const string body = "string sql = \"SELECT * FROM t WHERE true\"; string[] filters = [value, value]; " +
+            "foreach (string filter in filters) { sql += \" AND name = \" + filter; } Spi.Execute(sql);";
+        Diagnostic error = Assert.ContainsSingle(await Analyze(body));
+        Assert.AreEqual("ANKUS044", error.Id);
+        Assert.AreEqual("sql", error.Location.SourceTree!.GetText(context.CancellationToken).ToString(error.Location.SourceSpan));
+    }
+
+    /// <summary>
+    /// Refuses to summarize a quote-helper result that becomes part of another PostgreSQL token.
+    /// </summary>
+    [TestMethod]
+    public async Task LoopSummaryRejectsQuotedFragmentsAcrossTokenBoundaries()
+    {
+        const string body = "string sql = \"SELECT E\"; string[] values = [value, value]; " +
+            "foreach (string item in values) { sql += Spi.QuoteLiteral(item); } Spi.Execute(sql);";
+        Diagnostic error = Assert.ContainsSingle(await Analyze(body));
+        Assert.AreEqual("ANKUS044", error.Id);
+        Assert.AreEqual("sql", error.Location.SourceTree!.GetText(context.CancellationToken).ToString(error.Location.SourceSpan));
+    }
+
+    /// <summary>
+    /// Keeps one invalid quoted branch visible after the exact-layout representation reaches its bound.
+    /// </summary>
+    [TestMethod]
+    public async Task QuotedOptionalClausesRetainInvalidTokenContexts()
+    {
+        string clauses = string.Join(' ', Enumerable.Range(0, 8).Select(index =>
+            FormattableString.Invariant($"if ((number & {1 << index}) != 0) {{ sql += \" AND value{index} = \" + Spi.QuoteLiteral(value); }}")));
+        const string invalid = "if ((number & 256) != 0) { sql += \" AND '\" + Spi.QuoteLiteral(value) + \"'\"; }";
+        Diagnostic error = Assert.ContainsSingle(await Analyze("string sql = \"SELECT * FROM t WHERE true\"; " + clauses + " " + invalid + " Spi.Execute(sql);"));
+        Assert.AreEqual("ANKUS044", error.Id);
+        Assert.AreEqual("sql", error.Location.SourceTree!.GetText(context.CancellationToken).ToString(error.Location.SourceSpan));
+    }
+
+    /// <summary>
+    /// Resolves nonconstant array reads from every possible element instead of assuming safe raw text.
+    /// </summary>
+    [TestMethod]
+    public async Task NonconstantArrayIndexRetainsUnsafeElements()
+    {
+        const string body = "object[] inputs = { Spi.QuoteLiteral(value), value }; " +
+            "Spi.Execute(string.Format(\"SELECT {0}\", inputs[number & 1]));";
+        Diagnostic error = Assert.ContainsSingle(await Analyze(body));
+        Assert.AreEqual("ANKUS044", error.Id);
+        Assert.AreEqual("string.Format(\"SELECT {0}\", inputs[number & 1])",
+            error.Location.SourceTree!.GetText(context.CancellationToken).ToString(error.Location.SourceSpan));
+    }
+
+    /// <summary>
+    /// Applies increment operations before resolving a later indexed command value.
+    /// </summary>
+    [TestMethod]
+    public async Task IncrementedArrayIndexSelectsTheCurrentElement()
+    {
+        const string body = "object[] inputs = { Spi.QuoteLiteral(value), value }; int index = 0; index++; " +
+            "Spi.Execute(string.Format(\"SELECT {0}\", inputs[index]));";
+        Diagnostic error = Assert.ContainsSingle(await Analyze(body));
+        Assert.AreEqual("ANKUS044", error.Id);
+        Assert.AreEqual("string.Format(\"SELECT {0}\", inputs[index])",
+            error.Location.SourceTree!.GetText(context.CancellationToken).ToString(error.Location.SourceSpan));
+    }
+
+    /// <summary>
+    /// Merges conditional ref targets that include previously untracked parameters without crashing the analyzer.
+    /// </summary>
+    [TestMethod]
+    public async Task ConditionalRefParameterTargetsProduceTheCommandDiagnostic()
+    {
+        const string body = "string other = Spi.QuoteLiteral(value); bool flag = number != 0; " +
+            "(flag ? ref value : ref other) = number.ToString(); Spi.Execute($\"SELECT {value} {other}\");";
+        Diagnostic error = Assert.ContainsSingle(await Analyze(body));
+        Assert.AreEqual("ANKUS044", error.Id);
+        Assert.AreEqual("$\"SELECT {value} {other}\"",
+            error.Location.SourceTree!.GetText(context.CancellationToken).ToString(error.Location.SourceSpan));
+    }
+
+    /// <summary>
+    /// Bounds repeated local-helper interpretation and fails closed on the affected command.
+    /// </summary>
+    [TestMethod]
+    public async Task RepeatedLocalHelperCallsRespectTheAnalysisBudget()
+    {
+        string helpers = string.Join(' ', Enumerable.Range(0, 16).Select(index =>
+            index == 15 ? "void Step15() { sql = value; }" :
+                FormattableString.Invariant($"void Step{index}() {{ Step{index + 1}(); Step{index + 1}(); }}")));
+        Diagnostic error = Assert.ContainsSingle(await Analyze("string sql = \"SELECT 1\"; " + helpers + " Step0(); Spi.Execute(sql);"));
+        Assert.AreEqual("ANKUS044", error.Id);
+        Assert.AreEqual("sql", error.Location.SourceTree!.GetText(context.CancellationToken).ToString(error.Location.SourceSpan));
+    }
+
+    /// <summary>
     /// Supplies ordinary helpers outside the analyzed method without executing their consumer code.
     /// </summary>
     private const string FlowHelpers = """

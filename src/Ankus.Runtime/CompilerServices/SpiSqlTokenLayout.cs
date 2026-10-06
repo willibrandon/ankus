@@ -16,9 +16,34 @@ internal static class SpiSqlTokenLayout
     /// <returns>The first binding ownership or SQL token-context failure, if any.</returns>
     internal static SqlInterpolationFailure Check(string command, IReadOnlyList<int> positions, bool allowLiteralParameters = false, bool quotedFragments = false)
     {
-        SqlInterpolationFailure failure = Check(command, positions, escapeOrdinaryStrings: false, allowLiteralParameters, quotedFragments);
+        SqlInterpolationFailure failure = Check(command, positions, escapeOrdinaryStrings: false, allowLiteralParameters, quotedFragments, out _);
         return failure != SqlInterpolationFailure.None || command.IndexOf('\\') < 0
-            ? failure : Check(command, positions, escapeOrdinaryStrings: true, allowLiteralParameters, quotedFragments);
+            ? failure : Check(command, positions, escapeOrdinaryStrings: true, allowLiteralParameters, quotedFragments, out _);
+    }
+
+    /// <summary>
+    /// Verifies a complete quoted-fragment layout whose trailing lexical context cannot consume a later fragment.
+    /// </summary>
+    /// <param name="command">The complete SQL text.</param>
+    /// <param name="positions">The opening positions of complete quoted SQL atoms.</param>
+    /// <returns>Whether every atom is outside another token and every token context is closed.</returns>
+    internal static bool HasCompleteQuotedLayout(string command, IReadOnlyList<int> positions)
+    {
+        SqlInterpolationFailure failure = Check(command, positions, escapeOrdinaryStrings: false,
+            allowLiteralParameters: true, quotedFragments: true, out bool complete);
+        if (failure != SqlInterpolationFailure.None || !complete)
+        {
+            return false;
+        }
+
+        if (command.IndexOf('\\') < 0)
+        {
+            return true;
+        }
+
+        failure = Check(command, positions, escapeOrdinaryStrings: true,
+            allowLiteralParameters: true, quotedFragments: true, out complete);
+        return failure == SqlInterpolationFailure.None && complete;
     }
 
     /// <summary>
@@ -29,9 +54,12 @@ internal static class SpiSqlTokenLayout
     /// <param name="escapeOrdinaryStrings">Whether ordinary single quotes recognize backslash escapes.</param>
     /// <param name="allowLiteralParameters">Whether unowned positional tokens are permitted by the caller.</param>
     /// <param name="quotedFragments">Whether supplied positions identify complete quoted SQL atoms.</param>
+    /// <param name="complete">Whether the command ends outside a quoted token or comment.</param>
     /// <returns>The first binding ownership or SQL token-context failure, if any.</returns>
-    private static SqlInterpolationFailure Check(string command, IReadOnlyList<int> positions, bool escapeOrdinaryStrings, bool allowLiteralParameters, bool quotedFragments)
+    private static SqlInterpolationFailure Check(string command, IReadOnlyList<int> positions, bool escapeOrdinaryStrings,
+        bool allowLiteralParameters, bool quotedFragments, out bool complete)
     {
+        complete = true;
         int next = 0;
         for (int index = 0; index < command.Length;)
         {
@@ -47,6 +75,7 @@ internal static class SpiSqlTokenLayout
 
             char value = command[index];
             char following = index + 1 < command.Length ? command[index + 1] : '\0';
+            bool closed;
             if (value == '-' && following == '-')
             {
                 index += 2;
@@ -54,26 +83,34 @@ internal static class SpiSqlTokenLayout
                 {
                     index++;
                 }
+
+                complete &= index < command.Length;
             }
             else if (value == '/' && following == '*')
             {
-                index = SkipComment(command, index + 2);
+                index = SkipComment(command, index + 2, out closed);
+                complete &= closed;
             }
             else if (value is '\'' or '"')
             {
-                index = SkipQuoted(command, index, value == '\'' && escapeOrdinaryStrings, positions, ref next, quotedFragments);
+                index = SkipQuoted(command, index, value == '\'' && escapeOrdinaryStrings, positions, ref next,
+                    quotedFragments, out closed);
+                complete &= closed;
             }
             else if (value is 'e' or 'E' && following == '\'')
             {
-                index = SkipQuoted(command, index + 1, escapes: true, positions, ref next, quotedFragments);
+                index = SkipQuoted(command, index + 1, escapes: true, positions, ref next, quotedFragments, out closed);
+                complete &= closed;
             }
             else if (value is 'u' or 'U' && following == '&' && index + 2 < command.Length && command[index + 2] is '\'' or '"')
             {
-                index = SkipQuoted(command, index + 2, escapes: false, positions, ref next, quotedFragments);
+                index = SkipQuoted(command, index + 2, escapes: false, positions, ref next, quotedFragments, out closed);
+                complete &= closed;
             }
             else if (value is 'b' or 'B' or 'x' or 'X' && following == '\'')
             {
-                index = SkipQuoted(command, index + 1, escapes: false, positions, ref next, quotedFragments);
+                index = SkipQuoted(command, index + 1, escapes: false, positions, ref next, quotedFragments, out closed);
+                complete &= closed;
             }
             else if (IsIdentifierStart(value))
             {
@@ -107,6 +144,7 @@ internal static class SpiSqlTokenLayout
                 {
                     string delimiter = command.Substring(index, length);
                     int end = command.IndexOf(delimiter, index + length, StringComparison.Ordinal);
+                    complete &= end >= 0;
                     index = end < 0 ? command.Length : end + length;
                 }
                 else
@@ -132,9 +170,12 @@ internal static class SpiSqlTokenLayout
     /// <param name="positions">The supplied parameter or complete-fragment positions.</param>
     /// <param name="next">The next position that has not been observed outside quoted content.</param>
     /// <param name="quotedFragments">Whether a complete quoted atom may continue a preceding string token.</param>
+    /// <param name="closed">Whether the quoted token has a closing delimiter.</param>
     /// <returns>The first character after the quoted token, or the end of incomplete SQL.</returns>
-    private static int SkipQuoted(string command, int start, bool escapes, IReadOnlyList<int> positions, ref int next, bool quotedFragments)
+    private static int SkipQuoted(string command, int start, bool escapes, IReadOnlyList<int> positions, ref int next,
+        bool quotedFragments, out bool closed)
     {
+        closed = false;
         char quote = command[start];
         for (int index = start + 1; index < command.Length; index++)
         {
@@ -162,6 +203,7 @@ internal static class SpiSqlTokenLayout
                         continue;
                     }
 
+                    closed = true;
                     return index + 1;
                 }
             }
@@ -208,9 +250,11 @@ internal static class SpiSqlTokenLayout
     /// </summary>
     /// <param name="command">The SQL text.</param>
     /// <param name="index">The first character inside the initial comment.</param>
+    /// <param name="closed">Whether every nested block comment has a closing delimiter.</param>
     /// <returns>The first character after the comment, or the end of incomplete SQL.</returns>
-    private static int SkipComment(string command, int index)
+    private static int SkipComment(string command, int index, out bool closed)
     {
+        closed = false;
         int depth = 1;
         while (index + 1 < command.Length)
         {
@@ -224,6 +268,7 @@ internal static class SpiSqlTokenLayout
                 index += 2;
                 if (--depth == 0)
                 {
+                    closed = true;
                     return index;
                 }
             }

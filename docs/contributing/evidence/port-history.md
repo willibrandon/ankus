@@ -28578,3 +28578,47 @@ Immediately before this repair's commit, primary **37521629720** and docs
 progress. Docs **37521629544** is an older, superseded deployment left waiting by
 GitHub Pages after the newer successful deployment; its pending deployment has no
 configured reviewers. The failed Intel run above is the failure addressed here.
+
+## Bounded quoted-SQL flow analysis — 2026-10-06
+
+The reported ANKUS044 loop regression was real. Flow widening discarded exact SQL
+layouts, retained only the presence of a quoted value and then treated that state
+as unsafe. This rejected loops and larger branch sets even when every runtime value
+was a complete atom returned by the actual `Spi.QuoteIdentifier` or
+`Spi.QuoteLiteral` method.
+
+The accepted flow domain summarizes a value only after every represented layout
+has closed its PostgreSQL quote, dollar-quote and comment contexts. It also retains
+leading and trailing token boundaries so later concatenation cannot turn a quoted
+atom into part of another token. Exact alternatives remain bounded at **128**;
+verified alternatives collapse to this summary instead of becoming an error.
+Direct `Enumerable.Select` calls are accepted only when their selector is the
+runtime-owned quote method, and `string.Join` composes those atoms without invoking
+consumer code. Unquoted selectors remain errors.
+
+The same audit corrected three independent soundness defects: nonconstant array
+reads now merge every possible element, prefix and postfix operations update the
+subsequent abstract state, and conditional references seed previously untracked
+parameter targets instead of crashing Roslyn with AD0001. Callback identities are
+canonicalized so convergence does not depend on traversal order. One shared
+**10,000-step** budget covers control-flow and helper interpretation; exhaustion
+marks every raw SPI command in that operation block unsafe.
+
+All **14** focused regressions pass, including quoted loops, builder loops, joined
+quote selectors, more than 128 safe layouts, unsafe controls, token-boundary
+controls, unknown array indices, increments, conditional references and recursive
+helper exhaustion. The complete generator module passes **4,468/4,468**. The
+unsharded Linux x64/PostgreSQL **18.6** suite passes **13,422** total:
+**13,374** passed, **48** platform skips and zero failures in **42m54s**. The exact
+Release build has zero warnings and errors. API freshness verifies **244** pages
+and **2,791** members; the site builds **295** pages and its check reports zero
+errors, warnings or hints. The validation checkout and external test workspace were
+deleted after recording the results.
+
+Immediately before this milestone's commit, primary **37523266946** and docs
+**37529095595** are complete and successful. Replacement primary **37529095529**
+has successful quality and all three runtime jobs; its three complete platform
+suites remain in progress. Additional-platform run **37529141287** has a successful
+runtime job and its complete Intel macOS suite remains in progress. The older docs
+deployment **37521629544** remains at GitHub's manual environment-approval gate and
+consumes no runner.
