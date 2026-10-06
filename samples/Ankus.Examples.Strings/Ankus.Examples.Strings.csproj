@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>Full Unicode casing, UTF-8 byte slices and terminator-aware string sets from C#.</Description>
+    <AnkusExtensionName>ankus_strings</AnkusExtensionName>
+    <AnkusExtensionControlFile>$(MSBuildProjectDirectory)/ankus_strings.control</AnkusExtensionControlFile>
+  </PropertyGroup>
+
+  <Import Project="../../src/Ankus.Sdk/Ankus.Sdk.targets" />
+
+</Project>

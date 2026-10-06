@@ -270,7 +270,7 @@ public sealed partial class PgFunctionGeneratorTests
             "public static void Audit(Ankus.PgEventTriggerContext context) { } " + other + " }";
         if (duplicate)
         {
-            AssertInvalidEventTrigger(source, "ANKUS002");
+            AssertInvalidEventTrigger(source, "ANKUS207");
             return;
         }
 

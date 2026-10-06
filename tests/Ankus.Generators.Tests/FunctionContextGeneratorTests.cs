@@ -78,7 +78,7 @@ public sealed partial class PgFunctionGeneratorTests
                 public static int Second(Ankus.PgFunctionContext call, int value) => value;
             }
             """);
-        AssertVirtualContextDiagnostic(diagnostics, "ANKUS002");
+        AssertVirtualContextDiagnostic(diagnostics, "ANKUS207");
     }
 
     /// <summary>

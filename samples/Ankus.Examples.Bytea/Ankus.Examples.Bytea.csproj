@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>Exact bytea gzip compression and strict UTF-8 decoding from C#.</Description>
+    <AnkusExtensionName>ankus_bytea</AnkusExtensionName>
+    <AnkusExtensionControlFile>$(MSBuildProjectDirectory)/ankus_bytea.control</AnkusExtensionControlFile>
+  </PropertyGroup>
+
+  <Import Project="../../src/Ankus.Sdk/Ankus.Sdk.targets" />
+
+</Project>

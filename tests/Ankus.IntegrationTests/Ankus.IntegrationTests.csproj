@@ -11,6 +11,7 @@
     <ProjectReference Include="../../src/Ankus.Tool/Ankus.Tool.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../../samples/Ankus.Examples.Enums/Ankus.Examples.Enums.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../../samples/Ankus.Examples.Arrays/Ankus.Examples.Arrays.csproj" />
+    <ProjectReference Include="../../samples/Ankus.Examples.Bytea/Ankus.Examples.Bytea.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../../samples/Ankus.Examples.Json/Ankus.Examples.Json.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../../samples/Ankus.Examples.Numeric/Ankus.Examples.Numeric.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../../samples/Ankus.Examples.Errors/Ankus.Examples.Errors.csproj" ReferenceOutputAssembly="false" />
@@ -21,6 +22,7 @@
     <ProjectReference Include="../../samples/Ankus.Examples.Operators/Ankus.Examples.Operators.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../../samples/Ankus.Examples.Sets/Ankus.Examples.Sets.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../../samples/Ankus.Examples.Spi/Ankus.Examples.Spi.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../samples/Ankus.Examples.Strings/Ankus.Examples.Strings.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../../samples/Ankus.Examples.Ranges/Ankus.Examples.Ranges.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 

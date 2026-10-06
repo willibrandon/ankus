@@ -566,7 +566,7 @@ public sealed partial class PgFunctionGeneratorTests
                 [Ankus.PgFunction] public static System.Collections.Generic.IEnumerable<int> Rows(int value) => new[] { value };
             }
             """ + "public static class Second { [Ankus.PgFunction] " + second + " }");
-        Assert.AreEqual("ANKUS002", Assert.ContainsSingle(diagnostics).Id);
+        Assert.AreEqual("ANKUS207", Assert.ContainsSingle(diagnostics).Id);
     }
 
     /// <summary>

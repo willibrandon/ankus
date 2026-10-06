@@ -2,7 +2,7 @@
 
 Rule ID | Category | Severity | Notes
 --------|----------|----------|------
-ANKUS002 | Ankus | Error | Invalid or duplicate PostgreSQL function name
+ANKUS002 | Ankus | Error | Invalid PostgreSQL function name
 ANKUS003 | Ankus | Error | Invalid numeric precision or scale constraint
 ANKUS005 | Ankus | Error | Invalid custom SQL input or installation dependency graph
 ANKUS006 | Ankus | Error | Invalid PostgreSQL enum declaration or label mapping
@@ -201,3 +201,4 @@ ANKUS203 | Ankus | Error | GUC cannot be an indexer
 ANKUS204 | Ankus | Error | Unreadable datum mapping metadata
 ANKUS205 | Ankus | Error | Unreadable range mapping metadata
 ANKUS206 | Ankus | Error | Unreadable declaration attribute metadata
+ANKUS207 | Ankus | Error | Duplicate PostgreSQL input signature

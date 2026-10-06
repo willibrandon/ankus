@@ -319,7 +319,7 @@ public sealed partial class PgFunctionGeneratorTests
     [TestMethod]
     [DataRow("type", "ANKUS005")]
     [DataRow("enum", "ANKUS005")]
-    [DataRow("aggregate", "ANKUS002")]
+    [DataRow("aggregate", "ANKUS207")]
     [DataRow("ordering", "ANKUS005")]
     [DataRow("hashing", "ANKUS005")]
     public void DeclarationSqlControlsRetainNameCollisions(string kind, string expected)

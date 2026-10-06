@@ -265,7 +265,7 @@ public sealed partial class PgFunctionGeneratorTests
             "[Ankus.PgTrigger] public static Ankus.PgHeapTuple? Audit(Ankus.PgTriggerContext context) => null; " + other + " }");
         if (duplicate)
         {
-            Assert.AreEqual("ANKUS002", Assert.ContainsSingle(diagnostics).Id);
+            Assert.AreEqual("ANKUS207", Assert.ContainsSingle(diagnostics).Id);
         }
         else
         {

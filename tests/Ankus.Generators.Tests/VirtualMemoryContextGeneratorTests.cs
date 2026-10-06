@@ -167,7 +167,7 @@ public sealed partial class PgFunctionGeneratorTests
             """);
         if (duplicate)
         {
-            AssertVirtualContextDiagnostic(diagnostics, "ANKUS002");
+            AssertVirtualContextDiagnostic(diagnostics, "ANKUS207");
             return;
         }
 

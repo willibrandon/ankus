@@ -26563,6 +26563,10 @@ startup/recovery timeouts were corrected by 7dca056. No earlier run is live.
 Current replacement primary-platform, additional-version and release acceptance
 remain required; this Windows composition does not establish complete parity.
 
+The verified SPI milestone is committed and pushed as f86e0ac. CI 37386501183
+and Docs 37386500184 are in progress on that revision. Previous outcomes were
+checked and recorded before both the commit and push; no previous run was live.
+
 ## Strings Unicode preparation, 2026-10-05
 
 The read-only installed Rust 1.97.1 standard library uses Unicode 17.0.0.
@@ -26580,3 +26584,237 @@ The first compiler run rejected three field names; the enforced naming rule is
 fixed without suppression. This is private managed preparation, not acceptance
 of the strings sample or a published PostgreSQL extension. Sample API, byte-slice,
 split/iterator and complete native/platform requirements remain open.
+
+## SPI primary-platform acceptance and sample composition, 2026-10-05
+
+CI 37386501183 and Docs 37386500184 pass on f86e0ac/runtime 10.0.12-ankus.4.
+Quality and all runtime jobs pass. All eighteen actual reports independently
+verify their counters and unique execution identities; every platform also
+passes all sixty-seven required native recovery/ownership partitions.
+Linux x64/PostgreSQL 18: 12,630 total, 12,582 passed, 48 platform skips, zero
+failures; job 39m27s. macOS ARM64/PostgreSQL 18: 12,630/12,570/60/0; job
+34m10s. Windows x64/PostgreSQL 17: 12,630/12,602/28/0; job 35m21s.
+No job timed out. Additional-platform and supported-major refreshes remain required.
+
+The owner-index/AssemblyRef review correction is already implemented in
+a4a30e2. Current source matches the prepared correction, and all eight actual
+regressions pass in the completed Windows suite, including both malformed
+identity partitions. No duplicate fix or rerun is needed to establish that
+named evidence. Broader declaration/source-case audits remain required.
+
+The private strings draft implements all seven upstream functions. Its 46
+direct cases pass in 4.490s; the complete managed runtime module passes 2,194
+executions in 11.384s on a bounded two-core run. The independently verified
+report includes the Rust split oracle case. UTF-8 byte slicing rejects every
+continuation-byte boundary, including empty slices, while allowing valid empty
+boundaries. Terminator splitting preserves Rust's empty-pattern, empty-input,
+leading/interior-empty and ordinal-match contracts. The actual generator
+compiles all three authored sources and two generated sources without
+compiler/generator warnings or errors.
+
+Fifty-seven prepared native cases compile with the actual fixture sources,
+covering the exact greeting/append output, all twelve Rust lowercase strings,
+every byte boundary, same-backend failures, all nine split fixtures, NULL/empty
+distinctions, table column names, toasted ownership and early iteration.
+The ordinary project/control files, author-facing guide and upstream/Unicode
+notices are prepared. Normal analyzer/discovery and native execution are still
+required. The first direct build caught IDE0305; collection syntax was corrected
+without suppression. An initial candidate-preparation anchor mismatch was
+corrected to preserve the real sample reference metadata before any staging.
+
+The immutable combined bytea/strings candidate contains 1,811 source hashes,
+including copied oracle facts and notices. Main is unchanged. The existing
+validator stages those exact bytes only after Windows CI completes. The complete
+unsharded Windows x64/PostgreSQL 17.11 run is now live, with input hashes checked
+before execution. Expected scope includes the complete normal graph plus 32
+bytea managed cases, 46 strings managed cases, 18 bytea native cases and 57
+strings native cases. These are expected partitions, not completed test evidence.
+Neither sample is promoted or accepted before that run and required checks pass.
+
+## SQL identity diagnostic preparation and managed sample verification, 2026-10-05
+
+The main source remains f86e0ac; the bytea/strings composition remains frozen at
+1,811 inputs. Its actual complete Windows x64/PostgreSQL 17.11 runtime module
+passes all 2,226 executions. Independent verification checks the counters,
+unique execution identities and all 25 named sample partitions: 32 bytea cases,
+38 strings API cases and eight exhaustive/contextual Unicode cases. Native
+execution and complete platform acceptance remain live requirements; neither
+sample is promoted on the strength of this managed evidence.
+
+The review's ANKUS002 ambiguity is confirmed. The private correction retains
+ANKUS002 for malformed identifiers and introduces ANKUS207 for the full conflicting
+SQL input signature. Ordinary functions, aggregates and generated aggregate
+helpers share that descriptor. Existing collision tests retain their assertions
+and change only the expected ID. Related function-name guidance is prepared.
+
+| Requirement | Exact final regression | Unchanged baseline | Corrected complete module |
+| --- | --- | --- | --- |
+| Identifier-only advice, including the length limit | `InvalidNameDiagnosticDescribesOnlyIdentifierRules` | All six fail | All six pass |
+| SQL type identity, injected contexts, return shapes and exact rejected identifier location | `DuplicateSignatureDiagnosticNamesConflictingSqlIdentity` | All five fail | All five pass |
+| Names, schemas and mapped input types still distinguish callable overloads | `NonconflictingSqlIdentitiesRemainCallable` | All three pass | All three pass |
+| Aggregate and generated-helper conflicts include the complete SQL signature | `AggregateCollisionDiagnosticIncludesFullInputSignature` | Both fail | Both pass |
+
+The exact final baseline run executes sixteen cases: thirteen fail and three
+controls pass, in 4.596s. The corrected complete generator module executes all
+3,906 cases with zero failures or skips, in 2m39.190s on two cores. Independent
+report verification checks the counters, unique execution identities and every
+named regression partition. These are generator results, not native-platform
+or full-port evidence. The correction remains private pending coherent native,
+Release and documentation acceptance.
+
+Preparation failures remain retained. XML comments were moved from local
+functions to documented helper members, and diagnostic assertions specify the
+invariant culture. The source contract locates the rejected method identifier;
+the test now verifies its exact text and offset rather than assuming an entire
+declaration span. Analyzer release tracking remains enforced: package imports
+added the original unshipped file after the initial override, so the private
+selection now runs after imports and supplies exactly one corrected record.
+Zero-execution invocations are rejected as evidence; the built assemblies are
+executed without the private compilation override and their actual reports verify.
+
+## Sample fixture rejection and coherent correction, 2026-10-05
+
+The earlier live 1,811-input bytea/strings candidate completed the unsharded
+Windows x64/PostgreSQL 17.11 suite in 50m20.537s (49m26.485s test time).
+Its six actual module reports contain 12,783 cases: 12,750 passed, 28 skipped
+and five failed. The runtime module passed all 2,226 cases and the generator
+passed all 3,890 cases. This composition is rejected for native acceptance.
+
+All four `ByteaSampleRoundTripsNativeBytes` rows and
+`StringsSampleOwnsToastedSubstringResult` failed with SQLSTATE 42601 during
+fixture setup: PostgreSQL rejects multiple statements in a prepared command.
+The setup combined DDL and an insert with a positional parameter. The correction
+issues the parameterized insert separately from the setup and materialization
+commands, on the original connection and transaction. Exact byte, UTF-8, TOAST,
+ownership, same-session and independent-decoder assertions remain enforced.
+The gzip minimum accounts for ten header bytes, a complete DEFLATE block and
+eight trailer bytes rather than assuming every compressor emits an empty stored
+block. Sample codec and function implementations are unchanged by this fix.
+
+The rejected archive contains all 1,811 exact inputs and twelve source/evidence
+files, including all six reports, manifest and telemetry. Independent verification
+checks all 1,823 archived files against their exact original bytes before staging
+the correction. No user PostgreSQL services were stopped or changed.
+
+The corrected coherent candidate freezes 1,813 source inputs: the original
+samples, both fixture corrections and the SQL-identity diagnostic correction.
+It is staged in the existing idle validator and the five affected native cases
+are rerunning before the complete unsharded suite. Complete expected scope is
+12,799 cases, including 3,906 generator and 4,956 integration cases; these are
+scope expectations, not accepted execution evidence. Neither sample nor the
+diagnostic change is promoted yet.
+
+The five corrected native cases completed successfully in 4m33.772s, with
+3m35.556s module time. Independent verification checks all five actual execution
+identities and zero failures/skips: the four bytea sizes (0, 1, 256 and 65,537)
+and the externally stored substring ownership case. Source hashes match before
+and after. The validator's own clusters were cleaned up; protected user services
+remain untouched. This is focused evidence, not complete-platform acceptance.
+
+The sample's original unqualified `substring(text, integer, integer)` documentation
+would resolve the built-in pg_catalog function under PostgreSQL's normal search
+path. The README and public guide now qualify the example as `public.substring`
+and explain how to use the installation schema and its different byte-bound
+semantics. Local PostgreSQL catalog and search-path sources confirm the conflict.
+The updated frozen candidate differs from the successful focused composition in
+exactly those two documentation files; all native inputs and diagnostics are
+unchanged. Its 1,813 exact inputs are staged and the complete unsharded Windows
+x64/PostgreSQL 17.11 suite is running. Expected 12,799-case scope remains an
+expectation until all six actual reports and required partitions verify.
+
+### Precise row and event trigger declaration diagnostics
+
+A private validator correction replaces ANKUS010/011's free-text shape and
+metadata messages with twenty-two independently correctable ANKUS208–229
+contracts. It preserves row tuple and event void signatures, nonnull context
+ownership, synchronous backend execution, accessible non-generic containers,
+and the existing restrictions on conflicting roles and SQL value/set metadata.
+Diagnostics point at the authored modifier, result, context, enclosing type or
+attribute value. Invalid declarations do not remove a valid sibling's dispatcher.
+
+The unchanged generator fails all sixty invalid-declaration regressions, while
+four valid controls pass. The corrected focused run passes all sixty-four
+executions in 5.630s. Both actual reports independently verify counters, unique
+execution identities and the named invalid/control partitions. Its first complete
+generator run executes 3,970 cases: 3,959 pass and eleven fail in 1m28.861s.
+Those failures expose legacy catch-all ID/location expectations, including partial
+async event declarations and a mistaken test-fixture classification of a row
+trigger returning void. Expected diagnostics are corrected to the actual violated
+contract; partial async modifier attribution now uses the authored implementation.
+The complete module is being rebuilt and rerun. Main and the live native sample
+composition remain unchanged; no completed callback acceptance is claimed.
+
+The corrected complete generator module subsequently passes all 3,970 cases
+with zero failures/skips in 1m30.781s. Its Release build passes with zero
+warnings/errors in 25.86s. Independent verification checks all actual execution
+identities and counters, including sixty invalid-declaration regressions and
+four valid controls. The existing partial-async cases additionally require the
+diagnostic on the implementation's `async` modifier, for either attribute placement.
+This supersedes the pending managed state above; native, Release and public site
+acceptance of a coherent callback composition remain required before promotion.
+
+### Precise initialization declaration diagnostics
+
+The initialization validator's ANKUS013 combines signature, container,
+unconditional invocation, SQL metadata and phase-collision failures. A separate
+private correction introduces twenty independently correctable ANKUS230–249
+contracts while retaining both initialization phases and their native behavior.
+It identifies the authored modifier, return type, parameter list, container or
+attribute, including the actual implementation of an async partial method.
+Duplicate phases still suppress the loader export, while unrelated valid SQL
+dispatchers remain available.
+
+The unchanged initialization validator fails all forty declaration cases and
+two duplicate-phase cases; all four valid controls pass. The corrected focused
+run passes all forty-six actual executions in 4.848s, without failures or skips.
+Both reports independently verify counters, unique execution identities and the
+three exact named partitions. Existing initialization, module-load, lifecycle
+caching and method-inventory regressions retain their compile/export/recovery
+assertions with specific expected IDs. Complete generator, native and public
+documentation acceptance remain required before promotion.
+
+The complete combined generator module subsequently passes all 4,016 executions
+with zero failures/skips in 1m16.403s. Its Release build passes with zero
+warnings/errors in 31.18s. Independent report inspection verifies all forty
+declaration cases, both duplicate-phase cases and all four valid controls. Existing
+lifecycle tests require diagnostics on current mapped result locations and on
+the authored partial implementation's async modifier. The callback-only candidate
+freezes 1,818 exact inputs; the combined initialization candidate freezes 1,821.
+Both preserve the complete sample/SQL-identity parent and remain unstaged.
+Expected complete native scope is 12,909 cases, including 4,016 generator and
+4,956 integration cases; this is a scope expectation, not native acceptance.
+
+### Complete bytea/strings and SQL-identity acceptance
+
+The corrected coherent Windows x64/PostgreSQL 17.11 composition completes
+successfully: 12,799 total, 12,771 passed, 28 platform skips and zero failures.
+Tests take 48m38.373s; the command including its build takes 49m26.804s.
+All six actual reports independently verify. The integration module executes
+4,956 cases, passing 4,935 and skipping 21, including every one of the seventy-five
+new native sample cases across fifteen required partitions and all sixty-seven
+required native recovery/resource/callback/parallel/JSON/lightweight cases.
+The generator passes all 3,906 cases and the runtime passes all 2,226, including
+the previously verified sixteen SQL-identity and seventy-eight managed sample
+executions. These results supersede the pending native sample state above.
+
+All 1,813 frozen inputs match before and after execution. The accepted archive
+retains 1,825 exact source/report/manifest/driver/telemetry files; independent
+verification checks every archived byte against its original. The promoter
+preserves prior main files, then promotes precisely forty changed/new files and
+rechecks all 1,813 accepted inputs. The ignored review, user ignore changes and
+protected repository files remain untouched. Release, API freshness, site checks
+and replacement primary CI remain required for this milestone. The additional
+callback and initialization diagnostic candidates remain private and unstaged.
+
+The promoted main source subsequently passes the Release build with zero
+warnings/errors in 2m17.57s. API freshness verifies 244 pages and 2,791 members;
+the site builds 295 pages in 3.78s and its diagnostics report zero errors,
+warnings or hints. The final source check again verifies all 1,813 accepted
+inputs. These results supersede the pending local-check state above.
+
+Before committing this milestone, the 2026-10-06 01:55 UTC CI check confirms
+CI 37386501183 and Docs 37386500184 passed on f86e0ac. CI 37361236252 and
+Docs 37361236408 passed on 7dca056. The earlier CI 37343346227 remains a
+recorded failure, corrected by 7dca056; its documentation job passed.
+No observed run is in progress. Replacement primary CI and supported-version
+acceptance of this new milestone remain required.

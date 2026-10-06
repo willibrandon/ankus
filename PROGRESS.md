@@ -87,18 +87,19 @@ incorrect. See [the detailed review](docs/contributing/evidence/port-history.md#
 ## Current complete acceptance evidence
 
 Primary CI runs all six modules against real published Native AOT extensions.
-The latest primary CI source is **7dca056**, with runtime **10.0.12-ankus.4**.
-[CI 37361236252](https://github.com/willibrandon/ankus/actions/runs/37361236252)
-and [Docs 37361236408](https://github.com/willibrandon/ankus/actions/runs/37361236408)
+The latest successful primary CI source is **f86e0ac**, with runtime **10.0.12-ankus.4**.
+[CI 37386501183](https://github.com/willibrandon/ankus/actions/runs/37386501183)
+and [Docs 37386500184](https://github.com/willibrandon/ankus/actions/runs/37386500184)
 pass. All eighteen actual reports and all sixty-seven required native recovery
 partitions independently verify; no primary job timed out.
 
 | Source | Platform / PostgreSQL | Result | Duration |
 | --- | --- | --- | --- |
-| Latest primary CI, **7dca056 / ankus.4** | Linux x64 / 18 | 12,561 total; 12,513 passed; 48 platform skips; zero failures | 39m19s job |
-| Same CI / revision / runtime | macOS ARM64 / 18 | 12,561 total; 12,501 passed; 60 platform skips; zero failures | 32m34s job |
-| Same CI / revision / runtime | Windows x64 / 17 | 12,561 total; 12,533 passed; 28 platform skips; zero failures | 34m58s job |
-| Frozen corrected SPI composition, runtime **ankus.4** | Windows x64 / 17.11 | 12,630 total; 12,602 passed; 28 platform skips; zero failures | 47m45.216s tests; 48m33.194s command |
+| Latest primary CI, **f86e0ac / ankus.4** | Linux x64 / 18 | 12,630 total; 12,582 passed; 48 platform skips; zero failures | 39m27s job |
+| Same CI / revision / runtime | macOS ARM64 / 18 | 12,630 total; 12,570 passed; 60 platform skips; zero failures | 34m10s job |
+| Same CI / revision / runtime | Windows x64 / 17 | 12,630 total; 12,602 passed; 28 platform skips; zero failures | 35m21s job |
+| Frozen bytea/strings and SQL-identity composition, runtime **ankus.4** | Windows x64 / 17.11 | 12,799 total; 12,771 passed; 28 platform skips; zero failures | 48m38.373s tests; 49m26.804s command |
+| Frozen corrected SPI composition, **f86e0ac / ankus.4** | Windows x64 / 17.11 | 12,630 total; 12,602 passed; 28 platform skips; zero failures | 47m45.216s tests; 48m33.194s command |
 | Frozen raw transport / recovery composition, runtime **ankus.4** | Linux x64 / 18.6 | 12,561 total; 12,513 passed; 48 platform skips; zero failures | 41m19.728s tests |
 | Same frozen composition / runtime | Windows x64 / 17.11 | 12,561 total; 12,533 passed; 28 platform skips; zero failures | 47m38.639s tests; 48m23.936s command |
 
@@ -106,7 +107,7 @@ The corrected SPI composition verifies all six reports, sixty-seven native
 recovery partitions and **1,791** source inputs. Its exact source/report archive
 matches all **1,802** retained files. Release, API freshness, site build and site
 diagnostics pass without warnings or errors. Replacement primary-platform CI
-remains required.
+passes; current supported-version and additional-platform acceptance remain required.
 The earlier frozen composition verifies all twelve reports and **1,788** source inputs.
 Its Release build, API freshness and site checks pass. These results prove the
 named source and PostgreSQL/platform combinations, not the complete port.
@@ -137,37 +138,57 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   unsafe contexts. All **21** regressions fail against the unchanged baseline and
   pass with the correction; the accepted complete suites preserve native recovery.
   Full source-contract and current supported-version acceptance remain required.
-- The accepted Windows SPI analyzer/shared-lexer composition follows reaching strings,
-  mutable builder/array aliases, local callbacks and exception cleanup, and checks
-  quoted fragments in PostgreSQL token contexts. All **3,890** generator cases,
-  **2,148** runtime cases and **150** focused cases pass; the unchanged analyzer
-  fails **33** of the same focused cases. Source documentation is prepared. The
-  corrected complete Windows x64/PostgreSQL **17.11** suite passes all **12,630**
-  executions with **28** platform skips and zero failures. The worker fixture now
-  binds its two process-ID commands, preserving its lifecycle assertions. All
-  source hashes match before and after; the exact accepted sources are promoted.
-  The rejected predecessor and focused correction remain in the archive.
-  Replacement primary-platform and supported-version acceptance remain required.
-- The bytea sample's owned gzip framing draft preserves empty input, first-member
-  boundaries, complete trailers and pgrx's decoder policy around the standard
-  DEFLATE codec. Its **32** direct cases pass, including independently framed
-  stored, fixed and dynamic blocks, malformed input and strict UTF-8. The complete
-  isolated runtime module passes **2,180** cases in **3.457s**, with independently
-  verified execution identities including corrupt header CRC. The actual
-  generator compiles both sample sources without warnings/errors. Eighteen
-  prepared backend cases compile with the actual PostgreSQL fixture sources;
-  the **1,799**-input candidate includes the normal project/test graph and
-  public guide. Normal analyzer, native SQL and complete platform acceptance
-  remain required. The sample is not promoted.
-- The strings sample's private Unicode **17.0** lowercase draft matches Rust
-  **1.97.1** for all **1,112,064** valid scalars and their final-sigma contexts.
-  Eight focused executions pass, including actual whole-string outputs, Turkish
-  culture and invalid UTF-16. Sample APIs, native execution and complete acceptance
-  remain required; the draft is not promoted.
+- Milestone **f86e0ac** accepts SPI construction/alias/control-flow analysis and
+  SQL token-context checking. All **150** focused cases pass; the unchanged analyzer
+  fails **33**. Docs and complete primary CI pass, including all eighteen reports
+  and sixty-seven required native recovery partitions per platform. The rejected
+  predecessor and detailed results remain in the archive; supported-version and
+  additional-platform acceptance remain required.
+- The bytea/strings samples preserve pgrx's gzip member policy, exact
+  UTF-8 byte slices and Rust terminator splitting. Unicode **17.0** casing matches
+  Rust **1.97.1** for all **1,112,064** valid scalars and final-sigma contexts.
+  The complete runtime module passes **2,226** cases, independently verifying all
+  **78** new managed executions across **25** required partitions. The first full
+  Windows x64/PostgreSQL **17.11** composition is rejected: **12,750** pass,
+  **28** skip and **5** fail in **50m20.537s**. Parameterized setup batches caused
+  all five failures. Separate inserts preserve the original connection, transaction
+  and ownership assertions; all five corrected native cases pass and verify
+  in **4m33.772s**. The corrected full unsharded suite passes **12,799** cases
+  (**12,771** passed; **28** skips; zero failures). All six reports, **75** new
+  native sample cases, **67** recovery cases and **1,813** inputs verify.
+  All **1,825** archived source/evidence files match exactly. The **40** accepted
+  files are promoted. Release passes with zero warnings/errors in **2m17.57s**;
+  API freshness verifies **244** pages and **2,791** members. The site builds
+  **295** pages and reports zero errors, warnings or hints. Replacement CI follows.
+- The accepted diagnostic correction separates malformed names (`ANKUS002`) from
+  duplicate SQL input signatures (`ANKUS207`), including aggregate/helper conflicts.
+  All **13** regressions fail against the unchanged generator; all **3** valid-overload
+  controls pass. The corrected complete generator module passes **3,906** executions
+  in **2m39.190s**. Reports and named partitions independently verify. A coherent
+  **1,813**-input composition includes both samples, corrected fixtures and these
+  diagnostics; its complete Windows/**17.11** suite, Release and documentation
+  checks pass. Replacement primary CI remains required for the milestone.
 - SPI guidance documents hot-standby restrictions on write-intent helpers. This
   is source-derived guidance, not standby test evidence. Precise diagnostics,
   remaining code fixes, source-case mapping and samples remain open. The full
   PostgreSQL/platform, .NET servicing and release requirements remain in scope.
+- A private callback validator separates the row/event trigger catch-all errors
+  into **22** precise contracts with authored source locations and help links.
+  The unchanged generator fails all **60** new invalid-declaration regressions;
+  all **4** valid controls pass. The corrected focused scope passes all **64**.
+  The first complete run exposes **11** legacy expectations; corrected IDs and
+  authored partial-implementation locations then pass the complete **3,970**-case
+  generator module in **1m30.781s**. Actual reports and named partitions verify.
+  Its immutable candidate freezes **1,818** inputs. Complete native and
+  documentation acceptance remain required before promotion.
+- The separate initialization diagnostic draft distinguishes **20** phase,
+  signature, container, invocation and metadata contracts. All **42** new
+  regressions fail against the unchanged initializer validator; all **4** valid
+  controls pass. The correction passes all **46** focused executions, with
+  independently verified reports. The combined complete generator module passes
+  all **4,016** cases in **1m16.403s**, and the new composition freezes **1,821**
+  inputs. Native and documentation acceptance remain required; main and the
+  running sample composition remain unchanged.
 
 ## Remaining work order
 
@@ -179,7 +200,7 @@ The Intel diagnostic retry exposed six path-related failures; the corrected
 complete Intel suite now passes. An explanation of the earlier hosted-runner
 disconnect and remaining version/platform acceptance are still required.
 
-1. Resolve discovered correctness and CI failures before accepting affected work, including the remaining imported-string metadata audit.
+1. Resolve discovered correctness and CI failures before accepting affected work, and finish the remaining declaration/source-case audits. Malformed AssemblyRef handling and the owner index are already implemented; all eight regressions pass in the current complete suite.
 2. Finish the Intel timing milestone and complete supported-major/platform coverage, including Intel macOS and the macOS 15/16 library-suffix boundary.
 3. Complete declaration diagnostics/code fixes, API discoverability and unsafe raw-call contracts.
 4. Use the in-backend baseline to finish measured hot-path improvements that preserve recovery and ownership guarantees.

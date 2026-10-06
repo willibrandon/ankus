@@ -1,0 +1,3 @@
+comment = 'Bytea gzip compression and strict UTF-8 decoding'
+relocatable = false
+superuser = false

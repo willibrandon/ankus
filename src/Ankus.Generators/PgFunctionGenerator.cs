@@ -17,7 +17,13 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
 {
     private static readonly DiagnosticDescriptor s_invalidName = new(
         "ANKUS002", "Invalid PostgreSQL function name",
-        "SQL name '{0}' must start with a lowercase ASCII letter or underscore, contain 1-63 lowercase ASCII letters, digits, or underscores, and have a unique SQL input signature within its schema",
+        "SQL name '{0}' must start with a lowercase ASCII letter or underscore and contain 1-63 lowercase ASCII letters, digits, or underscores",
+        "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true,
+        helpLinkUri: "https://willibrandon.github.io/ankus/function-declarations/#function-names");
+
+    private static readonly DiagnosticDescriptor s_duplicateSqlSignature = new(
+        "ANKUS207", "Duplicate PostgreSQL input signature",
+        "SQL input signature '{0}' is already declared in this extension; use a different SQL name, schema, or input parameter types",
         "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true,
         helpLinkUri: "https://willibrandon.github.io/ankus/function-declarations/#function-names");
 
@@ -815,9 +821,15 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
 
             string signature = declaration.QualifiedName + "(" + (contextParameter ? string.Empty : string.Join(",", parameters.Where(static parameter => !parameter.IsInjected).Select(
                 static parameter => parameter.Type!.Sql))) + ")";
-            if (!IsValidName(name) || !names.Add(signature))
+            if (!IsValidName(name))
             {
                 context.Report(s_invalidName, methodLocation?.Resolve(compilation), name);
+                continue;
+            }
+
+            if (!names.Add(signature))
+            {
+                context.Report(s_duplicateSqlSignature, methodLocation?.Resolve(compilation), signature);
                 continue;
             }
 
@@ -983,7 +995,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
 
             if (!names.Add(aggregate.Signature))
             {
-                context.Report(s_invalidName, analysis.Location?.Resolve(compilation), aggregate.Name);
+                context.Report(s_duplicateSqlSignature, analysis.Location?.Resolve(compilation), aggregate.Signature);
                 continue;
             }
 
@@ -1014,7 +1026,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
 
                 if (!names.Add(helper.Signature))
                 {
-                    context.Report(s_invalidName, helperAnalysis.Location?.Resolve(compilation), helper.Declaration.QualifiedName);
+                    context.Report(s_duplicateSqlSignature, helperAnalysis.Location?.Resolve(compilation), helper.Signature);
                     continue;
                 }
 

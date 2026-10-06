@@ -4,6 +4,7 @@
     <Project Path="samples/Ankus.Examples.Arrays/Ankus.Examples.Arrays.csproj" />
     <Project Path="samples/Ankus.Examples.BackgroundWorkers/Ankus.Examples.BackgroundWorkers.csproj" />
     <Project Path="samples/Ankus.Examples.Benchmarks/Ankus.Examples.Benchmarks.csproj" />
+    <Project Path="samples/Ankus.Examples.Bytea/Ankus.Examples.Bytea.csproj" />
     <Project Path="samples/Ankus.Examples.Composites/Ankus.Examples.Composites.csproj" />
     <Project Path="samples/Ankus.Examples.Configuration/Ankus.Examples.Configuration.csproj" />
     <Project Path="samples/Ankus.Examples.CustomScans/Ankus.Examples.CustomScans.csproj" />
@@ -19,6 +20,7 @@
     <Project Path="samples/Ankus.Examples.Ranges/Ankus.Examples.Ranges.csproj" />
     <Project Path="samples/Ankus.Examples.Sets/Ankus.Examples.Sets.csproj" />
     <Project Path="samples/Ankus.Examples.Spi/Ankus.Examples.Spi.csproj" />
+    <Project Path="samples/Ankus.Examples.Strings/Ankus.Examples.Strings.csproj" />
     <Project Path="samples/Ankus.Examples.Triggers/Ankus.Examples.Triggers.csproj" />
   </Folder>
   <Folder Name="/src/">

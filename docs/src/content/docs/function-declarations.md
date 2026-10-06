@@ -19,7 +19,7 @@ a letter or underscore. Invalid names produce `ANKUS002`.
 
 Overloads must have distinct SQL input signatures within their schema. Different
 C# types can map to the same SQL type, and injected contexts do not distinguish
-SQL overloads. Rename the function or change its SQL input types when `ANKUS002`
+SQL overloads. Rename the function or change its SQL input types when `ANKUS207`
 reports a duplicate signature. A different return type alone does not resolve
 the conflict.
 

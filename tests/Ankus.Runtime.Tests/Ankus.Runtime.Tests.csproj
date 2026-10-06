@@ -4,6 +4,12 @@
     <EnableMSTestSourceGeneration>true</EnableMSTestSourceGeneration>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../../samples/Ankus.Examples.Bytea/ByteaFunctions.cs" Link="ByteaSample/ByteaFunctions.cs" />
+    <Compile Include="../../samples/Ankus.Examples.Bytea/GzipMemberCodec.cs" Link="ByteaSample/GzipMemberCodec.cs" />
+    <Compile Include="../../samples/Ankus.Examples.Strings/StringsFunctions.cs" Link="StringsSample/StringsFunctions.cs" />
+    <Compile Include="../../samples/Ankus.Examples.Strings/UnicodeLowercase.cs" Link="StringsSample/UnicodeLowercase.cs" />
+    <Compile Include="../../samples/Ankus.Examples.Strings/UnicodeLowerData.cs" Link="StringsSample/UnicodeLowerData.cs" />
+    <None Update="string-semantics-reference.txt" CopyToOutputDirectory="PreserveNewest" />
     <ProjectReference Include="../../src/Ankus.Runtime/Ankus.Runtime.csproj" />
   </ItemGroup>
 </Project>

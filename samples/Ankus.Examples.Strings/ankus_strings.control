@@ -1,0 +1,3 @@
+comment = 'Full Unicode casing, UTF-8 byte slices and terminator-aware string sets'
+relocatable = false
+superuser = false

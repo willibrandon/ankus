@@ -229,7 +229,7 @@ public sealed partial class PgFunctionGeneratorTests
             """);
         if (duplicate)
         {
-            Assert.AreEqual("ANKUS002", Assert.ContainsSingle(diagnostics).Id);
+            Assert.AreEqual("ANKUS207", Assert.ContainsSingle(diagnostics).Id);
             return;
         }
 

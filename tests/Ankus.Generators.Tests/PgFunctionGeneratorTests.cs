@@ -155,7 +155,7 @@ public sealed partial class PgFunctionGeneratorTests(TestContext context)
             public static class Second { [Ankus.PgFunction] public static int Add() => 2; }
             """);
 
-        Assert.AreEqual("ANKUS002", Assert.ContainsSingle(diagnostics).Id);
+        Assert.AreEqual("ANKUS207", Assert.ContainsSingle(diagnostics).Id);
     }
 
     /// <summary>
@@ -206,7 +206,7 @@ public sealed partial class PgFunctionGeneratorTests(TestContext context)
                 [Ankus.PgFunction] public static {{pgType}} Echo({{pgType}} value) => value;
             }
             """);
-        Assert.AreEqual("ANKUS002", Assert.ContainsSingle(diagnostics).Id);
+        Assert.AreEqual("ANKUS207", Assert.ContainsSingle(diagnostics).Id);
     }
 
     /// <summary>
@@ -259,7 +259,7 @@ public sealed partial class PgFunctionGeneratorTests(TestContext context)
                 [Ankus.PgFunction] public static Ankus.PgNumeric Echo([Ankus.PgNumericPrecision(6, 3)] Ankus.PgNumeric value) => value;
             }
             """);
-        Assert.AreEqual("ANKUS002", Assert.ContainsSingle(diagnostics).Id);
+        Assert.AreEqual("ANKUS207", Assert.ContainsSingle(diagnostics).Id);
     }
 
     private (Compilation Compilation, ImmutableArray<Diagnostic> Diagnostics) Generate(string source,

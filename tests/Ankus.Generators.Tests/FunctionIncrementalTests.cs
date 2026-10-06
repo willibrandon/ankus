@@ -46,7 +46,7 @@ public sealed partial class PgFunctionGeneratorTests
             out ImmutableArray<Diagnostic> diagnostics, context.CancellationToken);
 
         Assert.IsNull(Assert.ContainsSingle(driver.GetRunResult().Results).Exception);
-        Assert.Contains(static value => value.Id == "ANKUS002", diagnostics);
+        Assert.Contains(static value => value.Id == "ANKUS207", diagnostics);
         Assert.DoesNotContain(static value => value.Id == "CS8785", diagnostics);
     }
 

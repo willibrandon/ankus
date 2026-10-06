@@ -135,6 +135,6 @@ public sealed partial class PgFunctionGeneratorTests
                 [Ankus.PgFunction] public static int ValueOut(Value value) => 0;
             }
             """);
-        Assert.Contains("ANKUS002", diagnostics.Select(static diagnostic => diagnostic.Id));
+        Assert.Contains("ANKUS207", diagnostics.Select(static diagnostic => diagnostic.Id));
     }
 }

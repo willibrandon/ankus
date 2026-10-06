@@ -43,6 +43,13 @@ arrays directly into JSON documents. SQL NULL cells become JSON null, and bytea
 cells become arrays of byte numbers. Text retains pgrx's compact JSON escaping,
 including unescaped Unicode and HTML characters.
 
+The [bytea sample](samples/Ankus.Examples.Bytea/) compresses arbitrary bytes,
+decodes the first gzip member and reads text as strict UTF-8. It preserves
+empty members, checksums and pgrx's member/trailer policy.
+
+The [strings sample](samples/Ankus.Examples.Strings/) preserves full Unicode
+lowercase, UTF-8 byte slicing and terminator-aware array, set and table results.
+
 The [numeric sample](samples/Ankus.Examples.Numeric/) demonstrates full-range
 arithmetic, PostgreSQL precision and scale, string parsing and exact signed
 128-bit integer conversion.

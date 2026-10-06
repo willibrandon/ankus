@@ -597,7 +597,7 @@ public sealed partial class PgFunctionGeneratorTests
     [DataRow("[Ankus.PgFunction(Name=\"sum_transition\")] public static int A(int state,int value)=>value;")]
     public void AggregateSignaturesCollideWithOrdinaryFunctions(string ordinary)
         => AssertInvalidAggregate("public static class Other { " + ordinary + " } [Ankus.PgAggregate] public sealed class Sum : " +
-            "Ankus.IPgAggregate<int,int> { public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state; }", "ANKUS002");
+            "Ankus.IPgAggregate<int,int> { public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state; }", "ANKUS207");
 
     /// <summary>
     /// The zero-input aggregate signature collides with a zero-argument ordinary function despite different SQL declaration syntax.
@@ -606,7 +606,7 @@ public sealed partial class PgFunctionGeneratorTests
     public void AggregateZeroSignatureCollidesWithOrdinaryFunction()
         => AssertInvalidAggregate("public static class Other { [Ankus.PgFunction(Name=\"sum\")] public static int A()=>0; } " +
             "[Ankus.PgAggregate(InitialCondition=\"0\")] public sealed class Sum : Ankus.IPgAggregate<int,System.ValueTuple> { " +
-            "public static int Transition(Ankus.PgAggregateContext context,int state,System.ValueTuple arguments)=>state; }", "ANKUS002");
+            "public static int Transition(Ankus.PgAggregateContext context,int state,System.ValueTuple arguments)=>state; }", "ANKUS207");
 
     /// <summary>
     /// Same names in distinct schemas stay separate, and aggregate signatures can overload by SQL input type.
