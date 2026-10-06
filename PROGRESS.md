@@ -87,15 +87,19 @@ incorrect. See [the detailed review](docs/contributing/evidence/port-history.md#
 ## Current complete acceptance evidence
 
 Primary CI runs all six modules against real published Native AOT extensions.
-The latest successful primary CI source is **ec19b55**, with runtime **10.0.12-ankus.4**.
-[CI 37426534475](https://github.com/willibrandon/ankus/actions/runs/37426534475)
-and [Docs 37426534451](https://github.com/willibrandon/ankus/actions/runs/37426534451)
+The latest successful primary CI source is **5a11b8c**, with runtime **10.0.12-ankus.4**.
+[CI 37437329994](https://github.com/willibrandon/ankus/actions/runs/37437329994)
+and [Docs 37437330058](https://github.com/willibrandon/ankus/actions/runs/37437330058)
 pass. All eighteen actual reports and all sixty-seven required native recovery
 partitions independently verify; no primary job timed out.
 
 | Source | Platform / PostgreSQL | Result | Duration |
 | --- | --- | --- | --- |
-| Latest primary CI, **ec19b55 / ankus.4** | Linux x64 / 18 | 13,015 total; 12,967 passed; 48 platform skips; zero failures | 39m52s job |
+| Frozen callback/prefix composition, runtime **ankus.4** | macOS ARM64 / 18.6 | 13,187 total; 13,127 passed; 60 platform skips; zero failures | 28m21.670s tests; 29m17.922s command |
+| Latest primary CI, **5a11b8c / ankus.4** | Linux x64 / 18 | 13,111 total; 13,063 passed; 48 platform skips; zero failures | 39m55s job |
+| Same CI / revision / runtime | macOS ARM64 / 18 | 13,111 total; 13,051 passed; 60 platform skips; zero failures | 29m33s job |
+| Same CI / revision / runtime | Windows x64 / 17 | 13,111 total; 13,083 passed; 28 platform skips; zero failures | 38m03s job |
+| Earlier primary CI, **ec19b55 / ankus.4** | Linux x64 / 18 | 13,015 total; 12,967 passed; 48 platform skips; zero failures | 39m52s job |
 | Same CI / revision / runtime | macOS ARM64 / 18 | 13,015 total; 12,955 passed; 60 platform skips; zero failures | 29m31s job |
 | Same CI / revision / runtime | Windows x64 / 17 | 13,015 total; 12,987 passed; 28 platform skips; zero failures | 38m14s job |
 | Earlier primary CI, **f86e0ac / ankus.4** | Linux x64 / 18 | 12,630 total; 12,582 passed; 48 platform skips; zero failures | 39m27s job |
@@ -139,34 +143,37 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
 
 ## Active validation and work
 
-- **ec19b55** is the accepted declaration/cache milestone. Its complete primary
-  [CI](https://github.com/willibrandon/ankus/actions/runs/37426534475) and
-  [Docs](https://github.com/willibrandon/ankus/actions/runs/37426534451) pass.
-  All eighteen actual reports and **67** required native recovery cases on each
-  platform independently verify. Crash tests retain their original deadlines,
-  fsync and durability checks. The corrected allocation test measures warmed
-  owner lookups, preserving exact values and its bound; the original macOS CI
-  byte variance remains unattributed.
-- The enum correction separates thirteen contracts. Its original frozen
-  composition passes **13,053** complete Linux/PostgreSQL **18.6** cases, with
-  **48** platform skips and zero failures. Three inherited-schema diagnostic
-  locations were then reproduced and corrected. The exact **1,831**-input child
-  passes all **4,165** generator cases, Release and API freshness. Its complete
-  Linux suite passes **13,058** cases: **13,010** passed, **48** platform skips,
-  zero failures; all six reports, recovery cases and frozen inputs verify.
-  Its exact source is included in the accepted combined macOS composition below.
-- Nineteen precise backend-test contracts pass all **4,218** generator cases and
-  the complete Release build. The **53** focused cases distinguish **49** baseline
-  failures from **4** exact valid metadata controls, including real referenced
-  assemblies. The **1,834**-input child's complete macOS ARM64/PostgreSQL
-  **18.6** suite passes: **13,111** total, **13,051** passed, **60** platform
-  skips and zero failures. All six reports, recovery cases and exact inputs verify.
-  The guarded promotion preserves all **1,834** accepted inputs. Normal Release,
-  API freshness and both site checks pass; primary CI for the next commit remains
-  required. Partial async tests were already rejected and are not a new bug.
-- The next native-callback diagnostic draft preserves handler selection and
-  passes **144** affected cases and **4,162** complete generator cases from
-  ec19b55. It is not promoted; combined and native acceptance remain required.
+- **5a11b8c** is the accepted enum/backend-test milestone. Normal Release, API
+  freshness, both site checks and complete primary CI pass. All eighteen actual
+  reports and **67** required native recovery cases per platform independently
+  verify; no primary job times out. The matching docs deployment passes after
+  retrying a GitHub ID-token timeout. Crash tests retain their original deadlines,
+  fsync and durability checks; warmed owner lookups preserve their allocation
+  bound. The original macOS CI allocation variance remains unattributed.
+- The callback/prefix composition separates **39** actionable declaration errors
+  while preserving handler selection, native ABI and exact prefix registration.
+  Separate unchanged-validator baselines reproduce all **54** callback and **17**
+  prefix regressions; all compiled controls pass. Normal combined source passes
+  **4,294** generator cases and plain, unsharded macOS ARM64/PostgreSQL **18.6**
+  acceptance: **13,187** total, **13,127** passed, **60** platform skips and zero
+  failures. All six reports, **67** native recovery partitions, **158** callback
+  cases and **54** prefix cases verify. All **1,837** source inputs and **39**
+  runtime payload inputs match after execution. The exact **1,851**-file archive
+  is retained, and all **12** changed/new files are promoted byte-for-byte.
+  Normal Release, API freshness and both site checks pass; replacement CI remains
+  required. Separate callback-only
+  Linux acceptance has **13,165** total, **13,117** passed, **48** skips and zero failures;
+  its rejected setup run remains recorded separately.
+- A separate module-identity prototype distinguishes name/version zero characters
+  and malformed Unicode without changing emitted native bytes or defaults. On
+  the accepted **5a11b8c** parent, the unchanged validator fails all **19** precise
+  regressions while **4** compiled Unicode controls pass. The correction passes
+  all **51** affected cases and **4,241** complete generator cases; all **1,840**
+  authoring/prototype inputs match before and after each run. The next normal-source
+  child passes all **4,317** generator cases, including both accepted corpora;
+  all **1,839** source/guide inputs match before and after. Its plain, unsharded
+  Linux/PostgreSQL **18.6** Native AOT suite is running. Full native, documentation
+  and promotion gates remain required.
 
 Remaining diagnostics/code fixes, source-case mapping, samples, API and CLI
 contracts, supported PostgreSQL/platform combinations, .NET servicing and release

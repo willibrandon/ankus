@@ -62,24 +62,26 @@ public sealed partial class PgFunctionGeneratorTests
     }
 
     /// <summary>
-    /// Invalid C-string transport inputs produce an attribute-located generator error instead of truncated native values.
+    /// Invalid C-string transport inputs produce an argument-located generator error instead of truncated native values.
     /// </summary>
     /// <param name="expression">The invalid attribute constant.</param>
+    /// <param name="expected">The independently required transport error.</param>
     [TestMethod]
-    [DataRow("null!")]
-    [DataRow("\"\\0\"")]
-    [DataRow("\"a\\0b\"")]
-    [DataRow("\"\\uD800\"")]
-    [DataRow("\"\\uDC00\"")]
-    [DataRow("\"\\uD800x\"")]
-    public void InvalidGucPrefixTransportIsDiagnosed(string expression)
+    [DataRow("null!", "ANKUS347")]
+    [DataRow("\"\\0\"", "ANKUS348")]
+    [DataRow("\"a\\0b\"", "ANKUS348")]
+    [DataRow("\"\\uD800\"", "ANKUS349")]
+    [DataRow("\"\\uDC00\"", "ANKUS349")]
+    [DataRow("\"\\uD800x\"", "ANKUS349")]
+    public void InvalidGucPrefixTransportIsDiagnosed(string expression, string expected)
     {
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate("[assembly: Ankus.PgGucPrefix(" + expression + ")]");
         Diagnostic diagnostic = Assert.ContainsSingle(diagnostics);
-        Assert.AreEqual("ANKUS015", diagnostic.Id);
+        Assert.AreEqual(expected, diagnostic.Id);
+        Assert.AreEqual("https://willibrandon.github.io/ankus/configuration/#prefix-declaration-diagnostics", diagnostic.Descriptor.HelpLinkUri);
         Assert.AreEqual(DiagnosticSeverity.Error, diagnostic.Severity);
         Assert.IsTrue(diagnostic.Location.IsInSource);
-        Assert.AreEqual("Ankus.PgGucPrefix(" + expression + ")", diagnostic.Location.SourceTree!.GetText(context.CancellationToken)
+        Assert.AreEqual(expression, diagnostic.Location.SourceTree!.GetText(context.CancellationToken)
             .ToString(diagnostic.Location.SourceSpan));
         Assert.IsEmpty(compilation.GetDiagnostics(context.CancellationToken).Where(static item => item.Severity >= DiagnosticSeverity.Warning));
         Assert.DoesNotContain("ankus_reserve_guc_prefix(", ManifestValue(compilation, "Ankus.NativeSource"));

@@ -10,26 +10,28 @@ public sealed partial class PgFunctionGeneratorTests
     /// Invalid prefix literals retain fresh diagnostic trees while cached empty output repairs normally.
     /// </summary>
     /// <param name="expression">The C# expression containing an invalid native literal.</param>
+    /// <param name="expected">The independently required transport error.</param>
     [TestMethod]
-    [DataRow("null")]
-    [DataRow("\"bad\\0prefix\"")]
-    [DataRow("\"\\uD800\"")]
-    public void GucPrefixDiagnosticsFollowCurrentTreesAndRecover(string expression)
+    [DataRow("null", "ANKUS347")]
+    [DataRow("\"bad\\0prefix\"", "ANKUS348")]
+    [DataRow("\"\\uD800\"", "ANKUS349")]
+    public void GucPrefixDiagnosticsFollowCurrentTreesAndRecover(string expression, string expected)
     {
         string attribute = "Ankus.PgGucPrefix(" + expression + ")";
         string source = "[assembly: " + attribute + "]";
         CSharpCompilation initial = ModuleCompilation(source);
         GeneratorDriver driver = ModuleDriver().RunGeneratorsAndUpdateCompilation(initial, out _,
             out ImmutableArray<Diagnostic> first, context.CancellationToken);
-        Assert.AreEqual("ANKUS015", Assert.ContainsSingle(first).Id);
+        Assert.AreEqual(expected, Assert.ContainsSingle(first).Id);
         SyntaxTree current = CSharpSyntaxTree.ParseText(source, path: "CurrentPrefix.cs", cancellationToken: context.CancellationToken);
         CSharpCompilation moved = initial.ReplaceSyntaxTree(initial.SyntaxTrees.Single(), current);
         driver = driver.RunGeneratorsAndUpdateCompilation(moved, out Compilation invalid, out ImmutableArray<Diagnostic> second, context.CancellationToken);
         Diagnostic error = Assert.ContainsSingle(second);
 
-        Assert.AreEqual("ANKUS015", error.Id);
+        Assert.AreEqual(expected, error.Id);
+        Assert.AreEqual("https://willibrandon.github.io/ankus/configuration/#prefix-declaration-diagnostics", error.Descriptor.HelpLinkUri);
         Assert.AreSame(current, error.Location.SourceTree);
-        Assert.AreEqual(attribute, current.GetText(context.CancellationToken).ToString(error.Location.SourceSpan));
+        Assert.AreEqual(expression, current.GetText(context.CancellationToken).ToString(error.Location.SourceSpan));
         Assert.AreEqual(IncrementalStepRunReason.Cached, ModuleStep(driver, "GucPrefixEmission"));
         Assert.DoesNotContain("ankus_reserve_guc_prefix(", ManifestValue(invalid, "Ankus.NativeSource"));
         CSharpCompilation repaired = moved.ReplaceSyntaxTree(current, CSharpSyntaxTree.ParseText("[assembly: Ankus.PgGucPrefix(\"fixed\")]",

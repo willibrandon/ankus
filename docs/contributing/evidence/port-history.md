@@ -27516,3 +27516,221 @@ zero errors, warnings or hints. The fresh pre-commit CI record confirms primary
 CI **37426534475** and Docs **37426534451** pass for ec19b55. Earlier failed runs
 remain recorded with their verified replacement outcomes; no recent run is live.
 Replacement CI for the precise enum/backend-test milestone remains required.
+
+### Expanded callback declaration verification, 2026-10-06
+
+The expanded callback regressions run against the actual **5a11b8c** parent.
+All **54** precise cause/location expectations fail on its **ANKUS021** catch-all,
+while all **27** compiled handler, dispatcher and native-value controls pass.
+The **1,835** frozen baseline inputs match before and after the run; its actual
+source/report archive verifies all **1,838** files. Baseline command time is
+**14.552s**, including **4.132s** test time.
+
+An earlier expanded preparation is rejected because a static abstract method in
+a class is illegal C# and cannot exercise the intended callback contract. That
+case and the unreachable dedicated diagnostic are removed; the existing handler
+selection still rejects abstract methods. The supported container rule continues
+to reject interfaces. The draft now has **36** independently correctable contracts.
+
+The next corrected run catches two swapped diagnostic identities. Correcting
+the descriptors preserves all independent test expectations, exact authored spans,
+error severity and compiled controls. The rejected **79 passed / 2 failed** run
+retains its exact **1,839**-file source/report archive. The corrected **1,836**-input
+draft passes all **81** focused cases with zero failures/skips: **4.078s** test time
+and **10.782s** command time. All nine diagnostic/compiled-control partitions and
+frozen inputs independently verify. Complete combined generator and PostgreSQL
+acceptance remain required before promoting the draft.
+
+The matching main docs build passes. Its first deployment fails because GitHub's
+OIDC token request times out; the workflow already grants `id-token: write`.
+Retrying only the failed job succeeds in **37437330058**, attempt **2**, without
+changing source, permissions or the site layout. Primary **37437329994** has
+passed quality and all three runtime jobs; full platform suites are still running.
+
+The corrected callback/enum/backend-test composition subsequently passes the
+complete generator suite: **4,272 passed / zero failures / zero skips**, in
+**1m02.705s** test time and **1m04.249s** command time. Independent actual-report
+verification checks unique executions, all **158** callback cases, the nine
+new diagnostic/compiled-control partitions and seven existing declaration,
+movement and repair partitions. All **1,836** frozen inputs match before and
+after both the focused and complete runs. Plain, unsharded Linux/PostgreSQL
+**18.6** acceptance starts against this unchanged composition; native completion,
+documentation gates and source promotion remain required.
+
+### Callback validation toolchain correction and primary CI completion, 2026-10-06
+
+The first complete callback draft run is rejected: **13,165 total / 7,853 passed /
+5,264 failed / 48 platform skips**, in **3m12.174s**. Its inherited PATH omitted
+the installed LLVM compiler. Setting only the SDK header compiler path did not
+satisfy build-fixture Clang discovery or Native AOT's default compiler selection.
+All **4,941** integration failures occurred during shared initialization, before
+native tests ran; **323** build cases failed compiler discovery. The remaining
+four modules pass. This is not native acceptance.
+
+The private launcher now checks the selected installed compiler and passes its
+directory through the child PATH. An unchanged **1,836**-input composition starts
+a fresh plain, unsharded Linux/PostgreSQL **18.6** run with LLVM **23.1.2**. No
+analyzer, warning policy or production runtime code is relaxed. The rejected run's
+**1,845** source/report/driver files verify byte for byte in a **56,008,621**-byte
+retained archive. Its completed **742,196,883**-byte driver log is compressed to
+**44,106,687** bytes; decoding verifies its exact SHA-256 before deleting only the
+redundant original log.
+
+Primary **37437329994** now passes every job for **5a11b8c**. All eighteen actual
+reports independently verify **13,111** executions per platform: Linux **13,063
+passed / 48 skips**, macOS ARM64 **13,051 passed / 60 skips**, and Windows
+**13,083 passed / 28 skips**, with zero failures. All **67** required native
+ownership and recovery cases pass on each platform. Complete job durations are
+**39m55s**, **29m33s** and **38m03s**, respectively; no primary job times out.
+Docs **37437330058** passes after retrying only its GitHub OIDC timeout.
+
+### Precise configuration-prefix prototype, 2026-10-06
+
+The prefix draft separates null/nonconstant transport, embedded zero characters
+and malformed Unicode into **ANKUS347–349**, locating the actual positional or
+named argument or constant-field reference. The native emitter remains byte
+identical; literal case, empty prefixes, long strings, encoding ownership and
+PostgreSQL 13/14 versus 15+ registration behavior are preserved. The public help
+is prepared separately from accepted source.
+
+On unchanged **5a11b8c**, the **22** new cases execute: **17** precise diagnostic
+and invalid-sibling expectations fail on the original **ANKUS015** catch-all,
+while **5** exact compiled Unicode-boundary controls pass. Independent actual
+report verification confirms every baseline failure's cause. The correction
+passes all **54** affected cases, including all legacy literal, encoding,
+registration, duplicate-removal, current-tree repair and cache-inventory cases.
+The complete generator suite then passes **4,240** executions with zero
+failures/skips, in **59.124s** module time and **1m01.627s** command time.
+
+All **1,840** accepted authoring and isolated prototype inputs verify before and
+after each run. The focused baseline command takes **11.134s**; the corrected
+command takes **9.434s**. This prototype does not include the separately frozen
+native-callback correction. No test results are combined to claim native or
+another source composition's acceptance. Its **1,858**-file source/report archive
+is retained; normal combined native and documentation gates remain required
+before promotion.
+
+### Combined callback/prefix normal-source validation, 2026-10-06
+
+The exact tested callback draft and prefix prototype are composed into **1,837**
+ordinary source inputs. The freezer verifies all **1,834** unchanged accepted
+authoring inputs, all **1,836** callback inputs and the successful prefix prototype
+bytes before composing their release records. The existing macOS validator
+preserves replaced inputs and verifies every staged source byte; no overlay
+substitutions are used for this combined run.
+
+The first normal combined generator run is rejected: **4,294 total / 4,257
+passed / 37 failed / zero skips**, in **40.153s** module time and **51.087s**
+command time. All **37** actual failures independently verify the same missing
+child-process `dotnet` executable in the private launcher's PATH. The rejected
+report and exact launcher are retained. Adding the installed SDK directory to
+the child PATH resolves this setup error without changing the frozen production
+source or weakening any test.
+
+The fresh normal run passes all **4,294** cases, with zero failures/skips, in
+**43.048s** module time and **44.935s** command time. Every **1,837** input matches
+before and after execution. Independent actual-report verification checks all
+**158** callback cases and all **54** prefix cases, retaining exact diagnostic,
+compiled transport, valid sibling, handler, movement, repair and caching checks.
+The unchanged combined source starts plain, unsharded macOS ARM64/PostgreSQL
+**18.6** acceptance with the previously accepted **10.0.12-ankus.4** runtime
+payload. Full native completion, documentation gates and source promotion remain
+required; the separately running Linux callback draft is not combined with
+these reports to claim acceptance of this child.
+
+### Complete callback native acceptance, 2026-10-06
+
+After correcting only the private launcher's Clang selection and inherited PATH,
+the unchanged **1,836**-input callback draft passes plain, unsharded Linux
+x64/PostgreSQL **18.6** acceptance with runtime **10.0.12-ankus.4**: **13,165
+total / 13,117 passed / 48 platform skips / zero failures**. Tests take
+**42m52.195s** and the command takes **44m15.219s**; its actual SDK process exits
+zero. Every source input verifies before and after the invocation.
+
+Independent verification checks all six actual module reports, all **67** native
+recovery partitions and all **158** callback cases. The **1,848**-file source and
+actual-report archive matches every original byte and is copied into retained
+evidence. This is callback-only Linux evidence. The combined callback/prefix
+macOS run remains separate and live; no pending or different-source result is
+counted as its acceptance.
+
+### Precise module-identity prototype, 2026-10-06
+
+The accepted **5a11b8c** parent supplies the unchanged native module emitter.
+Four fixed-message diagnostics independently identify zero characters and
+malformed Unicode in `Name` and `Version`, pointing to each authored expression.
+Both invalid fields retain their own diagnostic. Project-default failures retain
+their absence of a source location. Exact UTF-8 bytes, empty values, null/default
+selection and PostgreSQL-version gating remain unchanged.
+
+The actual unchanged-validator baseline has **23 total / 4 passed / 19 failed /
+zero skips**; every failure independently verifies the old `ANKUS025` catch-all.
+The compiled Unicode-boundary controls pass. The corrected affected corpus has
+**51 passed / zero failures or skips**, and the complete generator suite has
+**4,241 passed / zero failures or skips**. Actual report identities and all field,
+default, movement, caching, repair and removal partitions independently verify.
+The complete command takes **59.607s**, with **57.018s** module time.
+
+All **1,840** accepted authoring and isolated prototype inputs verify before and
+after each invocation. This prototype does not include the pending callback/prefix
+composition; its counts are not combined with that child's evidence. Normal
+combined source, full native, public-guidance and promotion gates remain required.
+
+### Combined callback/prefix complete acceptance and promotion, 2026-10-06
+
+The unchanged **1,837** ordinary source inputs pass plain, unsharded macOS
+ARM64/PostgreSQL **18.6** acceptance with runtime **10.0.12-ankus.4**: **13,187
+total / 13,127 passed / 60 platform skips / zero failures**. Tests take
+**28m21.670s** and the command takes **29m17.922s**. The SDK exits zero, every
+source input matches afterwards, and all **39** patched-runtime payload inputs
+retain their exact hashes. The run removes its marked, owned consumer cache.
+
+Independent verification checks all six actual reports, all **67** native
+recovery partitions, all **158** callback cases and all **54** prefix cases.
+The **1,851**-file archive includes the exact source, actual complete and managed
+reports, source/runtime manifests and launch evidence. Every archived byte
+matches its original, and the retained copy has the same SHA-256 digest.
+Guarded promotion preserves earlier main inputs, promotes exactly **12**
+changed/new files and verifies all **1,837** final source inputs. Unrelated user
+changes and excluded public files remain untouched. Final Release, API freshness,
+site gates and replacement CI remain required at this point.
+
+Completed callback-only Linux scratch cleanup removes **432** owned temporary
+entries after retaining and verifying its acceptance archive. The rejected
+Clang-launcher report is retained byte-for-byte in its compressed archive; its
+redundant **738,715,209**-byte ordinary copy is removed only after proving the
+recorded SDK has ended and the archived bytes match. Accepted and rejected
+evidence are preserved; no running test or CI resource is deleted.
+
+### Combined module-identity normal-source validation, 2026-10-06
+
+The module correction is composed with the exact callback/prefix parent and its
+guarded public-guide preimage. The freezer verifies unchanged accepted authoring
+and all tested prototype inputs, then produces **1,839** ordinary source/guide
+inputs. It preserves all earlier declaration rules and replaces only the old
+module-identity catch-all with four precise transport contracts.
+
+The complete normal-source Linux generator suite passes **4,317** executions
+with zero failures/skips, in **1m04.224s** tests and **1m12.225s** command time.
+Every **1,839** input matches before and after. Independent actual-report checks
+verify all module identity, callback and prefix partitions. The separate
+unchanged-validator prototype and its **1,855**-file exact source/report archive
+remain retained. Plain, unsharded Linux x64/PostgreSQL **18.6** native acceptance
+starts with the same source and installed Clang preflight; it remains live.
+Full native, documentation and promotion gates are still required.
+
+### Callback/prefix final milestone gates, 2026-10-06
+
+The promoted ordinary source passes normal Release with **zero warnings and
+zero errors**, in **1m29.390s**. API freshness verifies **244** pages and **2,791**
+members. `pnpm check` reports zero errors, warnings or hints; `pnpm build` builds
+all **295** pages successfully. Every **1,837** accepted source input still
+matches after these gates. No API-page changes or relaxed diagnostics are needed.
+
+Immediately before committing, previous CI outcomes are checked again:
+**5a11b8c** CI **37437329994** and Docs **37437330058** remain complete and green,
+as do the earlier **ec19b55** replacement runs. The rejected **b2fe3e7** and
+**15efe37** checks remain recorded with their accepted replacements; none is
+hidden or counted as acceptance. No previous run is live. Replacement CI for
+the callback/prefix milestone remains required; independent module-identity
+native validation is still running.

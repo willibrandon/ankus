@@ -7,11 +7,9 @@ ANKUS003 | Ankus | Error | Invalid numeric precision or scale constraint
 ANKUS005 | Ankus | Error | Invalid custom SQL input or installation dependency graph
 ANKUS008 | Ankus | Error | Invalid PostgreSQL set result or table columns
 ANKUS009 | Ankus | Error | Invalid named composite type or TABLE column binding
-ANKUS015 | Ankus | Error | Invalid PostgreSQL configuration prefix
 ANKUS016 | Ankus | Error | Invalid raw PostgreSQL type or TABLE column binding
 ANKUS017 | Ankus | Error | Invalid PostgreSQL base type or storage codec
 ANKUS018 | Ankus | Error | Invalid generated PostgreSQL operators
-ANKUS021 | Ankus | Error | Invalid static native callback declaration or handler
 ANKUS024 | Ankus | Error | Ambiguous reference nullability in a SQL parameter or result
 ANKUS025 | Ankus | Error | Invalid PostgreSQL native module identity
 ANKUS026 | Ankus | Error | Invalid managed SQL dependency reference
@@ -299,3 +297,42 @@ ANKUS306 | Ankus | Error | PostgreSQL backend test catalog name is already decla
 ANKUS307 | Ankus | Error | Invalid PostgreSQL backend test expected error
 ANKUS308 | Ankus | Error | Invalid PostgreSQL backend test ignore text
 ANKUS309 | Ankus | Error | PostgreSQL backend test requires a nonempty ignore reason
+ANKUS310 | Ankus | Error | Native callback requires one declaration
+ANKUS311 | Ankus | Error | Native callback cannot declare a GUC
+ANKUS312 | Ankus | Error | Native callback property must be static
+ANKUS314 | Ankus | Error | Native callback cannot be an indexer
+ANKUS313 | Ankus | Error | Native callback property must return a value
+ANKUS315 | Ankus | Error | Native callback property requires a getter
+ANKUS316 | Ankus | Error | Native callback property cannot have a setter
+ANKUS317 | Ankus | Error | Native callback property must be partial
+ANKUS318 | Ankus | Error | Native callback property already has an implementation
+ANKUS319 | Ankus | Error | Native callback requires a class or struct
+ANKUS320 | Ankus | Error | Native callback cannot have a generic container
+ANKUS321 | Ankus | Error | Native callback cannot be file-local
+ANKUS322 | Ankus | Error | Native callback container must be partial
+ANKUS323 | Ankus | Error | Native callback requires a generated pointer type
+ANKUS324 | Ankus | Error | Native callback pointer metadata is invalid
+ANKUS325 | Ankus | Error | Native callback pointer requires one fixed Invoke signature
+ANKUS326 | Ankus | Error | Native callback pointer requires native address construction
+ANKUS327 | Ankus | Error | Native callback requires a handler name
+ANKUS328 | Ankus | Error | Native callback handler was not found
+ANKUS329 | Ankus | Error | Native callback handler is ambiguous
+ANKUS330 | Ankus | Error | Native callback has no matching overload
+ANKUS331 | Ankus | Error | Native callback requires an ordinary method
+ANKUS332 | Ankus | Error | Native callback handler must be static
+ANKUS334 | Ankus | Error | Native callback handler cannot be extern
+ANKUS335 | Ankus | Error | Native callback handler must be synchronous
+ANKUS336 | Ankus | Error | Native callback partial handler lacks a body
+ANKUS337 | Ankus | Error | Native callback handler cannot be generic
+ANKUS338 | Ankus | Error | Native callback handler cannot be variadic
+ANKUS339 | Ankus | Error | Native callback handler must return by value
+ANKUS340 | Ankus | Error | Native callback handler result is unsupported
+ANKUS341 | Ankus | Error | Native callback handler argument must be passed by value
+ANKUS342 | Ankus | Error | Native callback handler argument is unsupported
+ANKUS343 | Ankus | Error | Native callback handler cannot be unmanaged-only
+ANKUS344 | Ankus | Error | Native callback handler result does not match Invoke
+ANKUS345 | Ankus | Error | Native callback handler argument count does not match Invoke
+ANKUS346 | Ankus | Error | Native callback handler argument does not match Invoke
+ANKUS347 | Ankus | Error | Configuration prefix requires a nonnull string
+ANKUS348 | Ankus | Error | Configuration prefix cannot contain zero characters
+ANKUS349 | Ankus | Error | Configuration prefix requires well-formed Unicode

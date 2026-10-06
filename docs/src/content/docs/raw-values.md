@@ -358,6 +358,27 @@ wrapper still reports success. `ANKUS276` points at that attribute; remove it
 so every native invocation executes the handler. This rule applies even when
 the conditional symbol is currently defined.
 
+#### Native callback declaration diagnostics
+
+Callback errors identify the property, containing type, pointer type or
+handler signature that needs correction. They preserve the native prototype
+and reject an invalid declaration before emitting its callable boundary.
+
+| Diagnostics | Correction |
+| --- | --- |
+| `ANKUS310`–`ANKUS318` | Apply one callback attribute to a static partial getter-only property. Do not combine it with a GUC, an indexer, a reference result, a setter or an authored property implementation. |
+| `ANKUS319`–`ANKUS322` | Put the property in non-generic partial classes, structs or records. Every containing declaration must be partial and accessible from generated files, without `file`. |
+| `ANKUS323`–`ANKUS326` | Use the generated native function-pointer type from the selected PostgreSQL binding contract. It must retain its exact fixed `Invoke` signature and native-address constructor. |
+| `ANKUS327`–`ANKUS331` | Name one ordinary handler method with the exact native prototype. Correct missing, ambiguous or nonmatching overloads. |
+| `ANKUS332`, `ANKUS334`–`ANKUS338` | Use an implemented static synchronous handler, without generic arguments, `extern` or variable native arguments. A partial handler needs its implementation. |
+| `ANKUS339`, `ANKUS340`, `ANKUS344` | Return the exact supported native result type by value. |
+| `ANKUS341`, `ANKUS342`, `ANKUS345`, `ANKUS346` | Match every native argument's type and position, passing it by value. |
+| `ANKUS343` | Remove `UnmanagedCallersOnly` from the managed handler; Ankus generates the native entry boundary. |
+
+These checks preserve valid overload selection, private handlers and exact
+pointer, enum and native-structure values. `ANKUS276` continues to reject
+conditional handlers whose managed invocation could disappear.
+
 For example, install an executor hook and retain the previous hook explicitly:
 
 ```csharp

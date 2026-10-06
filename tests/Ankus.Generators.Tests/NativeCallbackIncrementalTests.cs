@@ -151,12 +151,14 @@ public sealed partial class PgFunctionGeneratorTests
     /// </summary>
     /// <param name="before">The valid contract to invalidate.</param>
     /// <param name="after">The unsupported replacement.</param>
+    /// <param name="expected">The precise callback diagnostic.</param>
+    /// <param name="highlight">The independently expected authored cause.</param>
     [TestMethod]
-    [DataRow("public static partial Hook Callback", "public partial Hook Callback")]
-    [DataRow("nameof(Handle)", "\"Missing\"")]
-    [DataRow("NativeFunctionPointer(7)", "NativeFunctionPointer(-1)")]
-    [DataRow("long Handle(int first", "long Handle(ref int first")]
-    public void NativeCallbackDiagnosticsUseCurrentSourceAndRecover(string before, string after)
+    [DataRow("public static partial Hook Callback", "public partial Hook Callback", "ANKUS312", "Callback")]
+    [DataRow("nameof(Handle)", "\"Missing\"", "ANKUS328", "\u0022Missing\u0022")]
+    [DataRow("NativeFunctionPointer(7)", "NativeFunctionPointer(-1)", "ANKUS324", "Hook")]
+    [DataRow("long Handle(int first", "long Handle(ref int first", "ANKUS341", "first")]
+    public void NativeCallbackDiagnosticsUseCurrentSourceAndRecover(string before, string after, string expected, string highlight)
     {
         string valid = CallbackCacheSource(includeOther: false);
         CSharpCompilation initial = ModuleCompilation(valid);
@@ -166,17 +168,17 @@ public sealed partial class PgFunctionGeneratorTests
             invalid, path: "Invalid.cs", cancellationToken: context.CancellationToken));
         driver = driver.RunGeneratorsAndUpdateCompilation(rejected, out _, out ImmutableArray<Diagnostic> diagnostics, context.CancellationToken);
         Diagnostic first = Assert.ContainsSingle(diagnostics);
-        Assert.AreEqual("ANKUS021", first.Id);
+        Assert.AreEqual(expected, first.Id);
         Assert.IsNull(CallbackProperties(driver));
 
         CSharpCompilation moved = rejected.ReplaceSyntaxTree(rejected.SyntaxTrees.Single(), CSharpSyntaxTree.ParseText(
             "\n\n" + invalid, path: "Moved.cs", cancellationToken: context.CancellationToken));
         driver = driver.RunGeneratorsAndUpdateCompilation(moved, out _, out diagnostics, context.CancellationToken);
         Diagnostic current = Assert.ContainsSingle(diagnostics);
-        Assert.AreEqual("ANKUS021", current.Id);
+        Assert.AreEqual(expected, current.Id);
         Assert.AreSame(moved.SyntaxTrees.Single(), current.Location.SourceTree);
         Assert.AreEqual(first.Location.GetLineSpan().StartLinePosition.Line + 2, current.Location.GetLineSpan().StartLinePosition.Line);
-        Assert.AreEqual("Callback", current.Location.SourceTree!.GetText(context.CancellationToken).ToString(current.Location.SourceSpan));
+        Assert.AreEqual(highlight, current.Location.SourceTree!.GetText(context.CancellationToken).ToString(current.Location.SourceSpan));
         Assert.IsNull(CallbackProperties(driver));
 
         driver = RunModule(driver, initial, out Compilation repaired);
@@ -264,7 +266,7 @@ public sealed partial class PgFunctionGeneratorTests
         CSharpCompilation invalid = ModuleCompilation(valid.Replace("nameof(Handle)", "\"Missing\"", StringComparison.Ordinal));
         GeneratorDriver driver = ModuleDriver().RunGeneratorsAndUpdateCompilation(invalid, out _, out ImmutableArray<Diagnostic> diagnostics,
             context.CancellationToken);
-        Assert.AreEqual("ANKUS021", Assert.ContainsSingle(diagnostics).Id);
+        Assert.AreEqual("ANKUS328", Assert.ContainsSingle(diagnostics).Id);
         Assert.IsNull(CallbackProperties(driver));
 
         CSharpCompilation empty = invalid.ReplaceSyntaxTree(invalid.SyntaxTrees.Single(), CSharpSyntaxTree.ParseText(

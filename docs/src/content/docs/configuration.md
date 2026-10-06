@@ -86,8 +86,20 @@ case insensitive. Use the same spelling consistently. Ankus passes the supplied
 text without normalizing it: a dotted prefix can remove matching existing
 placeholders but does not reserve a first component against future ones. Empty
 prefixes retain native behavior. Null, embedded zero characters, and malformed
-Unicode produce `ANKUS015`. Non-ASCII prefixes use the backend's database encoding;
+Unicode have separate [declaration diagnostics](#prefix-declaration-diagnostics). Non-ASCII prefixes use the backend's database encoding;
 shared-preload prefixes currently must be ASCII.
+
+### Prefix declaration diagnostics
+
+Each error identifies the constructor argument that needs correction, including
+named arguments and constant-field references. Invalid prefixes do not generate
+native calls; generated output for valid sibling prefixes remains intact.
+
+| Diagnostic | Required correction |
+| --- | --- |
+| `ANKUS347` | Supply a nonnull constant string. An empty prefix retains PostgreSQL's native behavior. |
+| `ANKUS348` | Remove embedded zero characters, which would truncate the native C string. |
+| `ANKUS349` | Replace unpaired UTF-16 surrogates with well-formed Unicode. Ankus preserves exact UTF-8 text without replacement. |
 
 ## Types and metadata
 

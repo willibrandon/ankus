@@ -9,9 +9,32 @@ namespace Ankus.Generators;
 /// </summary>
 internal static class GucPrefixDeclaration
 {
-    private static readonly DiagnosticDescriptor s_invalid = new(
-        "ANKUS015", "Invalid PostgreSQL configuration prefix", "{0}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true,
-        helpLinkUri: "https://willibrandon.github.io/ankus/configuration/#reserving-a-prefix");
+    /// <summary>
+    /// Requires one nonnull literal value before generating a native C string.
+    /// </summary>
+    private static readonly DiagnosticDescriptor s_value = new(
+        "ANKUS347", "Configuration prefix requires a nonnull string",
+        "Supply one nonnull constant string for the configuration prefix; an empty string retains PostgreSQL's native behavior",
+        "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true,
+        helpLinkUri: "https://willibrandon.github.io/ankus/configuration/#prefix-declaration-diagnostics");
+
+    /// <summary>
+    /// Rejects zero characters that would truncate the prefix at the native boundary.
+    /// </summary>
+    private static readonly DiagnosticDescriptor s_zero = new(
+        "ANKUS348", "Configuration prefix cannot contain zero characters",
+        "Remove embedded zero characters from the configuration prefix; PostgreSQL receives the complete null-terminated string",
+        "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true,
+        helpLinkUri: "https://willibrandon.github.io/ankus/configuration/#prefix-declaration-diagnostics");
+
+    /// <summary>
+    /// Rejects malformed Unicode instead of replacing it while encoding native input.
+    /// </summary>
+    private static readonly DiagnosticDescriptor s_unicode = new(
+        "ANKUS349", "Configuration prefix requires well-formed Unicode",
+        "Replace unpaired UTF-16 surrogate characters in the configuration prefix; Ankus preserves exact UTF-8 text without replacement",
+        "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true,
+        helpLinkUri: "https://willibrandon.github.io/ankus/configuration/#prefix-declaration-diagnostics");
 
     /// <summary>
     /// Reads valid prefixes without case folding or imposing SQL identifier restrictions.
@@ -24,10 +47,22 @@ internal static class GucPrefixDeclaration
         var prefixes = new SortedSet<string>(StringComparer.Ordinal);
         foreach (AttributeData attribute in attributes)
         {
-            if (attribute.ConstructorArguments.Length != 1 || attribute.ConstructorArguments[0].Value is not string prefix || !SqlText.IsText(prefix))
+            Location? location = FunctionDeclarationDiagnostics.ConstructorArgument(attribute, context.CancellationToken);
+            if (attribute.ConstructorArguments.Length != 1 || attribute.ConstructorArguments[0].Value is not string prefix)
             {
-                context.Report(s_invalid, attribute.ApplicationSyntaxReference?.GetSyntax(context.CancellationToken).GetLocation(),
-                    "A configuration prefix must be nonnull Unicode text without zero characters.");
+                context.Report(s_value, location);
+                continue;
+            }
+
+            if (prefix.Contains('\0'))
+            {
+                context.Report(s_zero, location);
+                continue;
+            }
+
+            if (!SqlText.IsText(prefix))
+            {
+                context.Report(s_unicode, location);
                 continue;
             }
 

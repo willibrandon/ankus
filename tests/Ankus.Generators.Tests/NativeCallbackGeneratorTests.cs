@@ -225,12 +225,13 @@ public sealed partial class PgFunctionGeneratorTests
     /// Unsupported containing declarations cannot accidentally produce inaccessible or open native entry points.
     /// </summary>
     /// <param name="container">The unsupported containing type declaration.</param>
+    /// <param name="expected">The independently required callback contract.</param>
     [TestMethod]
-    [DataRow("public class Functions")]
-    [DataRow("public partial class Functions<T>")]
-    [DataRow("file partial class Functions")]
-    [DataRow("public partial interface Functions")]
-    public void NativeCallbackDeclarationsRejectUnsupportedContainers(string container)
+    [DataRow("public class Functions", "ANKUS322")]
+    [DataRow("public partial class Functions<T>", "ANKUS320")]
+    [DataRow("file partial class Functions", "ANKUS321")]
+    [DataRow("public partial interface Functions", "ANKUS319")]
+    public void NativeCallbackDeclarationsRejectUnsupportedContainers(string container, string expected)
     {
         (_, ImmutableArray<Diagnostic> diagnostics) = Generate(CallbackTypeSource + $$"""
             {{container}}
@@ -241,8 +242,8 @@ public sealed partial class PgFunctionGeneratorTests
             }
             """);
         Diagnostic error = Assert.ContainsSingle(diagnostics);
-        Assert.AreEqual("ANKUS021", error.Id);
-        Assert.Contains("partial classes or structs", error.GetMessage(System.Globalization.CultureInfo.InvariantCulture));
+        Assert.AreEqual(expected, error.Id);
+        Assert.Contains("Functions", error.GetMessage(System.Globalization.CultureInfo.InvariantCulture));
     }
 
     /// <summary>
@@ -250,24 +251,25 @@ public sealed partial class PgFunctionGeneratorTests
     /// </summary>
     /// <param name="property">The candidate property declaration.</param>
     /// <param name="handler">The candidate handler declaration.</param>
+    /// <param name="expected">The independently required callback contract.</param>
     [TestMethod]
-    [DataRow("public partial Hook Callback { get; }", "private static long Handle(int first, long second) => second;")]
-    [DataRow("public static Hook Callback => default;", "private static long Handle(int first, long second) => second;")]
-    [DataRow("public static partial Hook Callback { get; set; }", "private static long Handle(int first, long second) => second;")]
-    [DataRow("public static partial Hook Callback { get; }", "private long Handle(int first, long second) => second;")]
-    [DataRow("public static partial Hook Callback { get; }", "private static long Handle<T>(int first, long second) => second;")]
-    [DataRow("public static partial Hook Callback { get; }", "private static long Handle(ref int first, long second) => second;")]
-    [DataRow("public static partial Hook Callback { get; }", "private static long Handle(in int first, long second) => second;")]
-    [DataRow("public static partial Hook Callback { get; }", "private static long Handle(out int first, long second) { first = 0; return second; }")]
-    [DataRow("public static partial Hook Callback { get; }", "private static long Handle(long first, long second) => second;")]
-    [DataRow("public static partial Hook Callback { get; }", "private static int Handle(int first, long second) => first;")]
-    [DataRow("public static partial Hook Callback { get; }", "private static async System.Threading.Tasks.Task<long> Handle(int first, long second) { await System.Threading.Tasks.Task.Yield(); return second; }")]
-    [DataRow("public static partial Hook Callback { get; }", "private static partial long Handle(int first, long second);")]
-    [DataRow("public static partial Hook Callback { get; }", "[System.Runtime.InteropServices.UnmanagedCallersOnly] private static long Handle(int first, long second) => second;")]
-    [DataRow("public static partial Hook Callback { get; }", "private static extern long Handle(int first, long second);")]
-    [DataRow("public static partial Hook Callback { get; }", "private static long Handle(int first, long second, __arglist) => second;")]
-    [DataRow("public static partial int Callback { get; }", "private static long Handle(int first, long second) => second;")]
-    public void NativeCallbackDeclarationsRejectInvalidContracts(string property, string handler)
+    [DataRow("public partial Hook Callback { get; }", "private static long Handle(int first, long second) => second;", "ANKUS312")]
+    [DataRow("public static Hook Callback => default;", "private static long Handle(int first, long second) => second;", "ANKUS317")]
+    [DataRow("public static partial Hook Callback { get; set; }", "private static long Handle(int first, long second) => second;", "ANKUS316")]
+    [DataRow("public static partial Hook Callback { get; }", "private long Handle(int first, long second) => second;", "ANKUS332")]
+    [DataRow("public static partial Hook Callback { get; }", "private static long Handle<T>(int first, long second) => second;", "ANKUS337")]
+    [DataRow("public static partial Hook Callback { get; }", "private static long Handle(ref int first, long second) => second;", "ANKUS341")]
+    [DataRow("public static partial Hook Callback { get; }", "private static long Handle(in int first, long second) => second;", "ANKUS341")]
+    [DataRow("public static partial Hook Callback { get; }", "private static long Handle(out int first, long second) { first = 0; return second; }", "ANKUS341")]
+    [DataRow("public static partial Hook Callback { get; }", "private static long Handle(long first, long second) => second;", "ANKUS346")]
+    [DataRow("public static partial Hook Callback { get; }", "private static int Handle(int first, long second) => first;", "ANKUS344")]
+    [DataRow("public static partial Hook Callback { get; }", "private static async System.Threading.Tasks.Task<long> Handle(int first, long second) { await System.Threading.Tasks.Task.Yield(); return second; }", "ANKUS335")]
+    [DataRow("public static partial Hook Callback { get; }", "private static partial long Handle(int first, long second);", "ANKUS336")]
+    [DataRow("public static partial Hook Callback { get; }", "[System.Runtime.InteropServices.UnmanagedCallersOnly] private static long Handle(int first, long second) => second;", "ANKUS343")]
+    [DataRow("public static partial Hook Callback { get; }", "private static extern long Handle(int first, long second);", "ANKUS334")]
+    [DataRow("public static partial Hook Callback { get; }", "private static long Handle(int first, long second, __arglist) => second;", "ANKUS338")]
+    [DataRow("public static partial int Callback { get; }", "private static long Handle(int first, long second) => second;", "ANKUS323")]
+    public void NativeCallbackDeclarationsRejectInvalidContracts(string property, string handler, string expected)
     {
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(CallbackTypeSource + $$"""
             public partial class Functions
@@ -278,7 +280,7 @@ public sealed partial class PgFunctionGeneratorTests
             }
             """);
         Diagnostic error = Assert.ContainsSingle(diagnostics);
-        Assert.AreEqual("ANKUS021", error.Id);
+        Assert.AreEqual(expected, error.Id);
         Assert.AreEqual(DiagnosticSeverity.Error, error.Severity);
         Assert.IsTrue(error.Location.IsInSource);
         Assert.IsEmpty(compilation.GetTypeByMetadataName("Functions")!.GetTypeMembers()
@@ -300,20 +302,21 @@ public sealed partial class PgFunctionGeneratorTests
     /// </summary>
     /// <param name="original">The valid native pointer contract fragment.</param>
     /// <param name="replacement">A missing, malformed or ambiguous contract fragment.</param>
+    /// <param name="expected">The independently required callback contract.</param>
     [TestMethod]
-    [DataRow("[Ankus.CompilerServices.NativeFunctionPointer(7)]", "")]
-    [DataRow("[Ankus.CompilerServices.NativeFunctionPointer(7)]", "[Ankus.CompilerServices.NativeFunctionPointer(-1)]")]
-    [DataRow("[Ankus.CompilerServices.NativeFunctionPointer(7)]", "[Ankus.CompilerServices.NativeFunctionPointer(7), Ankus.CompilerServices.NativeFunctionPointer(8)]")]
-    [DataRow("Hook(void* address)", "Hook(nint address)")]
-    [DataRow("Hook(void* address)", "Hook(int* address)")]
-    [DataRow("public long Invoke(int first, long second)", "private long Invoke(int first, long second)")]
-    [DataRow("public long Invoke(int first, long second)", "public static long Invoke(int first, long second)")]
-    [DataRow("public long Invoke(int first, long second)", "public long Invoke<T>(int first, long second)")]
-    [DataRow("public long Invoke(int first, long second)", "public long Invoke(ref int first, long second)")]
-    [DataRow("public long Invoke(int first, long second)", "public long Invoke(int first, long second, __arglist)")]
-    [DataRow("public long Invoke(int first, long second)", "public long Invoke() => 0; public long Invoke(int first, long second)")]
-    [DataRow("public long Invoke(int first, long second)", "public decimal Invoke(int first, long second)")]
-    public void NativeCallbackDeclarationsRejectInvalidMetadata(string original, string replacement)
+    [DataRow("[Ankus.CompilerServices.NativeFunctionPointer(7)]", "", "ANKUS324")]
+    [DataRow("[Ankus.CompilerServices.NativeFunctionPointer(7)]", "[Ankus.CompilerServices.NativeFunctionPointer(-1)]", "ANKUS324")]
+    [DataRow("[Ankus.CompilerServices.NativeFunctionPointer(7)]", "[Ankus.CompilerServices.NativeFunctionPointer(7), Ankus.CompilerServices.NativeFunctionPointer(8)]", "ANKUS324")]
+    [DataRow("Hook(void* address)", "Hook(nint address)", "ANKUS326")]
+    [DataRow("Hook(void* address)", "Hook(int* address)", "ANKUS326")]
+    [DataRow("public long Invoke(int first, long second)", "private long Invoke(int first, long second)", "ANKUS325")]
+    [DataRow("public long Invoke(int first, long second)", "public static long Invoke(int first, long second)", "ANKUS325")]
+    [DataRow("public long Invoke(int first, long second)", "public long Invoke<T>(int first, long second)", "ANKUS325")]
+    [DataRow("public long Invoke(int first, long second)", "public long Invoke(ref int first, long second)", "ANKUS325")]
+    [DataRow("public long Invoke(int first, long second)", "public long Invoke(int first, long second, __arglist)", "ANKUS325")]
+    [DataRow("public long Invoke(int first, long second)", "public long Invoke() => 0; public long Invoke(int first, long second)", "ANKUS325")]
+    [DataRow("public long Invoke(int first, long second)", "public decimal Invoke(int first, long second)", "ANKUS325")]
+    public void NativeCallbackDeclarationsRejectInvalidMetadata(string original, string replacement, string expected)
     {
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(
             CallbackTypeSource.Replace(original, replacement, StringComparison.Ordinal) + """
@@ -325,22 +328,23 @@ public sealed partial class PgFunctionGeneratorTests
             }
             """);
         Diagnostic error = Assert.ContainsSingle(diagnostics);
-        Assert.AreEqual("ANKUS021", error.Id);
+        Assert.AreEqual(expected, error.Id);
         Assert.AreEqual(DiagnosticSeverity.Error, error.Severity);
-        Assert.Contains("complete fixed Invoke signature", error.GetMessage(System.Globalization.CultureInfo.InvariantCulture));
+        Assert.Contains("Callback", error.GetMessage(System.Globalization.CultureInfo.InvariantCulture));
         Assert.IsEmpty(compilation.GetTypeByMetadataName("Functions")!.GetTypeMembers());
     }
 
     /// <summary>
-    /// Missing and blank static handler names fail at the property declaration without generating an entry point.
+    /// Missing and blank static handler names fail at the explicit name expression without generating an entry point.
     /// </summary>
     /// <param name="name">The attribute argument expression.</param>
+    /// <param name="expected">The independently required callback contract.</param>
     [TestMethod]
-    [DataRow("null")]
-    [DataRow("\"\"")]
-    [DataRow("\" \"")]
-    [DataRow("\"Absent\"")]
-    public void NativeCallbackDeclarationsRejectMissingHandler(string name)
+    [DataRow("null", "ANKUS327")]
+    [DataRow("\"\"", "ANKUS327")]
+    [DataRow("\" \"", "ANKUS327")]
+    [DataRow("\"Absent\"", "ANKUS328")]
+    public void NativeCallbackDeclarationsRejectMissingHandler(string name, string expected)
     {
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(CallbackTypeSource + $$"""
             public static partial class Functions
@@ -350,7 +354,7 @@ public sealed partial class PgFunctionGeneratorTests
             }
             """);
         Diagnostic error = Assert.ContainsSingle(diagnostics);
-        Assert.AreEqual("ANKUS021", error.Id);
+        Assert.AreEqual(expected, error.Id);
         Assert.IsTrue(error.Location.IsInSource);
         Assert.IsEmpty(compilation.GetTypeByMetadataName("Functions")!.GetTypeMembers());
     }
@@ -378,8 +382,10 @@ public sealed partial class PgFunctionGeneratorTests
             }
             """);
         Diagnostic error = Assert.ContainsSingle(diagnostics);
-        Assert.AreEqual("ANKUS021", error.Id);
-        Assert.Contains("synchronous", error.GetMessage(System.Globalization.CultureInfo.InvariantCulture));
+        Assert.AreEqual("ANKUS335", error.Id);
+        Assert.AreEqual("'Callback' cannot use async handler 'Handle'; finish work on the calling PostgreSQL thread before returning",
+            error.GetMessage(System.Globalization.CultureInfo.InvariantCulture));
+        Assert.AreEqual("async", error.Location.SourceTree!.GetText(context.CancellationToken).ToString(error.Location.SourceSpan));
         Assert.IsEmpty(compilation.GetTypeByMetadataName("Functions")!.GetTypeMembers());
     }
 
