@@ -71,7 +71,7 @@ jobs:
     needs: runtime
     if: github.repository == 'willibrandon/ankus' && github.actor == 'willibrandon' && github.triggering_actor == 'willibrandon' && github.ref == 'refs/heads/main'
     runs-on: [self-hosted, macOS, X64, ankus-macos-x64]
-    timeout-minutes: 60
+    timeout-minutes: 360
     steps:
       - uses: actions/checkout@v5
 

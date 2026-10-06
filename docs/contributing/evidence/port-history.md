@@ -28622,3 +28622,23 @@ suites remain in progress. Additional-platform run **37529141287** has a success
 runtime job and its complete Intel macOS suite remains in progress. The older docs
 deployment **37521629544** remains at GitHub's manual environment-approval gate and
 consumes no runner.
+
+## Intel macOS timeout correction — 2026-10-06
+
+[Additional-platform run 37529141287](https://github.com/willibrandon/ankus/actions/runs/37529141287)
+proves the SDK correction reached the complete Intel suite. The runtime job passed
+in **54s**, and the test job completed its build in **5m39s**. The full test step
+then ran for **54m26s** until the workflow's inherited 60-minute job limit cancelled
+it. GitHub reported no test failure; the job exhausted its configured time while
+the suite was still running.
+
+The scheduled Intel suite now uses GitHub Actions' **360-minute** maximum so a
+slow but progressing full-suite run can finish. The runtime prerequisite job keeps
+its 60-minute limit because it completes in minutes and a longer run there would
+indicate a separate failure. Replacement complete Intel evidence remains pending.
+
+At this correction point, primary **37523266946** is complete and successful.
+Primary **37529095529** remains in progress. Docs **37529095595** and
+**37535642827** are successful. PostgreSQL-version run **37535673236** has a
+successful runtime job and its first major-version suite in progress; the other
+cells are queued. Platform-version run **37535673204** remains queued.

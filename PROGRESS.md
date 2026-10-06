@@ -141,8 +141,9 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   x64/PostgreSQL 18 suite with zero failures.
 - A private Intel macOS x64 runner is online with macOS **15.8.1**, PostgreSQL
   **18.6** and LLVM **20.1.8**. The additional-platform workflow now selects its
-  generic repository label only for owner-triggered `main` runs, retains the
-  **60-minute** job limit and uses persistent local package/binding caches. Initial
+  generic repository label only for owner-triggered `main` runs, gives the complete
+  x64 suite GitHub's **360-minute** job limit and uses persistent local
+  package/binding caches. Initial
   provisioning exposed a missing `pkg-config` installation and an unset macOS SDK
   root during Native AOT linking. The dependency is installed; runtime builds now
   select Apple Clang and the active SDK explicitly while binding generation retains
@@ -154,7 +155,8 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   for its own build and the following test step while retaining LLVM 20 as the
   binding frontend. An exact Intel Native AOT extension publish passes, followed
   by all **1,223** build-tool cases with zero failures and nine platform skips.
-  The first complete live suite remains pending.
+  The first corrected complete live suite ran for **54m26s** before the inherited
+  60-minute job limit cancelled it; the six-hour replacement run remains pending.
 - Function-provider diagnostics pass complete Linux/PostgreSQL **18.6** acceptance:
   **13,365** total, zero failures. All **1,853** ordinary source inputs and the
   exact **2,038**-file evidence archive verify; ten changed/new files are promoted.
