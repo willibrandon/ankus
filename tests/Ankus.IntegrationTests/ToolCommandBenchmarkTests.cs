@@ -23,12 +23,17 @@ public sealed partial class ToolCommandTests
         Assert.DoesNotContain("ankus_bench_", installationSql);
 
         const string Group = "integration-benchmark";
-        var cluster = new PostgresDevelopmentCluster(s_installation, s_home);
+        PostgresInstallation installation = s_installation.Version.Major >= 18
+            ? s_installation
+            : _caseInstallation?.Installation
+                ?? throw new InvalidOperationException("The benchmark test has no reserved PostgreSQL installation.");
+        string[] options = ["--home", s_home, "--pg", MajorText(), "--pg-config", installation.PgConfigPath,
+            "--project", s_project, "--configuration", "Release"];
+        var cluster = new PostgresDevelopmentCluster(installation, s_home);
         try
         {
             ProcessResult run = await InvokeAsync(
-                ["bench", "Success", "--home", s_home, "--pg", MajorText(), "--project", s_project,
-                    "--configuration", "Release", "--group-name", Group, "--resetdb"], token);
+                ["bench", "Success", .. options, "--group-name", Group, "--resetdb"], token);
             Assert.AreEqual(0, run.ExitCode, run.StandardOutput + run.StandardError);
             Assert.Contains("Benchmarking " + InsertBenchmark, run.StandardOutput);
             Assert.Contains(" ns", run.StandardOutput);
@@ -58,8 +63,7 @@ public sealed partial class ToolCommandTests
             try
             {
                 ProcessResult emptyReport = await InvokeAsync(
-                    ["bench", "--home", s_home, "--pg", MajorText(), "--project", s_project,
-                        "--configuration", "Release", "--database", EmptyDatabase, "--report"], token);
+                    ["bench", .. options, "--database", EmptyDatabase, "--report"], token);
                 Assert.AreEqual(1, emptyReport.ExitCode, emptyReport.StandardOutput + emptyReport.StandardError);
                 Assert.Contains("No benchmark history is available", emptyReport.StandardError);
                 string emptyConnection = await cluster.GetConnectionStringAsync(EmptyDatabase, token);
@@ -85,8 +89,7 @@ public sealed partial class ToolCommandTests
                 },
             })
             {
-                string[] arguments = ["bench", "SuccessAddNumeric", "--home", s_home, "--pg", MajorText(),
-                    "--project", s_project, "--configuration", "Release", "--group-name", "persistent-session",
+                string[] arguments = ["bench", "SuccessAddNumeric", .. options, "--group-name", "persistent-session",
                     "--no-build", "--wait", "10"];
                 foreach (string argument in arguments)
                 {
@@ -122,8 +125,7 @@ public sealed partial class ToolCommandTests
             }
 
             ProcessResult report = await InvokeAsync(
-                ["bench", "--home", s_home, "--pg", MajorText(), "--project", s_project,
-                    "--configuration", "Release", "--report", "--json"], token);
+                ["bench", .. options, "--report", "--json"], token);
             Assert.AreEqual(0, report.ExitCode, report.StandardOutput + report.StandardError);
             using JsonDocument history = JsonDocument.Parse(report.StandardOutput);
             JsonElement entry = history.RootElement.EnumerateArray().Single(value =>
@@ -156,8 +158,7 @@ public sealed partial class ToolCommandTests
                 automatic.GetProperty("result").GetProperty("comparison").ValueKind);
 
             ProcessResult comparisonRun = await InvokeAsync(
-                ["bench", "SuccessAddNumeric", "--home", s_home, "--pg", MajorText(), "--project", s_project,
-                    "--configuration", "Release", "--group-name", "comparison", "--compare-group", Group,
+                ["bench", "SuccessAddNumeric", .. options, "--group-name", "comparison", "--compare-group", Group,
                     "--no-build", "--json"], token);
             Assert.AreEqual(0, comparisonRun.ExitCode, comparisonRun.StandardOutput + comparisonRun.StandardError);
             using JsonDocument comparisonOutput = JsonDocument.Parse(comparisonRun.StandardOutput);
@@ -167,8 +168,7 @@ public sealed partial class ToolCommandTests
             Assert.AreEqual(0.95, comparison.GetProperty("mean").GetProperty("confidence_level").GetDouble(), 0.000_001);
 
             ProcessResult failureRun = await InvokeAsync(
-                ["bench", "Failure", "--home", s_home, "--pg", MajorText(), "--project", s_project,
-                    "--configuration", "Release", "--group-name", "failure", "--no-build", "--json"], token);
+                ["bench", "Failure", .. options, "--group-name", "failure", "--no-build", "--json"], token);
             Assert.AreEqual(1, failureRun.ExitCode, failureRun.StandardOutput + failureRun.StandardError);
             using JsonDocument failureOutput = JsonDocument.Parse(failureRun.StandardOutput);
             JsonElement failed = Assert.ContainsSingle(failureOutput.RootElement.GetProperty("benchmarks").EnumerateArray());

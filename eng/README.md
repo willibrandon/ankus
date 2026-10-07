@@ -8,7 +8,8 @@ repository root with `dotnet run --file`.
 | `Ankus.Ci.cs` | Validate, build, test, pack, and publish Ankus and its pinned Native AOT runtime. |
 | `Ankus.SqlStates.cs` | Regenerate or check the named SQLSTATE catalog from pinned PostgreSQL source tags. |
 | `Ankus.Oids.cs` | Regenerate or check the version-aware built-in OID catalog from pinned pgrx sources. |
-| `Ankus.Bindings.cs` | Regenerate or check native declarations, node cast graphs, header manifests and attribution from pinned pgrx bindings. |
+| `Ankus.Bindings.cs` | Regenerate or check native declarations, node cast graphs and attribution from pinned pgrx bindings; check mode also verifies the source-derived header bytes. |
+| `Ankus.Headers.cs` | Regenerate or check one header manifest directly from an installed PostgreSQL 13–19 server-header tree. |
 | `Ankus.Templates.cs` | Stage the shared extension, worker and optional test-framework assets for the version-matched template package. |
 | `Ankus.BuildTimings.cs` | Read individual binding-task durations and cache outcomes from retained MSBuild binary logs without exposing command arguments. |
 
@@ -278,9 +279,24 @@ generation stay inside the build tool without exposing its internals.
 See the [catalog inventory](../src/Ankus.Build/Bindings/README.md) for the pinned
 declaration counts and remaining runtime binding scope.
 
-The same command refreshes each major's pgrx header include manifest and the
-upstream license notice. These inputs are packaged with the build tool so an
-installed SDK does not need a pgrx checkout to measure a server's native layouts.
+The same command refreshes the upstream license notice. In check mode it also
+verifies that the source-derived manifests still match the pinned pgrx release,
+without writing them. Header manifests come directly from each installed
+PostgreSQL version rather than copying pgrx's generated output:
+
+```text
+dotnet run --file ./eng/Ankus.Headers.cs -- 18 /path/to/pg_config
+dotnet run --file ./eng/Ankus.Headers.cs -- 18 /path/to/pg_config --check
+```
+
+Run the command once for every supported major from 13 through 19. It applies
+pgrx 0.19.3's directory, explicit-file and exclusion rules, then writes the
+deterministically sorted `src/Ankus.Build/Bindings/pgXX.h` manifest. Missing
+optional headers remain absent for older majors. Linux full-suite CI checks the
+selected major before executing its tests. Primary PostgreSQL 18 CI plus the
+scheduled 13–17 and 19 matrix therefore check all seven manifests. These inputs
+are packaged with the build tool so an installed SDK does not need a pgrx checkout
+to measure a server's native layouts.
 
 For layout development, compile and run the selected header probe:
 

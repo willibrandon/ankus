@@ -28421,11 +28421,12 @@ claimed as completed safety or API acceptance.
 All seven checked-in header manifests match release bytes exactly, with **481,
 490, 497, 501, 508, 524 and 535** direct includes. Actual catalog `--check` passes
 PostgreSQL **13–19**, including the expanded native inventories. OID freshness
-passes **349** native names and **339** numeric members. The source-derived header
-maintenance command must discover the selected server's headers with upstream's
-deliberate exclusions and version/platform guards; it remains required, implemented
-as .NET automation. Newly exposed contracts, CLI/source-case reconciliation,
-allocation measurement and complete current version/platform acceptance stay open.
+passes **349** native names and **339** numeric members. The source-derived .NET
+maintenance command now discovers each selected server's headers with upstream's
+deliberate exclusions, formatting and version guard; all seven installed-major
+checks byte-match the release. Newly exposed contracts, CLI/source-case
+reconciliation, allocation measurement and complete current version/platform
+acceptance stay open.
 
 ## Seventeen-commit review: reproduced corrections and rejected native draft
 
@@ -28699,3 +28700,105 @@ Primary **37536873073** has green quality, runtime, Linux and macOS ARM64 jobs;
 its Windows suite is still running. Platform-version run **37535673204** has
 green macOS 15/16 cells and the two Windows failures corrected above. Replacement
 version-matrix CI remains required after the fixes are pushed.
+
+## Source-derived PostgreSQL header manifests — 2026-10-06
+
+pgrx v0.19.3 generates each `pgXX.h` include manifest from the installed
+PostgreSQL server-header tree. Ankus previously copied pgrx's generated files
+while regenerating the other pinned binding catalogs. The build tool now applies
+the release script's directory globs, explicit optional files, exclusions,
+ordinal ordering, license preamble and PostgreSQL 13 compatibility tail itself.
+Catalog regeneration no longer owns these manifests, while its check mode still
+compares them with the pinned release as an independent drift guard. A path-scoped
+Git attribute keeps the generated headers LF-normalized on Windows as well as
+Unix hosts.
+
+The repository maintenance command accepts one PostgreSQL major and its
+`pg_config`, verifies the discovered server major and writes or checks the exact
+manifest. Linux full-suite CI runs the check after building the test solution and
+before executing any tests. Primary
+PostgreSQL 18 CI and the scheduled PostgreSQL 13–17 and 19 matrix therefore
+exercise every supported manifest against the selected installation.
+
+Real installed PostgreSQL **13.23**, **14.24**, **15.19**, **16.15**, **17.11**,
+**18.6** and **19beta4** checks all pass. The seven results byte-match pgrx
+v0.19.3 and contain **481**, **490**, **497**, **501**, **508**, **524** and
+**535** includes. The two focused generator cases pass **2/2**. The complete
+Linux x64/PostgreSQL 18 suite passes **13,447** total: **13,399** passed, **48**
+platform skips and zero failures in **42m02.194s**. Its modules are Build
+**1,234/1,225/9**, Hello **5/5/0**, Generators **4,470/4,470/0**, PgConfig
+**483/459/24**, Runtime **2,237/2,237/0** and Integration
+**5,018/5,003/15**. After the final manifest edge correction, the exact-current
+build-tool module again passes all **1,234** cases with the same nine platform
+skips and zero failures in **35.541s**. The exact-current Release solution build
+has zero warnings and errors in **1m51.57s**. API generation verifies **244**
+pages and **2,791** members; the site builds **295** pages and reports zero
+errors, warnings or hints.
+
+Primary run **37553492957** at **9ecf554** exposed four benchmark API pages that
+were omitted from the preceding benchmark commit. Its quality job failed only
+the generated API freshness check; the Release build passed with zero warnings
+and errors. The four pages are regenerated in this milestone. All three runtime
+jobs passed. The complete Linux, macOS ARM64 and Windows suites subsequently
+passed as well, so the stale API pages are the run's only failed gate. Earlier
+primary run **37536873073** and dedicated Intel run **37536883192** are complete
+and successful.
+
+The first current version-matrix attempt, run **37553518760** at **9ecf554**,
+then exposed an independent pre-18 test-fixture defect. Both PostgreSQL 13 and
+14 complete integration modules reached
+`BenchRunsInBackendAndPersistsResultsOutsideMeasurementTransaction` after
+**5,001** passing cases and **15** platform skips, but that test directed
+`ankus bench` at the root-owned system installation. PostgreSQL releases before
+18 have no `extension_control_path`, so the command correctly attempted to
+install its benchmark library and control files into that installation and was
+denied while creating the atomic library temporary file.
+
+Package-consumer tests already reserve a writable relocated PostgreSQL copy for
+each active pre-18 case. The benchmark test now explicitly selects that copy for
+every command and for the development cluster, while PostgreSQL 18 and later
+retain the custom control/library search-path staging. This repairs the fixture
+without weakening installation permissions or changing the product's install
+semantics. A focused PostgreSQL 14 rerun passes the real in-backend benchmark case
+in **4m37.240s**. The superseded matrix was canceled after the known failures;
+its PostgreSQL 17 and 19 cells therefore provide no replacement evidence.
+Replacement complete supported-major evidence remains pending.
+
+The same run placed PostgreSQL 15 and 16 on two newly registered matrix services.
+Both stopped before the test build because those hosts initially provided only
+PostgreSQL 18. Supported PostgreSQL 13–18 and 19 beta 4 server/development
+packages are now installed there; every `pg_config`, server-header tree and the
+Valgrind prerequisite verifies. The workflow's former fixed one-job strategy is
+now an adjustable dispatch/repository limit. Three eligible services can execute
+independent version cells concurrently while retaining one complete unsharded
+suite per cell. Replacement supported-major evidence remains pending.
+
+[Platform-version run 37553505757](https://github.com/willibrandon/ankus/actions/runs/37553505757)
+at **9ecf554** passes both macOS ARM64 cells and Windows/PostgreSQL 13, then
+exposes two independent Windows/PostgreSQL 18 fixture failures. An installed
+template's Native AOT Source Link input reached exactly **260 characters** under
+the second runner's longer temporary prefix. The Microsoft linker could not open
+that generated file. The fixture now asks the operating system for a compact,
+unique owned directory while retaining the authored child paths with spaces and
+all Source Link settings.
+
+The SQL-text regression also assumed a physical CRLF inside an extension script
+would reach PostgreSQL unchanged. PostgreSQL's Windows `read_whole_file` path
+deliberately removes the carriage return from every physical CRLF before parsing
+the script. The fixture still verifies that publication preserves physical CRLF
+and lone carriage returns exactly. Its backend expectation now accounts for
+PostgreSQL's documented Windows parsing step while retaining the exact CRLF
+result on Unix. Product SQL generation and consumer-authored SQL remain
+unchanged. Replacement Windows/PostgreSQL 18 evidence remains pending.
+
+The expanded-inventory audit now covers each contract shape that header counts
+alone cannot prove. All seven catalogs retain the exact `ExecInitCustomScan` and
+`pg_checksum_page` signatures, the complete `Barrier` field graph and mutable
+`max_prepared_xacts` storage. PostgreSQL 18 and 19 retain every
+`CopyFromRoutine` callback signature from `commands/copyapi.h`. The installed
+test extension reads `max_prepared_xacts` through generated native global access
+and compares it with PostgreSQL's setting system, alongside the existing real
+hash and overflow-helper cases. Focused PostgreSQL 18 backend validation passes
+**16/16** in **4m27.175s**, including that global and the corrected SQL-text
+fixture. The complete Linux x64/PostgreSQL 18 suite and exact-current build-tool
+rerun pass as recorded above. Replacement supported-major results remain pending.

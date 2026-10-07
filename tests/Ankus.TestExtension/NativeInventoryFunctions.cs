@@ -9,6 +9,19 @@ namespace Ankus.TestExtension;
 public static class NativeInventoryFunctions
 {
     /// <summary>
+    /// Reads PostgreSQL's configured prepared-transaction capacity from native global storage.
+    /// </summary>
+    /// <returns>The configured maximum number of prepared transactions.</returns>
+    [PgFunction]
+    public static int MaxPreparedTransactions()
+    {
+        unsafe
+        {
+            return NativeGlobals.max_prepared_xacts;
+        }
+    }
+
+    /// <summary>
     /// Hashes the exact integer bits with PostgreSQL's native unsigned helper.
     /// </summary>
     /// <param name="value">The integer bit pattern.</param>

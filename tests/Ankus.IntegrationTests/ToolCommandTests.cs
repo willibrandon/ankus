@@ -39,8 +39,7 @@ public sealed partial class ToolCommandTests(TestContext context)
         context.WriteLine($"Package-consumer concurrency: {s_concurrentCases}; logical processors: {Environment.ProcessorCount}.");
         CancellationToken token = context.CancellationToken;
         string repository = IntegrationEnvironment.RepositoryRoot;
-        s_root = IntegrationEnvironment.PhysicalDirectory(Directory.CreateDirectory(
-            Path.Combine(Path.GetTempPath(), "ankus package tests " + Guid.NewGuid().ToString("N"))));
+        s_root = IntegrationEnvironment.PhysicalDirectory(Directory.CreateTempSubdirectory("ankus-"));
         s_home = Path.Combine(s_root, "Ankus home");
         s_published = Path.Combine(s_root, "published extension");
         s_installation = await IntegrationEnvironment.GetInstallationAsync(token);
@@ -1165,7 +1164,7 @@ public sealed partial class ToolCommandTests(TestContext context)
 
     private static string CreateDirectory()
     {
-        string path = Path.Combine(s_root, "case " + Guid.NewGuid().ToString("N"));
+        string path = Path.Combine(s_root, "case-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(path);
         return path;
     }

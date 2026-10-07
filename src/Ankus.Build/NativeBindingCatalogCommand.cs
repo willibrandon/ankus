@@ -34,9 +34,11 @@ internal static class NativeBindingCatalogCommand
             };
             await WriteAsync(Path.Combine(arguments[1], $"pg{major}.raw.json"),
                 JsonSerializer.Serialize(raw, options) + "\n", arguments.Length == 3);
-            string headers = await ReadSourceAsync(arguments[0], Revision, $"pgrx-pg-sys/include/pg{major}.h");
-            headers = string.Join('\n', headers.Split('\n').Select(static line => line.TrimEnd()));
-            await WriteAsync(Path.Combine(arguments[1], $"pg{major}.h"), headers, arguments.Length == 3);
+            if (arguments.Length == 3)
+            {
+                string headers = await ReadSourceAsync(arguments[0], Revision, $"pgrx-pg-sys/include/pg{major}.h");
+                await WriteAsync(Path.Combine(arguments[1], $"pg{major}.h"), headers, check: true);
+            }
 
             NativeBindingType[] nodes = [.. catalog.Types.Values.Where(static type => type.IsNode)];
             Console.WriteLine($"PG{major}: {catalog.Tags.Count} tags, {nodes.Length} nodes, {nodes.Sum(static type => type.Fields.Count)} node fields, " +

@@ -50,7 +50,8 @@ The synchronous work to measure.
 
 ### IterateBatched&lt;TInput&gt;(Func&lt;TInput&gt;, Action&lt;TInput&gt;, PgBenchmarkBatchSize)
 
-Registers a loop whose input setup is excluded from measured work.
+Registers a loop that prepares one input immediately before each invocation.
+Input preparation is included in the elapsed sample.
 
 ```csharp
 public void IterateBatched<TInput>(Func<TInput> setup, Action<TInput> routine, PgBenchmarkBatchSize batchSize)
@@ -80,7 +81,8 @@ The input batching strategy.
 
 ### IterateBatched&lt;TInput, TResult&gt;(Func&lt;TInput&gt;, Func&lt;TInput, TResult&gt;, PgBenchmarkBatchSize)
 
-Registers a result-producing loop whose input setup is excluded from measured work.
+Registers a result-producing loop that prepares one input immediately before each invocation.
+Input preparation is included in the elapsed sample.
 
 ```csharp
 public void IterateBatched<TInput, TResult>(Func<TInput> setup, Func<TInput, TResult> routine, PgBenchmarkBatchSize batchSize)

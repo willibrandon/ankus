@@ -36,7 +36,7 @@ public PgBenchmarkAttribute()
 
 ### MeasurementTimeMilliseconds
 
-Gets or sets the target total measurement time in milliseconds.
+Gets or sets the positive target total measurement time in milliseconds.
 
 ```csharp
 public int MeasurementTimeMilliseconds { get; set; }
@@ -48,7 +48,7 @@ Value: [int](https://learn.microsoft.com/dotnet/api/system.int32)
 
 ### NoiseThreshold
 
-Gets or sets the relative change below which a comparison is treated as noise.
+Gets or sets the finite, nonnegative relative change below which a comparison is treated as noise.
 
 ```csharp
 public double NoiseThreshold { get; set; }
@@ -60,7 +60,7 @@ Value: [double](https://learn.microsoft.com/dotnet/api/system.double)
 
 ### ResampleCount
 
-Gets or sets the statistical resample count.
+Gets or sets the positive statistical resample count.
 
 ```csharp
 public int ResampleCount { get; set; }
@@ -72,7 +72,7 @@ Value: [int](https://learn.microsoft.com/dotnet/api/system.int32)
 
 ### SampleSize
 
-Gets or sets the number of measurement samples.
+Gets or sets the number of measurement samples, which must be at least ten.
 
 ```csharp
 public int SampleSize { get; set; }
@@ -96,7 +96,7 @@ Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
 
 ### SignificanceLevel
 
-Gets or sets the significance level used for comparisons.
+Gets or sets the significance level used for comparisons, between zero and one.
 
 ```csharp
 public double SignificanceLevel { get; set; }
@@ -120,7 +120,7 @@ Value: [PgBenchmarkTransactionMode](/api/ankus.pgbenchmarktransactionmode/)
 
 ### WarmupTimeMilliseconds
 
-Gets or sets the warmup time in milliseconds.
+Gets or sets the positive warmup time in milliseconds.
 
 ```csharp
 public int WarmupTimeMilliseconds { get; set; }

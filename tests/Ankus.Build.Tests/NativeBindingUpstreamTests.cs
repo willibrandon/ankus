@@ -72,4 +72,58 @@ public sealed class NativeBindingUpstreamTests
             [new("page", "*mut ::core::ffi::c_char"), new("blkno", "BlockNumber")], function.Parameters);
         Assert.IsFalse(function.IsVariadic);
     }
+
+    /// <summary>
+    /// The expanded inventory retains the complete barrier layout and prepared-transaction global on every major.
+    /// </summary>
+    /// <param name="major">The PostgreSQL major.</param>
+    [TestMethod]
+    [DataRow(13)]
+    [DataRow(14)]
+    [DataRow(15)]
+    [DataRow(16)]
+    [DataRow(17)]
+    [DataRow(18)]
+    [DataRow(19)]
+    public void ExpandedInventoryRetainsBarrierLayoutAndPreparedTransactionGlobal(int major)
+    {
+        Assert.Contains("#include \"storage/barrier.h\"", NativeBindingResources.ReadHeaders(major));
+        NativeBindingType barrier = NativeBindingResources.ReadCatalog(major).Types["Barrier"];
+        Assert.IsFalse(barrier.IsUnion);
+        Assert.AreSequenceEqual<NativeBindingField>(
+        [
+            new("mutex", "mutex", "slock_t"),
+            new("phase", "phase", "::core::ffi::c_int"),
+            new("participants", "participants", "::core::ffi::c_int"),
+            new("arrived", "arrived", "::core::ffi::c_int"),
+            new("elected", "elected", "::core::ffi::c_int"),
+            new("static_party", "static_party", "bool"),
+            new("condition_variable", "condition_variable", "ConditionVariable")
+        ], barrier.Fields);
+
+        NativeBindingGlobal global = NativeBindingResources.ReadRawCatalog(major).Globals["max_prepared_xacts"];
+        Assert.AreEqual("max_prepared_xacts", global.NativeSymbol);
+        Assert.AreEqual("::core::ffi::c_int", global.Representation);
+        Assert.IsTrue(global.IsMutable);
+    }
+
+    /// <summary>
+    /// PostgreSQL 18 and later retain every callback in the newly public COPY FROM format contract.
+    /// </summary>
+    /// <param name="major">The PostgreSQL major.</param>
+    [TestMethod]
+    [DataRow(18)]
+    [DataRow(19)]
+    public void ExpandedInventoryRetainsCopyFromCallbacks(int major)
+    {
+        Assert.Contains("#include \"commands/copyapi.h\"", NativeBindingResources.ReadHeaders(major));
+        NativeBindingType routine = NativeBindingResources.ReadCatalog(major).Types["CopyFromRoutine"];
+        Assert.IsFalse(routine.IsUnion);
+        Assert.AreSequenceEqual(["CopyFromInFunc", "CopyFromStart", "CopyFromOneRow", "CopyFromEnd"],
+            routine.Fields.Select(static field => field.Name));
+        Assert.Contains("fn(\n            cstate: CopyFromState,\n            atttypid: Oid,", routine.Fields[0].Representation);
+        Assert.Contains("fn(cstate: CopyFromState, tupDesc: TupleDesc)", routine.Fields[1].Representation);
+        Assert.Contains("values: *mut Datum,\n            nulls: *mut bool,\n        ) -> bool", routine.Fields[2].Representation);
+        Assert.Contains("fn(cstate: CopyFromState)", routine.Fields[3].Representation);
+    }
 }

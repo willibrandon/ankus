@@ -94,6 +94,11 @@ try
             ConfigureMacOsSdk();
             ConfigureBindingCache(repositoryRoot);
             BuildTests(repositoryRoot);
+            if (OperatingSystem.IsLinux())
+            {
+                VerifyBindingHeaderManifest(repositoryRoot, args[2]);
+            }
+
             if (args[0] == "runtime-test")
             {
                 RunRuntimeTests(repositoryRoot);
@@ -1055,6 +1060,18 @@ static void BuildTests(string repositoryRoot)
     {
         Console.WriteLine(ReadBindingTimings(repositoryRoot, [binlog]));
     }
+}
+
+static void VerifyBindingHeaderManifest(string repositoryRoot, string version)
+{
+    string pgConfig = Environment.GetEnvironmentVariable("AnkusPgConfigPath")
+        ?? throw new InvalidOperationException("AnkusPgConfigPath is required after PostgreSQL selection.");
+    Run(GetDotNetHost(),
+    [
+        "run", "--project", "src/Ankus.Build", "--configuration", "Release", "--no-build", "--",
+        "binding-header-manifest", version, pgConfig,
+        Path.Combine(repositoryRoot, "src", "Ankus.Build", "Bindings", $"pg{version}.h"), "--check",
+    ], repositoryRoot);
 }
 
 static void RunUnitTestModules(string repositoryRoot)

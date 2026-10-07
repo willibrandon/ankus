@@ -26,14 +26,14 @@ Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object)
 Prevents the compiler from proving that a benchmark input or result is unused.
 
 ```csharp
-public static T BlackBox<T>(T value)
+public static T BlackBox<T>(T value) where T : allows ref struct
 ```
 
 Type parameters:
 
 `T`
 
-The value type.
+The input and result type, including ref structs.
 
 Parameters:
 

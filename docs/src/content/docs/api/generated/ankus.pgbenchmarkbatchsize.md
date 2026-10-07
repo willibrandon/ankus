@@ -9,7 +9,7 @@ Namespace: [Ankus](/api/ankus/)
 
 Assembly: `Ankus.Runtime.dll`
 
-Selects how batched benchmark inputs are grouped between setup and measured work.
+Selects how benchmark iterations are grouped into batches.
 
 ```csharp
 public readonly struct PgBenchmarkBatchSize : IEquatable<PgBenchmarkBatchSize>
@@ -120,7 +120,7 @@ The requested batch strategy.
 
 ### LargeInput
 
-Gets a strategy suited to expensive setup or large inputs.
+Gets a strategy that groups the measured iterations into about one thousand batches.
 
 ```csharp
 public static PgBenchmarkBatchSize LargeInput { get; }
@@ -144,7 +144,7 @@ Value: [PgBenchmarkBatchSize](/api/ankus.pgbenchmarkbatchsize/)
 
 ### SmallInput
 
-Gets a strategy suited to inexpensive setup and small inputs.
+Gets a strategy that groups the measured iterations into about ten batches.
 
 ```csharp
 public static PgBenchmarkBatchSize SmallInput { get; }

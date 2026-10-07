@@ -189,8 +189,42 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   **48** platform skips in **53m42.735s**.
 - PostgreSQL-version documentation, LF source/SQL checkout attributes and the
   missing crash-test isolation annotation are corrected. The complete v0.19.3
-  release audit and source-derived header maintenance command remain explicit
-  requirements; no release-delta item is deferred.
+  release audit remains an explicit requirement; no release-delta item is
+  deferred. Header manifests now have a deterministic .NET maintenance command
+  that applies pgrx 0.19.3's discovery and exclusion rules directly to each
+  installed PostgreSQL 13–19 server-header tree. Catalog regeneration no longer
+  copies pgrx's generated manifests; its check mode retains an exact pinned-release
+  drift guard. Linux full-suite jobs check the selected
+  manifest before running, so primary PostgreSQL 18 CI and the scheduled 13–17
+  and 19 matrix continuously cover all seven majors. Exact current seven-major
+  validation passes against PostgreSQL **13.23**, **14.24**, **15.19**, **16.15**,
+  **17.11**, **18.6** and **19beta4**. The generated manifests byte-match pgrx
+  v0.19.3 and contain **481**, **490**, **497**, **501**, **508**, **524** and
+  **535** includes respectively. The first refreshed PostgreSQL 13 and 14 suites
+  exposed one benchmark-fixture defect: they selected their root-owned system
+  installations instead of the reserved writable pre-18 copies. Benchmark
+  commands and their cluster now select the same isolated installation
+  explicitly. Two newly registered matrix services also exposed missing
+  PostgreSQL 15 and 16 toolchains before any test build; every 13–19 toolchain is
+  now installed and verified there. Version-job concurrency is dispatch- or
+  repository-configurable, with three eligible services available. Replacement
+  supported-major evidence is pending. The refreshed Windows/PostgreSQL 18 cell
+  also exposed a package-consumer Source Link path at exactly 260 characters and
+  a cross-platform SQL-fixture assumption. Its owned root is now compact, and
+  the fixture retains physical CRLF while expecting the Windows backend's deliberate
+  normalization during extension-script parsing. Replacement Windows evidence is
+  pending. The expanded-inventory audit now retains exact representative function,
+  mutable-global, callback, inline-helper and struct-field contracts. A real backend
+  case compares generated access to `max_prepared_xacts` with PostgreSQL's own
+  setting value. Focused PostgreSQL 18 backend validation passes **16/16**, including
+  that global and the corrected SQL-text fixture. The corrected PostgreSQL 14
+  benchmark path passes its real in-backend case. The complete Linux
+  x64/PostgreSQL 18 suite passes **13,447** total: **13,399** passed, **48**
+  platform skips and zero failures in **42m02.194s**. After the final manifest
+  edge correction, the exact-current build-tool module passes **1,234** total:
+  **1,225** passed, **nine** platform skips and zero failures. The exact-current
+  Release build, API freshness and both site gates pass. Replacement
+  supported-major results remain pending.
 - The benchmark sampling audit found that the earlier runner recalibrated and
   discarded short samples instead of retaining Criterion's fixed plan. The
   current change uses Criterion's exponential warmup and automatic linear/flat

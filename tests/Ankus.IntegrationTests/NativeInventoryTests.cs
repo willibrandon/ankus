@@ -10,6 +10,23 @@ namespace Ankus.IntegrationTests;
 public sealed class NativeInventoryTests(TestContext context)
 {
     /// <summary>
+    /// Newly inventoried global storage reads the same value PostgreSQL exposes through its setting system.
+    /// </summary>
+    [TestMethod]
+    public async Task NativePreparedTransactionGlobalMatchesPostgresSetting()
+    {
+        await using NpgsqlConnection connection = await PostgresFixture.Cluster.OpenConnectionAsync(context.CancellationToken);
+        await using var command = new NpgsqlCommand("""
+            SELECT native_inventory.max_prepared_transactions(),
+                current_setting('max_prepared_transactions')::integer
+            """, connection);
+        await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(context.CancellationToken);
+        Assert.IsTrue(await reader.ReadAsync(context.CancellationToken));
+        Assert.AreEqual(reader.GetInt32(1), reader.GetInt32(0));
+        Assert.IsFalse(await reader.ReadAsync(context.CancellationToken));
+    }
+
+    /// <summary>
     /// Native unsigned helper calls preserve signed SQL inputs and full-width hash results.
     /// </summary>
     /// <param name="value">The integer bit pattern.</param>

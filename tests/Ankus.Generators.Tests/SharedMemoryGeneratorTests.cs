@@ -6,6 +6,47 @@ namespace Ankus.Generators.Tests;
 public sealed partial class PgFunctionGeneratorTests
 {
     /// <summary>
+    /// Fully qualified shared-memory declarations remain independent of consumer imports and colliding type names.
+    /// </summary>
+    [TestMethod]
+    public void SharedMemoryRegistrationUsesFrameworkTypeIdentity()
+    {
+        (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate("""
+            namespace Consumer;
+
+            public static class PgSharedMemory
+            {
+            }
+
+            public sealed class PgLwLock<T>
+            {
+            }
+
+            public static class Shared
+            {
+                private static readonly global::Ankus.PgLwLock<long> State = new("test.qualified");
+
+                [global::Ankus.PgModuleLoad]
+                public static void Load() => global::Ankus.PgSharedMemory.Initialize(State, static () => 41L);
+
+                [global::Ankus.PgFunction]
+                public static long Read()
+                {
+                    using global::Ankus.PgLwLockShareGuard<long> guard = State.Share();
+                    return guard.Value;
+                }
+            }
+            """);
+
+        AssertInitializationCompilationSucceeds(compilation, diagnostics);
+        SyntaxTree generated = Assert.ContainsSingle(compilation.SyntaxTrees.Where(static tree =>
+            tree.FilePath.EndsWith("ExtensionDispatchers.g.cs", StringComparison.Ordinal)));
+        string dispatchers = generated.GetText(context.CancellationToken).ToString();
+        Assert.Contains("global::Consumer.Shared.@Load();", dispatchers);
+        Assert.Contains("global::Consumer.Shared.@Read()", dispatchers);
+    }
+
+    /// <summary>
     /// Ordinary static shared descriptors compile without extra discovery attributes and bind startup before registration.
     /// </summary>
     [TestMethod]

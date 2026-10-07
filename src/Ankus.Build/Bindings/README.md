@@ -41,6 +41,11 @@ The reference server versions are 13.23, 14.24, 15.19, 16.15, 17.11,
 generation reads PostgreSQL's `REL_19_BETA4` tag. Selected-header measurements
 remain authoritative for each consumer's installation.
 
-Regenerate with `eng/Ankus.Bindings.cs`; do not edit generated catalogs by hand.
-These declarations are input to native binding generation. They are not evidence
-that all raw PostgreSQL functions, globals, callbacks or node APIs are implemented.
+Regenerate catalogs and attribution with `eng/Ankus.Bindings.cs`. Regenerate each
+`pgXX.h` directly from that major's installed PostgreSQL server headers with
+`eng/Ankus.Headers.cs`. The manifest generation follows pgrx 0.19.3's source
+rules and does not copy pgrx's already-generated output. The binding app's check
+mode compares those source-derived files with the pinned pgrx release bytes as a
+separate drift guard. Do not edit generated inputs by hand. These declarations
+are input to native binding generation. They are not evidence that all raw
+PostgreSQL functions, globals, callbacks or node APIs are implemented.

@@ -17,18 +17,22 @@ public sealed partial class ToolCommandTests
     /// <summary>
     /// Independently expected PostgreSQL UTF-8 bytes for each authored text path.
     /// </summary>
-    private static readonly (string Kind, string Hex)[] s_sqlTextExpectedRows =
-    [
-        ("default", "410d0a42"),
-        ("enum-cr", "410d42"),
-        ("enum-crlf", "410d0a42"),
-        ("file-cr", "410d42"),
-        ("file-crlf", "410d0a42"),
-        ("inline-cr", "410d42"),
-        ("inline-crlf", "410d0a42"),
-        ("optional", "410d42"),
-        ("replacement", "410d0a42"),
-    ];
+    private static IReadOnlyList<(string Kind, string Hex)> SqlTextExpectedRows()
+    {
+        string physicalCrlf = OperatingSystem.IsWindows() ? "410a42" : "410d0a42";
+        return
+        [
+            ("default", physicalCrlf),
+            ("enum-cr", "410d42"),
+            ("enum-crlf", "410d0a42"),
+            ("file-cr", "410d42"),
+            ("file-crlf", physicalCrlf),
+            ("inline-cr", "410d42"),
+            ("inline-crlf", physicalCrlf),
+            ("optional", "410d42"),
+            ("replacement", physicalCrlf),
+        ];
+    }
 
     /// <summary>
     /// One published extension proves empty graph anchors, exact quoted values, generated defaults and enum conversion.
@@ -118,7 +122,7 @@ public sealed partial class ToolCommandTests
             }
         }
 
-        Assert.AreSequenceEqual(s_sqlTextExpectedRows, values);
+        Assert.AreSequenceEqual(SqlTextExpectedRows(), values);
         Assert.IsTrue(await SqlPackageScalarAsync<bool>(connection,
             "SELECT default_value(NULL) IS NULL AND optional_value(NULL) IS NULL AND echo(NULL) IS NULL"));
         PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() =>
