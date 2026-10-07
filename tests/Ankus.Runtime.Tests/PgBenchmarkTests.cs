@@ -282,14 +282,14 @@ public sealed class PgBenchmarkTests
             PgBenchmarkTransactionMode.Shared, "Benchmarks.cs", 23,
             new(10, 1, 1, 100, 0.01, 0.10));
         PgJsonb baseline = PgBenchmarkRunner.Run(definition, null,
-            static bencher => bencher.Iterate(static () => PgBenchmark.BlackBox(42)), null, static action => action());
+            static bencher => bencher.Iterate(MeasuredWork), null, static action => action());
         using (JsonDocument baselineDocument = baseline.Parse())
         {
             Assert.AreEqual("ok", baselineDocument.RootElement.GetProperty("status").GetString(), baseline.Text);
         }
 
         PgJsonb result = PgBenchmarkRunner.Run(definition, null,
-            static bencher => bencher.Iterate(static () => PgBenchmark.BlackBox(42)), baseline, static action => action());
+            static bencher => bencher.Iterate(MeasuredWork), baseline, static action => action());
 
         using JsonDocument document = result.Parse();
         Assert.AreEqual("ok", document.RootElement.GetProperty("status").GetString(), result.Text);
@@ -299,6 +299,12 @@ public sealed class PgBenchmarkTests
         Assert.AreEqual(0.95, comparison.GetProperty("mean").GetProperty("confidence_level").GetDouble(), 0.000_001);
         Assert.IsTrue(double.IsFinite(comparison.GetProperty("median").GetProperty("point_estimate").GetDouble()));
         Assert.IsFalse(string.IsNullOrWhiteSpace(comparison.GetProperty("summary").GetString()));
+
+        static int MeasuredWork()
+        {
+            Thread.SpinWait(1_000);
+            return PgBenchmark.BlackBox(42);
+        }
     }
 
     /// <summary>

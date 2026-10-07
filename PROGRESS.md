@@ -328,6 +328,12 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   Replacement [run **37656015714**](https://github.com/willibrandon/ankus/actions/runs/37656015714)
   is active against `82503bf` for macOS ARM64/PostgreSQL 15 and 16 and Windows
   x64/PostgreSQL 13 and 18.
+- That replacement proves macOS ARM64/PostgreSQL 15 and 16. Its Windows 18
+  integration suite passes **5,029/5,029**, but the job exposed a benchmark-test
+  defect: a one-millisecond comparison fixture measured a no-op and could record
+  zero stopwatch ticks. The fixture now performs bounded measured work. The
+  focused regression and all **2,237/2,237** Runtime tests pass locally;
+  replacement Windows evidence remains required.
 - The same Windows report exposed a privacy gap: TRX `computerName` depended on
   the configured private-identifier list. Report preparation now redacts that
   schema field unconditionally. The affected uploaded reports were removed; path

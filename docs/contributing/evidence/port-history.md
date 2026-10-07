@@ -28903,3 +28903,19 @@ complete Linux/PostgreSQL 18, macOS ARM64/PostgreSQL 18 and Windows/PostgreSQL 1
 suites. Its matching [documentation run](https://github.com/willibrandon/ankus/actions/runs/37644853500)
 also passes. This records the required previous-run outcome before the diagnostic
 milestone is committed; replacement CI remains required for the new diagnostics.
+
+## Deterministic benchmark comparison fixture — 2026-10-07
+
+Platform-version run [37656015714](https://github.com/willibrandon/ankus/actions/runs/37656015714)
+passes the complete macOS ARM64/PostgreSQL 15 and 16 jobs. Windows/PostgreSQL 18
+passes its **5,029/5,029** integration tests but fails the Runtime module because
+`RunnerComparesPersistedSamplesWithConfiguredResampling` measured a constant
+no-op with one-millisecond warmup and measurement windows. On Windows, the first
+planned sample could complete within one stopwatch tick and correctly trigger
+the benchmark runner's zero-duration rejection.
+
+The statistics/comparison fixture now performs bounded CPU work before returning
+its black-boxed value. This preserves the production rejection of unmeasurable
+benchmarks while making the test exercise comparison semantics rather than timer
+resolution. The focused regression passes **1/1** and the complete Runtime suite
+passes **2,237/2,237** on Linux x64. Replacement Windows evidence remains required.
