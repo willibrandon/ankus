@@ -40,8 +40,8 @@ public sealed partial class PgFunctionGeneratorTests
             public readonly record struct Value(long Number);
             """);
         Diagnostic diagnostic = Assert.ContainsSingle(diagnostics);
-        Assert.AreEqual("ANKUS017", diagnostic.Id);
-        Assert.Contains("Alignment must be", diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture));
+        Assert.AreEqual("ANKUS419", diagnostic.Id);
+        Assert.Contains("PgTypeAlignment.FourBytes", diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture));
         Assert.DoesNotContain("CREATE TYPE", ManifestValue(compilation, "Ankus.Sql"));
     }
 }

@@ -73,20 +73,53 @@ public sealed partial class PgFunctionGeneratorTests
     /// Rejects codecs that cannot be statically created or cannot represent the attributed type.
     /// </summary>
     /// <param name="source">The invalid type contract.</param>
+    /// <param name="id">The precise declaration diagnostic.</param>
     [TestMethod]
-    [DataRow("[Ankus.PgType(typeof(string))] public struct Value { }")]
-    [DataRow("[Ankus.PgType(typeof(Codec))] public abstract class Value { }")]
-    [DataRow("[Ankus.PgType(typeof(Codec))] public ref struct Value { }")]
-    [DataRow("[Ankus.PgType(typeof(Codec))] public struct Value<T> { }")]
-    [DataRow("[Ankus.PgType(typeof(Codec), Name=\"\")] public struct Value { }")]
-    [DataRow("[Ankus.PgType(typeof(Codec), Schema=\"\")] public struct Value { }")]
-    [DataRow("[Ankus.PgType(typeof(Codec)), Ankus.PgEnum] public enum Value { A }")]
-    [DataRow("[Ankus.PgType(typeof(Codec))] public struct Value { } public class Codec { private Codec() { } }")]
-    public void InvalidCustomTypeContractsAreDiagnosed(string source)
+    [DataRow("[Ankus.PgType(typeof(string))] public struct Value { }", "ANKUS430")]
+    [DataRow("[Ankus.PgType(typeof(Codec))] public abstract class Value { }", "ANKUS469")]
+    [DataRow("[Ankus.PgType] public abstract class Value { }", "ANKUS426")]
+    [DataRow("[Ankus.PgType(typeof(Codec))] public ref struct Value { }", "ANKUS424")]
+    [DataRow("[Ankus.PgType] public static class Value { }", "ANKUS425")]
+    [DataRow("[Ankus.PgType(typeof(Codec))] public struct Value<T> { }", "ANKUS427")]
+    [DataRow("[Ankus.PgType] file class Value { }", "ANKUS428")]
+    [DataRow("[Ankus.PgType(typeof(Codec), Name=\"\")] public struct Value { }", "ANKUS434")]
+    [DataRow("[Ankus.PgType(typeof(Codec), Schema=\"\")] public struct Value { }", "ANKUS435")]
+    [DataRow("[Ankus.PgSchema(null)] public static class Types { [Ankus.PgType] public struct Value { } }", "ANKUS433")]
+    [DataRow("[Ankus.PgType(typeof(Codec)), Ankus.PgEnum] public enum Value { A }", "ANKUS429")]
+    [DataRow("[Ankus.PgType(typeof(Codec))] public struct Value { } public class Codec { private Codec() { } }", "ANKUS430")]
+    public void InvalidCustomTypeContractsAreDiagnosed(string source, string id)
     {
         (_, ImmutableArray<Diagnostic> diagnostics) = Generate(source +
-            (source.Contains("class Codec", StringComparison.Ordinal) ? string.Empty : CustomCodecSource));
-        Assert.Contains("ANKUS017", diagnostics.Select(static diagnostic => diagnostic.Id));
+            (source.Contains("typeof(Codec)", StringComparison.Ordinal) && !source.Contains("class Codec", StringComparison.Ordinal)
+                ? CustomCodecSource : string.Empty));
+        Diagnostic diagnostic = Assert.ContainsSingle(diagnostics.Where(diagnostic => diagnostic.Id == id));
+        Assert.AreEqual(id, diagnostic.Id);
+    }
+
+    /// <summary>
+    /// Points each custom-type diagnostic at the independently correctable authored contract.
+    /// </summary>
+    /// <param name="source">The invalid declaration.</param>
+    /// <param name="id">The precise diagnostic identifier.</param>
+    /// <param name="location">The exact source text selected by the diagnostic.</param>
+    [TestMethod]
+    [DataRow("[Ankus.PgType(Alignment=(Ankus.PgTypeAlignment)3)] public struct Value { }", "ANKUS419", "(Ankus.PgTypeAlignment)3")]
+    [DataRow("[Ankus.PgType(typeof(string))] public struct Value { }", "ANKUS430", "typeof(string)")]
+    [DataRow("[Ankus.PgType(TextCodec=typeof(string))] public struct Value { }", "ANKUS430", "typeof(string)")]
+    [DataRow("[Ankus.PgSchema(\"\")] public static class Types { [Ankus.PgType(Schema=null)] public struct Value { } }", "ANKUS435", "\"\"")]
+    [DataRow("[Ankus.PgType(TextCodec=typeof(Codec),NativeLayout=true)] public sealed class Value { } public sealed class Codec : Ankus.PgTypeTextCodec<Value> { public override Value Parse(string text) => new(); public override string Format(Value value) => \"\"; }", "ANKUS436", "Value")]
+    [DataRow("[Ankus.PgType] public sealed class Value { public System.Uri Item { get; set; } = null!; }", "ANKUS450", "Item")]
+    [DataRow("[Ankus.PgType] public sealed class Value { public Value(string wrong) { } public int Number { get; } }", "ANKUS457", "wrong")]
+    [DataRow("[Ankus.PgType] [System.Text.Json.Serialization.JsonPolymorphic(IgnoreUnrecognizedTypeDiscriminators=true)] [System.Text.Json.Serialization.JsonDerivedType(typeof(Derived),\"derived\")] public class Value { } public sealed class Derived : Value { }", "ANKUS461", "true")]
+    [DataRow("[Ankus.PgType] public sealed class Value { [System.Text.Json.Serialization.JsonPropertyName(\"same\")] public int A { get; set; } [System.Text.Json.Serialization.JsonPropertyName(\"same\")] public int B { get; set; } }",
+        "ANKUS455", "System.Text.Json.Serialization.JsonPropertyName(\"same\")")]
+    public void CustomTypeDiagnosticsUsePreciseLocations(string source, string id, string location)
+    {
+        (_, ImmutableArray<Diagnostic> diagnostics) = Generate(source);
+        Diagnostic diagnostic = Assert.ContainsSingle(diagnostics.Where(value => value.Id == id));
+        Assert.IsTrue(diagnostic.Location.IsInSource);
+        Assert.AreEqual(location, diagnostic.Location.SourceTree!.GetText(context.CancellationToken)
+            .GetSubText(diagnostic.Location.SourceSpan).ToString());
     }
 
     /// <summary>

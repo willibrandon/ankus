@@ -51,7 +51,8 @@ The default serializer supports:
 
 - Public instance fields and properties of accessible classes, structs,
   and records, including inherited members, virtual overrides, and immutable
-  constructor-bound members. Abstract classes require declared concrete variants.
+  constructor-bound members. Abstract classes require generated storage with
+  declared concrete variants; explicit storage codecs require a concrete managed type.
 - Booleans, signed and unsigned 8/16/32/64-bit integers, `float`, `double`,
   `decimal`, and Unicode strings. Decimal CBOR uses the decimal-fraction tag;
   decimal scale, including the scale of zero, is retained. JSON decimal input that would
@@ -101,12 +102,13 @@ Duplicate known members and duplicate dictionary keys are rejected. Unknown
 members are skipped with input validation, allowing readers to tolerate added
 fields. JSON names and dictionary keys are case-sensitive.
 
-Unsupported shapes and serialization attributes produce `ANKUS017`. Hidden
-inherited members, arbitrary framework types, multidimensional arrays, and
-non-string dictionary keys currently require an explicit codec. Passing an
-undeclared runtime subclass is rejected so additional state is not silently
-discarded. Nesting is limited to 64 containers; cyclic graphs fail at
-that limit. CBOR preserves non-finite floating-point values; JSON output rejects
+Unsupported shapes and serialization attributes produce a specific declaration
+diagnostic. Hidden inherited members, arbitrary framework types,
+multidimensional arrays, and non-string dictionary keys currently require an
+explicit codec. Passing an undeclared runtime subclass is rejected so additional
+state is not silently discarded. Nesting is limited to 64 containers; cyclic
+graphs fail at that limit. CBOR preserves non-finite floating-point values; JSON
+output rejects
 them because JSON has no exact representation.
 
 Malformed JSON input raises SQLSTATE `22P02`; malformed CBOR raises `22P03`.
@@ -465,3 +467,20 @@ changing types or nullability, or removing required constructor parameters chang
 the persisted contract. Plan a data migration before making incompatible changes.
 CBOR use alone does not guarantee interchangeability with every pgrx/Serde contract;
 match member names and value representations explicitly.
+
+## Declaration diagnostics
+
+Custom-type diagnostics identify the exact option, codec, field, member,
+constructor parameter, or serialization attribute that must change.
+
+| IDs | Contract |
+|---|---|
+| `ANKUS419`–`ANKUS423` | Alignment, codec selection, native-layout selection, and NULL-input text |
+| `ANKUS424`–`ANKUS429`, `ANKUS469` | Managed root shape, accessibility, generic closure, explicit codecs on abstract types, and conflicting declarations |
+| `ANKUS430`–`ANKUS432` | Codec construction, exact managed type, and required-member initialization |
+| `ANKUS433`–`ANKUS435` | Inherited schema, PostgreSQL type name, and schema name |
+| `ANKUS436`–`ANKUS442` | Packed native root, fields, struct layout, recursion, buffers, size, and empty payloads |
+| `ANKUS443`–`ANKUS468` | Generated serialization shape, members, constructors, tagged variants, and JSON attributes |
+
+Unreadable referenced attribute metadata remains `ANKUS206` because the
+defining assembly must be rebuilt before its exact declaration can be validated.

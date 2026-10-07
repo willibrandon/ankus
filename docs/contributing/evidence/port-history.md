@@ -28877,3 +28877,29 @@ The Release solution build completes in **1 minute 33 seconds** with zero
 warnings and errors. API freshness verifies **244** pages and **2,793** members;
 documentation checks report no errors, warnings or hints, and the production
 site builds all **295** pages.
+
+## Precise custom-type diagnostics — 2026-10-07
+
+The free-text `ANKUS017` validator combined custom-type declaration, codec,
+native-layout and generated-serialization failures. `ANKUS419`–`ANKUS469` now
+identify one independently correctable contract and navigate to its authored
+option, codec, field, member, constructor parameter or serialization attribute.
+Unreadable referenced metadata remains `ANKUS206` because its defining assembly
+must be rebuilt before the declaration can be decoded exactly.
+
+Exact-location coverage exposed a source-map defect: custom-type composition
+registered only the type declaration while diagnostics could target nested
+options and members. Resolving those coordinates raised `KeyNotFoundException`
+and produced `CS8785`. The map now retains the diagnostic location alongside the
+declaration. The complete generator suite passes **4,517/4,517** in **59.5
+seconds**. The Release solution build passes in **1m40.75s** with zero warnings
+and errors. API freshness verifies **244** pages and **2,793** members;
+documentation checks report no errors, warnings or hints, and the production
+site builds all **295** pages.
+
+Primary run [37644853764](https://github.com/willibrandon/ankus/actions/runs/37644853764)
+at preceding source **82503bf** passes quality, all three runtime builds and the
+complete Linux/PostgreSQL 18, macOS ARM64/PostgreSQL 18 and Windows/PostgreSQL 17
+suites. Its matching [documentation run](https://github.com/willibrandon/ankus/actions/runs/37644853500)
+also passes. This records the required previous-run outcome before the diagnostic
+milestone is committed; replacement CI remains required for the new diagnostics.

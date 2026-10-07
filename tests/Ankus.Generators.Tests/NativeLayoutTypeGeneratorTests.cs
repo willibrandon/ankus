@@ -179,36 +179,37 @@ public sealed partial class PgFunctionGeneratorTests
     /// Rejects layouts that cannot prove dense, fixed-width and independently valid native bytes.
     /// </summary>
     /// <param name="declaration">The unsupported root or field graph.</param>
+    /// <param name="id">The precise native-layout diagnostic.</param>
     [TestMethod]
-    [DataRow("public struct Value { public int Number; }")]
-    [DataRow("[L(K.Sequential,Pack=2)] public struct Value { public byte A; public int B; }")]
-    [DataRow("[L(K.Sequential)] public struct Value { public int Number; }")]
-    [DataRow("[L(K.Auto,Pack=1)] public struct Value { public int Number; }")]
-    [DataRow("[L(K.Explicit,Pack=1)] public struct Value { [System.Runtime.InteropServices.FieldOffset(0)] public int A; [System.Runtime.InteropServices.FieldOffset(0)] public int B; }")]
-    [DataRow("[L(K.Sequential,Pack=1,Size=8)] public struct Value { public int Number; }")]
-    [DataRow("[L(K.Sequential,Pack=1,CharSet=System.Runtime.InteropServices.CharSet.Unicode)] public struct Value { public int Number; }")]
-    [DataRow("[L(K.Sequential,Pack=1)] public struct Value { }")]
-    [DataRow("[L(K.Sequential,Pack=1)] public sealed class Value { public int Number; }")]
-    [DataRow("public enum Value : byte { A }")]
-    [DataRow("[L(K.Sequential,Pack=1)] public struct Value { public bool Item; }")]
-    [DataRow("[L(K.Sequential,Pack=1)] public struct Value { public char Item; }")]
-    [DataRow("[L(K.Sequential,Pack=1)] public struct Value { public nint Item; }")]
-    [DataRow("[L(K.Sequential,Pack=1)] public struct Value { public nuint Item; }")]
-    [DataRow("[L(K.Sequential,Pack=1)] public unsafe struct Value { public int* Item; }")]
-    [DataRow("[L(K.Sequential,Pack=1)] public unsafe struct Value { public delegate*<int> Item; }")]
-    [DataRow("[L(K.Sequential,Pack=1)] public struct Value { public string Item; }")]
-    [DataRow("[L(K.Sequential,Pack=1)] public struct Value { public int[] Item; }")]
-    [DataRow("[L(K.Sequential,Pack=1)] public struct Value { public decimal Item; }")]
-    [DataRow("[L(K.Sequential,Pack=1)] public struct Value { public System.Guid Item; }")]
-    [DataRow("[L(K.Sequential,Pack=1)] public struct Value { public System.DateTime Item; }")]
-    [DataRow("[L(K.Sequential,Pack=1)] public struct Value { public int? Item; }")]
-    [DataRow("[L(K.Sequential,Pack=1)] public struct Value { public Leaf Item; } public struct Leaf { public int Number; }")]
-    [DataRow("[L(K.Sequential,Pack=1)] public struct Value { public Leaf<int> Item; } [L(K.Sequential,Pack=1)] public struct Leaf<T> where T:unmanaged { public T Number; }")]
-    [DataRow("[L(K.Sequential,Pack=1)] public unsafe struct Value { public fixed bool Items[2]; }")]
-    [DataRow("[L(K.Sequential,Pack=1)] public unsafe struct Value { public fixed char Items[2]; }")]
-    [DataRow("[L(K.Sequential,Pack=1)] public unsafe struct Value { public fixed long Items[int.MaxValue]; }")]
-    [DataRow("[L(K.Sequential,Pack=1),System.Runtime.CompilerServices.InlineArray(4)] public struct Value { private byte _element; }")]
-    public void InvalidNativeLayoutContractsAreDiagnosed(string declaration)
+    [DataRow("public struct Value { public int Number; }", "ANKUS438")]
+    [DataRow("[L(K.Sequential,Pack=2)] public struct Value { public byte A; public int B; }", "ANKUS438")]
+    [DataRow("[L(K.Sequential)] public struct Value { public int Number; }", "ANKUS438")]
+    [DataRow("[L(K.Auto,Pack=1)] public struct Value { public int Number; }", "ANKUS438")]
+    [DataRow("[L(K.Explicit,Pack=1)] public struct Value { [System.Runtime.InteropServices.FieldOffset(0)] public int A; [System.Runtime.InteropServices.FieldOffset(0)] public int B; }", "ANKUS438")]
+    [DataRow("[L(K.Sequential,Pack=1,Size=8)] public struct Value { public int Number; }", "ANKUS438")]
+    [DataRow("[L(K.Sequential,Pack=1,CharSet=System.Runtime.InteropServices.CharSet.Unicode)] public struct Value { public int Number; }", "ANKUS438")]
+    [DataRow("[L(K.Sequential,Pack=1)] public struct Value { }", "ANKUS441")]
+    [DataRow("[L(K.Sequential,Pack=1)] public sealed class Value { public int Number; }", "ANKUS436")]
+    [DataRow("public enum Value : byte { A }", "ANKUS436")]
+    [DataRow("[L(K.Sequential,Pack=1)] public struct Value { public bool Item; }", "ANKUS437")]
+    [DataRow("[L(K.Sequential,Pack=1)] public struct Value { public char Item; }", "ANKUS437")]
+    [DataRow("[L(K.Sequential,Pack=1)] public struct Value { public nint Item; }", "ANKUS437")]
+    [DataRow("[L(K.Sequential,Pack=1)] public struct Value { public nuint Item; }", "ANKUS437")]
+    [DataRow("[L(K.Sequential,Pack=1)] public unsafe struct Value { public int* Item; }", "ANKUS437")]
+    [DataRow("[L(K.Sequential,Pack=1)] public unsafe struct Value { public delegate*<int> Item; }", "ANKUS437")]
+    [DataRow("[L(K.Sequential,Pack=1)] public struct Value { public string Item; }", "ANKUS437")]
+    [DataRow("[L(K.Sequential,Pack=1)] public struct Value { public int[] Item; }", "ANKUS437")]
+    [DataRow("[L(K.Sequential,Pack=1)] public struct Value { public decimal Item; }", "ANKUS437")]
+    [DataRow("[L(K.Sequential,Pack=1)] public struct Value { public System.Guid Item; }", "ANKUS437")]
+    [DataRow("[L(K.Sequential,Pack=1)] public struct Value { public System.DateTime Item; }", "ANKUS437")]
+    [DataRow("[L(K.Sequential,Pack=1)] public struct Value { public int? Item; }", "ANKUS437")]
+    [DataRow("[L(K.Sequential,Pack=1)] public struct Value { public Leaf Item; } public struct Leaf { public int Number; }", "ANKUS438")]
+    [DataRow("[L(K.Sequential,Pack=1)] public struct Value { public Leaf<int> Item; } [L(K.Sequential,Pack=1)] public struct Leaf<T> where T:unmanaged { public T Number; }", "ANKUS437")]
+    [DataRow("[L(K.Sequential,Pack=1)] public unsafe struct Value { public fixed bool Items[2]; }", "ANKUS440")]
+    [DataRow("[L(K.Sequential,Pack=1)] public unsafe struct Value { public fixed char Items[2]; }", "ANKUS440")]
+    [DataRow("[L(K.Sequential,Pack=1)] public unsafe struct Value { public fixed long Items[int.MaxValue]; }", "ANKUS442")]
+    [DataRow("[L(K.Sequential,Pack=1),System.Runtime.CompilerServices.InlineArray(4)] public struct Value { private byte _element; }", "ANKUS438")]
+    public void InvalidNativeLayoutContractsAreDiagnosed(string declaration, string id)
     {
         (_, ImmutableArray<Diagnostic> diagnostics) = Generate("""
             using L=System.Runtime.InteropServices.StructLayoutAttribute;
@@ -221,7 +222,7 @@ public sealed partial class PgFunctionGeneratorTests
                 public override string Format(Value value)=>"native";
             }
             """);
-        Diagnostic diagnostic = Assert.ContainsSingle(diagnostics.Where(static value => value.Id == "ANKUS017"));
+        Diagnostic diagnostic = Assert.ContainsSingle(diagnostics.Where(value => value.Id == id));
         Assert.AreEqual(DiagnosticSeverity.Error, diagnostic.Severity);
     }
 
@@ -229,11 +230,12 @@ public sealed partial class PgFunctionGeneratorTests
     /// Rejects absent text conversion and conflicting full-codec storage options.
     /// </summary>
     /// <param name="options">The unsupported combination.</param>
+    /// <param name="id">The precise storage-selection diagnostic.</param>
     [TestMethod]
-    [DataRow("NativeLayout=true")]
-    [DataRow("typeof(Codec),NativeLayout=true")]
-    [DataRow("typeof(Codec),NativeLayout=true,TextCodec=typeof(Codec)")]
-    public void InvalidNativeLayoutOptionsAreDiagnosed(string options)
+    [DataRow("NativeLayout=true", "ANKUS422")]
+    [DataRow("typeof(Codec),NativeLayout=true", "ANKUS422")]
+    [DataRow("typeof(Codec),NativeLayout=true,TextCodec=typeof(Codec)", "ANKUS421")]
+    public void InvalidNativeLayoutOptionsAreDiagnosed(string options, string id)
     {
         (_, ImmutableArray<Diagnostic> diagnostics) = Generate($$"""
             [Ankus.PgType({{options}})]
@@ -247,7 +249,7 @@ public sealed partial class PgFunctionGeneratorTests
                 public override void Write(Value value,System.Buffers.IBufferWriter<byte> destination) { }
             }
             """);
-        Diagnostic diagnostic = Assert.ContainsSingle(diagnostics.Where(static value => value.Id == "ANKUS017"));
+        Diagnostic diagnostic = Assert.ContainsSingle(diagnostics.Where(value => value.Id == id));
         Assert.AreEqual(DiagnosticSeverity.Error, diagnostic.Severity);
     }
 
@@ -267,7 +269,7 @@ public sealed partial class PgFunctionGeneratorTests
                 public override string Format(Value<int> value)=>"native";
             }
             """);
-        Diagnostic diagnostic = Assert.ContainsSingle(diagnostics.Where(static value => value.Id == "ANKUS017"));
+        Diagnostic diagnostic = Assert.ContainsSingle(diagnostics.Where(static value => value.Id == "ANKUS427"));
         Assert.AreEqual(DiagnosticSeverity.Error, diagnostic.Severity);
     }
 }

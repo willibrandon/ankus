@@ -170,6 +170,7 @@ internal sealed record ExtensionCompositionInput(FunctionPipeline.MethodInputs M
         foreach (CustomTypePipeline.Output output in CustomTypes)
         {
             yield return output.Analysis.Location;
+            yield return output.Analysis.Problem?.Location;
         }
 
         foreach (DatumTypeModel mapping in Mappings.Analysis.Models)

@@ -10,23 +10,29 @@ internal static class NativeTypeLayout
     /// <summary>
     /// Computes the packed payload size without assuming the layout of framework or metadata-only structs.
     /// </summary>
-    internal static int Validate(INamedTypeSymbol type, out string? error)
+    internal static int Validate(INamedTypeSymbol type, out CustomTypeValidationFailure? failure,
+        CancellationToken cancellationToken = default)
     {
         try
         {
             if (type.TypeKind != TypeKind.Struct)
             {
-                throw new InvalidOperationException("NativeLayout requires an unmanaged struct.");
+                throw Invalid(CustomTypeDiagnosticKind.NativeRoot, type.Locations.FirstOrDefault(), type.ToDisplayString());
             }
 
             int size = Size(type, type.ContainingAssembly, new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default),
-                new Dictionary<ITypeSymbol, int>(SymbolEqualityComparer.Default));
-            error = null;
+                new Dictionary<ITypeSymbol, int>(SymbolEqualityComparer.Default), type.Locations.FirstOrDefault(), cancellationToken);
+            failure = null;
             return size;
         }
-        catch (Exception exception) when (exception is InvalidOperationException or OverflowException)
+        catch (ValidationException exception)
         {
-            error = exception is OverflowException ? "The packed native layout is too large." : exception.Message;
+            failure = exception.Failure;
+            return 0;
+        }
+        catch (OverflowException)
+        {
+            failure = new(CustomTypeDiagnosticKind.NativeTooLarge, type.Locations.FirstOrDefault(), new([type.ToDisplayString()]));
             return 0;
         }
     }
@@ -34,8 +40,10 @@ internal static class NativeTypeLayout
     /// <summary>
     /// Rejects process-specific representations and padding before adding field sizes.
     /// </summary>
-    private static int Size(ITypeSymbol type, IAssemblySymbol assembly, HashSet<ITypeSymbol> visiting, Dictionary<ITypeSymbol, int> sizes)
+    private static int Size(ITypeSymbol type, IAssemblySymbol assembly, HashSet<ITypeSymbol> visiting,
+        Dictionary<ITypeSymbol, int> sizes, Location? location, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         int primitive = PrimitiveSize(type);
         if (primitive != 0)
         {
@@ -44,13 +52,13 @@ internal static class NativeTypeLayout
 
         if (type is INamedTypeSymbol { TypeKind: TypeKind.Enum, EnumUnderlyingType: { } underlying })
         {
-            return Size(underlying, assembly, visiting, sizes);
+            return Size(underlying, assembly, visiting, sizes, location, cancellationToken);
         }
 
         if (type is not INamedTypeSymbol { TypeKind: TypeKind.Struct, IsUnmanagedType: true, IsGenericType: false, IsRefLikeType: false } named ||
             !SymbolEqualityComparer.Default.Equals(named.ContainingAssembly, assembly) || named.DeclaringSyntaxReferences.Length == 0)
         {
-            throw new InvalidOperationException("NativeLayout fields require fixed-width numeric values, enums, or packed unmanaged structs declared in this assembly; references, booleans, characters, pointers, native integers and opaque framework or external structs are unsupported.");
+            throw Invalid(CustomTypeDiagnosticKind.NativeField, location, type.ToDisplayString());
         }
 
         if (sizes.TryGetValue(named, out int knownSize))
@@ -65,12 +73,13 @@ internal static class NativeTypeLayout
             AttributeValues.Get(layout, "CharSet", 1) != 1 ||
             named.GetAttributes().Any(static attribute => attribute.AttributeClass?.ToDisplayString() == "System.Runtime.CompilerServices.InlineArrayAttribute"))
         {
-            throw new InvalidOperationException("NativeLayout requires explicit StructLayout(LayoutKind.Sequential, Pack = 1) on every struct, without Size, CharSet or inline-array overrides.");
+            throw Invalid(CustomTypeDiagnosticKind.NativeStructLayout,
+                layout?.ApplicationSyntaxReference?.GetSyntax(cancellationToken).GetLocation() ?? location, named.ToDisplayString());
         }
 
         if (!visiting.Add(named))
         {
-            throw new InvalidOperationException("NativeLayout cannot contain a recursive value layout.");
+            throw Invalid(CustomTypeDiagnosticKind.NativeRecursive, location, named.ToDisplayString());
         }
 
         int size = 0;
@@ -81,21 +90,21 @@ internal static class NativeTypeLayout
                 int elementSize = PrimitiveSize(pointer.PointedAtType);
                 if (elementSize == 0 || field.FixedSize <= 0)
                 {
-                    throw new InvalidOperationException("NativeLayout fixed buffers require fixed-width numeric elements.");
+                    throw Invalid(CustomTypeDiagnosticKind.NativeFixedBuffer, field.Locations.FirstOrDefault(), field.Name);
                 }
 
                 size = checked(size + checked(elementSize * field.FixedSize));
             }
             else
             {
-                size = checked(size + Size(field.Type, assembly, visiting, sizes));
+                size = checked(size + Size(field.Type, assembly, visiting, sizes, field.Locations.FirstOrDefault(), cancellationToken));
             }
         }
 
         visiting.Remove(named);
         if (size == 0)
         {
-            throw new InvalidOperationException("NativeLayout does not support empty structs.");
+            throw Invalid(CustomTypeDiagnosticKind.NativeEmpty, location, named.ToDisplayString());
         }
 
         sizes.Add(named, size);
@@ -114,4 +123,21 @@ internal static class NativeTypeLayout
         SpecialType.System_Int64 or SpecialType.System_UInt64 or SpecialType.System_Double => 8,
         _ => 0,
     };
+
+    /// <summary>
+    /// Creates a local unwind carrying a closed diagnostic instead of formatted free text.
+    /// </summary>
+    private static ValidationException Invalid(CustomTypeDiagnosticKind kind, Location? location, params string[] arguments)
+        => new(new(kind, location, new(arguments)));
+
+    /// <summary>
+    /// Unwinds recursive layout validation while preserving the exact failed contract.
+    /// </summary>
+    private sealed class ValidationException(CustomTypeValidationFailure failure) : Exception
+    {
+        /// <summary>
+        /// Gets the diagnostic to report at the custom-type boundary.
+        /// </summary>
+        internal CustomTypeValidationFailure Failure { get; } = failure;
+    }
 }

@@ -378,29 +378,35 @@ public sealed partial class PgFunctionGeneratorTests
     /// Reports unsupported or ambiguous graphs before generating lossy serializers.
     /// </summary>
     /// <param name="source">The invalid default contract.</param>
+    /// <param name="id">The precise serialization diagnostic.</param>
     [TestMethod]
-    [DataRow("[Ankus.PgType] public sealed record Value(object Item);")]
-    [DataRow("[Ankus.PgType] public sealed record Value(System.Uri Item);")]
-    [DataRow("[Ankus.PgType] public sealed record Value(int[,] Items);")]
-    [DataRow("[Ankus.PgType] public sealed record Value(System.Collections.Generic.Dictionary<int,string> Items);")]
-    [DataRow("[Ankus.PgType] public sealed class Value { public int Number { get; } }")]
-    [DataRow("[Ankus.PgType] public sealed class Value { public Value(int wrong) { Number = wrong; } public int Number { get; } }")]
-    [DataRow("[Ankus.PgType] public sealed class Value { [System.Text.Json.Serialization.JsonPropertyName(\"same\")] public int A { get; set; } [System.Text.Json.Serialization.JsonPropertyName(\"same\")] public int B { get; set; } }")]
-    [DataRow("[Ankus.PgType] public sealed class Value { [System.Text.Json.Serialization.JsonIgnore(Condition=System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] public string? Text { get; set; } }")]
-    [DataRow("[Ankus.PgType] public sealed class Value { [System.Text.Json.Serialization.JsonNumberHandling(System.Text.Json.Serialization.JsonNumberHandling.AllowReadingFromString)] public int Number { get; set; } }")]
-    [DataRow("[Ankus.PgType] public sealed class Value { public Value(string text) { Text = text; } public string? Text { get; } }")]
-    [DataRow("[Ankus.PgType] public enum Value { A = 1, B = 1 }")]
-    [DataRow("[Ankus.PgType] public enum Value { [System.Text.Json.Serialization.JsonStringEnumMemberName(\"same\")] A, [System.Text.Json.Serialization.JsonStringEnumMemberName(\"same\")] B }")]
-    [DataRow("[Ankus.PgType] public sealed class Value { [System.Text.Json.Serialization.JsonIgnore] public required string Text { get; init; } }")]
-    [DataRow("[Ankus.PgType] public sealed class Value { public Value(string text) { Text = text; } public required string Text { get; set; } }")]
-    [DataRow("[Ankus.PgType] public sealed class Value { [System.Text.Json.Serialization.JsonInclude] internal int Number { get; set; } }")]
-    [DataRow("[Ankus.PgType] public sealed class Value { [System.Text.Json.Serialization.JsonInclude] private int Number { get; set; } }")]
-    [DataRow("[Ankus.PgType] public sealed class Value { [Custom] public int Number { get; set; } } public sealed class CustomAttribute : System.Text.Json.Serialization.JsonConverterAttribute { }")]
-    [DataRow("[Ankus.PgType] internal sealed class Value { internal required string Text { get; init; } }")]
-    public void InvalidDefaultSerializationContractsAreDiagnosed(string source)
+    [DataRow("[Ankus.PgType] public sealed record Value(object Item);", "ANKUS450")]
+    [DataRow("[Ankus.PgType] public sealed record Value(System.Uri Item);", "ANKUS450")]
+    [DataRow("[Ankus.PgType] public sealed record Value(int[,] Items);", "ANKUS446")]
+    [DataRow("[Ankus.PgType] public sealed record Value(System.Collections.Generic.Dictionary<int,string> Items);", "ANKUS448")]
+    [DataRow("[Ankus.PgType] public sealed record Value(Abstract Item); public abstract class Abstract;", "ANKUS447")]
+    [DataRow("[Ankus.PgType] public sealed class Value { public Value(int number) { } public Value(string text) { } }", "ANKUS456")]
+    [DataRow("[Ankus.PgType] public sealed class Value { public int this[int index] { get => index; set { } } }", "ANKUS452")]
+    [DataRow("[Ankus.PgType] public sealed class Value { public int Number { private get; set; } }", "ANKUS453")]
+    [DataRow("[Ankus.PgType] public sealed class Value { [System.Text.Json.Serialization.JsonPropertyName(null)] public int Number { get; set; } }", "ANKUS454")]
+    [DataRow("[Ankus.PgType] public sealed class Value { public int Number { get; } }", "ANKUS458")]
+    [DataRow("[Ankus.PgType] public sealed class Value { public Value(int wrong) { Number = wrong; } public int Number { get; } }", "ANKUS457")]
+    [DataRow("[Ankus.PgType] public sealed class Value { [System.Text.Json.Serialization.JsonPropertyName(\"same\")] public int A { get; set; } [System.Text.Json.Serialization.JsonPropertyName(\"same\")] public int B { get; set; } }", "ANKUS455")]
+    [DataRow("[Ankus.PgType] public sealed class Value { [System.Text.Json.Serialization.JsonIgnore(Condition=System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] public string? Text { get; set; } }", "ANKUS451")]
+    [DataRow("[Ankus.PgType] public sealed class Value { [System.Text.Json.Serialization.JsonNumberHandling(System.Text.Json.Serialization.JsonNumberHandling.AllowReadingFromString)] public int Number { get; set; } }", "ANKUS468")]
+    [DataRow("[Ankus.PgType] public sealed class Value { public Value(string text) { Text = text; } public string? Text { get; } }", "ANKUS457")]
+    [DataRow("[Ankus.PgType] public enum Value { A = 1, B = 1 }", "ANKUS449")]
+    [DataRow("[Ankus.PgType] public enum Value { [System.Text.Json.Serialization.JsonStringEnumMemberName(\"same\")] A, [System.Text.Json.Serialization.JsonStringEnumMemberName(\"same\")] B }", "ANKUS449")]
+    [DataRow("[Ankus.PgType] public sealed class Value { [System.Text.Json.Serialization.JsonIgnore] public required string Text { get; init; } }", "ANKUS459")]
+    [DataRow("[Ankus.PgType] public sealed class Value { public Value(string text) { Text = text; } public required string Text { get; set; } }", "ANKUS459")]
+    [DataRow("[Ankus.PgType] public sealed class Value { [System.Text.Json.Serialization.JsonInclude] internal int Number { get; set; } }", "ANKUS468")]
+    [DataRow("[Ankus.PgType] public sealed class Value { [System.Text.Json.Serialization.JsonInclude] private int Number { get; set; } }", "ANKUS468")]
+    [DataRow("[Ankus.PgType] public sealed class Value { [Custom] public int Number { get; set; } } public sealed class CustomAttribute : System.Text.Json.Serialization.JsonConverterAttribute { }", "ANKUS468")]
+    [DataRow("[Ankus.PgType] internal sealed class Value { internal required string Text { get; init; } }", "ANKUS459")]
+    public void InvalidDefaultSerializationContractsAreDiagnosed(string source, string id)
     {
         (_, ImmutableArray<Diagnostic> diagnostics) = Generate(source);
-        Diagnostic diagnostic = Assert.ContainsSingle(diagnostics.Where(static value => value.Id == "ANKUS017"));
+        Diagnostic diagnostic = Assert.ContainsSingle(diagnostics.Where(value => value.Id == id));
         Assert.AreEqual(DiagnosticSeverity.Error, diagnostic.Severity);
     }
 

@@ -61,9 +61,13 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.IsNotNull(strings);
         Assert.AreEqual(value, strings.Arguments[0]);
         Assert.IsFalse(ExactAttributeStrings.IsUnicode(strings.Arguments[0]));
-        SerializationModel? model = DefaultTypeSerializer.Create(type, out string? error, cancellationToken: context.CancellationToken);
+        CustomTypeValidationFailure? failure = null;
+        SerializationModel? model = DefaultTypeSerializer.Create(type, out string? error,
+            failure: value => failure = value, cancellationToken: context.CancellationToken);
         Assert.IsNull(model);
         Assert.IsNotNull(error);
+        Assert.IsNotNull(failure);
+        Assert.AreEqual(CustomTypeDiagnosticKind.SerializationUnicode, failure.Kind);
         Assert.Contains("valid Unicode", error);
     }
 

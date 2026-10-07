@@ -6,7 +6,8 @@ namespace Ankus;
 /// <remarks>
 /// Generated CBOR contracts support inherited members and explicitly tagged class variants declared with
 /// <see cref="System.Text.Json.Serialization.JsonDerivedTypeAttribute"/> and
-/// <see cref="System.Text.Json.Serialization.JsonPolymorphicAttribute"/>. Abstract classes require concrete variants.
+/// <see cref="System.Text.Json.Serialization.JsonPolymorphicAttribute"/>. Abstract classes require generated storage
+/// with concrete variants; explicit storage codecs require a concrete managed type.
 /// Unknown runtime subtypes are rejected to preserve stored type identity.
 /// </remarks>
 /// <param name="codec">An explicit PgTypeCodec with an accessible parameterless constructor; omit to use generated storage and the selected text options.</param>

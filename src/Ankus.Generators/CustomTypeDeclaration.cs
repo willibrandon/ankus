@@ -11,15 +11,6 @@ namespace Ankus.Generators;
 internal sealed class CustomTypeDeclaration(INamedTypeSymbol type, INamedTypeSymbol? codec, INamedTypeSymbol? textCodec,
     SerializationModel? serializer, int nativeSize, AttributeData attribute, string name, string? schema, string? nullInputErrorMessage)
 {
-    private static readonly DiagnosticDescriptor s_invalid = new(
-        "ANKUS017", "Invalid PostgreSQL base type", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true,
-        helpLinkUri: "https://willibrandon.github.io/ankus/custom-types/#generated-contracts");
-
-    /// <summary>
-    /// Gets the shared descriptor for current-tree custom-type validation errors.
-    /// </summary>
-    internal static DiagnosticDescriptor InvalidDiagnostic => s_invalid;
-
     /// <summary>
     /// Gets the attributed managed type.
     /// </summary>
@@ -91,8 +82,9 @@ internal sealed class CustomTypeDeclaration(INamedTypeSymbol type, INamedTypeSym
     /// <summary>
     /// Reads and validates an attributed base type, optionally reporting diagnostics.
     /// </summary>
-    internal static CustomTypeDeclaration? Create(INamedTypeSymbol type, SourceProductionContext? context = null, Action<string>? report = null,
-        Action<AttributeMetadataFailure>? metadataFailure = null, CancellationToken cancellationToken = default)
+    internal static CustomTypeDeclaration? Create(INamedTypeSymbol type, Action<string>? report = null,
+        Action<AttributeMetadataFailure>? metadataFailure = null,
+        Action<DiagnosticDescriptor, Location?, string[]>? diagnostic = null, CancellationToken cancellationToken = default)
     {
         AttributeData? attribute = type.GetAttributes().FirstOrDefault(static item => item.AttributeClass?.ToDisplayString() == "Ankus.PgTypeAttribute");
         if (attribute is null)
@@ -100,16 +92,17 @@ internal sealed class CustomTypeDeclaration(INamedTypeSymbol type, INamedTypeSym
             return null;
         }
 
-        CancellationToken token = context?.CancellationToken ?? cancellationToken;
+        CancellationToken token = cancellationToken;
+        Location? typeLocation = type.Locations.FirstOrDefault();
         if (!ExactAttributeStrings.TryRead(type, attribute, token, out AttributeStrings? options) || options is null)
         {
             metadataFailure?.Invoke(AttributeMetadataFailure.Create(type, attribute));
-            return Invalid("The base type's exact attribute metadata cannot be read; rebuild its defining assembly.");
+            return null;
         }
 
         if (AttributeValues.Get(attribute, "Alignment", 0) is not (0 or 1))
         {
-            return Invalid("Alignment must be PgTypeAlignment.FourBytes or PgTypeAlignment.EightBytes for variable-length storage.");
+            return Invalid(CustomTypeDiagnosticKind.Alignment, Option("Alignment"), type.Name);
         }
 
         object? codecArgument = attribute.ConstructorArguments.FirstOrDefault().Value;
@@ -117,7 +110,8 @@ internal sealed class CustomTypeDeclaration(INamedTypeSymbol type, INamedTypeSym
         if (codecArgument is not null and not INamedTypeSymbol || textArgument.Kind == TypedConstantKind.Array ||
             textArgument.Value is not null and not INamedTypeSymbol)
         {
-            return Invalid("Codec options require an accessible, closed named codec type.");
+            return Invalid(CustomTypeDiagnosticKind.CodecType,
+                codecArgument is not null and not INamedTypeSymbol ? DatumMappingDiagnostics.Argument(attribute, 0, token) : Option("TextCodec"), type.Name);
         }
 
         var codec = codecArgument as INamedTypeSymbol;
@@ -125,87 +119,132 @@ internal sealed class CustomTypeDeclaration(INamedTypeSymbol type, INamedTypeSym
         bool nativeLayout = AttributeValues.Get(attribute, "NativeLayout", false);
         if (codec is not null && textCodec is not null)
         {
-            return Invalid("TextCodec selects generated storage and cannot be combined with an explicit storage codec.");
+            return Invalid(CustomTypeDiagnosticKind.ConflictingCodecs, Option("TextCodec"), type.Name);
         }
 
         if (nativeLayout && (codec is not null || textCodec is null))
         {
-            return Invalid("NativeLayout requires TextCodec and cannot be combined with an explicit storage codec.");
+            return Invalid(CustomTypeDiagnosticKind.NativeLayoutCodec, Option("NativeLayout"), type.Name);
         }
 
         if (options.Property("NullInputErrorMessage", null) is { } nullMessage && !SqlText.IsText(nullMessage))
         {
-            return Invalid("NullInputErrorMessage must contain valid Unicode without zero characters.");
+            return Invalid(CustomTypeDiagnosticKind.NullInputMessage, Option("NullInputErrorMessage"), type.Name);
         }
 
-        if (type.IsRefLikeType || type.IsStatic || type.IsAbstract && (codec is not null ||
-            !type.GetAttributes().Any(static item => item.AttributeClass?.ToDisplayString() == "System.Text.Json.Serialization.JsonDerivedTypeAttribute")) ||
-            type.IsUnboundGenericType || !Accessible(type) ||
-            type.GetAttributes().Any(static item => item.AttributeClass?.ToDisplayString() == "Ankus.PgEnumAttribute"))
+        if (type.IsRefLikeType)
         {
-            return Invalid("PgType requires an accessible, non-generic class, struct, or enum without PgEnum. Abstract classes require generated serialization with declared concrete variants.");
+            return Invalid(CustomTypeDiagnosticKind.RefLikeType, typeLocation, type.Name);
+        }
+
+        if (type.IsStatic)
+        {
+            return Invalid(CustomTypeDiagnosticKind.StaticType, typeLocation, type.Name);
+        }
+
+        if (type.IsAbstract && codec is not null)
+        {
+            return Invalid(CustomTypeDiagnosticKind.AbstractCodecType, typeLocation, type.Name);
+        }
+
+        if (type.IsAbstract &&
+            !type.GetAttributes().Any(static item => item.AttributeClass?.ToDisplayString() == "System.Text.Json.Serialization.JsonDerivedTypeAttribute"))
+        {
+            return Invalid(CustomTypeDiagnosticKind.AbstractType, typeLocation, type.Name);
+        }
+
+        if (type.IsUnboundGenericType || ContainingTypes(type).Any(static current => current.IsGenericType))
+        {
+            return Invalid(CustomTypeDiagnosticKind.GenericType, typeLocation, type.Name);
+        }
+
+        if (!Accessible(type))
+        {
+            return Invalid(CustomTypeDiagnosticKind.InaccessibleType, typeLocation, type.Name);
+        }
+
+        if (type.GetAttributes().Any(static item => item.AttributeClass?.ToDisplayString() == "Ankus.PgEnumAttribute"))
+        {
+            return Invalid(CustomTypeDiagnosticKind.ConflictingTypeKinds, typeLocation, type.Name);
         }
 
         SerializationModel? serializer = null;
-        if (textCodec is not null && ValidateCodec(textCodec, type, "PgTypeTextCodec") is { } textError)
+        if (textCodec is not null && ValidateCodec(textCodec, type, "PgTypeTextCodec", Option("TextCodec")) is { } textError)
         {
-            return Invalid(textError);
+            return InvalidFailure(textError);
         }
 
         int nativeSize = 0;
         if (nativeLayout)
         {
-            nativeSize = NativeTypeLayout.Validate(type, out string? error);
-            if (error is not null)
+            nativeSize = NativeTypeLayout.Validate(type, out CustomTypeValidationFailure? failure, token);
+            if (failure is not null)
             {
-                return Invalid(error);
+                return InvalidFailure(failure);
             }
         }
         else if (codec is null)
         {
-            serializer = DefaultTypeSerializer.Create(type, out string? error, metadataFailure, token);
+            CustomTypeValidationFailure? failure = null;
+            serializer = DefaultTypeSerializer.Create(type, out _, metadataFailure, value => failure = value, token);
             if (serializer is null)
             {
-                return Invalid(error!);
+                return failure is null ? null : InvalidFailure(failure);
             }
         }
-        else if (ValidateCodec(codec, type, "PgTypeCodec") is { } codecError)
+        else if (ValidateCodec(codec, type, "PgTypeCodec", DatumMappingDiagnostics.Argument(attribute, 0, token)) is { } codecError)
         {
-            return Invalid(codecError);
+            return InvalidFailure(codecError);
         }
 
         string name = options.Property("Name", SqlText.SnakeCase(type.Name))!;
         string? schema = options.Property("Schema", null);
+        AttributeData? inheritedSchema = null;
         for (INamedTypeSymbol? container = type.ContainingType; schema is null && container is not null; container = container.ContainingType)
         {
             AttributeData? inherited = container.GetAttributes().FirstOrDefault(static item => item.AttributeClass?.ToDisplayString() == "Ankus.PgSchemaAttribute");
             if (inherited is not null)
             {
+                inheritedSchema = inherited;
                 if (!ExactAttributeStrings.TryRead(container, inherited, token, out AttributeStrings? enclosing) || enclosing is null)
                 {
                     metadataFailure?.Invoke(AttributeMetadataFailure.Create(container, inherited));
-                    return Invalid("The enclosing schema's exact attribute metadata cannot be read; rebuild its defining assembly.");
+                    return null;
                 }
 
                 schema = enclosing.Arguments[0];
                 if (schema is null)
                 {
-                    return Invalid("The inherited schema must have a non-null identifier.");
+                    return Invalid(CustomTypeDiagnosticKind.NullInheritedSchema,
+                        FunctionDeclarationDiagnostics.ConstructorArgument(inherited, token), type.Name);
                 }
             }
         }
 
-        if (!SqlText.IsIdentifier(name) || schema is not null && !SqlText.IsIdentifier(schema))
+        if (!SqlText.IsIdentifier(name))
         {
-            return Invalid("Type and schema names must be valid identifiers of at most 63 UTF-8 bytes.");
+            return Invalid(CustomTypeDiagnosticKind.TypeName, Option("Name"), type.Name);
+        }
+
+        if (schema is not null && !SqlText.IsIdentifier(schema))
+        {
+            Location? schemaLocation = inheritedSchema is null ? Option("Schema") :
+                FunctionDeclarationDiagnostics.ConstructorArgument(inheritedSchema, token);
+            return Invalid(CustomTypeDiagnosticKind.SchemaName, schemaLocation, type.Name);
         }
 
         return new(type, codec, textCodec, serializer, nativeSize, attribute, name, schema, options.Property("NullInputErrorMessage", null));
 
-        CustomTypeDeclaration? Invalid(string message)
+        Location? Option(string name) => FunctionDeclarationDiagnostics.Option(attribute, name, token);
+
+        CustomTypeDeclaration? InvalidFailure(CustomTypeValidationFailure failure)
+            => Invalid(failure.Kind, failure.Location, [.. failure.Arguments]);
+
+        CustomTypeDeclaration? Invalid(CustomTypeDiagnosticKind kind, Location? location, params string[] arguments)
         {
-            context?.ReportDiagnostic(Diagnostic.Create(s_invalid, type.Locations.FirstOrDefault(), type.Name, message));
-            report?.Invoke(message);
+            DiagnosticDescriptor descriptor = CustomTypeDiagnostics.Get(kind);
+            diagnostic?.Invoke(descriptor, location ?? typeLocation, arguments);
+            report?.Invoke(CustomTypeDiagnostics.Message(kind, arguments));
             return null;
         }
     }
@@ -213,7 +252,7 @@ internal sealed class CustomTypeDeclaration(INamedTypeSymbol type, INamedTypeSym
     /// <summary>
     /// Validates direct codec construction and its exact non-null managed contract.
     /// </summary>
-    private static string? ValidateCodec(INamedTypeSymbol codec, INamedTypeSymbol type, string baseName)
+    private static CustomTypeValidationFailure? ValidateCodec(INamedTypeSymbol codec, INamedTypeSymbol type, string baseName, Location? location)
     {
         IMethodSymbol? constructor = codec.InstanceConstructors.FirstOrDefault(constructor => constructor.Parameters.Length == 0 &&
             (constructor.DeclaredAccessibility == Accessibility.Public ||
@@ -221,7 +260,7 @@ internal sealed class CustomTypeDeclaration(INamedTypeSymbol type, INamedTypeSym
              codec.ContainingAssembly.GivesAccessTo(type.ContainingAssembly)));
         if (!AccessibleCodec(codec, type.ContainingAssembly) || codec.IsAbstract || codec.IsStatic || constructor is null)
         {
-            return "The codec must be accessible, closed and concrete, with an accessible parameterless constructor.";
+            return new(CustomTypeDiagnosticKind.CodecConstruction, location, new([codec.ToDisplayString()]));
         }
 
         bool required = false;
@@ -238,16 +277,28 @@ internal sealed class CustomTypeDeclaration(INamedTypeSymbol type, INamedTypeSym
         if (contract is null || !SymbolEqualityComparer.Default.Equals(contract.TypeArguments[0], type) ||
             type.IsReferenceType && contract.TypeArguments[0].NullableAnnotation == NullableAnnotation.Annotated)
         {
-            return "The codec must derive from " + baseName + "<T> for this exact non-nullable managed type.";
+            return new(CustomTypeDiagnosticKind.CodecContract, location,
+                new([codec.ToDisplayString(), baseName, type.ToDisplayString()]));
         }
 
         if (required && !constructor.GetAttributes().Any(static attribute =>
             attribute.AttributeClass?.ToDisplayString() == "System.Diagnostics.CodeAnalysis.SetsRequiredMembersAttribute"))
         {
-            return "A codec with C# required members needs a parameterless constructor carrying SetsRequiredMembers.";
+            return new(CustomTypeDiagnosticKind.CodecRequiredMembers, location, new([codec.ToDisplayString()]));
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Enumerates the declaration and its containing types for closed-generic validation.
+    /// </summary>
+    private static IEnumerable<INamedTypeSymbol> ContainingTypes(INamedTypeSymbol type)
+    {
+        for (INamedTypeSymbol? current = type; current is not null; current = current.ContainingType)
+        {
+            yield return current;
+        }
     }
 
     /// <summary>

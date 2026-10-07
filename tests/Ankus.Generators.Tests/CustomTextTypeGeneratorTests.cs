@@ -217,23 +217,24 @@ public sealed partial class PgFunctionGeneratorTests
     /// Rejects ambiguous, unconstructible or incompatible text codec and null-message contracts.
     /// </summary>
     /// <param name="source">The invalid declaration.</param>
+    /// <param name="id">The precise declaration diagnostic.</param>
     [TestMethod]
-    [DataRow("[Ankus.PgType(typeof(FullCodec), TextCodec=typeof(Codec))] public struct Value {} public sealed class Codec : TextBase {}")]
-    [DataRow("[Ankus.PgType(TextCodec=typeof(string))] public struct Value {}")]
-    [DataRow("[Ankus.PgType(TextCodec=typeof(int[]))] public struct Value {}")]
-    [DataRow("[Ankus.PgType(typeof(int[]))] public struct Value {}")]
-    [DataRow("[Ankus.PgType(TextCodec=typeof(Codec))] public struct Value {} public abstract class Codec : TextBase {}")]
-    [DataRow("[Ankus.PgType(TextCodec=typeof(Codec<>))] public struct Value {} public sealed class Codec<T> : TextBase {}")]
-    [DataRow("[Ankus.PgType(TextCodec=typeof(Codec))] public struct Value {} public sealed class Codec : TextBase { private Codec() {} }")]
-    [DataRow("[Ankus.PgType(TextCodec=typeof(Codec))] public struct Value {} public sealed class Codec(int number) : TextBase {}")]
-    [DataRow("[Ankus.PgType(TextCodec=typeof(Codec))] public struct Value {} public sealed class Codec : TextBase { public required string Text {get;init;} }")]
-    [DataRow("[Ankus.PgType(TextCodec=typeof(Codec))] public struct Value {} public sealed class Codec : Ankus.PgTypeTextCodec<int> { public override int Parse(string text)=>0; public override string Format(int value)=>\"\"; }")]
-    [DataRow("[Ankus.PgType(TextCodec=typeof(Codec))] public sealed record Value(int Number); public sealed class Codec : Ankus.PgTypeTextCodec<Value?> { public override Value? Parse(string text)=>null; public override string Format(Value? value)=>\"\"; }")]
-    [DataRow("[Ankus.PgType(TextCodec=typeof(Codec))] public class Value { private sealed class Codec : TextBase {} }")]
-    [DataRow("[Ankus.PgType(TextCodec=typeof(Codec))] public sealed record Value(System.Uri Address); public sealed class Codec : TextBase {}")]
-    [DataRow("[Ankus.PgType(NullInputErrorMessage=\"bad\\0message\")] public struct Value {}")]
-    [DataRow("[Ankus.PgType(NullInputErrorMessage=\"bad\\ud800message\")] public struct Value {}")]
-    public void InvalidCustomTextContractsAreDiagnosed(string source)
+    [DataRow("[Ankus.PgType(typeof(FullCodec), TextCodec=typeof(Codec))] public struct Value {} public sealed class Codec : TextBase {}", "ANKUS421")]
+    [DataRow("[Ankus.PgType(TextCodec=typeof(string))] public struct Value {}", "ANKUS430")]
+    [DataRow("[Ankus.PgType(TextCodec=typeof(int[]))] public struct Value {}", "ANKUS420")]
+    [DataRow("[Ankus.PgType(typeof(int[]))] public struct Value {}", "ANKUS420")]
+    [DataRow("[Ankus.PgType(TextCodec=typeof(Codec))] public struct Value {} public abstract class Codec : TextBase {}", "ANKUS430")]
+    [DataRow("[Ankus.PgType(TextCodec=typeof(Codec<>))] public struct Value {} public sealed class Codec<T> : TextBase {}", "ANKUS430")]
+    [DataRow("[Ankus.PgType(TextCodec=typeof(Codec))] public struct Value {} public sealed class Codec : TextBase { private Codec() {} }", "ANKUS430")]
+    [DataRow("[Ankus.PgType(TextCodec=typeof(Codec))] public struct Value {} public sealed class Codec(int number) : TextBase {}", "ANKUS430")]
+    [DataRow("[Ankus.PgType(TextCodec=typeof(Codec))] public struct Value {} public sealed class Codec : TextBase { public required string Text {get;init;} }", "ANKUS432")]
+    [DataRow("[Ankus.PgType(TextCodec=typeof(Codec))] public struct Value {} public sealed class Codec : Ankus.PgTypeTextCodec<int> { public override int Parse(string text)=>0; public override string Format(int value)=>\"\"; }", "ANKUS431")]
+    [DataRow("[Ankus.PgType(TextCodec=typeof(Codec))] public sealed record Value(int Number); public sealed class Codec : Ankus.PgTypeTextCodec<Value?> { public override Value? Parse(string text)=>null; public override string Format(Value? value)=>\"\"; }", "ANKUS431")]
+    [DataRow("[Ankus.PgType(TextCodec=typeof(Codec))] public class Value { private sealed class Codec : TextBase {} }", "ANKUS430")]
+    [DataRow("[Ankus.PgType(TextCodec=typeof(Codec))] public sealed record Value(System.Uri Address); public sealed class Codec : TextBase {}", "ANKUS450")]
+    [DataRow("[Ankus.PgType(NullInputErrorMessage=\"bad\\0message\")] public struct Value {}", "ANKUS423")]
+    [DataRow("[Ankus.PgType(NullInputErrorMessage=\"bad\\ud800message\")] public struct Value {}", "ANKUS423")]
+    public void InvalidCustomTextContractsAreDiagnosed(string source, string id)
     {
         (_, ImmutableArray<Diagnostic> diagnostics) = Generate(source + """
             public abstract class TextBase : Ankus.PgTypeTextCodec<Value>
@@ -249,7 +250,7 @@ public sealed partial class PgFunctionGeneratorTests
                 public override void Write(Value value, System.Buffers.IBufferWriter<byte> destination) { }
             }
             """);
-        Diagnostic diagnostic = Assert.ContainsSingle(diagnostics.Where(static value => value.Id == "ANKUS017"));
+        Diagnostic diagnostic = Assert.ContainsSingle(diagnostics.Where(value => value.Id == id));
         Assert.AreEqual(DiagnosticSeverity.Error, diagnostic.Severity);
     }
 }

@@ -97,6 +97,35 @@ public sealed partial class PgFunctionGeneratorTests
     }
 
     /// <summary>
+    /// Reports the finite generated-contract limit without retaining a partial serializer.
+    /// </summary>
+    [TestMethod]
+    public void DefaultSerializerDiagnosesGraphLimit()
+    {
+        var source = new StringBuilder("[Ankus.PgType] public sealed class Value {");
+        for (int index = 0; index < 256; index++)
+        {
+            source.Append(" public Node").Append(index).Append(" Item").Append(index)
+                .Append(" { get; set; } = new();");
+        }
+
+        source.Append(" }");
+        for (int index = 0; index < 256; index++)
+        {
+            source.Append(" public sealed class Node").Append(index).Append(" { }");
+        }
+
+        INamedTypeSymbol root = ModuleCompilation(source.ToString()).GetTypeByMetadataName("Value")!;
+        CustomTypeValidationFailure? failure = null;
+        SerializationModel? model = DefaultTypeSerializer.Create(root, out string? error,
+            failure: value => failure = value, cancellationToken: context.CancellationToken);
+        Assert.IsNull(model);
+        Assert.IsNotNull(error);
+        Assert.IsNotNull(failure);
+        Assert.AreEqual(CustomTypeDiagnosticKind.SerializationGraphLimit, failure.Kind);
+    }
+
+    /// <summary>
     /// Analyzes the attributed root while keeping compiler objects outside the returned storage model.
     /// </summary>
     /// <param name="compilation">The independently created semantic compilation.</param>

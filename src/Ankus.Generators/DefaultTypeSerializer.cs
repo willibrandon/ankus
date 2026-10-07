@@ -5,7 +5,7 @@ namespace Ankus.Generators;
 /// <summary>
 /// Builds a closed serialization graph and emits direct member access and constructor calls.
 /// </summary>
-internal sealed class DefaultTypeSerializer(IAssemblySymbol assembly, Action<AttributeMetadataFailure>? metadataFailure,
+internal sealed class DefaultTypeSerializer(INamedTypeSymbol root, IAssemblySymbol assembly, Action<AttributeMetadataFailure>? metadataFailure,
     CancellationToken cancellationToken)
 {
     private readonly Dictionary<string, SerializationNode> _nodes = new(StringComparer.Ordinal);
@@ -15,9 +15,10 @@ internal sealed class DefaultTypeSerializer(IAssemblySymbol assembly, Action<Att
     /// Validates every reachable type before emitting a serializer.
     /// </summary>
     internal static SerializationModel? Create(INamedTypeSymbol type, out string? error,
-        Action<AttributeMetadataFailure>? metadataFailure = null, CancellationToken cancellationToken = default)
+        Action<AttributeMetadataFailure>? metadataFailure = null, Action<CustomTypeValidationFailure>? failure = null,
+        CancellationToken cancellationToken = default)
     {
-        var serializer = new DefaultTypeSerializer(type.ContainingAssembly, metadataFailure, cancellationToken);
+        var serializer = new DefaultTypeSerializer(type, type.ContainingAssembly, metadataFailure, cancellationToken);
         try
         {
             serializer.Add(type.WithNullableAnnotation(NullableAnnotation.NotAnnotated));
@@ -26,12 +27,21 @@ internal sealed class DefaultTypeSerializer(IAssemblySymbol assembly, Action<Att
                 if (contract.Variants.Select(static variant => variant.Shape).Concat(contract.BaseShape is { } baseShape ? [baseShape] : [])
                     .Any(shape => shape.Members.Any(member => member.SerializedName == contract.DiscriminatorName)))
                 {
-                    throw Unsupported(contract.Type, "the discriminator property must not collide with a serialized member");
+                    throw Invalid(CustomTypeDiagnosticKind.DiscriminatorCollision, contract.Type.Locations.FirstOrDefault(),
+                        Display(contract.Type), contract.DiscriminatorName);
                 }
             }
 
             error = null;
             return serializer.Freeze();
+        }
+        catch (ValidationException exception)
+        {
+            CustomTypeValidationFailure validation = exception.Failure.Location is { IsInSource: true } ? exception.Failure :
+                exception.Failure with { Location = type.Locations.FirstOrDefault(static location => location.IsInSource) };
+            failure?.Invoke(validation);
+            error = exception.Message;
+            return null;
         }
         catch (InvalidOperationException exception)
         {
@@ -58,12 +68,14 @@ internal sealed class DefaultTypeSerializer(IAssemblySymbol assembly, Action<Att
         if (!ExactAttributeStrings.TryRead(declaration, attribute, cancellationToken, out AttributeStrings? strings) || strings is null)
         {
             metadataFailure?.Invoke(AttributeMetadataFailure.Create(declaration, attribute));
-            throw Unsupported(owner as ITypeSymbol ?? owner.ContainingType!, "exact serialization attribute metadata cannot be read; rebuild its defining assembly");
+            throw new InvalidOperationException("The exact serialization attribute metadata cannot be read; rebuild its defining assembly.");
         }
 
         if (strings.Arguments.Values.Concat(strings.Properties.Values).Any(static value => !ExactAttributeStrings.IsUnicode(value)))
         {
-            throw Unsupported(owner as ITypeSymbol ?? owner.ContainingType!, "serialized names and discriminators must contain valid Unicode");
+            ITypeSymbol type = owner as ITypeSymbol ?? owner.ContainingType!;
+            throw Invalid(CustomTypeDiagnosticKind.SerializationUnicode,
+                attribute.ApplicationSyntaxReference?.GetSyntax(cancellationToken).GetLocation() ?? owner.Locations.FirstOrDefault(), Display(type));
         }
 
         return strings;
@@ -85,7 +97,7 @@ internal sealed class DefaultTypeSerializer(IAssemblySymbol assembly, Action<Att
     /// <summary>
     /// Creates a node before visiting its children so recursive contracts remain finite.
     /// </summary>
-    private SerializationNode Add(ITypeSymbol type, bool objectShape = false)
+    private SerializationNode Add(ITypeSymbol type, bool objectShape = false, Location? usage = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
         string managed = Display(type);
@@ -97,7 +109,7 @@ internal sealed class DefaultTypeSerializer(IAssemblySymbol assembly, Action<Att
 
         if (_ordered.Count >= 256)
         {
-            throw new InvalidOperationException("The default serializer supports at most 256 distinct reachable type contracts; provide an explicit codec.");
+            throw Invalid(CustomTypeDiagnosticKind.SerializationGraphLimit, root.Locations.FirstOrDefault(), Display(root));
         }
 
         var node = new SerializationNode(type, _ordered.Count);
@@ -106,7 +118,7 @@ internal sealed class DefaultTypeSerializer(IAssemblySymbol assembly, Action<Att
         if (type is INamedTypeSymbol nullable && nullable.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T)
         {
             node.Kind = "nullable";
-            node.Element = Add(nullable.TypeArguments[0]);
+            node.Element = Add(nullable.TypeArguments[0], usage: usage);
             return node;
         }
 
@@ -130,27 +142,27 @@ internal sealed class DefaultTypeSerializer(IAssemblySymbol assembly, Action<Att
         if (type is IArrayTypeSymbol array && array.Rank == 1 && array.IsSZArray)
         {
             node.Kind = "array";
-            node.Element = Add(array.ElementType);
+            node.Element = Add(array.ElementType, usage: usage);
             return node;
         }
 
         if (type is not INamedTypeSymbol named || named.IsRefLikeType || named.IsStatic || named.IsUnboundGenericType ||
             named.TypeKind is not (TypeKind.Class or TypeKind.Struct or TypeKind.Enum) || !Accessible(named, assembly))
         {
-            throw Unsupported(type, "an accessible concrete value contract is required");
+            throw Invalid(CustomTypeDiagnosticKind.SerializationContract, SourceLocation(type.Locations.FirstOrDefault(), usage), Display(type));
         }
 
         ValidateAttributes(named);
         if (!objectShape && (Attribute(named, "JsonPolymorphicAttribute") is not null ||
             Attribute(named, "JsonDerivedTypeAttribute") is not null))
         {
-            AddPolymorphic(node, named);
+            AddPolymorphic(node, named, usage);
             return node;
         }
 
         if (named.IsAbstract)
         {
-            throw Unsupported(type, "abstract contracts must declare concrete variants with JsonDerivedType");
+            throw Invalid(CustomTypeDiagnosticKind.SerializationAbstract, SourceLocation(named.Locations.FirstOrDefault(), usage), Display(type));
         }
 
         string definition = named.OriginalDefinition.ToDisplayString();
@@ -160,10 +172,10 @@ internal sealed class DefaultTypeSerializer(IAssemblySymbol assembly, Action<Att
             if (node.Kind == "dictionary" && (named.TypeArguments[0].SpecialType != SpecialType.System_String ||
                 named.TypeArguments[0].NullableAnnotation == NullableAnnotation.Annotated))
             {
-                throw Unsupported(type, "dictionary keys must be non-null strings");
+                throw Invalid(CustomTypeDiagnosticKind.DictionaryKey, SourceLocation(named.Locations.FirstOrDefault(), usage), Display(type));
             }
 
-            node.Element = Add(named.TypeArguments[named.TypeArguments.Length - 1]);
+            node.Element = Add(named.TypeArguments[named.TypeArguments.Length - 1], usage: usage);
             return node;
         }
 
@@ -179,7 +191,7 @@ internal sealed class DefaultTypeSerializer(IAssemblySymbol assembly, Action<Att
                 string name = rename is null ? field.Name : Strings(field, rename).Arguments[0] ?? field.Name;
                 if (!names.Add(name) || !values.Add(field.ConstantValue!))
                 {
-                    throw Unsupported(type, "enum names and values must be unique");
+                    throw Invalid(CustomTypeDiagnosticKind.EnumIdentity, SourceLocation(field.Locations.FirstOrDefault(), usage), Display(type));
                 }
 
                 node.EnumMembers.Add((field.Name, name));
@@ -190,13 +202,14 @@ internal sealed class DefaultTypeSerializer(IAssemblySymbol assembly, Action<Att
 
         if (named.SpecialType != SpecialType.None)
         {
-            throw Unsupported(type, "framework-specific contracts require an explicit codec");
+            throw Invalid(CustomTypeDiagnosticKind.FrameworkContract, SourceLocation(named.Locations.FirstOrDefault(), usage), Display(type));
         }
 
         node.Kind = "object";
         var memberNames = new HashSet<string>(StringComparer.Ordinal);
+        var memberSymbols = new Dictionary<SerializationMember, ISymbol>();
         bool ignoredRequired = false;
-        foreach (ISymbol member in ObjectMembers(named))
+        foreach (ISymbol member in ObjectMembers(named, usage))
         {
             if (member.IsStatic)
             {
@@ -215,7 +228,9 @@ internal sealed class DefaultTypeSerializer(IAssemblySymbol assembly, Action<Att
 
                 if (condition != 0)
                 {
-                    throw Unsupported(type, "conditional JsonIgnore changes stored shape; use Always, Never, or an explicit codec");
+                    throw Invalid(CustomTypeDiagnosticKind.ConditionalIgnore,
+                        SourceLocation(ignore.ApplicationSyntaxReference?.GetSyntax(cancellationToken).GetLocation() ?? member.Locations.FirstOrDefault(), usage),
+                        member.Name);
                 }
             }
 
@@ -233,7 +248,7 @@ internal sealed class DefaultTypeSerializer(IAssemblySymbol assembly, Action<Att
             {
                 if (property.IsIndexer)
                 {
-                    throw Unsupported(type, "indexers require an explicit codec");
+                    throw Invalid(CustomTypeDiagnosticKind.Indexer, SourceLocation(property.Locations.FirstOrDefault(), usage), property.Name);
                 }
 
                 memberType = property.Type;
@@ -241,7 +256,7 @@ internal sealed class DefaultTypeSerializer(IAssemblySymbol assembly, Action<Att
                 required = property.IsRequired;
                 if (property.GetMethod?.DeclaredAccessibility != Accessibility.Public)
                 {
-                    throw Unsupported(type, "serialized properties need public getters");
+                    throw Invalid(CustomTypeDiagnosticKind.PublicGetter, SourceLocation(property.Locations.FirstOrDefault(), usage), property.Name);
                 }
             }
             else if (member is IFieldSymbol field)
@@ -257,14 +272,21 @@ internal sealed class DefaultTypeSerializer(IAssemblySymbol assembly, Action<Att
 
             AttributeData? rename = Attribute(member, "JsonPropertyNameAttribute");
             string name = rename is null ? member.Name : Strings(member, rename).Arguments[0] ??
-                throw Unsupported(type, "serialized member names cannot be null");
+                throw Invalid(CustomTypeDiagnosticKind.NullMemberName,
+                    SourceLocation(rename.ApplicationSyntaxReference?.GetSyntax(cancellationToken).GetLocation() ?? member.Locations.FirstOrDefault(), usage),
+                    member.Name);
             if (!memberNames.Add(name))
             {
-                throw Unsupported(type, "serialized member names must be unique");
+                throw Invalid(CustomTypeDiagnosticKind.DuplicateMemberName,
+                    SourceLocation(rename?.ApplicationSyntaxReference?.GetSyntax(cancellationToken).GetLocation() ?? member.Locations.FirstOrDefault(), usage),
+                    name, Display(type));
             }
 
-            node.Members.Add(new SerializationMember(member.Name, name, Add(memberType), writable,
-                required || Attribute(member, "JsonRequiredAttribute") is not null, required));
+            Location? memberLocation = SourceLocation(member.Locations.FirstOrDefault(), usage);
+            var serialized = new SerializationMember(member.Name, name, Add(memberType, usage: memberLocation), writable,
+                required || Attribute(member, "JsonRequiredAttribute") is not null, required);
+            node.Members.Add(serialized);
+            memberSymbols.Add(serialized, member);
         }
 
         IMethodSymbol[] constructors = [.. named.InstanceConstructors.Where(constructor => IsVisible(constructor, assembly))];
@@ -278,7 +300,7 @@ internal sealed class DefaultTypeSerializer(IAssemblySymbol assembly, Action<Att
         };
         if (node.Constructor is null)
         {
-            throw Unsupported(type, "select one accessible constructor with JsonConstructor, or supply an accessible parameterless constructor");
+            throw Invalid(CustomTypeDiagnosticKind.SerializationConstructor, SourceLocation(named.Locations.FirstOrDefault(), usage), Display(type));
         }
 
         foreach (IParameterSymbol parameter in node.Constructor.Parameters)
@@ -287,22 +309,23 @@ internal sealed class DefaultTypeSerializer(IAssemblySymbol assembly, Action<Att
                 SymbolEqualityComparer.IncludeNullability.Equals(member.Value.Type, parameter.Type))];
             if (parameter.RefKind != RefKind.None || matches.Length != 1 || node.ConstructorMembers.Contains(matches[0]))
             {
-                throw Unsupported(type, "each constructor parameter must match one serialized member by name and exact type, including nullability");
+                throw Invalid(CustomTypeDiagnosticKind.ConstructorParameter, SourceLocation(parameter.Locations.FirstOrDefault(), usage), parameter.Name);
             }
 
             node.ConstructorMembers.Add(matches[0]);
         }
 
-        if (node.Members.Any(member => !member.Writable && !node.ConstructorMembers.Contains(member)))
+        if (node.Members.FirstOrDefault(member => !member.Writable && !node.ConstructorMembers.Contains(member)) is { } readOnly)
         {
-            throw Unsupported(type, "read-only members must be bound to constructor parameters");
+            throw Invalid(CustomTypeDiagnosticKind.ReadOnlyMember,
+                SourceLocation(memberSymbols[readOnly].Locations.FirstOrDefault(), usage), readOnly.Name);
         }
 
         if ((ignoredRequired || node.ConstructorMembers.Any(static member => member.InitializerRequired)) &&
             !node.Constructor.GetAttributes().Any(static attribute =>
                 attribute.AttributeClass?.ToDisplayString() == "System.Diagnostics.CodeAnalysis.SetsRequiredMembersAttribute"))
         {
-            throw Unsupported(type, "constructors binding or ignoring C# required members must carry SetsRequiredMembers to preserve constructor results");
+            throw Invalid(CustomTypeDiagnosticKind.RequiredMembers, SourceLocation(node.Constructor.Locations.FirstOrDefault(), usage), Display(type));
         }
 
         return node;
@@ -311,11 +334,11 @@ internal sealed class DefaultTypeSerializer(IAssemblySymbol assembly, Action<Att
     /// <summary>
     /// Resolves explicitly tagged concrete variants without permitting identity-losing fallback.
     /// </summary>
-    private void AddPolymorphic(SerializationNode node, INamedTypeSymbol type)
+    private void AddPolymorphic(SerializationNode node, INamedTypeSymbol type, Location? usage)
     {
         if (type.TypeKind != TypeKind.Class)
         {
-            throw Unsupported(type, "polymorphic contracts must be classes");
+            throw Invalid(CustomTypeDiagnosticKind.PolymorphicClass, SourceLocation(type.Locations.FirstOrDefault(), usage), Display(type));
         }
 
         node.Kind = "polymorphic";
@@ -326,7 +349,10 @@ internal sealed class DefaultTypeSerializer(IAssemblySymbol assembly, Action<Att
             if (AttributeValues.Get(configuration, "IgnoreUnrecognizedTypeDiscriminators", false) ||
                 AttributeValues.Get(configuration, "UnknownDerivedTypeHandling", 0) != 0)
             {
-                throw Unsupported(type, "polymorphic fallback loses concrete type identity; unknown discriminators and derived types must fail");
+                Location? option = AttributeValues.Get(configuration, "IgnoreUnrecognizedTypeDiscriminators", false)
+                    ? FunctionDeclarationDiagnostics.Option(configuration, "IgnoreUnrecognizedTypeDiscriminators", cancellationToken)
+                    : FunctionDeclarationDiagnostics.Option(configuration, "UnknownDerivedTypeHandling", cancellationToken);
+                throw Invalid(CustomTypeDiagnosticKind.PolymorphicFallback, SourceLocation(option ?? type.Locations.FirstOrDefault(), usage), Display(type));
             }
         }
 
@@ -338,13 +364,20 @@ internal sealed class DefaultTypeSerializer(IAssemblySymbol assembly, Action<Att
             AttributeStrings exact = Strings(type, registration);
             if (registration.ConstructorArguments.Length != 2 ||
                 registration.ConstructorArguments[0].Value is not INamedTypeSymbol derived ||
-                registration.ConstructorArguments[1].Value is not (string or int))
+                !registration.ConstructorArguments[1].IsNull && registration.ConstructorArguments[1].Value is not (string or int))
             {
-                throw Unsupported(type, "each JsonDerivedType must specify a concrete type and a string or Int32 discriminator");
+                throw Invalid(CustomTypeDiagnosticKind.VariantRegistration,
+                    SourceLocation(registration.ApplicationSyntaxReference?.GetSyntax(cancellationToken).GetLocation() ?? type.Locations.FirstOrDefault(), usage),
+                    Display(type));
             }
 
-            object tag = registration.ConstructorArguments[1].Value is string ? exact.Arguments[1] ??
-                throw Unsupported(type, "string discriminators cannot be null") : registration.ConstructorArguments[1].Value!;
+            object tag = registration.ConstructorArguments[1].IsNull ?
+                throw Invalid(CustomTypeDiagnosticKind.NullDiscriminator,
+                    SourceLocation(DatumMappingDiagnostics.Argument(registration, 1, cancellationToken), usage), Display(type)) :
+                registration.ConstructorArguments[1].Value is string ? exact.Arguments[1] ??
+                    throw Invalid(CustomTypeDiagnosticKind.NullDiscriminator,
+                        SourceLocation(DatumMappingDiagnostics.Argument(registration, 1, cancellationToken), usage), Display(type)) :
+                    registration.ConstructorArguments[1].Value!;
             bool related = false;
             for (INamedTypeSymbol? current = derived; current is not null; current = current.BaseType)
             {
@@ -353,32 +386,39 @@ internal sealed class DefaultTypeSerializer(IAssemblySymbol assembly, Action<Att
 
             if (!related || derived.IsAbstract || derived.IsStatic || derived.IsUnboundGenericType || !Accessible(derived, assembly))
             {
-                throw Unsupported(type, "registered variants must be accessible, closed, concrete classes assignable to the declared base");
+                throw Invalid(CustomTypeDiagnosticKind.VariantType,
+                    SourceLocation(DatumMappingDiagnostics.Argument(registration, 0, cancellationToken), usage), Display(derived), Display(type));
             }
 
             if (!types.Add(derived) || !tags.Add(tag))
             {
-                throw Unsupported(type, "registered variant types and typed discriminators must be unique");
+                throw Invalid(CustomTypeDiagnosticKind.DuplicateVariant,
+                    SourceLocation(registration.ApplicationSyntaxReference?.GetSyntax(cancellationToken).GetLocation() ?? type.Locations.FirstOrDefault(), usage),
+                    Display(type));
             }
 
-            node.Variants.Add((Add(derived.WithNullableAnnotation(NullableAnnotation.NotAnnotated), true), tag));
+            node.Variants.Add((Add(derived.WithNullableAnnotation(NullableAnnotation.NotAnnotated), true,
+                SourceLocation(DatumMappingDiagnostics.Argument(registration, 0, cancellationToken), usage)), tag));
         }
 
         if (node.Variants.Count == 0)
         {
-            throw Unsupported(type, "JsonPolymorphic requires explicit JsonDerivedType registrations");
+            throw Invalid(CustomTypeDiagnosticKind.MissingVariants,
+                SourceLocation(configuration?.ApplicationSyntaxReference?.GetSyntax(cancellationToken).GetLocation() ?? type.Locations.FirstOrDefault(), usage),
+                Display(type));
         }
 
         if (!type.IsAbstract)
         {
-            node.BaseShape = Add(type.WithNullableAnnotation(NullableAnnotation.NotAnnotated), true);
+            node.BaseShape = Add(type.WithNullableAnnotation(NullableAnnotation.NotAnnotated), true,
+                SourceLocation(type.Locations.FirstOrDefault(), usage));
         }
     }
 
     /// <summary>
     /// Includes inherited state once, honoring overrides and rejecting hidden serialized members.
     /// </summary>
-    private static IEnumerable<ISymbol> ObjectMembers(INamedTypeSymbol type)
+    private IEnumerable<ISymbol> ObjectMembers(INamedTypeSymbol type, Location? usage)
     {
         var hiddenNames = new HashSet<string>(StringComparer.Ordinal);
         var overridden = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
@@ -388,7 +428,8 @@ internal sealed class DefaultTypeSerializer(IAssemblySymbol assembly, Action<Att
             string namespaceName = current.ContainingNamespace.ToDisplayString();
             if (current.SpecialType != SpecialType.None || namespaceName == "System" || namespaceName.StartsWith("System.", StringComparison.Ordinal))
             {
-                throw Unsupported(type, "framework-specific contracts require an explicit codec");
+                throw Invalid(CustomTypeDiagnosticKind.FrameworkContract,
+                    SourceLocation(current.Locations.FirstOrDefault(), usage ?? type.Locations.FirstOrDefault()), Display(current));
             }
 
             ValidateAttributes(current);
@@ -418,7 +459,8 @@ internal sealed class DefaultTypeSerializer(IAssemblySymbol assembly, Action<Att
                     hiddenNames.Contains(member.Name) && !(Attribute(member, "JsonIgnoreAttribute") is { } ignore &&
                     AttributeValues.Get(ignore, "Condition", 1) == 1))
                 {
-                    throw Unsupported(type, "hidden serialized members require an explicit codec");
+                    throw Invalid(CustomTypeDiagnosticKind.HiddenMember,
+                        SourceLocation(member.Locations.FirstOrDefault(), usage ?? type.Locations.FirstOrDefault()), member.Name);
                 }
 
                 yield return member;
@@ -438,7 +480,7 @@ internal sealed class DefaultTypeSerializer(IAssemblySymbol assembly, Action<Att
     /// <summary>
     /// Prevents silently ignoring customization that would change persisted meaning.
     /// </summary>
-    private static void ValidateAttributes(ISymbol symbol)
+    private void ValidateAttributes(ISymbol symbol)
     {
         foreach (AttributeData attribute in symbol.GetAttributes())
         {
@@ -452,8 +494,9 @@ internal sealed class DefaultTypeSerializer(IAssemblySymbol assembly, Action<Att
                         break;
                     }
 
-                    throw new InvalidOperationException("Default serialization does not support " + type.Name +
-                        " on " + symbol.Name + "; provide an explicit codec.");
+                    throw Invalid(CustomTypeDiagnosticKind.SerializationAttribute,
+                        attribute.ApplicationSyntaxReference?.GetSyntax(cancellationToken).GetLocation() ?? symbol.Locations.FirstOrDefault(),
+                        type.Name, symbol.Name);
                 }
             }
         }
@@ -485,9 +528,28 @@ internal sealed class DefaultTypeSerializer(IAssemblySymbol assembly, Action<Att
         method.ContainingAssembly.GivesAccessTo(assembly);
 
     /// <summary>
-    /// Reports a contract that needs an explicit codec rather than lossy inference.
+    /// Keeps diagnostics on the authored use when a traversed contract comes from metadata.
     /// </summary>
-    private static InvalidOperationException Unsupported(ITypeSymbol type, string reason) => new("Cannot serialize " + Display(type) + ": " + reason + ".");
+    private Location? SourceLocation(Location? candidate, Location? usage)
+        => candidate is { IsInSource: true } ? candidate : usage is { IsInSource: true } ? usage :
+            root.Locations.FirstOrDefault(static location => location.IsInSource);
+
+    /// <summary>
+    /// Creates a local unwind carrying a closed diagnostic rather than formatted free text.
+    /// </summary>
+    private static ValidationException Invalid(CustomTypeDiagnosticKind kind, Location? location, params string[] arguments)
+        => new(new(kind, location, new(arguments)));
+
+    /// <summary>
+    /// Unwinds recursive serializer discovery while preserving the exact failed contract.
+    /// </summary>
+    private sealed class ValidationException(CustomTypeValidationFailure failure) : Exception(CustomTypeDiagnostics.Message(failure.Kind, [.. failure.Arguments]))
+    {
+        /// <summary>
+        /// Gets the diagnostic to report at the custom-type boundary.
+        /// </summary>
+        internal CustomTypeValidationFailure Failure { get; } = failure;
+    }
 
     /// <summary>
     /// Preserves nullable annotations throughout nested generic and array types.

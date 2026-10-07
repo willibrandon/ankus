@@ -31,7 +31,6 @@ ANKUS377 | Ankus | Error | duplicate SQL function signature
 ANKUS002 | Ankus | Error | Invalid PostgreSQL function name
 ANKUS003 | Ankus | Error | Invalid numeric precision or scale constraint
 ANKUS005 | Ankus | Error | Invalid installation dependency graph or SQL replacement
-ANKUS017 | Ankus | Error | Invalid PostgreSQL base type or storage codec
 ANKUS024 | Ankus | Error | Ambiguous reference nullability in a SQL parameter or result
 ANKUS026 | Ankus | Error | Invalid managed SQL dependency reference
 ANKUS027 | Ankus | Error | Invalid generated planner support function
@@ -400,3 +399,54 @@ ANKUS415 | Ankus | Error | Generated PostgreSQL operators require managed equali
 ANKUS416 | Ankus | Error | Generated PostgreSQL ordering requires managed comparison
 ANKUS417 | Ankus | Error | Generated PostgreSQL hashing requires a stable managed hash
 ANKUS418 | Ankus | Error | Generated PostgreSQL ordering or hashing requires equality
+ANKUS419 | Ankus | Error | Invalid PostgreSQL type alignment
+ANKUS420 | Ankus | Error | Invalid custom-type codec option
+ANKUS421 | Ankus | Error | Conflicting custom-type storage codecs
+ANKUS422 | Ankus | Error | Invalid native-layout codec selection
+ANKUS423 | Ankus | Error | Invalid custom-type NULL message
+ANKUS424 | Ankus | Error | PostgreSQL type cannot be ref-like
+ANKUS425 | Ankus | Error | PostgreSQL type cannot be static
+ANKUS426 | Ankus | Error | Abstract PostgreSQL type requires variants
+ANKUS427 | Ankus | Error | PostgreSQL type cannot be generic
+ANKUS428 | Ankus | Error | PostgreSQL type is inaccessible
+ANKUS429 | Ankus | Error | Conflicting PostgreSQL type declarations
+ANKUS430 | Ankus | Error | Custom-type codec is not constructible
+ANKUS431 | Ankus | Error | Custom-type codec has the wrong contract
+ANKUS432 | Ankus | Error | Custom-type codec leaves required members unset
+ANKUS433 | Ankus | Error | Inherited PostgreSQL schema is null
+ANKUS434 | Ankus | Error | Invalid PostgreSQL type name
+ANKUS435 | Ankus | Error | Invalid PostgreSQL type schema
+ANKUS436 | Ankus | Error | Native layout requires a struct
+ANKUS437 | Ankus | Error | Unsupported native-layout field
+ANKUS438 | Ankus | Error | Invalid native struct layout
+ANKUS439 | Ankus | Error | Recursive native value layout
+ANKUS440 | Ankus | Error | Unsupported native fixed buffer
+ANKUS441 | Ankus | Error | Empty native-layout struct
+ANKUS442 | Ankus | Error | Native layout is too large
+ANKUS443 | Ankus | Error | Polymorphic discriminator collides with a member
+ANKUS444 | Ankus | Error | Invalid serialization metadata text
+ANKUS445 | Ankus | Error | Serialization graph is too large
+ANKUS446 | Ankus | Error | Unsupported serialization value contract
+ANKUS447 | Ankus | Error | Abstract serialization contract requires variants
+ANKUS448 | Ankus | Error | Unsupported serialized dictionary key
+ANKUS449 | Ankus | Error | Duplicate serialized enum identity
+ANKUS450 | Ankus | Error | Framework type requires an explicit codec
+ANKUS451 | Ankus | Error | Conditional JsonIgnore changes stored shape
+ANKUS452 | Ankus | Error | Serialized indexer requires an explicit codec
+ANKUS453 | Ankus | Error | Serialized property requires a public getter
+ANKUS454 | Ankus | Error | Serialized member name cannot be null
+ANKUS455 | Ankus | Error | Duplicate serialized member name
+ANKUS456 | Ankus | Error | Serialization constructor is ambiguous
+ANKUS457 | Ankus | Error | Constructor parameter does not match serialized state
+ANKUS458 | Ankus | Error | Read-only member lacks constructor binding
+ANKUS459 | Ankus | Error | Serialization constructor does not preserve required members
+ANKUS460 | Ankus | Error | Polymorphic storage requires a class
+ANKUS461 | Ankus | Error | Polymorphic fallback loses type identity
+ANKUS462 | Ankus | Error | Invalid tagged-variant registration
+ANKUS463 | Ankus | Error | Tagged-variant discriminator cannot be null
+ANKUS464 | Ankus | Error | Invalid tagged-variant type
+ANKUS465 | Ankus | Error | Duplicate tagged variant
+ANKUS466 | Ankus | Error | Polymorphic contract has no variants
+ANKUS467 | Ankus | Error | Hidden serialized member requires an explicit codec
+ANKUS468 | Ankus | Error | Unsupported serialization attribute
+ANKUS469 | Ankus | Error | Abstract PostgreSQL type cannot use an explicit codec

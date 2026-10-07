@@ -37,7 +37,7 @@ public sealed partial class PgFunctionGeneratorTests
             }
             """);
         Diagnostic diagnostic = Assert.ContainsSingle(diagnostics);
-        Assert.AreEqual("ANKUS017", diagnostic.Id);
+        Assert.AreEqual("ANKUS431", diagnostic.Id);
         Assert.Contains("exact non-nullable managed type", diagnostic.GetMessage(CultureInfo.InvariantCulture));
     }
 
@@ -62,7 +62,7 @@ public sealed partial class PgFunctionGeneratorTests
             }
             """);
         Diagnostic diagnostic = Assert.ContainsSingle(diagnostics);
-        Assert.AreEqual("ANKUS017", diagnostic.Id);
+        Assert.AreEqual("ANKUS432", diagnostic.Id);
         Assert.Contains("SetsRequiredMembers", diagnostic.GetMessage(CultureInfo.InvariantCulture));
     }
 
@@ -217,7 +217,7 @@ public sealed partial class PgFunctionGeneratorTests
         else
         {
             Diagnostic diagnostic = Assert.ContainsSingle(diagnostics);
-            Assert.AreEqual("ANKUS017", diagnostic.Id);
+            Assert.AreEqual("ANKUS430", diagnostic.Id);
             Assert.Contains("accessible parameterless constructor", diagnostic.GetMessage(CultureInfo.InvariantCulture));
         }
     }

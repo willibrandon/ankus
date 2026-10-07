@@ -215,7 +215,13 @@ public sealed partial class PgFunctionGeneratorTests
         }
         else
         {
-            Assert.AreEqual("ANKUS017", Assert.ContainsSingle(diagnostics).Id);
+            string expected = boundary switch
+            {
+                "constructor" => "ANKUS456",
+                "setter" => "ANKUS458",
+                _ => "ANKUS446",
+            };
+            Assert.AreEqual(expected, Assert.ContainsSingle(diagnostics).Id);
             Assert.DoesNotContain("CREATE TYPE", InstallationBody(output));
         }
     }

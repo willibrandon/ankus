@@ -40,7 +40,7 @@ public sealed partial class PgFunctionGeneratorTests
             cancellationToken: context.CancellationToken);
         Assert.IsNull(model);
         Assert.IsNotNull(error);
-        Assert.Contains(role == "null-input" ? "NullInputErrorMessage" : "valid identifiers", error);
+        Assert.Contains(role == "null-input" ? "NullInputErrorMessage" : "identifier", error);
     }
 
     /// <summary>

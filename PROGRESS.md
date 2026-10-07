@@ -92,9 +92,9 @@ incorrect. See [the detailed review](docs/contributing/evidence/port-history.md#
 ## Current complete acceptance evidence
 
 Primary CI runs all six modules against real published Native AOT extensions.
-The latest successful primary CI source is **aa49c7d**, with runtime **10.0.12-ankus.4**.
-[CI 37535642829](https://github.com/willibrandon/ankus/actions/runs/37535642829)
-passes; [Docs run 37535642827](https://github.com/willibrandon/ankus/actions/runs/37535642827)
+The latest successful primary CI source is **82503bf**, with runtime **10.0.12-ankus.4**.
+[CI 37644853764](https://github.com/willibrandon/ankus/actions/runs/37644853764)
+passes; [Docs run 37644853500](https://github.com/willibrandon/ankus/actions/runs/37644853500)
 also passes. All eighteen actual reports and all sixty-seven required native recovery
 partitions independently verify, alongside the callback and prefix corpora on
 every platform; no primary job timed out.
@@ -103,9 +103,9 @@ also passes on source **e41c687**.
 
 | Source | Platform / PostgreSQL | Result | Duration |
 | --- | --- | --- | --- |
-| Latest primary CI, **aa49c7d / ankus.4** | Linux x64 / 18 | 13,422 total; 13,374 passed; 48 platform skips; zero failures | 40m37s job |
-| Same CI / revision / runtime | macOS ARM64 / 18 | 13,422 total; 13,362 passed; 60 platform skips; zero failures | 28m49s job |
-| Same CI / revision / runtime | Windows x64 / 17 | 13,422 total; 13,394 passed; 28 platform skips; zero failures | 39m37s job |
+| Latest primary CI, **82503bf / ankus.4** | Linux x64 / 18 | 13,485 total; 13,437 passed; 48 platform skips; zero failures | 44m23s job |
+| Same CI / revision / runtime | macOS ARM64 / 18 | 13,485 total; 13,425 passed; 60 platform skips; zero failures | 30m41s job |
+| Same CI / revision / runtime | Windows x64 / 17 | 13,485 total; 13,457 passed; 28 platform skips; zero failures | 42m48s job |
 | SQL/datetime composition, parent **e41c687 / ankus.4** | Linux x64 / 18.6 | 13,337 total; 13,289 passed; 48 platform skips; zero failures | 42m46.885s tests; 43m41.597s command |
 | Function-provider composition, parent **4da0bec / ankus.4** | Linux x64 / 18.6 | 13,365 total; 13,317 passed; 48 platform skips; zero failures | 42m39.165s tests; 43m46.937s command |
 | Type-provider composition, parent **97842d3 / ankus.4** | Linux x64 / 18.6 | 13,411 total; 13,363 passed; 48 platform skips; zero failures | 42m39.033s tests; 43m35.244s command |
@@ -138,7 +138,7 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   cancelled. Version CI now prepares LLVM 20 or later once before its parallel
   jobs start, and Linux selection prefers any installed supported toolchain.
   Replacement 13–17 and 19 evidence is pending.
-- **aa49c7d** passes complete primary CI; its docs run also passes. All eighteen platform reports
+- **82503bf** passes complete primary CI; its docs run also passes. All eighteen platform reports
   and native recovery, datetime, SQL, function-provider, callback, prefix and
   module-identity partitions independently verify.
   Crash tests retain their deadlines, fsync and durability checks. The earlier
@@ -213,7 +213,7 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   explicitly. Two newly registered matrix services also exposed missing
   PostgreSQL 15 and 16 toolchains before any test build; every 13–19 toolchain is
   now installed and verified there. Version-job concurrency is dispatch- or
-  repository-configurable, with three eligible services available. Replacement
+  repository-configurable, with six eligible services available. Replacement
   supported-major evidence is pending. The refreshed Windows/PostgreSQL 18 cell
   also exposed a package-consumer Source Link path at exactly 260 characters and
   a cross-platform SQL-fixture assumption. Its owned root is now compact, and
@@ -321,6 +321,13 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   preserving real matrix selection for the suite while testing the SDK's unselected
   PostgreSQL 18 fallback in isolation. Replacement run **37630022751** was queued
   against the preceding `c42a138` source and therefore cannot validate this fix.
+  Replacement [run **37656004533**](https://github.com/willibrandon/ankus/actions/runs/37656004533)
+  is active against `82503bf` and covers PostgreSQL 13–17 and 19.
+- Platform-version run **37583027994** predates the workspace cleanup, Windows
+  suite admission and PostgreSQL 18 newline correction described above.
+  Replacement [run **37656015714**](https://github.com/willibrandon/ankus/actions/runs/37656015714)
+  is active against `82503bf` for macOS ARM64/PostgreSQL 15 and 16 and Windows
+  x64/PostgreSQL 13 and 18.
 - The same Windows report exposed a privacy gap: TRX `computerName` depended on
   the configured private-identifier list. Report preparation now redacts that
   schema field unconditionally. The affected uploaded reports were removed; path
@@ -345,6 +352,13 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   generated-type declaration that must change. Focused binding and operator
   validation passes **92/92**, and the complete generator suite passes
   **4,497/4,497**.
+- Free-text custom-type diagnostic `ANKUS017` is retired. `ANKUS419`–`ANKUS469`
+  distinguish declaration, codec, native layout, generated serialization and
+  polymorphic contracts and navigate to the exact authored option or member.
+  Metadata-only failures remain `ANKUS206`. The source map now retains those
+  precise diagnostic coordinates instead of failing during composition. The
+  complete generator suite passes **4,517/4,517**. The Release solution build,
+  API freshness and both documentation gates pass.
 
 Remaining diagnostics/code fixes, source-case mapping, samples, API and CLI
 contracts, supported PostgreSQL/platform combinations, .NET servicing and release

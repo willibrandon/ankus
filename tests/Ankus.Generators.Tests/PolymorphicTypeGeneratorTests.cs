@@ -299,25 +299,27 @@ public sealed partial class PgFunctionGeneratorTests
     /// Diagnoses ambiguous, unsupported or lossy tagged contracts before native compilation.
     /// </summary>
     /// <param name="declaration">The invalid contract graph.</param>
+    /// <param name="id">The precise tagged-contract diagnostic.</param>
     [TestMethod]
-    [DataRow("[Ankus.PgType, System.Text.Json.Serialization.JsonPolymorphic] public class Value { }")]
-    [DataRow("[Ankus.PgType, System.Text.Json.Serialization.JsonDerivedType(typeof(Derived))] public abstract class Value; public sealed class Derived : Value;")]
-    [DataRow("[Ankus.PgType, System.Text.Json.Serialization.JsonDerivedType(typeof(Derived), null)] public abstract class Value; public sealed class Derived : Value;")]
-    [DataRow("[Ankus.PgType, System.Text.Json.Serialization.JsonDerivedType(typeof(string), \"x\")] public class Value;")]
-    [DataRow("[Ankus.PgType, System.Text.Json.Serialization.JsonDerivedType(typeof(Derived), \"x\")] public abstract class Value; public abstract class Derived : Value;")]
-    [DataRow("[Ankus.PgType, System.Text.Json.Serialization.JsonDerivedType(typeof(Derived<>), \"x\")] public abstract class Value; public sealed class Derived<T> : Value;")]
-    [DataRow("[Ankus.PgType, System.Text.Json.Serialization.JsonDerivedType(typeof(A), \"x\"), System.Text.Json.Serialization.JsonDerivedType(typeof(B), \"x\")] public abstract class Value; public sealed class A : Value; public sealed class B : Value;")]
-    [DataRow("[Ankus.PgType, System.Text.Json.Serialization.JsonDerivedType(typeof(A), \"a\"), System.Text.Json.Serialization.JsonDerivedType(typeof(A), \"b\")] public abstract class Value; public sealed class A : Value;")]
-    [DataRow("[Ankus.PgType, System.Text.Json.Serialization.JsonPolymorphic(IgnoreUnrecognizedTypeDiscriminators=true), System.Text.Json.Serialization.JsonDerivedType(typeof(Derived), \"x\")] public class Value; public sealed class Derived : Value;")]
-    [DataRow("[Ankus.PgType, System.Text.Json.Serialization.JsonPolymorphic(UnknownDerivedTypeHandling=System.Text.Json.Serialization.JsonUnknownDerivedTypeHandling.FallBackToBaseType), System.Text.Json.Serialization.JsonDerivedType(typeof(Derived), \"x\")] public class Value; public sealed class Derived : Value;")]
-    [DataRow("[Ankus.PgType, System.Text.Json.Serialization.JsonPolymorphic(UnknownDerivedTypeHandling=System.Text.Json.Serialization.JsonUnknownDerivedTypeHandling.FallBackToNearestAncestor), System.Text.Json.Serialization.JsonDerivedType(typeof(Derived), \"x\")] public class Value; public sealed class Derived : Value;")]
-    [DataRow("[Ankus.PgType, System.Text.Json.Serialization.JsonDerivedType(typeof(Derived), \"x\")] public abstract class Value; public sealed class Derived : Value { [System.Text.Json.Serialization.JsonPropertyName(\"$type\")] public int Number { get; set; } }")]
-    [DataRow("public class Base { public int Number { get; set; } } [Ankus.PgType] public sealed class Value : Base { public new int Number { get; set; } }")]
-    [DataRow("[Ankus.PgType, System.Text.Json.Serialization.JsonDerivedType(typeof(Derived), \"x\")] public abstract class Value { private sealed class Derived : Value; }")]
-    public void InvalidPolymorphicContractsAreDiagnosed(string declaration)
+    [DataRow("[Ankus.PgType, System.Text.Json.Serialization.JsonPolymorphic] public class Value { }", "ANKUS466")]
+    [DataRow("[Ankus.PgType, System.Text.Json.Serialization.JsonDerivedType(typeof(Variant), \"x\")] public struct Value; public sealed class Variant { }", "ANKUS460")]
+    [DataRow("[Ankus.PgType, System.Text.Json.Serialization.JsonDerivedType(typeof(Derived))] public abstract class Value; public sealed class Derived : Value;", "ANKUS462")]
+    [DataRow("[Ankus.PgType, System.Text.Json.Serialization.JsonDerivedType(typeof(Derived), null)] public abstract class Value; public sealed class Derived : Value;", "ANKUS463")]
+    [DataRow("[Ankus.PgType, System.Text.Json.Serialization.JsonDerivedType(typeof(string), \"x\")] public class Value;", "ANKUS464")]
+    [DataRow("[Ankus.PgType, System.Text.Json.Serialization.JsonDerivedType(typeof(Derived), \"x\")] public abstract class Value; public abstract class Derived : Value;", "ANKUS464")]
+    [DataRow("[Ankus.PgType, System.Text.Json.Serialization.JsonDerivedType(typeof(Derived<>), \"x\")] public abstract class Value; public sealed class Derived<T> : Value;", "ANKUS464")]
+    [DataRow("[Ankus.PgType, System.Text.Json.Serialization.JsonDerivedType(typeof(A), \"x\"), System.Text.Json.Serialization.JsonDerivedType(typeof(B), \"x\")] public abstract class Value; public sealed class A : Value; public sealed class B : Value;", "ANKUS465")]
+    [DataRow("[Ankus.PgType, System.Text.Json.Serialization.JsonDerivedType(typeof(A), \"a\"), System.Text.Json.Serialization.JsonDerivedType(typeof(A), \"b\")] public abstract class Value; public sealed class A : Value;", "ANKUS465")]
+    [DataRow("[Ankus.PgType, System.Text.Json.Serialization.JsonPolymorphic(IgnoreUnrecognizedTypeDiscriminators=true), System.Text.Json.Serialization.JsonDerivedType(typeof(Derived), \"x\")] public class Value; public sealed class Derived : Value;", "ANKUS461")]
+    [DataRow("[Ankus.PgType, System.Text.Json.Serialization.JsonPolymorphic(UnknownDerivedTypeHandling=System.Text.Json.Serialization.JsonUnknownDerivedTypeHandling.FallBackToBaseType), System.Text.Json.Serialization.JsonDerivedType(typeof(Derived), \"x\")] public class Value; public sealed class Derived : Value;", "ANKUS461")]
+    [DataRow("[Ankus.PgType, System.Text.Json.Serialization.JsonPolymorphic(UnknownDerivedTypeHandling=System.Text.Json.Serialization.JsonUnknownDerivedTypeHandling.FallBackToNearestAncestor), System.Text.Json.Serialization.JsonDerivedType(typeof(Derived), \"x\")] public class Value; public sealed class Derived : Value;", "ANKUS461")]
+    [DataRow("[Ankus.PgType, System.Text.Json.Serialization.JsonDerivedType(typeof(Derived), \"x\")] public abstract class Value; public sealed class Derived : Value { [System.Text.Json.Serialization.JsonPropertyName(\"$type\")] public int Number { get; set; } }", "ANKUS443")]
+    [DataRow("public class Base { public int Number { get; set; } } [Ankus.PgType] public sealed class Value : Base { public new int Number { get; set; } }", "ANKUS467")]
+    [DataRow("[Ankus.PgType, System.Text.Json.Serialization.JsonDerivedType(typeof(Derived), \"x\")] public abstract class Value { private sealed class Derived : Value; }", "ANKUS464")]
+    public void InvalidPolymorphicContractsAreDiagnosed(string declaration, string id)
     {
         (_, ImmutableArray<Diagnostic> diagnostics) = Generate(declaration);
-        Diagnostic diagnostic = Assert.ContainsSingle(diagnostics.Where(static item => item.Id == "ANKUS017"));
+        Diagnostic diagnostic = Assert.ContainsSingle(diagnostics.Where(item => item.Id == id));
         Assert.AreEqual(DiagnosticSeverity.Error, diagnostic.Severity);
     }
 }

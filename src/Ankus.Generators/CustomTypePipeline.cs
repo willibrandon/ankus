@@ -54,13 +54,16 @@ internal static class CustomTypePipeline
     {
         cancellationToken.ThrowIfCancellationRequested();
         var type = (INamedTypeSymbol)context.TargetSymbol;
-        string? error = null;
+        Compilation compilation = context.SemanticModel.Compilation;
+        GeneratorLocation? typeLocation = GeneratorLocation.Create(type.Locations.FirstOrDefault(), compilation);
+        GeneratorProblem? problem = null;
         AttributeMetadataFailure? metadata = null;
-        CustomTypeDeclaration? declaration = CustomTypeDeclaration.Create(type, report: message => error = message,
-            cancellationToken: cancellationToken, metadataFailure: value => metadata = value);
-        return new(DeclarationIdentity.Create(type), type.ToDisplayString(), type.Name, declaration?.Freeze(),
+        CustomTypeDeclaration? declaration = CustomTypeDeclaration.Create(type, cancellationToken: cancellationToken,
+            metadataFailure: value => metadata = value, diagnostic: (descriptor, location, arguments) =>
+                problem = new(descriptor, GeneratorLocation.Create(location, compilation) ?? typeLocation, new(arguments)));
+        return new(DeclarationIdentity.Create(type), type.ToDisplayString(), declaration?.Freeze(),
             SqlDeclarationOptions.Read(context.Attributes[0])!,
-            GeneratorLocation.Create(type.Locations.FirstOrDefault(), context.SemanticModel.Compilation), error, metadata);
+            typeLocation, problem, metadata);
     }
 
     /// <summary>
@@ -117,9 +120,9 @@ internal static class CustomTypePipeline
         {
             analysis.Metadata.Report(analysis.Location?.Resolve(compilation), context);
         }
-        else if (analysis.Error is not null)
+        else if (analysis.Problem is not null)
         {
-            context.Report(CustomTypeDeclaration.InvalidDiagnostic, analysis.Location?.Resolve(compilation), analysis.Name, analysis.Error);
+            analysis.Problem.Report(compilation, context);
         }
     }
 
@@ -128,14 +131,13 @@ internal static class CustomTypePipeline
     /// </summary>
     /// <param name="Identity">The assembly-qualified semantic declaration identity.</param>
     /// <param name="Display">The managed graph, selection and sorting name.</param>
-    /// <param name="Name">The unqualified diagnostic name.</param>
     /// <param name="Model">The validated storage model, or null after validation failed.</param>
     /// <param name="Options">The authored dependency and SQL replacement policy.</param>
     /// <param name="Location">The current detached declaration coordinates.</param>
-    /// <param name="Error">The optional validation failure.</param>
+    /// <param name="Problem">The optional precise validation failure.</param>
     /// <param name="Metadata">The exact attribute decoding failure, if any.</param>
-    internal sealed record Analysis(DeclarationIdentity Identity, string Display, string Name, CustomTypeModel? Model,
-        SqlDeclarationOptions Options, GeneratorLocation? Location, string? Error, AttributeMetadataFailure? Metadata = null);
+    internal sealed record Analysis(DeclarationIdentity Identity, string Display, CustomTypeModel? Model,
+        SqlDeclarationOptions Options, GeneratorLocation? Location, GeneratorProblem? Problem, AttributeMetadataFailure? Metadata = null);
 
     /// <summary>
     /// Carries the independently cached storage and I/O source fragments for one type.
