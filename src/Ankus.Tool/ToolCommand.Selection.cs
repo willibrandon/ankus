@@ -72,9 +72,8 @@ internal static partial class ToolCommand
 
         if (forwardedPath is not null)
         {
-            string? normalized = string.IsNullOrWhiteSpace(forwardedPath) ? null :
-                forwardedPath.Contains(Path.DirectorySeparatorChar) || forwardedPath.Contains(Path.AltDirectorySeparatorChar)
-                    ? Path.GetFullPath(forwardedPath) : forwardedPath;
+            (string? normalized, ProjectPostgresSelection? forwardedProject) = await ResolveForwardedPgConfigPathAsync(
+                result, forwardedPath, token, testProject, testConfiguration, testProperties, resolvedProject);
             if (path is not null && !string.Equals(Path.GetFullPath(path), normalized is null ? null : Path.GetFullPath(normalized),
                 OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
             {
@@ -82,6 +81,10 @@ internal static partial class ToolCommand
             }
 
             path ??= normalized;
+            if (forwardedProject is not null)
+            {
+                selectedProject ??= forwardedProject.ProjectPath;
+            }
         }
 
         if (major is null && path is null)
@@ -95,7 +98,7 @@ internal static partial class ToolCommand
                 major = EnvironmentMajor(result);
                 if (major is null && await ProjectSelectionAsync(result, token, testProject, testConfiguration, testProperties, resolvedProject) is { } project)
                 {
-                    major = project.Settings.PostgresMajor;
+                    major = project.Settings.HasExplicitPostgresMajor ? project.Settings.PostgresMajor : null;
                     path = forwardedPath is null ? project.Settings.PgConfigPath : null;
                     selectedProject = project.ProjectPath;
                 }
@@ -125,17 +128,79 @@ internal static partial class ToolCommand
     /// <returns>The explicit or project-selected PostgreSQL major.</returns>
     private static async Task<int> SelectMajorAsync(ParseResult result, CancellationToken token, string? resolvedProject = null)
     {
-        if (ExplicitMajor(result) is int major)
+        int? major = ExplicitMajor(result);
+        IReadOnlyDictionary<string, string> properties = BuildProperties(result);
+        string? explicitPath = result.GetValue<string?>("--pg-config");
+        string? forwardedPath = properties.GetValueOrDefault("AnkusPgConfigPath");
+        string? normalized = null;
+        if (forwardedPath is not null)
         {
-            return major;
+            (normalized, _) = await ResolveForwardedPgConfigPathAsync(result, forwardedPath, token,
+                testProperties: properties, resolvedProject: resolvedProject);
         }
 
-        if ((result.GetValue<string?>("--pg-config") ?? BuildProperties(result).GetValueOrDefault("AnkusPgConfigPath")) is string path)
+        if (explicitPath is not null && normalized is not null &&
+            !string.Equals(Path.GetFullPath(explicitPath), Path.GetFullPath(normalized),
+                OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
         {
-            return (await PostgresInstallation.CreateAsync(path, token)).Version.Major;
+            throw new ArgumentException("Select the same pg_config for --pg-config and AnkusPgConfigPath.");
         }
 
-        return EnvironmentMajor(result) ?? (await ProjectSelectionAsync(result, token, resolvedProject: resolvedProject))?.Settings.PostgresMajor ?? 18;
+        if ((explicitPath ?? normalized) is string path)
+        {
+            int selected = (await PostgresInstallation.CreateAsync(path, token)).Version.Major;
+            if (major is int expected && selected != expected)
+            {
+                throw new ArgumentException($"Expected PostgreSQL {expected}, but '{path}' is pg{selected}.");
+            }
+
+            return selected;
+        }
+
+        if (major is int selectedMajor)
+        {
+            return selectedMajor;
+        }
+
+        if (EnvironmentMajor(result) is int environmentMajor)
+        {
+            return environmentMajor;
+        }
+
+        ProjectPostgresSelection? project = await ProjectSelectionAsync(result, token,
+            properties: properties, resolvedProject: resolvedProject);
+        if (project?.Settings is { HasExplicitPostgresMajor: true } settings)
+        {
+            return settings.PostgresMajor;
+        }
+
+        return project?.Settings.PgConfigPath is string projectPath
+            ? (await PostgresInstallation.CreateAsync(projectPath, token)).Version.Major : 18;
+    }
+
+    /// <summary>
+    /// Resolves a forwarded relative pg_config path using the selected project's evaluation directory.
+    /// </summary>
+    private static async Task<(string? Path, ProjectPostgresSelection? Project)> ResolveForwardedPgConfigPathAsync(
+        ParseResult result, string forwardedPath, CancellationToken token, string? testProject = null,
+        string? testConfiguration = null, IReadOnlyDictionary<string, string>? testProperties = null,
+        string? resolvedProject = null)
+    {
+        if (string.IsNullOrWhiteSpace(forwardedPath))
+        {
+            return (null, null);
+        }
+
+        bool projectRelative = !Path.IsPathFullyQualified(forwardedPath) &&
+            (forwardedPath.Contains(Path.DirectorySeparatorChar) || forwardedPath.Contains(Path.AltDirectorySeparatorChar));
+        if (!projectRelative)
+        {
+            return (forwardedPath, null);
+        }
+
+        ProjectPostgresSelection? project = await ProjectSelectionAsync(result, token, testProject, testConfiguration,
+            testProperties, resolvedProject);
+        return (project?.Settings.PgConfigPath ?? Path.GetFullPath(forwardedPath), project);
     }
 
     /// <summary>
@@ -252,12 +317,13 @@ internal static partial class ToolCommand
     /// <param name="home">The registry home option.</param>
     /// <param name="token">Cancels project and installation selection.</param>
     /// <param name="resolvedProject">An extension already resolved before a dry-run decision.</param>
+    /// <param name="properties">The complete property set, including command-owned mode properties.</param>
     /// <returns>The exact extension, installation and build properties for this invocation.</returns>
     private static async Task<ExtensionSelection> SelectExtensionAsync(ParseResult result, Option<string?> home, CancellationToken token,
-        string? resolvedProject = null)
+        string? resolvedProject = null, IReadOnlyDictionary<string, string>? properties = null)
     {
         string configuration = GetConfiguration(result);
-        IReadOnlyDictionary<string, string> properties = BuildProperties(result);
+        properties ??= BuildProperties(result);
         PostgresSelection selection = await SelectWithProjectAsync(result, home, token, testConfiguration: configuration,
             testProperties: properties, resolvedProject: resolvedProject);
         string project = selection.ProjectPath ?? await ExtensionBuilder.ResolveProjectAsync(result.GetValue<string?>("--project"),

@@ -13,16 +13,23 @@ public sealed class PostgresProjectSettings
     /// </summary>
     private const string ConflictMessage = "Selected or referenced projects select different PostgreSQL installations. Set AnkusPostgresMajor and AnkusPgConfigPath explicitly, or use --pg/--pg-config.";
 
-    private PostgresProjectSettings(int postgresMajor, string? pgConfigPath)
+    private PostgresProjectSettings(int postgresMajor, string? pgConfigPath, bool hasExplicitPostgresMajor)
     {
         PostgresMajor = postgresMajor;
         PgConfigPath = pgConfigPath;
+        HasExplicitPostgresMajor = hasExplicitPostgresMajor;
     }
 
     /// <summary>
     /// Gets the PostgreSQL major selected by the evaluated project, or 18 when none is declared.
     /// </summary>
     public int PostgresMajor { get; }
+
+    /// <summary>
+    /// Gets whether the evaluated project explicitly selected <see cref="PostgresMajor"/>.
+    /// When false and <see cref="PgConfigPath"/> is set, callers use the executable's reported major.
+    /// </summary>
+    public bool HasExplicitPostgresMajor { get; }
 
     /// <summary>
     /// Gets the selected pg_config executable, or null when ordinary installation discovery applies.
@@ -32,7 +39,7 @@ public sealed class PostgresProjectSettings
 
     /// <summary>
     /// Evaluates the project's PostgreSQL properties with the installed .NET SDK and selected configuration.
-    /// Imports and conditions participate; build targets and automatic response files do not run.
+    /// Imports, conditions and automatic response files participate; build targets run only when requested by the response file.
     /// A test project without its own selection inherits an unambiguous selection from its project references.
     /// </summary>
     /// <param name="projectPath">The extension project file.</param>
@@ -63,7 +70,7 @@ public sealed class PostgresProjectSettings
             throw new InvalidOperationException(ConflictMessage);
         }
 
-        return result.Settings ?? new(18, null);
+        return result.Settings ?? new(18, null, false);
     }
 
     /// <summary>
@@ -150,21 +157,19 @@ public sealed class PostgresProjectSettings
                 continue;
             }
 
-            if (selected is not null && (selected.PostgresMajor != current.PostgresMajor ||
-                !string.Equals(selected.PgConfigPath, current.PgConfigPath, OperatingSystem.IsWindows()
-                    ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal)))
+            if (!TryMerge(selected, current, out PostgresProjectSettings? merged))
             {
                 throw new InvalidOperationException(ConflictMessage);
             }
 
-            selected = current;
+            selected = merged;
         }
 
         return selected;
     }
 
     /// <summary>
-    /// Validates inputs and evaluates a selection without executing project targets.
+    /// Validates inputs and queries the evaluated project selection.
     /// </summary>
     private static async Task<SelectionResult> EvaluateAsync(string projectPath, string configuration,
         int? postgresMajor, IReadOnlyDictionary<string, string> globalProperties, CancellationToken cancellationToken)
@@ -223,8 +228,8 @@ public sealed class PostgresProjectSettings
             throw new InvalidOperationException("A circular project reference prevents PostgreSQL selection.");
         }
 
-        List<string> arguments = ["msbuild", project, "-nologo", "-noAutoResponse", "-verbosity:quiet",
-            "-getProperty:AnkusPostgresMajor,AnkusPgConfigPath", "-getItem:ProjectReference"];
+        List<string> arguments = ["msbuild", project, "-nologo", "-verbosity:quiet",
+            "-getProperty:AnkusPostgresMajor,AnkusPgConfigPath,_AnkusPostgresMajorWasSpecified", "-getItem:ProjectReference"];
         arguments.AddRange(globalProperties.Select(static pair => "-p:" + pair.Key + "=" + EscapeProperty(pair.Value)));
         string output = await PostgresInstallation.QueryAsync("dotnet", arguments, cancellationToken).ConfigureAwait(false);
         using JsonDocument document = JsonDocument.Parse(output);
@@ -249,7 +254,11 @@ public sealed class PostgresProjectSettings
         if (value.Length != 0 || path is not null)
         {
             visiting.Remove(project);
-            return new(new(major, path), false);
+            string marker = properties.GetProperty("_AnkusPostgresMajorWasSpecified").GetString() ?? string.Empty;
+            bool explicitlySelected = marker.Length == 0
+                ? value.Length != 0
+                : bool.TryParse(marker, out bool specified) && specified;
+            return new(new(major, path, explicitlySelected), false);
         }
 
         PostgresProjectSettings? inherited = null;
@@ -275,19 +284,43 @@ public sealed class PostgresProjectSettings
                 continue;
             }
 
-            if (inherited is not null && (inherited.PostgresMajor != selection.PostgresMajor ||
-                !string.Equals(inherited.PgConfigPath, selection.PgConfigPath, OperatingSystem.IsWindows()
-                    ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal)))
+            if (!TryMerge(inherited, selection, out PostgresProjectSettings? merged))
             {
                 visiting.Remove(project);
                 return new(null, true);
             }
 
-            inherited = selection;
+            inherited = merged;
         }
 
         visiting.Remove(project);
         return new(inherited, false);
+    }
+
+    /// <summary>
+    /// Merges compatible project selections without turning an unspecified major into PostgreSQL 18.
+    /// </summary>
+    private static bool TryMerge(PostgresProjectSettings? first, PostgresProjectSettings second,
+        out PostgresProjectSettings? merged)
+    {
+        if (first is null)
+        {
+            merged = second;
+            return true;
+        }
+
+        bool samePath = string.Equals(first.PgConfigPath, second.PgConfigPath,
+            OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+        bool sameMajor = !first.HasExplicitPostgresMajor || !second.HasExplicitPostgresMajor ||
+            first.PostgresMajor == second.PostgresMajor;
+        if (!samePath || !sameMajor)
+        {
+            merged = null;
+            return false;
+        }
+
+        merged = first.HasExplicitPostgresMajor ? first : second.HasExplicitPostgresMajor ? second : first;
+        return true;
     }
 
     /// <summary>

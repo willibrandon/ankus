@@ -102,6 +102,9 @@ jobs:
             rid: win-x64
             postgresql: 18
     runs-on: [self-hosted, '${{ matrix.runner }}']
+    concurrency:
+      group: ${{ matrix.runner == 'ankus-macos-arm64' && 'ankus-macos-arm64-full-suite' || format('{0}-{1}-{2}-{3}', github.workflow, github.run_id, matrix.rid, matrix.postgresql) }}
+      cancel-in-progress: false
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v5
@@ -123,6 +126,7 @@ jobs:
         run: dotnet restore Ankus.slnx -p:Platform="Any CPU"
 
       - name: Restore native binding cache
+        if: runner.environment != 'self-hosted'
         uses: actions/cache/restore@v5
         id: binding-cache
         with:
@@ -136,7 +140,7 @@ jobs:
         run: dotnet run --file ./eng/Ankus.Ci.cs -- runtime-test-build ${{ matrix.rid }} ${{ matrix.postgresql }}
 
       - name: Save native binding cache
-        if: steps.binding-cache.outputs.cache-hit != 'true'
+        if: runner.environment != 'self-hosted' && steps.binding-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v5
         with:
           path: artifacts/binding-cache
@@ -169,3 +173,7 @@ jobs:
           path: artifacts/ci-reports/test-logs/**
           if-no-files-found: ignore
           retention-days: 7
+
+      - name: Clean generated runner files
+        if: always()
+        run: dotnet run --file ./eng/Ankus.Ci.cs -- runner-cleanup

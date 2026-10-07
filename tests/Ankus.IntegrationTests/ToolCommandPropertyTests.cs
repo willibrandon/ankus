@@ -21,7 +21,7 @@ public sealed partial class ToolCommandTests
     public async Task ProjectCommandsRejectMalformedGlobalProperties(string property)
     {
         string directory = CreateDirectory();
-        foreach (string operation in new[] { "build", "publish", "install", "package", "schema", "run", "connect", "get", "regress" })
+        foreach (string operation in new[] { "build", "publish", "install", "package", "schema", "run", "connect", "get", "regress", "bench" })
         {
             string[] command = operation == "get" ? [operation, "extname"] : [operation];
             ProcessResult result = await InvokeAsync([.. command, "--project", Path.Combine(directory, "missing.csproj"),
@@ -115,7 +115,7 @@ public sealed partial class ToolCommandTests
                 <AnkusPostgresMajor>$(ServerMajor)</AnkusPostgresMajor>
                 <AnkusPgConfigPath>$(ServerConfig)</AnkusPgConfigPath>
               </PropertyGroup>
-              <PropertyGroup Condition="'$(Configuration)' == 'Shipping+Checked' and '$(Probe)' == 'enabled'">
+              <PropertyGroup Condition="'$(Configuration)' == 'Shipping+Checked' and '$(Probe)' == 'enabled' and '$(ResponseProbe)' == 'enabled'">
                 <AnkusExtensionName>ankus_global_properties</AnkusExtensionName>
                 <AnkusExtensionVersion>3.2.1</AnkusExtensionVersion>
                 <DefineConstants>$(DefineConstants);PROPERTY_WITNESS</DefineConstants>
@@ -137,10 +137,22 @@ public sealed partial class ToolCommandTests
                 }
             }
             """, token);
+        await File.WriteAllTextAsync(Path.Combine(directory, "Directory.Build.rsp"),
+            "-property:ResponseProbe=enabled" + Environment.NewLine, token);
+        string configurationDirectory = Directory.CreateDirectory(Path.Combine(directory, "configuration with spaces")).FullName;
+        string restoreConfiguration = Path.Combine(configurationDirectory, "NuGet.Config");
+        File.Copy(Path.Combine(s_root, "NuGet.Config"), restoreConfiguration);
+        new XDocument(new XElement("configuration", new XElement("packageSources", new XElement("clear"))))
+            .Save(Path.Combine(directory, "NuGet.Config"));
+        string packageDirectory = Path.Combine(directory, "packages with spaces");
+        string intermediateDirectory = Path.Combine(directory, "intermediate with spaces") + Path.DirectorySeparatorChar;
         string home = Path.Combine(directory, "unregistered home");
         string[] options = ["--home", home, "--project", project, "--property", "Configuration=Shipping+Checked",
             "-p", "Probe=disabled", "--property", "pRoBe=enabled", "--property", "ServerMajor=" + MajorText(),
-            "--property", "ServerConfig=" + s_installation.PgConfigPath];
+            "--property", "ServerConfig=" + s_installation.PgConfigPath,
+            "--property", "RestoreConfigFile=" + restoreConfiguration,
+            "--property", "RestorePackagesPath=" + packageDirectory,
+            "--property", "BaseIntermediateOutputPath=" + intermediateDirectory];
         ProcessResult name = await InvokeAsync(["get", "extname", .. options], token);
         Assert.AreEqual(0, name.ExitCode, name.StandardError);
         Assert.AreEqual("ankus_global_properties" + Environment.NewLine, name.StandardOutput);
@@ -149,6 +161,9 @@ public sealed partial class ToolCommandTests
         Assert.AreEqual("3.2.1" + Environment.NewLine, version.StandardOutput);
         ProcessResult build = await InvokeAsync(["build", .. options], token);
         Assert.AreEqual(0, build.ExitCode, build.StandardOutput + build.StandardError);
+        Assert.IsTrue(Directory.Exists(Path.Combine(packageDirectory, "ankus.runtime", s_version)));
+        Assert.IsNotEmpty(Directory.GetFiles(intermediateDirectory, "*", SearchOption.AllDirectories));
+        Assert.IsFalse(Directory.Exists(Path.Combine(directory, "obj")));
         string defaultOutput = Path.Combine(directory, "bin", "ankus", s_postgresKey,
             RuntimeInformation.RuntimeIdentifier, "Shipping+Checked");
         PublishedExtension original = PublishedExtension.Read(defaultOutput);
@@ -172,6 +187,9 @@ public sealed partial class ToolCommandTests
         ProcessResult schema = await InvokeAsync(["schema", .. options], token);
         Assert.AreEqual(0, schema.ExitCode, schema.StandardError);
         Assert.AreEqual(await File.ReadAllTextAsync(Path.Combine(defaultOutput, "extension", original.Sql), token), schema.StandardOutput);
+        ProcessResult skippedSchema = await InvokeAsync(["schema", .. options, "--skip-build"], token);
+        Assert.AreEqual(0, skippedSchema.ExitCode, skippedSchema.StandardError);
+        Assert.AreEqual(schema.StandardOutput, skippedSchema.StandardOutput);
         string stage = CreateDirectory();
         ProcessResult install = await InvokeAsync(["install", .. options, "--destdir", stage], token);
         Assert.AreEqual(0, install.ExitCode, install.StandardOutput + install.StandardError);

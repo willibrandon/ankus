@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Xml.Linq;
 
 namespace Ankus.Build.Tests;
@@ -25,8 +26,11 @@ public sealed class SdkDefineConstantsTests(TestContext context)
     [DataRow("19", "ANKUS_PG19")]
     public async Task SelectedMajorRetainsConsumerConstants(string major, string symbol)
     {
-        string[] constants = await EvaluateAsync(major, null, "PrepareForBuild;BeforeCompile;CoreCompile");
+        (string[] constants, string selected, bool explicitlySelected) = await EvaluateAsync(
+            major, null, "PrepareForBuild;BeforeCompile;CoreCompile");
         Assert.AreSequenceEqual<string>(["CONSUMER", "SECOND", symbol], constants);
+        Assert.AreEqual(major.Length == 0 ? "18" : major, selected);
+        Assert.AreEqual(major.Length != 0, explicitlySelected);
     }
 
     /// <summary>
@@ -38,14 +42,17 @@ public sealed class SdkDefineConstantsTests(TestContext context)
     [DataRow("CoreCompile")]
     public async Task GlobalMajorAppliesToDirectCompilation(string target)
     {
-        string[] constants = await EvaluateAsync("15", "14", target);
+        (string[] constants, string selected, bool explicitlySelected) = await EvaluateAsync("15", "14", target);
         Assert.AreSequenceEqual<string>(["CONSUMER", "SECOND", "ANKUS_PG14"], constants);
+        Assert.AreEqual("14", selected);
+        Assert.IsTrue(explicitlySelected);
     }
 
     /// <summary>
     /// Imports the actual SDK defaults and shared targets, with a later consumer override and real MSBuild scheduling.
     /// </summary>
-    private async Task<string[]> EvaluateAsync(string major, string? globalMajor, string targets)
+    private async Task<(string[] Constants, string Major, bool Explicit)> EvaluateAsync(string major, string? globalMajor,
+        string targets)
     {
         string directory = Directory.CreateTempSubdirectory("ankus-sdk-symbols-").FullName;
         try
@@ -56,21 +63,26 @@ public sealed class SdkDefineConstantsTests(TestContext context)
             new XDocument(new XElement("Project",
                 new XElement("PropertyGroup", new XElement("AnkusPostgresMajor", string.Empty)),
                 new XElement("Import", new XAttribute("Project", Path.Combine(sdk, "Ankus.props"))),
-                new XElement("Import", new XAttribute("Project", Path.Combine(sdk, "Ankus.Bindings.targets"))),
                 new XElement("PropertyGroup",
                     new XElement("DefineConstants", "CONSUMER;SECOND"),
                     new XElement("AnkusPostgresMajor", new XAttribute("Condition", "'" + major + "' != ''"), major)),
+                new XElement("Import", new XAttribute("Project", Path.Combine(sdk, "Ankus.Bindings.targets"))),
                 new XElement("Target", new XAttribute("Name", "PrepareForBuild")),
                 new XElement("Target", new XAttribute("Name", "BeforeCompile")),
                 new XElement("Target", new XAttribute("Name", "CoreCompile")))).Save(project);
-            List<string> arguments = ["msbuild", project, "-nologo", "-nodeReuse:false", "-target:" + targets, "-getProperty:DefineConstants"];
+            List<string> arguments = ["msbuild", project, "-nologo", "-nodeReuse:false", "-target:" + targets,
+                "-getProperty:DefineConstants,AnkusPostgresMajor,_AnkusPostgresMajorWasSpecified"];
             if (globalMajor is not null)
             {
                 arguments.Add("-property:AnkusPostgresMajor=" + globalMajor);
             }
 
             string output = await NativeBindingLayoutCommand.RunProcessAsync("dotnet", arguments, directory, context.CancellationToken);
-            return output.Trim().Split(';', StringSplitOptions.RemoveEmptyEntries);
+            using JsonDocument document = JsonDocument.Parse(output);
+            JsonElement properties = document.RootElement.GetProperty("Properties");
+            return (properties.GetProperty("DefineConstants").GetString()!.Split(';', StringSplitOptions.RemoveEmptyEntries),
+                properties.GetProperty("AnkusPostgresMajor").GetString()!,
+                bool.Parse(properties.GetProperty("_AnkusPostgresMajorWasSpecified").GetString()!));
         }
         finally
         {

@@ -29,8 +29,11 @@ Set extension properties in your project file:
 
 Relative `AnkusPgConfigPath` file paths use each project's directory, including
 when the property comes from an imported file. A bare executable name, such as
-`pg_config`, uses `PATH`. A test project without its own PostgreSQL selection
-inherits the extension project's evaluated installation.
+`pg_config`, uses `PATH`. Ankus commands and the testing fixture use the
+executable's reported major when `AnkusPostgresMajor` is omitted. A direct
+`dotnet publish` uses the SDK's PostgreSQL 18 default, so pass both properties
+when publishing another major. A test project without its own PostgreSQL
+selection inherits the extension project's evaluated installation.
 
 For a shared installation beside `Directory.Build.props`, anchor the path to that
 file so projects in different directories select the same installation:

@@ -10,6 +10,41 @@ namespace Ankus.Generators.Tests;
 public sealed class GlobalProjectPropertiesTests(TestContext context)
 {
     /// <summary>
+    /// Directory.Build.rsp properties participate in selection, while explicit globals retain command-line precedence.
+    /// </summary>
+    [TestMethod]
+    public async Task AutomaticResponsePropertiesParticipateInSelection()
+    {
+        string directory = Directory.CreateTempSubdirectory("ankus response selection ").FullName;
+        try
+        {
+            string project = Path.Combine(directory, "extension.csproj");
+            await File.WriteAllTextAsync(Path.Combine(directory, "Directory.Build.rsp"), "-property:ServerFlavor=alternate\n",
+                context.CancellationToken);
+            await File.WriteAllTextAsync(project, """
+                <Project Sdk="Microsoft.NET.Sdk">
+                  <PropertyGroup>
+                    <TargetFramework>net10.0</TargetFramework>
+                    <AnkusPostgresMajor>18</AnkusPostgresMajor>
+                    <AnkusPostgresMajor Condition="'$(ServerFlavor)' == 'alternate'">17</AnkusPostgresMajor>
+                  </PropertyGroup>
+                </Project>
+                """, context.CancellationToken);
+
+            PostgresProjectSettings response = await PostgresProjectSettings.ReadAsync(project, "Release",
+                cancellationToken: context.CancellationToken);
+            PostgresProjectSettings explicitProperty = await PostgresProjectSettings.ReadAsync(project, "Release",
+                new Dictionary<string, string> { ["ServerFlavor"] = "ordinary" }, cancellationToken: context.CancellationToken);
+            Assert.AreEqual(17, response.PostgresMajor);
+            Assert.AreEqual(18, explicitProperty.PostgresMajor);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    /// <summary>
     /// A conditional custom property changes selection through all public evaluation entry points.
     /// </summary>
     [TestMethod]

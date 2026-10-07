@@ -137,3 +137,7 @@ jobs:
           path: artifacts/ci-reports/test-logs/**
           if-no-files-found: ignore
           retention-days: 7
+
+      - name: Clean generated runner files
+        if: always()
+        run: dotnet run --file ./eng/Ankus.Ci.cs -- runner-cleanup

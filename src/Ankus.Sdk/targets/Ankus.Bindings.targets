@@ -1,5 +1,8 @@
 <Project>
   <PropertyGroup>
+    <_AnkusPostgresMajorWasSpecified Condition="'$(AnkusPostgresMajor)' != ''">true</_AnkusPostgresMajorWasSpecified>
+    <_AnkusPostgresMajorWasSpecified Condition="'$(_AnkusPostgresMajorWasSpecified)' == ''">false</_AnkusPostgresMajorWasSpecified>
+    <AnkusPostgresMajor Condition="'$(AnkusPostgresMajor)' == ''">18</AnkusPostgresMajor>
     <AnkusResolveBindingsDependsOn>$(AnkusResolveBindingsDependsOn);ResolveReferences;_PrepareAnkusBindingToolchain</AnkusResolveBindingsDependsOn>
   </PropertyGroup>
 

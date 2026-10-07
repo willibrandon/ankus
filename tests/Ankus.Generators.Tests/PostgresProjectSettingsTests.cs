@@ -33,8 +33,10 @@ public sealed class PostgresProjectSettingsTests(TestContext context)
             PostgresProjectSettings shipping = await PostgresProjectSettings.ReadAsync(project, "Shipping", cancellationToken: context.CancellationToken);
 
             Assert.AreEqual(17, debug.PostgresMajor);
+            Assert.IsTrue(debug.HasExplicitPostgresMajor);
             Assert.AreEqual(Path.Combine(directory, "postgres", "17", "pg_config"), debug.PgConfigPath);
             Assert.AreEqual(19, shipping.PostgresMajor);
+            Assert.IsTrue(shipping.HasExplicitPostgresMajor);
             Assert.AreEqual(Path.Combine(directory, "postgres", "19", "pg_config"), shipping.PgConfigPath);
         }
         finally
@@ -61,6 +63,7 @@ public sealed class PostgresProjectSettingsTests(TestContext context)
             PostgresProjectSettings selection = await PostgresProjectSettings.ReadAsync(project, "Debug", 17, context.CancellationToken);
 
             Assert.AreEqual(17, selection.PostgresMajor);
+            Assert.IsTrue(selection.HasExplicitPostgresMajor);
             Assert.AreEqual(Path.Combine(directory, "postgres", "17", "pg_config"), selection.PgConfigPath);
         }
         finally
@@ -85,7 +88,83 @@ public sealed class PostgresProjectSettingsTests(TestContext context)
             PostgresProjectSettings selection = await PostgresProjectSettings.ReadAsync(project, "Debug", cancellationToken: context.CancellationToken);
 
             Assert.AreEqual(18, selection.PostgresMajor);
+            Assert.IsFalse(selection.HasExplicitPostgresMajor);
             Assert.AreEqual(path.Length == 0 ? null : path, selection.PgConfigPath);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// The SDK marker distinguishes its PostgreSQL 18 fallback from an authored selection with the same value.
+    /// </summary>
+    /// <param name="marker">The final SDK explicit-selection marker.</param>
+    /// <param name="explicitlySelected">Whether the evaluated major was authored before the SDK target import.</param>
+    [TestMethod]
+    [DataRow("false", false)]
+    [DataRow("true", true)]
+    public async Task SdkMarkerDistinguishesDefaultMajor(string marker, bool explicitlySelected)
+    {
+        string directory = Directory.CreateTempSubdirectory("ankus-selection-").FullName;
+        try
+        {
+            string project = await WriteProjectAsync(directory, $"""
+                <PropertyGroup>
+                  <AnkusPostgresMajor>18</AnkusPostgresMajor>
+                  <AnkusPgConfigPath>postgres/pg_config</AnkusPgConfigPath>
+                  <_AnkusPostgresMajorWasSpecified>{marker}</_AnkusPostgresMajorWasSpecified>
+                </PropertyGroup>
+                """);
+
+            PostgresProjectSettings selection = await PostgresProjectSettings.ReadAsync(project, "Debug",
+                cancellationToken: context.CancellationToken);
+
+            Assert.AreEqual(18, selection.PostgresMajor);
+            Assert.AreEqual(explicitlySelected, selection.HasExplicitPostgresMajor);
+            Assert.AreEqual(Path.Combine(directory, "postgres", "pg_config"), selection.PgConfigPath);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// A shared path-only selection inherits an agreeing project's explicit major without becoming PostgreSQL 18.
+    /// </summary>
+    /// <param name="group">Whether to evaluate a project group instead of references.</param>
+    /// <param name="explicitFirst">Whether the explicit selection is evaluated first.</param>
+    [TestMethod]
+    [DataRow(false, false)]
+    [DataRow(false, true)]
+    [DataRow(true, false)]
+    [DataRow(true, true)]
+    public async Task PathOnlyAndExplicitMajorSelectionsMerge(bool group, bool explicitFirst)
+    {
+        string directory = Directory.CreateTempSubdirectory("ankus-selection-").FullName;
+        try
+        {
+            const string path = "postgres/pg_config";
+            string first = await WriteProjectAsync(directory,
+                $"<PropertyGroup><AnkusPgConfigPath>{path}</AnkusPgConfigPath></PropertyGroup>", "First.csproj");
+            string second = await WriteProjectAsync(directory,
+                $"<PropertyGroup><AnkusPostgresMajor>17</AnkusPostgresMajor><AnkusPgConfigPath>{path}</AnkusPgConfigPath></PropertyGroup>",
+                "Second.csproj");
+            string[] projects = explicitFirst ? [second, first] : [first, second];
+            string root = await WriteProjectAsync(directory,
+                $"<ItemGroup><ProjectReference Include=\"{Path.GetFileName(projects[0])}\" />" +
+                $"<ProjectReference Include=\"{Path.GetFileName(projects[1])}\" /></ItemGroup>");
+
+            PostgresProjectSettings? selection = group
+                ? await PostgresProjectSettings.TryReadAsync(projects, "Debug", cancellationToken: context.CancellationToken)
+                : await PostgresProjectSettings.TryReadAsync(root, "Debug", cancellationToken: context.CancellationToken);
+
+            Assert.IsNotNull(selection);
+            Assert.AreEqual(17, selection.PostgresMajor);
+            Assert.IsTrue(selection.HasExplicitPostgresMajor);
+            Assert.AreEqual(Path.Combine(directory, "postgres", "pg_config"), selection.PgConfigPath);
         }
         finally
         {

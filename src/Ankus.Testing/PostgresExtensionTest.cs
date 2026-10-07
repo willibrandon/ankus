@@ -111,6 +111,7 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(options);
         ArgumentException.ThrowIfNullOrWhiteSpace(options.ProjectPath);
         ArgumentException.ThrowIfNullOrWhiteSpace(options.Configuration);
+        ArgumentNullException.ThrowIfNull(options.BuildProperties);
         ArgumentNullException.ThrowIfNull(options.PostgreSqlConfiguration);
         if (options.Port is int port)
         {
@@ -118,7 +119,39 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
             ArgumentOutOfRangeException.ThrowIfGreaterThan(port, 65535);
         }
 
-        return StartCoreAsync(options, [.. options.PostgreSqlConfiguration], cancellationToken);
+        var properties = new Dictionary<string, string>(options.BuildProperties, StringComparer.OrdinalIgnoreCase);
+        foreach ((string name, string value) in properties)
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            try
+            {
+                System.Xml.XmlConvert.VerifyNCName(name);
+            }
+            catch (System.Xml.XmlException error)
+            {
+                throw new ArgumentException($"MSBuild property name '{name}' is invalid.", nameof(options), error);
+            }
+        }
+
+        if (properties.TryGetValue("Configuration", out string? configuration) &&
+            !string.Equals(configuration, options.Configuration, StringComparison.Ordinal))
+        {
+            throw new ArgumentException("Select the same configuration in BuildProperties and Configuration.", nameof(options));
+        }
+
+        if (properties.TryGetValue("RuntimeIdentifier", out string? runtime) &&
+            !string.Equals(runtime, RuntimeInformation.RuntimeIdentifier, StringComparison.Ordinal))
+        {
+            throw new ArgumentException("Extension fixtures publish for the host RuntimeIdentifier.", nameof(options));
+        }
+
+        properties["Configuration"] = options.Configuration;
+        properties["RuntimeIdentifier"] = RuntimeInformation.RuntimeIdentifier;
+        SetBooleanProperty(properties, "SelfContained", true, options);
+        SetBooleanProperty(properties, "AnkusIncludeTests", options.IncludeTests, options);
+        SetBooleanProperty(properties, "AnkusReuseSchema", options.ReuseSchema, options);
+
+        return StartCoreAsync(options, properties, [.. options.PostgreSqlConfiguration], cancellationToken);
     }
 
     /// <summary>
@@ -168,8 +201,8 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
         }
     }
 
-    private static async Task<PostgresExtensionTest> StartCoreAsync(PostgresExtensionTestOptions options, string[] serverConfiguration,
-        CancellationToken cancellationToken)
+    private static async Task<PostgresExtensionTest> StartCoreAsync(PostgresExtensionTestOptions options,
+        Dictionary<string, string> properties, string[] serverConfiguration, CancellationToken cancellationToken)
     {
         string projectPath = Path.GetFullPath(options.ProjectPath);
         if (!File.Exists(projectPath) || !projectPath.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
@@ -177,7 +210,9 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
             throw new FileNotFoundException("The extension project was not found.", projectPath);
         }
 
-        PostgresInstallation installation = await PostgresTestSelection.ResolveAsync(options, cancellationToken).ConfigureAwait(false);
+        PostgresInstallation installation = await PostgresTestSelection.ResolveAsync(options, properties, cancellationToken).ConfigureAwait(false);
+        properties["AnkusPostgresMajor"] = installation.Version.Major.ToString(CultureInfo.InvariantCulture);
+        properties["AnkusPgConfigPath"] = installation.PgConfigPath;
         TestCommandContext.ValidateInstallation(installation);
         string? session = TestCommandContext.SessionDirectory;
         string? commandData = TestCommandContext.DataDirectory;
@@ -202,12 +237,8 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
         {
             Directory.CreateDirectory(dataDirectoryBase);
             await ProcessRunner.RunCheckedAsync("dotnet",
-                ["publish", projectPath, "--artifacts-path", buildArtifacts,
-                    "-p:Configuration=" + EscapeProperty(options.Configuration), "-r", RuntimeInformation.RuntimeIdentifier, "-o", output,
-                    "-p:AnkusIncludeTests=" + (options.IncludeTests ? "true" : "false"),
-                    "-p:AnkusReuseSchema=" + (options.ReuseSchema ? "true" : "false"),
-                    "-p:AnkusPostgresMajor=" + installation.Version.Major.ToString(CultureInfo.InvariantCulture),
-                    "-p:AnkusPgConfigPath=" + EscapeProperty(installation.PgConfigPath),
+                ["publish", projectPath, .. PropertyArguments(properties), "--artifacts-path", buildArtifacts,
+                    "-o", output,
                     "-bl:" + Path.Combine(logs, invocation + ".binlog")],
                 new Dictionary<string, string?>(), cancellationToken, workingDirectory: root).ConfigureAwait(false);
             PublishedExtension manifest = PublishedExtension.Read(output);
@@ -325,4 +356,22 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
     private static string EscapeProperty(string value)
         => string.Concat(value.Select(static c => c is '%' or ';' or ',' or '$' or '@' or '(' or ')' or '\'' or '*' or '?' or '"'
             ? "%" + ((int)c).ToString("X2", CultureInfo.InvariantCulture) : c.ToString()));
+
+    private static IEnumerable<string> PropertyArguments(IReadOnlyDictionary<string, string> properties)
+        => properties.OrderBy(static pair => pair.Key, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(static pair => pair.Key, StringComparer.Ordinal)
+            .Select(static pair => "-p:" + pair.Key + "=" + EscapeProperty(pair.Value));
+
+    private static void SetBooleanProperty(Dictionary<string, string> properties, string name, bool value,
+        PostgresExtensionTestOptions options)
+    {
+        string required = value ? "true" : "false";
+        if (properties.TryGetValue(name, out string? selected) &&
+            (!bool.TryParse(selected, out bool parsed) || parsed != value))
+        {
+            throw new ArgumentException($"BuildProperties must select {name}={required}.", nameof(options));
+        }
+
+        properties[name] = required;
+    }
 }

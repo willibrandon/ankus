@@ -6,6 +6,42 @@ namespace Ankus.IntegrationTests;
 public sealed partial class ToolCommandTests
 {
     /// <summary>
+    /// Automatic response properties select the same conditional SDK project and extension identity as publication.
+    /// </summary>
+    [TestMethod]
+    public async Task DirectoryBuildResponsePropertiesSelectExtensionProject()
+    {
+        CancellationToken token = context.CancellationToken;
+        string directory = CreateDirectory();
+        string project = await CreateControlProjectAsync(directory, token, "response_default");
+        XDocument definition = XDocument.Load(project);
+        XElement root = definition.Root!;
+        root.Attribute("Sdk")!.Remove();
+        root.AddFirst(new XElement("Import", new XAttribute("Project", "Sdk.props"),
+            new XAttribute("Sdk", "Ankus.Sdk"), new XAttribute("Version", s_version),
+            new XAttribute("Condition", "'$(ExtensionFlavor)' == 'active'")));
+        root.Add(new XElement("PropertyGroup", new XAttribute("Condition", "'$(ExtensionFlavor)' == 'active'"),
+            new XElement("AnkusExtensionName", "response_selected")));
+        root.Add(new XElement("Import", new XAttribute("Project", "Sdk.targets"),
+            new XAttribute("Sdk", "Ankus.Sdk"), new XAttribute("Version", s_version),
+            new XAttribute("Condition", "'$(ExtensionFlavor)' == 'active'")));
+        definition.Save(project);
+        new XDocument(new XElement("Project", new XAttribute("Sdk", "Microsoft.NET.Sdk"),
+            new XElement("PropertyGroup", new XElement("TargetFramework", "net10.0")))).Save(
+                Path.Combine(directory, "Unrelated.csproj"));
+        await File.WriteAllTextAsync(Path.Combine(directory, "Directory.Build.rsp"), "-property:ExtensionFlavor=active\n", token);
+
+        ProcessResult selected = await InvokeAsync(["get", "extname", "--project", directory], token);
+        Assert.AreEqual(0, selected.ExitCode, selected.StandardError);
+        Assert.AreEqual("response_selected" + Environment.NewLine, selected.StandardOutput);
+
+        ProcessResult overridden = await InvokeAsync(
+            ["get", "extname", "--project", directory, "--property", "ExtensionFlavor=inactive"], token);
+        Assert.AreNotEqual(0, overridden.ExitCode);
+        Assert.Contains("Specify --project", overridden.StandardError);
+    }
+
+    /// <summary>
     /// Installed commands select the evaluated extension SDK across both solution formats and valid SDK import forms.
     /// </summary>
     /// <param name="format">The solution format.</param>

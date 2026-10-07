@@ -19,6 +19,7 @@ public sealed partial class ToolCommandTests
     [DataRow("import-relative")]
     [DataRow("build-major")]
     [DataRow("build-path")]
+    [DataRow("project-path-only")]
     public async Task PlainTestHonorsProjectPostgresSelection(string selection)
     {
         CancellationToken token = context.CancellationToken;
@@ -46,9 +47,15 @@ public sealed partial class ToolCommandTests
         }
 
         XDocument document = XDocument.Load(properties);
-        document.Root!.Add(new XElement("PropertyGroup",
-            new XElement("AnkusPostgresMajor", selection == "build-major" ? DifferentMajor() : s_installation.Version.Major),
-            new XElement("AnkusPgConfigPath", pgConfig)));
+        var selectionProperties = new XElement("PropertyGroup");
+        if (selection != "project-path-only")
+        {
+            selectionProperties.Add(new XElement("AnkusPostgresMajor",
+                selection == "build-major" ? DifferentMajor() : s_installation.Version.Major));
+        }
+
+        selectionProperties.Add(new XElement("AnkusPgConfigPath", pgConfig));
+        document.Root!.Add(selectionProperties);
         document.Save(properties);
         string[] arguments = selection switch
         {
@@ -85,6 +92,7 @@ public sealed partial class ToolCommandTests
     [DataRow("forwarded-properties")]
     [DataRow("forwarded-last-major")]
     [DataRow("forwarded-quoted-major")]
+    [DataRow("project-path-only")]
     public async Task CommandSelectionHonorsProjectPostgresVersion(string selection)
     {
         CancellationToken token = context.CancellationToken;
@@ -93,8 +101,18 @@ public sealed partial class ToolCommandTests
             ? Path.Combine(output, "src", "TestCommandProbe", "TestCommandProbe.csproj")
             : Path.Combine(output, "Directory.Build.props");
         XDocument document = XDocument.Load(properties);
-        document.Root!.Add(new XElement("PropertyGroup",
-            new XElement("AnkusPostgresMajor", selection is "project" or "extension-project" ? s_installation.Version.Major : DifferentMajor())));
+        var selectionProperties = new XElement("PropertyGroup");
+        if (selection == "project-path-only")
+        {
+            selectionProperties.Add(new XElement("AnkusPgConfigPath", s_installation.PgConfigPath));
+        }
+        else
+        {
+            selectionProperties.Add(new XElement("AnkusPostgresMajor",
+                selection is "project" or "extension-project" ? s_installation.Version.Major : DifferentMajor()));
+        }
+
+        document.Root!.Add(selectionProperties);
         document.Save(properties);
         string[] arguments = selection switch
         {
@@ -182,6 +200,9 @@ public sealed partial class ToolCommandTests
     [DataRow("configuration")]
     [DataRow("all")]
     [DataRow("empty-property")]
+    [DataRow("invalid-property-name")]
+    [DataRow("runtime")]
+    [DataRow("self-contained")]
     public async Task CommandSelectionRejectsConflictingBuildProperties(string conflict)
     {
         string[] arguments = conflict switch
@@ -190,6 +211,9 @@ public sealed partial class ToolCommandTests
             "path" => ["--pg-config", s_installation.PgConfigPath, "--", "-p:AnkusPgConfigPath=missing-pg-config"],
             "configuration" => ["-c", "Release", "--", "-p:Configuration=Debug"],
             "empty-property" => ["--", "-p:;AnkusPostgresMajor=" + MajorText() + ";;"],
+            "invalid-property-name" => ["--", "-p:invalid name=value"],
+            "runtime" => ["--", "-p:RuntimeIdentifier=unavailable-target"],
+            "self-contained" => ["--", "-p:SelfContained=false"],
             _ => ["--all", "--", "-p:AnkusPostgresMajor=" + MajorText()],
         };
         ProcessResult result = await ProcessRunner.RunAsync(s_tool, ["test", "--home", s_home, .. arguments],
@@ -200,6 +224,9 @@ public sealed partial class ToolCommandTests
         {
             "all" => "Use --all without",
             "empty-property" => "Forwarded MSBuild properties must contain name=value",
+            "invalid-property-name" => "Forwarded MSBuild properties must contain name=value",
+            "runtime" => "host RuntimeIdentifier",
+            "self-contained" => "SelfContained=true",
             _ => "Select the same",
         };
         Assert.Contains(expected, result.StandardOutput + result.StandardError);
@@ -378,6 +405,80 @@ public sealed partial class ToolCommandTests
         Assert.Contains("selection_pg17", result.StandardOutput);
         Assert.DoesNotContain("selection_pg18", result.StandardOutput);
         Assert.IsFalse(File.Exists(Path.Combine(root, "config.json")));
+        Assert.IsFalse(Directory.Exists(Path.Combine(root, "bin")));
+    }
+
+    /// <summary>
+    /// Metadata-only commands resolve a forwarded relative pg_config path from the selected project.
+    /// </summary>
+    /// <param name="command">The metadata-only command.</param>
+    [TestMethod]
+    [DataRow("get")]
+    [DataRow("regress")]
+    public async Task OfflineCommandsResolveForwardedPgConfigFromProject(string command)
+    {
+        string root = CreateDirectory();
+        string project = Path.Combine(root, "Metadata.csproj");
+        await File.WriteAllTextAsync(project, """
+            <Project>
+              <PropertyGroup>
+                <AnkusExtensionName>relative_pg_config</AnkusExtensionName>
+              </PropertyGroup>
+            </Project>
+            """, context.CancellationToken);
+        string selectedDirectory = Directory.CreateDirectory(Path.Combine(root, "selected-postgres")).FullName;
+        string selectedPgConfig = Path.Combine(selectedDirectory, Path.GetFileName(s_installation.PgConfigPath));
+        File.Copy(s_installation.PgConfigPath, selectedPgConfig);
+        if (!OperatingSystem.IsWindows())
+        {
+            File.SetUnixFileMode(selectedPgConfig, File.GetUnixFileMode(s_installation.PgConfigPath));
+        }
+
+        string relative = Path.GetRelativePath(root, selectedPgConfig);
+        Assert.IsFalse(Path.IsPathFullyQualified(relative));
+        string[] arguments = command == "get" ? ["get", "extname"] : ["regress", "--dry-run"];
+
+        ProcessResult result = await InvokeAsync([.. arguments, "--project", project,
+            "--property", "AnkusPgConfigPath=" + relative], context.CancellationToken);
+
+        Assert.AreEqual(0, result.ExitCode, result.StandardOutput + result.StandardError);
+        Assert.Contains("relative_pg_config", result.StandardOutput);
+        Assert.IsFalse(Directory.Exists(Path.Combine(root, "bin")));
+    }
+
+    /// <summary>
+    /// Metadata-only commands infer the PostgreSQL major from a project-selected pg_config path.
+    /// </summary>
+    /// <param name="command">The metadata-only command.</param>
+    [TestMethod]
+    [DataRow("get")]
+    [DataRow("regress")]
+    public async Task OfflineCommandsInferMajorFromProjectPgConfig(string command)
+    {
+        string root = CreateDirectory();
+        string selectedDirectory = Directory.CreateDirectory(Path.Combine(root, "selected-postgres")).FullName;
+        string selectedPgConfig = Path.Combine(selectedDirectory, Path.GetFileName(s_installation.PgConfigPath));
+        File.Copy(s_installation.PgConfigPath, selectedPgConfig);
+        if (!OperatingSystem.IsWindows())
+        {
+            File.SetUnixFileMode(selectedPgConfig, File.GetUnixFileMode(s_installation.PgConfigPath));
+        }
+
+        string project = Path.Combine(root, "Metadata.csproj");
+        await File.WriteAllTextAsync(project, $$"""
+            <Project>
+              <PropertyGroup>
+                <AnkusPgConfigPath>{{Path.GetRelativePath(root, selectedPgConfig)}}</AnkusPgConfigPath>
+                <AnkusExtensionName>selection_pg$(AnkusPostgresMajor)</AnkusExtensionName>
+              </PropertyGroup>
+            </Project>
+            """, context.CancellationToken);
+        string[] arguments = command == "get" ? ["get", "extname"] : ["regress", "--dry-run"];
+
+        ProcessResult result = await InvokeAsync([.. arguments, "--project", project], context.CancellationToken);
+
+        Assert.AreEqual(0, result.ExitCode, result.StandardOutput + result.StandardError);
+        Assert.Contains("selection_pg" + MajorText(), result.StandardOutput);
         Assert.IsFalse(Directory.Exists(Path.Combine(root, "bin")));
     }
 

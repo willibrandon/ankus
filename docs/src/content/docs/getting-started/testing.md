@@ -33,8 +33,9 @@ fail initialization; tests are never silently skipped.
 
 Plain `dotnet test -p:AnkusPostgresMajor=17` selects matching headers and a
 PostgreSQL 17 server. Use `-p:AnkusPgConfigPath=/path/to/pg_config` for a specific
-installation. The testing package carries these build settings into the test
-host; `--no-build` retains the settings from its previous build. An explicit
+installation; its reported major is used when `AnkusPostgresMajor` is absent.
+The testing package carries these build settings into the test host; `--no-build`
+retains the settings from its previous build. An explicit
 fixture `Installation` or `ANKUS_TEST_PG_CONFIG` takes
 precedence. A selected path that reports a different requested major is rejected.
 
@@ -125,7 +126,10 @@ extension = await PostgresExtensionTest.StartAsync(new PostgresExtensionTestOpti
 
 Dispose it during test-class cleanup. The options also select `Installation`,
 `Configuration` (default `Release` for direct fixtures, or the configuration
-selected by `ankus test`), `SharedPreload` and `Port`.
+selected by `ankus test`), `BuildProperties`, `SharedPreload` and `Port`.
+`BuildProperties` participate in project selection and the native publication.
+When invoked through `ankus test`, forwarded MSBuild properties become the
+default so the managed test build and nested fixture publish use the same values.
 The fixture uses the selected installation's headers and server together.
 
 For ordinary `dotnet test`, set `DataDirectoryBase` to put cluster data beneath

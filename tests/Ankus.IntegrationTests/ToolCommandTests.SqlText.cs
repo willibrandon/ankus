@@ -19,7 +19,9 @@ public sealed partial class ToolCommandTests
     /// </summary>
     private static IReadOnlyList<(string Kind, string Hex)> SqlTextExpectedRows()
     {
-        string physicalCrlf = OperatingSystem.IsWindows() ? "410a42" : "410d0a42";
+        string physicalCrlf = OperatingSystem.IsWindows() && PostgresFixture.Cluster.Installation.Version.Major >= 18
+            ? "410a42"
+            : "410d0a42";
         return
         [
             ("default", physicalCrlf),

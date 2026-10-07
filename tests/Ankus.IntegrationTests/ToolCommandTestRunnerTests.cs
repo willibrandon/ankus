@@ -18,6 +18,7 @@ public sealed partial class ToolCommandTests
     [DataRow("explicit")]
     [DataRow("all")]
     [DataRow("forwarded")]
+    [DataRow("forwarded-relative")]
     [DataRow("custom-data")]
     [DataRow("all-custom-data")]
     public async Task TestCommandRunsSelectedBackendTests(string selection)
@@ -34,10 +35,21 @@ public sealed partial class ToolCommandTests
         string[] dataArguments = dataBase is null ? [] : ["--pgdata", dataBase];
         string reports = Path.Combine(output, "reports with spaces");
         string host = Path.Combine(output, "tests", "TestCommandProbe.Tests", "TestCommandProbe.Tests.csproj");
-        string[] configuration = selection == "forwarded" ? [] : ["-c", "Shipping"];
+        string forwardedOutput = Path.Combine(output, "forwarded outputs with spaces");
+        string[] configuration = selection.StartsWith("forwarded", StringComparison.Ordinal) ? [] : ["-c", "Shipping"];
+        string[] installationProperty = [];
+        if (selection == "forwarded-relative")
+        {
+            installationProperty = ["-p:AnkusPgConfigPath=" +
+                Path.GetRelativePath(Path.GetDirectoryName(host)!, s_installation.PgConfigPath)];
+        }
+
+        string[] outputProperty = selection.StartsWith("forwarded", StringComparison.Ordinal)
+            ? ["-p:ForwardedOutputRoot=" + forwardedOutput] : [];
         string[] properties = selection is "all" or "all-custom-data"
-            ? ["-p:Configuration=Shipping"]
-            : ["-p:Configuration=Shipping", "-p:AnkusPostgresMajor=" + MajorText()];
+            ? ["-p:Configuration=Shipping", "-p:ForwardedFixtureProperty=enabled"]
+            : ["-p:Configuration=Shipping", "-p:AnkusPostgresMajor=" + MajorText(),
+                "-p:ForwardedFixtureProperty=enabled", .. installationProperty, .. outputProperty];
         ProcessResult result = await ProcessRunner.RunAsync(s_tool,
             ["test", .. selected, .. configuration, .. dataArguments, "--results-directory", reports, "--", "--project", host,
                 "--report-trx", "--report-trx-filename", "selected.trx", "--filter",
@@ -67,6 +79,11 @@ public sealed partial class ToolCommandTests
         }
 
         Assert.IsNotEmpty(Directory.GetFiles(Path.Combine(output, "src", "TestCommandProbe", "bin", "ankus-test-logs"), "*.log"));
+        if (selection.StartsWith("forwarded", StringComparison.Ordinal))
+        {
+            Assert.IsNotEmpty(Directory.GetFiles(Path.Combine(forwardedOutput, "TestCommandProbe"), "*", SearchOption.AllDirectories));
+            Assert.IsNotEmpty(Directory.GetFiles(Path.Combine(forwardedOutput, "TestCommandProbe.Tests"), "*", SearchOption.AllDirectories));
+        }
     }
 
     /// <summary>
@@ -525,6 +542,10 @@ public sealed partial class ToolCommandTests
         XDocument build = XDocument.Load(buildFile);
         build.Root!.Add(new XElement("PropertyGroup", new XAttribute("Condition", "'$(Configuration)' == 'Shipping'"),
             new XElement("DefineConstants", "$(DefineConstants);TEST_CONFIGURATION")));
+        build.Root.Add(new XElement("PropertyGroup", new XAttribute("Condition", "'$(ForwardedFixtureProperty)' == 'enabled'"),
+            new XElement("DefineConstants", "$(DefineConstants);TEST_FORWARDED_FIXTURE_PROPERTY")));
+        build.Root.Add(new XElement("PropertyGroup", new XAttribute("Condition", "'$(ForwardedOutputRoot)' != ''"),
+            new XElement("BaseIntermediateOutputPath", "$(ForwardedOutputRoot)/$(MSBuildProjectName)/")));
         build.Root.Add(new XElement("ItemGroup", new XElement("AssemblyMetadata", new XAttribute("Include", "SelectedMajor"),
             new XAttribute("Value", "$(AnkusPostgresMajor)"))));
         build.Save(buildFile);
@@ -537,7 +558,11 @@ public sealed partial class ToolCommandTests
                 public static int TestConfiguration()
                 {
             #if TEST_CONFIGURATION
+            #if TEST_FORWARDED_FIXTURE_PROPERTY
                     return 42;
+            #else
+                    return -2;
+            #endif
             #else
                     return -1;
             #endif

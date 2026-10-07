@@ -12,19 +12,24 @@ internal static class PostgresTestSelection
     /// Resolves explicit selections before consulting the extension's evaluated project defaults.
     /// </summary>
     /// <param name="options">The fixture's publication and installation options.</param>
+    /// <param name="properties">The literal MSBuild properties used by the eventual publication.</param>
     /// <param name="cancellationToken">Cancels project and installation queries.</param>
     /// <returns>The installation used for both native publication and the test server.</returns>
-    internal static async Task<PostgresInstallation> ResolveAsync(PostgresExtensionTestOptions options, CancellationToken cancellationToken)
+    internal static async Task<PostgresInstallation> ResolveAsync(PostgresExtensionTestOptions options,
+        IReadOnlyDictionary<string, string> properties, CancellationToken cancellationToken)
     {
         if (options.Installation is PostgresInstallation explicitInstallation)
         {
-            return explicitInstallation;
+            return await ValidatePropertiesAsync(options.ProjectPath, explicitInstallation, properties, cancellationToken)
+                .ConfigureAwait(false);
         }
 
         string? commandPath = Environment.GetEnvironmentVariable("ANKUS_TEST_PG_CONFIG");
         if (!string.IsNullOrWhiteSpace(commandPath))
         {
-            return await PostgresInstallation.CreateAsync(commandPath, cancellationToken).ConfigureAwait(false);
+            PostgresInstallation commandInstallation = await PostgresInstallation.CreateAsync(commandPath, cancellationToken).ConfigureAwait(false);
+            return await ValidatePropertiesAsync(options.ProjectPath, commandInstallation, properties, cancellationToken)
+                .ConfigureAwait(false);
         }
 
         string? commandMajor = Environment.GetEnvironmentVariable("ANKUS_TEST_POSTGRES_MAJOR");
@@ -36,17 +41,41 @@ internal static class PostgresTestSelection
         {
             PostgresInstallation installation = await PostgresInstallation.CreateAsync(hostPath, cancellationToken).ConfigureAwait(false);
             RequireMajor(installation, major);
-            return installation;
+            return await ValidatePropertiesAsync(options.ProjectPath, installation, properties, cancellationToken).ConfigureAwait(false);
         }
 
         PostgresProjectSettings settings = await PostgresProjectSettings.ReadAsync(options.ProjectPath, options.Configuration,
-            major, cancellationToken).ConfigureAwait(false);
+            properties, major, cancellationToken).ConfigureAwait(false);
         PostgresInstallation selected = settings.PgConfigPath is null
             ? await PostgresInstallation.DiscoverAsync(settings.PostgresMajor,
                 ReadHostValue("Ankus.Testing.HomeDirectory"), cancellationToken).ConfigureAwait(false)
             : await PostgresInstallation.CreateAsync(settings.PgConfigPath, cancellationToken).ConfigureAwait(false);
-        RequireMajor(selected, settings.PostgresMajor);
+        RequireMajor(selected, settings.HasExplicitPostgresMajor ? settings.PostgresMajor : null);
         return selected;
+    }
+
+    private static async Task<PostgresInstallation> ValidatePropertiesAsync(string projectPath, PostgresInstallation installation,
+        IReadOnlyDictionary<string, string> properties, CancellationToken cancellationToken)
+    {
+        if (properties.GetValueOrDefault("AnkusPostgresMajor") is string major)
+        {
+            RequireMajor(installation, ParseMajor(major, "AnkusPostgresMajor"));
+        }
+
+        if (properties.GetValueOrDefault("AnkusPgConfigPath") is string value && !string.IsNullOrWhiteSpace(value))
+        {
+            string path = value.Contains(Path.DirectorySeparatorChar) || value.Contains(Path.AltDirectorySeparatorChar)
+                ? Path.GetFullPath(value, Path.GetDirectoryName(Path.GetFullPath(projectPath))!) : value;
+            PostgresInstallation selected = await PostgresInstallation.CreateAsync(path, cancellationToken).ConfigureAwait(false);
+            if (!string.Equals(selected.PgConfigPath, installation.PgConfigPath,
+                OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    $"The fixture selected '{installation.PgConfigPath}', but BuildProperties selected '{selected.PgConfigPath}'.");
+            }
+        }
+
+        return installation;
     }
 
     /// <summary>

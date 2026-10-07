@@ -36,6 +36,17 @@ public sealed class PostgresExtensionTestOptions
     } = TestCommandContext.Configuration;
 
     /// <summary>
+    /// Gets literal MSBuild properties used for project selection and native publication.
+    /// The default contains the effective selection and properties forwarded through ankus test,
+    /// or an empty collection for direct fixture invocation.
+    /// </summary>
+    public IReadOnlyDictionary<string, string> BuildProperties
+    {
+        get;
+        init;
+    } = TestCommandContext.BuildProperties;
+
+    /// <summary>
     /// Gets whether the publication includes PgTest native entry points and SQL. The default is false.
     /// </summary>
     public bool IncludeTests

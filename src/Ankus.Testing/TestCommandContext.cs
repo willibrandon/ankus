@@ -9,6 +9,56 @@ namespace Ankus.Testing;
 internal static class TestCommandContext
 {
     /// <summary>
+    /// Gets the literal effective MSBuild properties selected by ankus test.
+    /// </summary>
+    internal static IReadOnlyDictionary<string, string> BuildProperties
+    {
+        get
+        {
+            string? path = Environment.GetEnvironmentVariable("ANKUS_TEST_MSBUILD_PROPERTIES_FILE");
+            if (path is null)
+            {
+                return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            }
+
+            string? session = SessionDirectory;
+            string expected = session is null ? string.Empty : Path.GetFullPath(Path.Combine(session, "msbuild-properties"));
+            if (!Path.IsPathFullyQualified(path) || !File.Exists(path) || !string.Equals(Path.GetFullPath(path), expected,
+                OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    "ANKUS_TEST_MSBUILD_PROPERTIES_FILE must be the existing property file in the command session.");
+            }
+
+            var properties = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (string line in File.ReadAllLines(path))
+            {
+                int separator = line.IndexOf('=', StringComparison.Ordinal);
+                if (separator <= 0)
+                {
+                    throw new InvalidOperationException("ANKUS_TEST_MSBUILD_PROPERTIES_FILE contains an invalid property.");
+                }
+
+                string name = Uri.UnescapeDataString(line[..separator]);
+                string value = Uri.UnescapeDataString(line[(separator + 1)..]);
+                try
+                {
+                    System.Xml.XmlConvert.VerifyNCName(name);
+                }
+                catch (System.Xml.XmlException error)
+                {
+                    throw new InvalidOperationException(
+                        "ANKUS_TEST_MSBUILD_PROPERTIES_FILE contains an invalid property name.", error);
+                }
+
+                properties[name] = value;
+            }
+
+            return properties;
+        }
+    }
+
+    /// <summary>
     /// Gets the requested publication configuration, or Release for a direct fixture invocation.
     /// </summary>
     internal static string Configuration => Environment.GetEnvironmentVariable("ANKUS_TEST_CONFIGURATION") ?? "Release";

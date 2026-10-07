@@ -218,8 +218,9 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   also exposed a package-consumer Source Link path at exactly 260 characters and
   a cross-platform SQL-fixture assumption. Its owned root is now compact, and
   the fixture retains physical CRLF while expecting the Windows backend's deliberate
-  normalization during extension-script parsing. Replacement Windows evidence is
-  pending. The expanded-inventory audit now retains exact representative function,
+  normalization during extension-script parsing on PostgreSQL 18 and later. PostgreSQL
+  13–17 predate that backend change and preserve the bytes. Replacement Windows
+  evidence is pending. The expanded-inventory audit now retains exact representative function,
   mutable-global, callback, inline-helper and struct-field contracts. A real backend
   case compares generated access to `max_prepared_xacts` with PostgreSQL's own
   setting value. Focused PostgreSQL 18 backend validation passes **16/16**, including
@@ -260,6 +261,38 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
 - Earlier-member cache investigation confirms that declaration ordinals change
   after unrelated insertions. Stable header identities and exact-current-span
   regression tests are drafted separately; they have no execution evidence yet.
+- The pgrx **bc09b536** cargo-option delta is reconciled through Ankus's
+  repeatable `--property` / `-p` boundary. Properties now reach automatic-response
+  project discovery, restore, every build command, benchmark selection, the managed
+  test build and nested Native AOT fixture publication. Custom restore configuration,
+  package and intermediate roots with spaces, response-file precedence, repeated
+  values, schema no-build reuse and relative `pg_config` selection have source cases.
+  The SDK now distinguishes its PostgreSQL 18 fallback from an authored major, so a
+  path-only project uses the executable's actual major. Local and complete-suite
+  acceptance now passes. Focused build, generator, command-selection,
+  response-file and nested-publication validation passes, including **26/26**
+  remaining PostgreSQL selection cases. A clean Linux x64/PostgreSQL 18 complete
+  suite passes **13,465 total / 13,417 succeeded / 48 skipped / 0 failed** in
+  **38m19s**. Two earlier attempts are rejected as evidence: one exhausted the
+  filesystem, and one placed generated consumer projects inside the repository,
+  causing them to inherit repository-only build policy.
+- Linux x64 run **37581568110** passes the complete suite against PostgreSQL
+  **13, 14, 15, 16, 17 and 19** at `557a470`; the primary PostgreSQL 18 cell in
+  run **37580394349** also passes. The slowest compatibility cell completed in
+  **73m54s**, validating the measured 120-minute job limit.
+- Primary run **37580394349** passes quality, all runtime jobs, Linux/PostgreSQL
+  18 and macOS ARM64/PostgreSQL 18. Windows/PostgreSQL 17 rejected one test-only
+  expectation: PostgreSQL 17 preserves authored CRLF script values, while the
+  normalization under test begins with PostgreSQL 18. The corrected assertion is
+  version-gated; replacement complete Windows evidence remains pending.
+  Platform-version run **37583027994** is also rejected as acceptance evidence:
+  concurrent macOS ARM64/PostgreSQL 15 and 16 jobs exhausted their shared disk.
+  The retained PG16 failures are all write failures after the disk filled, and
+  the PG15 unit reports contain no product-test failures. Stale generated data
+  was removed, both runner services now share the concurrency-safe binding cache,
+  and macOS ARM64 full suites serialize across primary and compatibility
+  workflows. Independent Windows cells remain parallel. Self-hosted test jobs
+  clean ignored and untracked checkout outputs after uploading reports.
 
 Remaining diagnostics/code fixes, source-case mapping, samples, API and CLI
 contracts, supported PostgreSQL/platform combinations, .NET servicing and release

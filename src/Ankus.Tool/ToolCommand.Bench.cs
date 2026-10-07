@@ -63,9 +63,7 @@ internal static partial class ToolCommand
                 }
             }
 
-            ExtensionSelection selection = await SelectExtensionAsync(result, home, token);
-            PostgresInstallation installation = selection.Installation;
-            var properties = new Dictionary<string, string>(selection.Properties, StringComparer.OrdinalIgnoreCase);
+            var properties = new Dictionary<string, string>(BuildProperties(result), StringComparer.OrdinalIgnoreCase);
             if (properties.TryGetValue("AnkusIncludeTests", out string? includeTests) &&
                 string.Equals(includeTests, "true", StringComparison.OrdinalIgnoreCase))
             {
@@ -73,7 +71,8 @@ internal static partial class ToolCommand
             }
 
             properties["AnkusIncludeBenchmarks"] = "true";
-            selection = selection with { Properties = properties };
+            ExtensionSelection selection = await SelectExtensionAsync(result, home, token, properties: properties);
+            PostgresInstallation installation = selection.Installation;
             string extension = await ExtensionBuilder.GetExtensionNameAsync(selection.Project, selection.Configuration,
                 installation, token, properties);
             string benchmarkDatabase = result.GetValue(database) ?? BenchmarkDatabaseName(extension);

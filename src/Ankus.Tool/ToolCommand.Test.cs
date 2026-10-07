@@ -1,5 +1,6 @@
 using System.CommandLine;
 using System.Globalization;
+using System.Runtime.InteropServices;
 using Ankus.PgConfig;
 
 namespace Ankus.Tool;
@@ -73,6 +74,13 @@ internal static partial class ToolCommand
                 token.ThrowIfCancellationRequested();
                 string major = installation.Version.Major.ToString(CultureInfo.InvariantCulture);
                 await using var session = new ExtensionTestCommandSession(installation, result.GetValue(dataDirectory));
+                var fixtureProperties = new Dictionary<string, string>(properties, StringComparer.OrdinalIgnoreCase)
+                {
+                    ["Configuration"] = configuration,
+                    ["AnkusPostgresMajor"] = major,
+                    ["AnkusPgConfigPath"] = installation.PgConfigPath,
+                };
+                string propertyFile = await WriteTestPropertiesAsync(session.DirectoryPath, fixtureProperties, token);
                 string resultsDirectory = Path.Combine(root, installation.Label);
                 Console.WriteLine($"Testing PostgreSQL {installation.Version} ({configuration}). Results: {resultsDirectory}");
                 int code = await ToolProcess.RunAsync("dotnet",
@@ -91,6 +99,7 @@ internal static partial class ToolCommand
                     ["ANKUS_TEST_REUSE_SCHEMA"] = result.GetValue(noSchema) ? "true" : "false",
                     ["ANKUS_TEST_SESSION_DIRECTORY"] = session.DirectoryPath,
                     ["ANKUS_TEST_DATA_DIRECTORY"] = session.DataDirectoryPath,
+                    ["ANKUS_TEST_MSBUILD_PROPERTIES_FILE"] = propertyFile,
                 });
                 Console.WriteLine($"{installation.Label}: dotnet test exited {code}.");
                 if (firstFailure == 0)
@@ -259,7 +268,17 @@ internal static partial class ToolCommand
                     throw new ArgumentException("Forwarded MSBuild properties must contain name=value.");
                 }
 
-                properties[property[..separator].Trim()] = Uri.UnescapeDataString(property[(separator + 1)..].Trim('"'));
+                string name = property[..separator].Trim();
+                try
+                {
+                    System.Xml.XmlConvert.VerifyNCName(name);
+                }
+                catch (System.Xml.XmlException error)
+                {
+                    throw new ArgumentException("Forwarded MSBuild properties must contain name=value with a valid property name.", error);
+                }
+
+                properties[name] = Uri.UnescapeDataString(property[(separator + 1)..].Trim('"'));
                 start = offset + 1;
             }
 
@@ -269,6 +288,38 @@ internal static partial class ToolCommand
             }
         }
 
+        if (properties.TryGetValue("RuntimeIdentifier", out string? runtime) && runtime != RuntimeInformation.RuntimeIdentifier)
+        {
+            throw new ArgumentException("ankus test publishes fixtures for the host RuntimeIdentifier.");
+        }
+
+        if (properties.TryGetValue("SelfContained", out string? selfContained) &&
+            !string.Equals(selfContained, "true", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException("ankus test requires SelfContained=true for fixture publication.");
+        }
+
         return properties;
+    }
+
+    /// <summary>
+    /// Writes effective MSBuild properties into command-owned storage for nested fixture publications.
+    /// </summary>
+    /// <param name="sessionDirectory">The command session directory.</param>
+    /// <param name="properties">The literal effective properties.</param>
+    /// <param name="token">Cancels the property-file write.</param>
+    /// <returns>The absolute property-file path.</returns>
+    private static async Task<string> WriteTestPropertiesAsync(string sessionDirectory,
+        Dictionary<string, string> properties, CancellationToken token)
+    {
+        string path = Path.Combine(sessionDirectory, "msbuild-properties");
+        string[] lines =
+        [
+            .. properties.OrderBy(static pair => pair.Key, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(static pair => pair.Key, StringComparer.Ordinal)
+                .Select(static pair => Uri.EscapeDataString(pair.Key) + "=" + Uri.EscapeDataString(pair.Value)),
+        ];
+        await File.WriteAllLinesAsync(path, lines, token);
+        return path;
     }
 }

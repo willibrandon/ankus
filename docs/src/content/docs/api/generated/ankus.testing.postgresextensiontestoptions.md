@@ -30,6 +30,20 @@ public PostgresExtensionTestOptions()
 
 ## Properties
 
+<a id="member-0d4462770b908d8b"></a>
+
+### BuildProperties
+
+Gets literal MSBuild properties used for project selection and native publication.
+The default contains the effective selection and properties forwarded through ankus test,
+or an empty collection for direct fixture invocation.
+
+```csharp
+public IReadOnlyDictionary<string, string> BuildProperties { get; init; }
+```
+
+Value: [IReadOnlyDictionary&lt;string, string&gt;](https://learn.microsoft.com/dotnet/api/system.collections.generic.ireadonlydictionary-2)
+
 <a id="member-960adfd6a12cd120"></a>
 
 ### Configuration

@@ -32,6 +32,7 @@ repository root with `dotnet run --file`.
 | `postgresql-check` | Check an explicit PostgreSQL 13–19 `pg_config` for its selected major and server headers without installing packages. |
 | `unit-test` | Build and run the five unit test modules. |
 | `prepare-reports` | Copy test results and server logs with private runner identifiers removed before artifact upload. |
+| `runner-cleanup` | On a self-hosted runner, stop build servers and remove generated checkout files after artifact upload. |
 | `release-managed` | Pack the managed NuGet packages. |
 | `release-runtime` | Build and pack the runtime and compiler host for one platform. |
 | `publish` | Validate and publish the complete NuGet package set. |
@@ -67,8 +68,9 @@ the native binding cache before the complete suite starts. The build command
 exports the selected PostgreSQL installation and compiler path to subsequent
 GitHub Actions steps. `AnkusBindingCacheDirectory` selects the restored cache;
 normal header preprocessing, native ABI verification and content checks still
-run before reuse. The full suite remains in one platform job with a 60-minute
-timeout on primary platforms and 360 minutes on Intel macOS.
+run before reuse. The full suite remains in one platform job. Primary and
+compatibility jobs use the measured 120-minute limit, while Intel macOS retains
+360 minutes.
 `runtime-test` retains the combined local command.
 Test commands write each module's TRX results and durations to
 `artifacts/test-results`; platform CI uploads available reports on every outcome.
@@ -95,8 +97,9 @@ The `PostgreSQL versions` workflow runs complete Linux x64 suites for PostgreSQL
 additional majors. A separate runner labelled `ankus-linux-versions-x64` keeps
 these checks off the primary CI queue. Both actors must be the repository owner
 and the selected ref must be `main`; there is no pull-request trigger.
-Each major runs the complete suite in its own 60-minute job, sequentially on
-that runner. Failures do not cancel the other majors or supersede existing runs.
+Each major runs the complete suite in its own 120-minute job. The repository
+setting controls how many dedicated Linux runner services execute concurrently.
+Failures do not cancel the other majors or supersede existing runs.
 Install each selected server and matching development headers before dispatch;
 PostgreSQL 19 uses its current prerelease until a stable release is available.
 Check an installation before enabling the workflow:
@@ -127,9 +130,10 @@ The workflow selects the matching root for the build step. It does not change
 the runner's default `PGROOT` or store device paths in tracked files.
 
 Check every installation with `postgresql-check` before dispatch. Each matrix
-cell runs the entire suite against its selected real server, with a 60-minute
-timeout and separate result artifacts. Platform runners process their jobs in
-sequence; independent machines can run simultaneously. Runtime artifacts reuse
+cell runs the entire suite against its selected real server, with a 120-minute
+timeout and separate result artifacts. macOS ARM64 suites share a concurrency
+group because their runner services use one physical disk. Windows cells and
+independent machines can run simultaneously. Runtime artifacts reuse
 the primary workflow's verified runtime cache. Failures do not cancel other
 cells, and there is no cancellation of earlier runs. Both actors must be the
 repository owner on `main`, and the workflow has no pull-request trigger.
@@ -210,9 +214,9 @@ files and work directory under its own storage root. Configure
 and `TMP` for its service account. Native binding entries persist in
 `runner.tool_cache/ankus-binding-cache` and retain normal content and ABI
 validation. Self-hosted jobs reuse these local caches; hosted jobs continue to
-restore and save GitHub caches. All platform suites remain complete and
-unsharded with a 60-minute primary-job limit and 360 minutes on Intel macOS.
-Workflows do not automatically
+restore and save GitHub caches. After report upload, `runner-cleanup` shuts down
+build servers and removes ignored and untracked checkout outputs. All platform
+suites remain complete and unsharded. Workflows do not automatically
 cancel earlier runs; jobs queue while their dedicated runner is busy.
 
 `ANKUS_PACKAGE_TEST_CONCURRENCY` controls package-consumer test slots and accepts

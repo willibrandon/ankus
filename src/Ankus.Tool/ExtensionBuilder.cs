@@ -57,7 +57,7 @@ internal static class ExtensionBuilder
             using var output = new MemoryStream();
             using var errors = new MemoryStream();
             int code = await ToolProcess.RunAsync("dotnet",
-                ["msbuild", project, "-nologo", "-noAutoResponse", "-verbosity:quiet", "-getProperty:UsingAnkusSdk",
+                ["msbuild", project, "-nologo", "-verbosity:quiet", "-getProperty:UsingAnkusSdk",
                     .. PropertyArguments(properties), "-p:Configuration=" + EscapeProperty(configuration)], token,
                 outputStream: output, errorStream: errors);
             string evaluated = System.Text.Encoding.UTF8.GetString(output.ToArray());

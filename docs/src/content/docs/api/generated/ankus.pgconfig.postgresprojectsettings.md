@@ -19,6 +19,19 @@ Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object)
 
 ## Properties
 
+<a id="member-3daf01efb5201feb"></a>
+
+### HasExplicitPostgresMajor
+
+Gets whether the evaluated project explicitly selected [PostgresMajor](/api/ankus.pgconfig.postgresprojectsettings/#member-f53b7a200e7be62e).
+When false and [PgConfigPath](/api/ankus.pgconfig.postgresprojectsettings/#member-73ebe98eb8239314) is set, callers use the executable's reported major.
+
+```csharp
+public bool HasExplicitPostgresMajor { get; }
+```
+
+Value: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
 <a id="member-73ebe98eb8239314"></a>
 
 ### PgConfigPath
@@ -88,7 +101,7 @@ The evaluated PostgreSQL selection.
 ### ReadAsync(string, string, int?, CancellationToken)
 
 Evaluates the project's PostgreSQL properties with the installed .NET SDK and selected configuration.
-Imports and conditions participate; build targets and automatic response files do not run.
+Imports, conditions and automatic response files participate; build targets run only when requested by the response file.
 A test project without its own selection inherits an unambiguous selection from its project references.
 
 ```csharp

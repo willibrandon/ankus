@@ -119,8 +119,11 @@ platform. Ankus passes individual arguments without shell interpretation.
 on `ankus test` or in the forwarded arguments so both the host build and default
 fixture publication agree. Conflicting configuration options fail before tests start.
 An explicitly configured fixture can still choose its own build configuration.
-Forwarded `-p:AnkusPostgresMajor` and `-p:AnkusPgConfigPath` select the same server
-and build installation. Conflicting command selectors fail before tests start;
+Forwarded MSBuild properties participate in the host build and every nested
+fixture publication. `-p:AnkusPostgresMajor` and `-p:AnkusPgConfigPath` therefore
+select the same server and build installation. Conflicting command selectors
+fail before tests start. Relative `AnkusPgConfigPath` values resolve from the
+selected project before Ankus passes the canonical path to nested fixtures.
 `--all` cannot be combined with these properties. A fixture that selects a
 different major fails rather than silently testing the wrong version.
 
@@ -151,11 +154,14 @@ ankus get extname --property ExtensionFlavor=preview
 
 Properties participate in project evaluation as well as compilation. Conditions
 and imports therefore select the same extension identity and PostgreSQL installation
-for `build`, `publish`, `install`, `package`, `schema`, `regress`, `run`, `connect`
-and `get`. A repeated property name uses its last value; names are case-insensitive.
+for `build`, `publish`, `install`, `package`, `schema`, `regress`, `run`, `connect`,
+`bench` and `get`. A repeated property name uses its last value; names are case-insensitive.
 Each assignment supplies one literal value. Quote spaces or shell metacharacters
 as required by your shell. Semicolons, percent escapes and MSBuild expansion syntax
 in that value are preserved, and `Name=` supplies an empty value.
+MSBuild automatic response files participate in project discovery and builds as
+they do for direct `dotnet` commands. Explicit `--property` values retain
+command-line precedence over response-file properties.
 
 `Configuration` selects the default output directory as well as the build.
 Conflicting `--configuration`, `--pg` or `--pg-config` options fail explicitly.

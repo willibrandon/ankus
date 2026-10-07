@@ -1,3 +1,4 @@
+using System.Net.Sockets;
 using Npgsql;
 
 namespace Ankus.IntegrationTests;
@@ -341,10 +342,29 @@ public sealed class GucTests(TestContext context)
     {
         await using NpgsqlConnection failing = await OpenAsync();
         await using NpgsqlConnection observer = await OpenAsync();
-        PostgresException error = await FailureAsync(failing, "SET ankus_guc.hook_int = '66'");
-        Assert.AreEqual("FATAL", error.InvariantSeverity);
-        Assert.AreEqual("38000", error.SqlState);
-        Assert.AreEqual("Assign must not fail.", error.MessageText);
+        string session = "ankus-guc-assign-failure-" + Guid.NewGuid().ToString("N");
+        await ExecuteAsync(failing, $"SET application_name = '{session}'; SET log_error_verbosity = verbose");
+        await using var command = new NpgsqlCommand("SET ankus_guc.hook_int = '66'", failing);
+        NpgsqlException failure = await Assert.ThrowsAsync<NpgsqlException>(() => command.ExecuteNonQueryAsync(context.CancellationToken));
+        if (failure is PostgresException error)
+        {
+            Assert.AreEqual("FATAL", error.InvariantSeverity);
+            Assert.AreEqual("38000", error.SqlState);
+            Assert.AreEqual("Assign must not fail.", error.MessageText);
+        }
+        else
+        {
+            // PostgreSQL has already flushed FATAL, but Windows can reset the closing socket before it is read.
+            Assert.IsTrue(OperatingSystem.IsWindows());
+            IOException transport = Assert.IsInstanceOfType<IOException>(failure.InnerException);
+            SocketException socket = Assert.IsInstanceOfType<SocketException>(transport.InnerException);
+            Assert.AreEqual(SocketError.ConnectionReset, socket.SocketErrorCode);
+        }
+
+        string log = string.Join('\n', PostgresFixture.Cluster.ReadServerLog().Split('\n')
+            .Where(line => line.Contains($"[{session}]:", StringComparison.Ordinal)));
+        Assert.Contains("FATAL:  38000: Assign must not fail.", log);
+        Assert.AreEqual(System.Data.ConnectionState.Closed, failing.State);
         Assert.AreEqual(42, await ScalarAsync(observer, "SELECT 42"));
         Assert.AreEqual("integer=10;extra=0A000000", await ScalarAsync(observer, "SHOW ankus_guc.hook_int"));
     }

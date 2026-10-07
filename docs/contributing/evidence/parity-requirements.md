@@ -28,7 +28,7 @@ only the first gate.
 | --- | --- |
 | Headers, #2377 / `4f36fae4` | Retain all seven expanded `pg13.h`–`pg19.h` manifests, foreign declarations, constants, node/type graphs, OIDs and attribution. The checked-in manifests match upstream byte for byte: 481, 490, 497, 501, 508, 524 and 535 direct includes, respectively. The .NET maintenance command now discovers headers from each selected PostgreSQL server include tree with the same deliberate exclusions, formatting and version guard; binding check mode separately compares all seven with the pinned pgrx bytes, and Linux full-suite CI checks the selected installed manifest. Source cases retain newly exposed function signatures, mutable global storage, callback fields, inline helpers and struct fields. Backend cases execute the hash and overflow helpers and compare `max_prepared_xacts` with PostgreSQL's setting system. Complete current supported-major evidence remains required. |
 | PostgreSQL 19 beta 4, #2383 / `46eae1dd` | Keep bindings, OIDs, SQLSTATEs, version metadata and server fixtures on the same beta. Current inputs are aligned; refresh complete PG19 backend evidence after the current runtime and cleanup changes. Stable supported majors retain their own APIs and headers. |
-| Cargo argument forwarding, #2343 / `bc09b536` | Audit the idiomatic `--property`/`-p` equivalent through initial project evaluation, restore, build, schema, publication and nested test/benchmark calls. Cover custom feed/configuration and output-directory selection from a parent or solution directory, explicit project selection, repeated values and paths with spaces. Existing forwarding is implemented; every changed upstream command and fixture still needs source-case reconciliation. |
+| Cargo argument forwarding, #2343 / `bc09b536` | Source-case reconciliation covers the idiomatic repeatable `--property`/`-p` equivalent through initial project evaluation, restore, build, schema/no-build reuse, publication and nested test/benchmark calls. Automatic response files and explicit precedence are retained. Consumer cases select a custom restore configuration, package root and intermediate root with spaces; project/solution discovery, explicit projects, repeated values and relative `pg_config` paths are covered. Complete current platform acceptance remains required. |
 | Package prefix, #2382 / `577ee501` | Preserve custom installation-prefix layouts, libraries, control files and authored/upgrade SQL through relocation and PostgreSQL loading. `--prefix-dir` and backend package-prefix tests exist; retain them in refreshed platform/version acceptance. |
 | Lazy error allocations, #2369 / `b91a9ae0` | The upstream changes replace eager Rust `ok_or`/`unwrap_or` values with closures. Corresponding Ankus CLI, declaration/type graph, binding, SPI and test-harness failure paths use conditional branches, `?? throw` or deferred diagnostics, so successful paths do not construct those errors. No mechanical .NET change or performance claim is warranted; exact diagnostics and ownership tests remain. |
 | Shared-memory macro lookup, #2371 / `7d512caf` | Generated shared-memory hooks resolve framework helpers without consumer imports. A source case with fully qualified attributes, no `using Ankus` and colliding consumer `PgSharedMemory`/`PgLwLock<T>` names compiles and dispatches the intended consumer callbacks through globally qualified framework transport. Retain real preload/chaining evidence on every supported platform/version. |
@@ -69,12 +69,12 @@ commands can supply the equivalent operation, with the Ankus tool providing Post
 
 Additional tooling sources: `cargo-pgrx/src/{manifest,metadata}.rs`, command options in each command file,
 `pgrx-pg-config/src/`, `pgrx-bindgen/src/`, and installation/upgrade fixtures in `cargo-pgrx/tests/`.
-General build-property forwarding must reach both project evaluation and every
-related build/test invocation, matching the upstream cargo-option contract.
-Build-property forwarding and environment-based installation selection are
-implemented; see the [CLI guide](../../src/content/docs/reference/cli.md#pass-msbuild-properties)
-and recorded complete-suite evidence. Execution-account options and privileged
-installation remain open. Complete version/platform validation is still required.
+General build-property forwarding reaches project evaluation, restore and every
+related build/test invocation, including nested fixture publication, matching the
+upstream cargo-option contract. Automatic response files retain normal MSBuild
+precedence. See the [CLI guide](../../src/content/docs/reference/cli.md#pass-msbuild-properties).
+Execution-account options and privileged installation remain open. Complete
+version/platform validation is still required.
 The framework also requires versioned extension SQL upgrades, custom/versioned shared-library names,
 control-file settings, dependency handling, and deterministic packaging.
 Primary author settings and native dependency/privilege behavior are implemented

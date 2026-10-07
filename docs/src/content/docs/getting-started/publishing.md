@@ -52,7 +52,7 @@ literal values, selection conflicts and commands that reuse existing publication
 You can also use `dotnet publish` directly. For a generated `Hello` solution on Linux x64:
 
 ```console
-dotnet publish src/Hello/Hello.csproj -c Release -r linux-x64 -o publish -p:AnkusPgConfigPath=/path/to/pg_config
+dotnet publish src/Hello/Hello.csproj -c Release -r linux-x64 -o publish -p:AnkusPostgresMajor=18 -p:AnkusPgConfigPath=/path/to/pg_config
 ```
 
 The SDK supplies Native AOT settings and native build integration. No Ankus source

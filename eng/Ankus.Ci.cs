@@ -142,6 +142,11 @@ try
             PrepareReports(repositoryRoot);
             break;
 
+        case "runner-cleanup":
+            RequireArguments(args, 1);
+            CleanRunnerWorkspace(repositoryRoot);
+            break;
+
         case "release-managed":
             RequireArguments(args, 2);
             PackManaged(repositoryRoot, args[1]);
@@ -800,7 +805,8 @@ static string? FindLinuxHeaderFrontendDirectory()
     string? selected = FindOnPath("clang");
     if (selected is not null && HeaderFrontendMajor(selected) >= 20)
     {
-        return Path.GetDirectoryName(Path.GetFullPath(selected));
+        string resourceDirectory = Capture(selected, ["-print-resource-dir"]);
+        return Path.GetFullPath(Path.Combine(resourceDirectory, "..", "..", "..", "bin"));
     }
 
     if (!Directory.Exists("/usr/lib"))
@@ -892,6 +898,17 @@ static void ConfigureBindingCache(string repositoryRoot)
 
     Directory.CreateDirectory(directory);
     WriteEnvironment("AnkusBindingCacheDirectory", Path.GetFullPath(directory));
+}
+
+static void CleanRunnerWorkspace(string repositoryRoot)
+{
+    if (Environment.GetEnvironmentVariable("RUNNER_ENVIRONMENT") != "self-hosted")
+    {
+        return;
+    }
+
+    Run(GetDotNetHost(), ["build-server", "shutdown"], repositoryRoot);
+    Run("git", ["clean", "-ffdx"], repositoryRoot);
 }
 
 static void InstallPostgreSqlLinux(string repositoryRoot, string version)

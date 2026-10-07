@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
+using System.Xml.Linq;
 using Ankus.PgConfig;
 using Ankus.Testing;
 
@@ -27,8 +28,23 @@ public sealed partial class ToolCommandTests
             ? s_installation
             : _caseInstallation?.Installation
                 ?? throw new InvalidOperationException("The benchmark test has no reserved PostgreSQL installation.");
-        string[] options = ["--home", s_home, "--pg", MajorText(), "--pg-config", installation.PgConfigPath,
-            "--project", s_project, "--configuration", "Release"];
+        string benchmarkDirectory = CreateDirectory();
+        string benchmarkProject = Path.Combine(benchmarkDirectory, "BenchmarkProbe.csproj");
+        XDocument definition = XDocument.Load(s_project);
+        definition.Root!.Add(new XElement("PropertyGroup",
+            new XElement("AnkusPostgresMajor", new XAttribute("Condition",
+                "'$(AnkusIncludeBenchmarks)' == 'true' and '$(BenchmarkProbe)' == 'enabled'"), MajorText()),
+            new XElement("AnkusPgConfigPath", new XAttribute("Condition",
+                "'$(AnkusIncludeBenchmarks)' == 'true' and '$(BenchmarkProbe)' == 'enabled'"), installation.PgConfigPath),
+            new XElement("AnkusPostgresMajor", new XAttribute("Condition",
+                "'$(AnkusIncludeBenchmarks)' != 'true' or '$(BenchmarkProbe)' != 'enabled'"), DifferentMajor()),
+            new XElement("AnkusPgConfigPath", new XAttribute("Condition",
+                "'$(AnkusIncludeBenchmarks)' != 'true' or '$(BenchmarkProbe)' != 'enabled'"), string.Empty)));
+        definition.Save(benchmarkProject);
+        File.Copy(Path.Combine(Path.GetDirectoryName(s_project)!, "BenchmarkProbe.cs"),
+            Path.Combine(benchmarkDirectory, "BenchmarkProbe.cs"));
+        string[] options = ["--home", s_home, "--project", benchmarkProject, "--configuration", "Release",
+            "--property", "BenchmarkProbe=enabled"];
         var cluster = new PostgresDevelopmentCluster(installation, s_home);
         try
         {
@@ -40,7 +56,7 @@ public sealed partial class ToolCommandTests
             Assert.IsEmpty(run.StandardError);
             if (s_installation.Version.Major >= 18)
             {
-                string benchmarkOutput = Path.Combine(Path.GetDirectoryName(s_project)!, "bin", "ankus-bench",
+                string benchmarkOutput = Path.Combine(benchmarkDirectory, "bin", "ankus-bench",
                     s_installation.Label, System.Runtime.InteropServices.RuntimeInformation.RuntimeIdentifier, "Release");
                 string stagedControl = Path.Combine(benchmarkOutput, ".ankus-bench", "extension", "ankus_tool_probe.control");
                 Assert.IsTrue(File.Exists(stagedControl), stagedControl);
