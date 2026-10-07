@@ -279,13 +279,6 @@ public sealed partial class PgFunctionGeneratorTests
             static long Ankus.IPgAggregate<long,int>.Transition(Ankus.PgAggregateContext context,long state,int arguments) => state;
         }
         """, "ANKUS110")]
-    [DataRow("""
-        [Ankus.PgAggregate(InitialCondition="0")] public sealed class Uncontracted : Ankus.IPgAggregate<int,int>
-        {
-            public static int Transition(Ankus.PgAggregateContext context,int state,int arguments) => state;
-            public static int Combine(int state,int other) => state + other;
-        }
-        """, "ANKUS111")]
     public void TypedAggregateRejectsAmbiguousOrUncontractedRoles(string source, string diagnostic)
         => AssertInvalidAggregate(source, diagnostic);
 

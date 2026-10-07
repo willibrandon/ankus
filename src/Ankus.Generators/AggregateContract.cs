@@ -53,11 +53,15 @@ internal static class AggregateContract
             roles.Add(contract.Name, contract);
         }
 
+        INamedTypeSymbol aggregateContract = interfaces.Single(static capability => capability.Name == "IPgAggregate");
+        ITypeSymbol stateType = aggregateContract.TypeArguments[0];
+        ITypeSymbol argumentType = aggregateContract.TypeArguments[1];
+
         foreach (string role in AggregateDeclaration.Roles)
         {
             if (!roles.TryGetValue(role, out IMethodSymbol? contract))
             {
-                if (FindVisibleRole(type, role, compilation) is { } uncontracted)
+                if (FindVisibleRole(type, role, stateType, argumentType, compilation) is { } uncontracted)
                 {
                     Location? location = uncontracted.Locations.FirstOrDefault(static candidate => candidate.IsInSource)
                         ?? type.Locations.FirstOrDefault(static candidate => candidate.IsInSource);
@@ -298,13 +302,17 @@ internal static class AggregateContract
     /// </summary>
     /// <param name="type">The concrete aggregate container.</param>
     /// <param name="role">The optional support role.</param>
+    /// <param name="stateType">The aggregate's primary state type.</param>
+    /// <param name="argumentType">The aggregate's primary input type.</param>
     /// <param name="compilation">The compiler context used for inherited accessibility.</param>
     /// <returns>The first declared or visible inherited method with the reserved role name, or null.</returns>
-    private static IMethodSymbol? FindVisibleRole(INamedTypeSymbol type, string role, Compilation compilation)
+    private static IMethodSymbol? FindVisibleRole(INamedTypeSymbol type, string role, ITypeSymbol stateType,
+        ITypeSymbol argumentType, Compilation compilation)
     {
         for (INamedTypeSymbol? owner = type; owner is not null; owner = owner.BaseType)
         {
-            if (owner.GetMembers(role).OfType<IMethodSymbol>().FirstOrDefault(method => method.IsStatic &&
+            if (owner.GetMembers(role).OfType<IMethodSymbol>().FirstOrDefault(method =>
+                IsRoleShape(method, role, stateType, argumentType, compilation) &&
                 (SymbolEqualityComparer.Default.Equals(owner, type) || compilation.IsSymbolAccessibleWithin(method, type))) is { } method)
             {
                 return method;
@@ -312,5 +320,42 @@ internal static class AggregateContract
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Distinguishes a likely omitted aggregate capability from an unrelated static helper that happens to use a reserved role name.
+    /// </summary>
+    private static bool IsRoleShape(IMethodSymbol method, string role, ITypeSymbol stateType,
+        ITypeSymbol argumentType, Compilation compilation)
+    {
+        int parameterCount = role is "Serialize" or "Deserialize" ? 2 : 3;
+        if (method is not { IsStatic: true, IsGenericMethod: false, ReturnsVoid: false, MethodKind: MethodKind.Ordinary } ||
+            method.Parameters.Length != parameterCount ||
+            !SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type,
+                compilation.GetTypeByMetadataName("Ankus.PgAggregateContext")) ||
+            method.Parameters.Any(static parameter => parameter.RefKind != RefKind.None))
+        {
+            return false;
+        }
+
+        return role switch
+        {
+            "Final" => Same(method.Parameters[1].Type, stateType),
+            "Combine" => Same(method.ReturnType, stateType) && Same(method.Parameters[1].Type, stateType) &&
+                Same(method.Parameters[2].Type, stateType),
+            "Serialize" => IsByteArray(method.ReturnType) && Same(method.Parameters[1].Type, stateType),
+            "Deserialize" => Same(method.ReturnType, stateType) && IsByteArray(method.Parameters[1].Type),
+            "MovingTransition" or "MovingInverse" => Same(method.ReturnType, method.Parameters[1].Type) &&
+                Same(method.Parameters[2].Type, argumentType),
+            "MovingFinal" => true,
+            _ => false,
+        };
+
+        static bool Same(ITypeSymbol left, ITypeSymbol right) => SymbolEqualityComparer.IncludeNullability.Equals(left, right);
+        static bool IsByteArray(ITypeSymbol type) => type is IArrayTypeSymbol
+        {
+            Rank: 1,
+            ElementType.SpecialType: SpecialType.System_Byte,
+        };
     }
 }

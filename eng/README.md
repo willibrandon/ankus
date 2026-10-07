@@ -214,11 +214,15 @@ files and work directory under its own storage root. Configure
 `DOTNET_INSTALL_DIR`, `DOTNET_ROOT`, `DOTNET_CLI_HOME`, `NUGET_PACKAGES`, `TEMP`
 and `TMP` for its service account. Native binding entries persist in
 `runner.tool_cache/ankus-binding-cache` and retain normal content and ABI
-validation. Self-hosted jobs reuse these local caches; hosted jobs continue to
-restore and save GitHub caches. After report upload, `runner-cleanup` shuts down
-build servers and removes ignored and untracked checkout outputs. All platform
-suites remain complete and unsharded. Workflows do not automatically
-cancel earlier runs; jobs queue while their dedicated runner is busy.
+validation. Parallel binding compiler restores share the package cache but keep
+their transient NuGet HTTP metadata in their owned compiler workspaces, avoiding
+cross-process vulnerability-cache replacement races. Self-hosted jobs reuse these
+local caches; hosted jobs continue to restore and save GitHub caches. Before
+upload, report preparation redacts every TRX machine identity and all configured
+private identifiers. After upload, `runner-cleanup` shuts down build servers and
+removes ignored and untracked checkout outputs. All platform suites remain
+complete and unsharded. Workflows do not automatically cancel earlier runs; jobs
+queue while their dedicated runner is busy.
 
 `ANKUS_PACKAGE_TEST_CONCURRENCY` controls package-consumer test slots and accepts
 any positive integer, with three as the fixture default. CI's manual

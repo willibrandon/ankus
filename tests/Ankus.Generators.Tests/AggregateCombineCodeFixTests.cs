@@ -119,17 +119,18 @@ public sealed partial class PgFunctionGeneratorTests
         Document? wrong = incompatibleSibling ? workspace.AddDocument(parent.Project.Id, "Wrong.cs", SourceText.From(Wrong)) : null;
         parent = workspace.CurrentSolution.GetDocument(parent.Id)!;
         (_, ImmutableArray<Diagnostic> before) = await GenerateCodeFixDocumentAsync(parent);
-        Assert.HasCount(incompatibleSibling ? 3 : 2, before);
-        Assert.IsTrue(before.All(static diagnostic => diagnostic.Id == "ANKUS111"));
-        Document corrected = await ApplyAggregateCombineFixAsync(parent, before[0]);
+        Diagnostic error = Assert.ContainsSingle(before);
+        Assert.AreEqual("ANKUS111", error.Id);
+        Document corrected = await ApplyAggregateCombineFixAsync(parent, error);
         (Compilation output, ImmutableArray<Diagnostic> after) = await GenerateCodeFixDocumentAsync(corrected);
 
         Assert.AreEqual(Parent, (await corrected.GetTextAsync(context.CancellationToken)).ToString());
         if (wrong is not null)
         {
-            Assert.AreEqual("ANKUS111", Assert.ContainsSingle(after).Id);
+            Assert.IsEmpty(after);
             Assert.AreEqual(Wrong, (await corrected.Project.Solution.GetDocument(wrong.Id)!.GetTextAsync(context.CancellationToken)).ToString());
-            Assert.DoesNotContain("CREATE AGGREGATE \"wrong\"", InstallationBody(output));
+            Assert.Contains("CREATE AGGREGATE \"wrong\"", InstallationBody(output));
+            Assert.DoesNotContain("COMBINEFUNC = \"wrong_combine\"", InstallationBody(output));
         }
         else
         {
@@ -144,19 +145,20 @@ public sealed partial class PgFunctionGeneratorTests
     }
 
     /// <summary>
-    /// An invalid implementation must remain diagnosed rather than acquiring a guessed or incompatible state contract.
+    /// An incompatible same-name helper is not guessed to be an aggregate role.
     /// </summary>
-    /// <param name="callback">The uncontracted callback that cannot implement the aggregate's combine capability.</param>
+    /// <param name="callback">The same-name method that cannot implement the aggregate's combine capability.</param>
+    /// <param name="roleShaped">Whether the exact callback shape identifies an invalid authored role.</param>
     [TestMethod]
-    [DataRow("public static long Combine(Ankus.PgAggregateContext context, long state, long other) => state;")]
-    [DataRow("public static int? Combine(Ankus.PgAggregateContext context, int? state, int? other) => state;")]
-    [DataRow("private static int Combine(Ankus.PgAggregateContext context, int state, int other) => state;")]
-    [DataRow("public static int Combine(Ankus.PgFunctionContext context, int state, int other) => state;")]
-    [DataRow("public static int Combine<T>(Ankus.PgAggregateContext context, int state, int other) => state;")]
-    [DataRow("public static int Combine(Ankus.PgAggregateContext context, ref int state, int other) => state;")]
-    [DataRow("public static int Combine(Ankus.PgAggregateContext context, int state, int other = 0) => state;")]
-    [DataRow("public static async System.Threading.Tasks.Task<int> Combine(Ankus.PgAggregateContext context, int state, int other) => await System.Threading.Tasks.Task.FromResult(state);")]
-    public async Task AggregateCombineFixRejectsIncompatibleCallbacks(string callback)
+    [DataRow("public static long Combine(Ankus.PgAggregateContext context, long state, long other) => state;", false)]
+    [DataRow("public static int? Combine(Ankus.PgAggregateContext context, int? state, int? other) => state;", false)]
+    [DataRow("private static int Combine(Ankus.PgAggregateContext context, int state, int other) => state;", true)]
+    [DataRow("public static int Combine(Ankus.PgFunctionContext context, int state, int other) => state;", false)]
+    [DataRow("public static int Combine<T>(Ankus.PgAggregateContext context, int state, int other) => state;", false)]
+    [DataRow("public static int Combine(Ankus.PgAggregateContext context, ref int state, int other) => state;", false)]
+    [DataRow("public static int Combine(Ankus.PgAggregateContext context, int state, int other = 0) => state;", true)]
+    [DataRow("public static async System.Threading.Tasks.Task<int> Combine(Ankus.PgAggregateContext context, int state, int other) => await System.Threading.Tasks.Task.FromResult(state);", false)]
+    public async Task AggregateCombineDiagnosticDistinguishesRoleShape(string callback, bool roleShaped)
     {
         string source = """
             [Ankus.PgAggregate(InitialCondition = "0")]
@@ -167,22 +169,29 @@ public sealed partial class PgFunctionGeneratorTests
         using var workspace = new AdhocWorkspace();
         Document document = CreateCodeFixDocument(workspace, source);
         (_, ImmutableArray<Diagnostic> before) = await GenerateCodeFixDocumentAsync(document);
-        Diagnostic error = Assert.ContainsSingle(before);
+        if (roleShaped)
+        {
+            Diagnostic error = Assert.ContainsSingle(before);
+            Assert.AreEqual("ANKUS111", error.Id);
+            Assert.IsEmpty(await CodeFixActionsAsync(new AggregateCombineCodeFixProvider(), document, error));
+        }
+        else
+        {
+            Assert.IsEmpty(before);
+        }
 
-        Assert.AreEqual("ANKUS111", error.Id);
-        Assert.IsEmpty(await CodeFixActionsAsync(new AggregateCombineCodeFixProvider(), document, error));
         Assert.AreEqual(source, (await document.GetTextAsync(context.CancellationToken)).ToString());
     }
 
     /// <summary>
-    /// Nullable reference state is not silently tightened or widened to make a capability appear compatible.
+    /// Nullable reference state is not silently tightened or widened to infer an omitted capability.
     /// </summary>
     /// <param name="state">The declared state contract.</param>
     /// <param name="callbackState">The mismatched callback state.</param>
     [TestMethod]
     [DataRow("string?", "string")]
     [DataRow("string", "string?")]
-    public async Task AggregateCombineFixRejectsReferenceNullabilityMismatch(string state, string callbackState)
+    public async Task AggregateCombineDiagnosticIgnoresReferenceNullabilityMismatch(string state, string callbackState)
     {
         using var workspace = new AdhocWorkspace();
         Document document = CreateCodeFixDocument(workspace, $$"""
@@ -194,10 +203,7 @@ public sealed partial class PgFunctionGeneratorTests
             }
             """);
         (_, ImmutableArray<Diagnostic> before) = await GenerateCodeFixDocumentAsync(document);
-        Diagnostic error = Assert.ContainsSingle(before);
-
-        Assert.AreEqual("ANKUS111", error.Id);
-        Assert.IsEmpty(await CodeFixActionsAsync(new AggregateCombineCodeFixProvider(), document, error));
+        Assert.IsEmpty(before);
     }
 
     /// <summary>

@@ -136,6 +136,11 @@ internal static class NativeBindingCompilationCommand
             restoreStart.Environment["DOTNET_ROOT"] = hostDirectory;
             restoreStart.Environment[architectureRoot] = hostDirectory;
             restoreStart.Environment["DOTNET_HOST_PATH"] = host;
+            // Concurrent generated-binding restores may share the consumer's NuGet package
+            // cache, but NuGet's vulnerability metadata replacement file is not safe to
+            // update concurrently on every filesystem. Keep that transient HTTP state owned
+            // by this compiler workspace while retaining the consumer's package/source policy.
+            restoreStart.Environment["NUGET_HTTP_CACHE_PATH"] = Path.Combine(work, "nuget-http-cache");
             foreach (string argument in start.ArgumentList)
             {
                 restoreStart.ArgumentList.Add(argument);

@@ -1029,6 +1029,11 @@ static void PrepareReports(string repositoryRoot)
         foreach (string file in Directory.EnumerateFiles(source, pattern))
         {
             string contents = File.ReadAllText(file);
+            if (Path.GetExtension(file).Equals(".trx", StringComparison.OrdinalIgnoreCase))
+            {
+                contents = AutomationPatterns.TrxComputerName().Replace(contents, "computerName=\"[private]\"");
+            }
+
             foreach (string value in replacements)
             {
                 contents = contents.Replace(value, "[private]", StringComparison.Ordinal);
@@ -1513,4 +1518,10 @@ internal static partial class AutomationPatterns
     /// </summary>
     [GeneratedRegex("^v[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?$", RegexOptions.CultureInvariant)]
     internal static partial Regex ReleaseTag();
+
+    /// <summary>
+    /// Matches the machine identity recorded by the TRX schema.
+    /// </summary>
+    [GeneratedRegex("computerName=\"[^\"]*\"", RegexOptions.CultureInvariant)]
+    internal static partial Regex TrxComputerName();
 }

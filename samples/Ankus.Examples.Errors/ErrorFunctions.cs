@@ -4,7 +4,7 @@ namespace Ankus.Examples.Errors;
 /// Ports pgrx's errors example to managed exceptions and PostgreSQL reports.
 /// </summary>
 [PgSchema("errors")]
-public static class ErrorFunctions
+public static partial class ErrorFunctions
 {
     /// <summary>
     /// Sums present array elements and rejects SQL NULL cells.
@@ -83,4 +83,10 @@ public static class ErrorFunctions
     /// <param name="message">The literal message.</param>
     [PgFunction]
     public static void ThrowPgPanic(string message) => PgLog.Panic(message);
+
+    /// <summary>
+    /// Verifies that expected backend-test messages preserve embedded quotes.
+    /// </summary>
+    [PgTest(ExpectedError = "foo \"bar\"")]
+    public static void QuotedExpectedError() => PgLog.Error("foo \"bar\"");
 }

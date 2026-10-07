@@ -28802,3 +28802,42 @@ hash and overflow-helper cases. Focused PostgreSQL 18 backend validation passes
 **16/16** in **4m27.175s**, including that global and the corrected SQL-text
 fixture. The complete Linux x64/PostgreSQL 18 suite and exact-current build-tool
 rerun pass as recorded above. Replacement supported-major results remain pending.
+
+## Aggregate role precision and CI isolation — 2026-10-07
+
+The ANKUS111 audit found two diagnostic defects. Any static member with a reserved
+aggregate role name was treated as an omitted capability even when its signature
+could not implement that role, and one inherited callback shared by several
+aggregates produced duplicate diagnostics. Detection now requires the callback's
+static, generic, return, context, arity, by-reference and known state/input shape.
+Unrelated helpers remain ordinary application code. Exact malformed callbacks
+still produce ANKUS111, and generator composition reports one diagnostic per
+source problem. The focused aggregate and code-fix corpus passes **49/49**; the
+complete generator module passes **4,487/4,487**.
+
+Backend test coverage now discovers and executes an expected PostgreSQL error
+whose message contains embedded quotes, then verifies same-session rollback.
+The public testing guide records that exact preservation. The errors sample also
+documents that an ordinary managed exception maps to SQLSTATE `38000`, while the
+equivalent pgrx Rust panic maps to `XX000`; explicit PostgreSQL reports retain
+their own diagnostics. Both real backend-test modes pass.
+
+Primary run **37620019090** exposed a NuGet HTTP metadata race between five
+parallel generated-binding restores. Each compiler workspace now owns its
+transient HTTP cache while package content, sources, credentials and audit policy
+remain shared. All six cells in PostgreSQL-version run **37617305925** exposed a
+fixture isolation defect: the SDK-default test cleared the selected major but
+retained the inherited `pg_config`. It now clears both inputs before testing the
+PostgreSQL 18 fallback. The affected build corpus passes **15/15** with
+conflicting inherited selection.
+
+The Windows report from the same primary run revealed that TRX machine identity
+redaction depended on a configured replacement list. Report preparation now
+redacts every TRX `computerName` field before its existing identifier pass, and
+the affected uploaded reports were removed.
+
+Exact-current Linux x64/PostgreSQL **18.6** acceptance passes **13,475** total:
+**13,427** succeeded, **48** platform skips and zero failures in **40m02.344s**.
+The Release solution build has zero warnings and errors. API freshness verifies
+**244** pages and **2,793** members, documentation checks report no errors,
+warnings or hints, and the production site builds **295** pages.

@@ -980,12 +980,16 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         }
 
         var supportFunctions = new Dictionary<string, (DeclarationIdentity Method, SqlEntity Entity)>(StringComparer.Ordinal);
+        var reportedAggregateProblems = new HashSet<GeneratorProblem>();
         foreach (AggregatePipeline.Output output in aggregateOutputs.OrderBy(static value => value.Analysis.Display, StringComparer.Ordinal))
         {
             AggregatePipeline.Analysis analysis = output.Analysis;
             foreach (GeneratorProblem problem in analysis.Problems)
             {
-                problem.Report(compilation, context);
+                if (reportedAggregateProblems.Add(problem))
+                {
+                    problem.Report(compilation, context);
+                }
             }
 
             if (analysis.Model is not { } aggregate || output.Sql is not { } aggregateSql)

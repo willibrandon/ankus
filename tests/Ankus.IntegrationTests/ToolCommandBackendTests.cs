@@ -58,6 +58,9 @@ public sealed partial class ToolCommandTests
                     throw new InvalidOperationException("expected café");
                 }
 
+                [PgTest(ExpectedError = "foo \"bar\"")]
+                public static void QuotedExpectedFailure() => PgLog.Error("foo \"bar\"");
+
                 [PgTest(ExpectedError = "different error")]
                 public static void WrongError() => ExpectedFailure();
 
@@ -135,6 +138,8 @@ public sealed partial class ToolCommandTests
                     await CheckRollback();
                     await s_extension.RunTestAsync(Find("ExpectedFailure"), token);
                     await CheckRollback();
+                    await s_extension.RunTestAsync(Find("QuotedExpectedFailure"), token);
+                    await CheckRollback();
                     PostgresTestException wrong = await Assert.ThrowsExactlyAsync<PostgresTestException>(
                         () => s_extension.RunTestAsync(Find("WrongError"), token));
                     Assert.AreEqual("BackendProbe.BackendChecks.WrongError()", wrong.TestName);
@@ -185,6 +190,7 @@ public sealed partial class ToolCommandTests
         ProcessResult listing = await ProcessRunner.RunAsync("dotnet", ["test", "--list-tests"], s_environment, token, workingDirectory: output);
         Assert.AreEqual(0, listing.ExitCode, listing.StandardOutput + listing.StandardError);
         Assert.Contains("BackendProbe.BackendChecks.WritesRows()", listing.StandardOutput);
+        Assert.Contains("BackendProbe.BackendChecks.QuotedExpectedFailure()", listing.StandardOutput);
         Assert.IsFalse(Directory.Exists(Path.Combine(extensionRoot, "bin", "ankus-test-publish")));
         ProcessResult result = await ProcessRunner.RunAsync("dotnet",
             ["test", "--report-trx", "-p:AnkusPostgresMajor=" + MajorText()], s_environment, token, workingDirectory: output);
@@ -196,13 +202,14 @@ public sealed partial class ToolCommandTests
         Assert.AreEqual("Passed", outcomes["FixtureContracts"], result.StandardOutput + result.StandardError);
         Assert.AreEqual("Passed", outcomes["BackendProbe.BackendChecks.WritesRows()"]);
         Assert.AreEqual("Passed", outcomes["BackendProbe.BackendChecks.ExpectedFailure()"]);
+        Assert.AreEqual("Passed", outcomes["BackendProbe.BackendChecks.QuotedExpectedFailure()"]);
         Assert.AreEqual("Passed", outcomes["BackendProbe.SchemaChecks.ReadsBackend()"]);
         Assert.AreEqual("NotExecuted", outcomes["BackendProbe.BackendChecks.Ignored()"]);
         Assert.AreEqual("Failed", outcomes["BackendProbe.BackendChecks.WrongError()"]);
         Assert.AreEqual("Failed", outcomes["BackendProbe.BackendChecks.MissingError()"]);
         XElement counters = report.Descendants(ns + "Counters").Single();
-        Assert.AreEqual("10", counters.Attribute("total")!.Value);
-        Assert.AreEqual("7", counters.Attribute("passed")!.Value);
+        Assert.AreEqual("11", counters.Attribute("total")!.Value);
+        Assert.AreEqual("8", counters.Attribute("passed")!.Value);
         Assert.AreEqual("2", counters.Attribute("failed")!.Value);
         Assert.IsEmpty(Directory.GetDirectories(Path.Combine(extensionRoot, "bin", "ankus-test-publish")));
     }

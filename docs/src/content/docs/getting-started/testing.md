@@ -204,7 +204,7 @@ publication behavior even when another declaration is invalid.
 `ExpectedError = null` means successful execution is expected; an empty string
 remains an exact expected message. `IgnoreReason = null` runs the test, while a
 non-null reason must explain its omission. Both options preserve exact Unicode
-and reject zero characters or unpaired surrogates.
+and embedded quotes, and reject zero characters or unpaired surrogates.
 
 ## Use the fixture
 

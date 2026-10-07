@@ -309,6 +309,36 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   macOS work, while two machine-wide Windows test mutexes admit two complete suites
   and preserve every additional queued job. Self-hosted test jobs clean ignored
   and untracked checkout outputs after uploading reports.
+- Primary run **37620019090** rejected one macOS ARM64 build test when five
+  parallel binding compiler cases refreshed NuGet vulnerability metadata through
+  one inherited HTTP cache. NuGet raced on its replacement file and emitted
+  NU1900, which correctly remained an error. Generated-binding restores now own
+  a transient HTTP cache per compiler workspace while retaining the consumer's
+  shared package cache, sources, credentials and enforced audit policy.
+- PostgreSQL-version run **37617305925** rejected all six cells because the
+  SDK-default constants test inherited each matrix cell's selected major and
+  `pg_config`. The test's child MSBuild process now clears both selection variables,
+  preserving real matrix selection for the suite while testing the SDK's unselected
+  PostgreSQL 18 fallback in isolation. Replacement run **37630022751** was queued
+  against the preceding `c42a138` source and therefore cannot validate this fix.
+- The same Windows report exposed a privacy gap: TRX `computerName` depended on
+  the configured private-identifier list. Report preparation now redacts that
+  schema field unconditionally. The affected uploaded reports were removed; path
+  and device identifiers retain the existing configured replacement pass.
+- ANKUS111 now distinguishes an omitted aggregate capability from unrelated
+  same-name helpers by exact callback shape, and a shared inherited callback is
+  reported once. Exact malformed role implementations remain errors without a
+  guessed code fix. The focused aggregate/code-fix set passes **49/49**, and the
+  complete generator module passes **4,487/4,487**.
+- Backend test discovery and execution now cover an expected error containing
+  embedded quotes. The errors sample documents the deliberate managed-exception
+  SQLSTATE difference from a pgrx Rust panic. The real PostgreSQL regression
+  passes in both source-generation modes.
+- Exact-current Linux x64/PostgreSQL 18.6 acceptance passes **13,475 total /
+  13,427 succeeded / 48 platform skips / 0 failed** in **40m02s**. The Release
+  solution build has zero warnings and errors. API freshness verifies **244**
+  pages and **2,793** members; documentation checks report no errors, warnings or
+  hints, and the production site builds all **295** pages.
 
 Remaining diagnostics/code fixes, source-case mapping, samples, API and CLI
 contracts, supported PostgreSQL/platform combinations, .NET servicing and release

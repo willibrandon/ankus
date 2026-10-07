@@ -61,7 +61,9 @@ public sealed class SdkDefineConstantsTests(TestContext context)
             string project = Path.Combine(directory, "Symbols.proj");
             // Isolate the SDK default from CI's environment selection; command-line properties still win.
             new XDocument(new XElement("Project",
-                new XElement("PropertyGroup", new XElement("AnkusPostgresMajor", string.Empty)),
+                new XElement("PropertyGroup",
+                    new XElement("AnkusPostgresMajor", string.Empty),
+                    new XElement("AnkusPgConfigPath", string.Empty)),
                 new XElement("Import", new XAttribute("Project", Path.Combine(sdk, "Ankus.props"))),
                 new XElement("PropertyGroup",
                     new XElement("DefineConstants", "CONSUMER;SECOND"),

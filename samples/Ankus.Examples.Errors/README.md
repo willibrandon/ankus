@@ -17,7 +17,8 @@ SELECT errors.throw_pg_error('PostgreSQL error');
 ```
 
 Managed exceptions become PostgreSQL `ERROR` only after managed cleanup has
-finished. `PgLog.Error` follows the same boundary and preserves its diagnostic.
+finished and use SQLSTATE `38000`. The equivalent pgrx Rust panics use `XX000`.
+`PgLog.Error` follows the same boundary and preserves its diagnostic.
 `PgLog.Fatal` ends the current backend. `PgLog.Panic` terminates peer backends
 and starts PostgreSQL crash recovery, so use those examples only on a disposable
 development cluster.
