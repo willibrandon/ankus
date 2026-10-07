@@ -75,5 +75,6 @@ internal static class SqlText
     /// </summary>
     /// <param name="value">The literal's content.</param>
     /// <returns>An escape-string SQL literal.</returns>
-    internal static string Literal(string value) => "E'" + value.Replace("\\", "\\\\").Replace("'", "''") + "'";
+    internal static string Literal(string value) => "E'" + value.Replace("\\", "\\\\").Replace("'", "''")
+        .Replace("\r", "\\r").Replace("\n", "\\n") + "'";
 }

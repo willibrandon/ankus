@@ -1,7 +1,7 @@
 namespace Ankus;
 
 /// <summary>
-/// Selects how batched benchmark inputs are grouped between setup and measured work.
+/// Selects how benchmark iterations are grouped into batches.
 /// </summary>
 public readonly struct PgBenchmarkBatchSize : IEquatable<PgBenchmarkBatchSize>
 {
@@ -15,12 +15,12 @@ public readonly struct PgBenchmarkBatchSize : IEquatable<PgBenchmarkBatchSize>
     }
 
     /// <summary>
-    /// Gets a strategy suited to inexpensive setup and small inputs.
+    /// Gets a strategy that groups the measured iterations into about ten batches.
     /// </summary>
     public static PgBenchmarkBatchSize SmallInput { get; } = new(BatchKind.SmallInput);
 
     /// <summary>
-    /// Gets a strategy suited to expensive setup or large inputs.
+    /// Gets a strategy that groups the measured iterations into about one thousand batches.
     /// </summary>
     public static PgBenchmarkBatchSize LargeInput { get; } = new(BatchKind.LargeInput);
 

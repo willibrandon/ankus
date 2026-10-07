@@ -25,9 +25,11 @@ public static class ExtensionBenchmarks
 ```
 
 The method must register exactly one timing loop. `Iterate` reuses captured
-inputs. `IterateBatched` creates inputs outside the measured interval and accepts
-`PgBenchmarkBatchSize` to control batching. Use `PgBenchmark.BlackBox` when you
-need to keep a value observable to Native AOT optimization.
+inputs. `IterateBatched` creates each input immediately before its routine call.
+The input factory is outside the routine callback but inside the elapsed sample,
+matching pgrx's backend benchmark bridge. `PgBenchmarkBatchSize` controls grouping.
+Use `PgBenchmark.BlackBox` when you need to keep a value observable to Native AOT
+optimization. It accepts ref structs and does not box value-type inputs.
 
 Benchmark entry points and the `benches` schema exist only in benchmark
 publications. Normal build, install and package output excludes them.
@@ -62,7 +64,9 @@ after that rollback.
 
 `PgBenchmarkAttribute` uses the same defaults as pgrx: 100 samples, five seconds
 of measurement, three seconds of warmup, 100,000 statistical resamples, a one
-percent noise threshold and a five percent significance level.
+percent noise threshold and a five percent significance level. Sample size must
+be at least ten, measurement and warmup times must be positive, and the noise
+threshold must be finite and nonnegative.
 
 ```csharp
 [PgBenchmark(
@@ -91,12 +95,18 @@ transaction. `SubtransactionPerBatch` adds one internal subtransaction around
 each batch. `SubtransactionPerIteration` isolates every iteration and includes
 that cost in the measurement.
 
-Results include raw iteration counts and elapsed nanoseconds, bootstrap confidence
-intervals for mean and median time per iteration, and comparison significance.
-The runner increases a sample's iteration count if its measured duration falls
-below the time target, including when the timer cannot resolve a single iteration.
-Results retain the actual iteration count and duration. A routine exception ends
-the benchmark; it is not retried.
+Results include the selected sampling mode, raw iteration counts, elapsed
+nanoseconds and bootstrap confidence intervals for mean, median, median absolute
+deviation and standard deviation. Linear sampling also includes Criterion's
+through-origin slope estimate, which the command reports as the primary estimate.
+Flat sampling reports the mean as its primary estimate.
+
+Like pgrx's Criterion runner, Ankus uses the complete exponential warmup to select
+an automatic linear or flat iteration plan. It then measures every planned sample
+exactly once and retains its actual iteration count and duration. Short positive
+samples are retained rather than retried. A zero-duration sample or routine
+exception ends the benchmark; it is not retried. As in Criterion, a zero-duration
+sample is rejected after the complete planned measurement sequence runs.
 A comparison reports an improvement or regression only when the measured change
 is statistically significant and its confidence interval lies beyond the configured
 noise threshold.

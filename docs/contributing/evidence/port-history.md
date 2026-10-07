@@ -28642,3 +28642,60 @@ Primary **37529095529** remains in progress. Docs **37529095595** and
 **37535642827** are successful. PostgreSQL-version run **37535673236** has a
 successful runtime job and its first major-version suite in progress; the other
 cells are queued. Platform-version run **37535673204** remains queued.
+
+## Criterion sampling and current platform-matrix repair — 2026-10-06
+
+The benchmark review found a real measurement bias. The previous runner retried
+short samples with doubled iteration counts and discarded the original results.
+Criterion fixes one automatic linear or flat plan after exponential warmup and
+measures each planned sample exactly once. Ankus now follows that contract,
+including the complete warmup calibration, per-sample stack offsets, retained
+short positive samples, delayed zero-duration rejection, through-origin slope
+for linear sampling, mean/median/median-absolute-deviation/standard-deviation
+estimates, paired slope bootstrap and a mixed-bootstrap comparison p-value. The
+fixed 95 percent estimate confidence level remains separate from the configured
+comparison significance level.
+
+The batching audit also verified pgrx's actual backend bridge. Its custom timing
+boundary includes input creation, transaction boundaries and the routine. Ankus
+now uses the same boundary and removes the allocation-heavy prebuilt input array.
+`PgBenchmark.BlackBox` no longer boxes value types and accepts ref structs. The
+generated configuration rejects sample sizes below ten, nonpositive timing and
+resample values, nonfinite thresholds and invalid significance levels.
+
+On Linux x64/PostgreSQL **18.6**, the six modules pass **13,434** total:
+**13,386** passed, **48** platform skips and zero failures. The modules are Build
+**1,223/1,214/9**, Hello **5/5/0**, Generators **4,469/4,469/0**, PgConfig
+**483/459/24**, Runtime **2,237/2,237/0**, and Integration
+**5,017/5,002/15**. The integration run completed in **43m11.907s**. The final
+generator rebuild passes **4,469/4,469**. The exact-current Release solution
+build completes with zero warnings and errors in **1m12.32s**. API generation
+verifies **244** pages and **2,791** members; the site builds **295** pages and
+reports zero errors, warnings or hints.
+
+The refreshed platform matrix then exposed two independent test defects. On
+PostgreSQL 13, `pg_prepared_statements` has no `generic_plans` or `custom_plans`
+columns; those counters were added in PostgreSQL 14. The cached-plan test now
+inspects the row through `to_jsonb`, verifies the fields are absent on 13, and
+retains exact counter assertions on 14 and later. All four PostgreSQL 13 cases
+pass against a real server.
+
+On Windows/PostgreSQL 18, generated escape-string literals embedded physical
+carriage-return and line-feed bytes. Checkout normalization could therefore
+change an enum label before installation. Generated literals now emit explicit
+`\\r` and `\\n` escapes while authored raw SQL remains byte-preserving. The exact
+publication regression and all four cached-plan cases pass **5/5** on PostgreSQL
+18 after a zero-warning rebuild.
+
+[Intel run 37536883192](https://github.com/willibrandon/ankus/actions/runs/37536883192)
+provides the first complete dedicated macOS x64/PostgreSQL **18.6** result at
+source **8b7e33b**: **13,422** total, **13,362** passed, **60** platform skips and
+zero failures. The integration module completed in **1h39m56.422s**, and the job
+completed in **1h46m04s**. This supersedes the four-hour hosted result and the
+earlier dedicated timeout.
+
+Before this milestone's commit, primary **37535642829** is complete and green.
+Primary **37536873073** has green quality, runtime, Linux and macOS ARM64 jobs;
+its Windows suite is still running. Platform-version run **37535673204** has
+green macOS 15/16 cells and the two Windows failures corrected above. Replacement
+version-matrix CI remains required after the fixes are pushed.

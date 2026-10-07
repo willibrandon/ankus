@@ -520,9 +520,16 @@ internal static partial class ToolCommand
             return;
         }
 
-        JsonElement mean = result.GetProperty("estimates").EnumerateArray().First(static value =>
-            value.GetProperty("estimate_kind").GetString() == "mean");
-        Console.WriteLine(mean.GetProperty("point_estimate_ns").GetDouble().ToString("N2", CultureInfo.InvariantCulture) + " ns");
+        JsonElement[] estimates = [.. result.GetProperty("estimates").EnumerateArray()];
+        JsonElement primary = estimates.FirstOrDefault(static value =>
+            value.GetProperty("estimate_kind").GetString() == "slope");
+        if (primary.ValueKind == JsonValueKind.Undefined)
+        {
+            primary = estimates.First(static value => value.GetProperty("estimate_kind").GetString() == "mean");
+        }
+
+        Console.WriteLine(primary.GetProperty("point_estimate_ns").GetDouble()
+            .ToString("N2", CultureInfo.InvariantCulture) + " ns");
     }
 
     private static void WriteBenchmarkSummary(string group, string? comparison, List<JsonElement> results)

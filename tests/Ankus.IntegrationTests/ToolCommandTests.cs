@@ -164,8 +164,8 @@ public sealed partial class ToolCommandTests(TestContext context)
                 /// Measures a real backend write whose enclosing benchmark transaction must roll back.
                 /// </summary>
                 /// <param name="bencher">The PostgreSQL benchmark timing boundary.</param>
-                [PgBenchmark(Setup = nameof(Prepare), SampleSize = 2, MeasurementTimeMilliseconds = 1,
-                    WarmupTimeMilliseconds = 0, ResampleCount = 10)]
+                [PgBenchmark(Setup = nameof(Prepare), SampleSize = 10, MeasurementTimeMilliseconds = 1,
+                    WarmupTimeMilliseconds = 1, ResampleCount = 10)]
                 public static void SuccessInsertRow(PgBencher bencher)
                     => bencher.Iterate(static () => Spi.Execute("INSERT INTO public.ankus_benchmark_probe VALUES (42)"));
 
@@ -173,8 +173,8 @@ public sealed partial class ToolCommandTests(TestContext context)
                 /// Measures PostgreSQL numeric addition through the managed value API.
                 /// </summary>
                 /// <param name="bencher">The PostgreSQL benchmark timing boundary.</param>
-                [PgBenchmark(SampleSize = 2, MeasurementTimeMilliseconds = 1,
-                    WarmupTimeMilliseconds = 0, ResampleCount = 10)]
+                [PgBenchmark(SampleSize = 10, MeasurementTimeMilliseconds = 1,
+                    WarmupTimeMilliseconds = 1, ResampleCount = 10)]
                 public static void SuccessAddNumeric(PgBencher bencher)
                 {
                     PgNumeric left = PgNumeric.Parse("123.45");
@@ -186,8 +186,8 @@ public sealed partial class ToolCommandTests(TestContext context)
                 /// Proves PostgreSQL errors become retained failed results after native recovery.
                 /// </summary>
                 /// <param name="bencher">The PostgreSQL benchmark timing boundary.</param>
-                [PgBenchmark(SampleSize = 2, MeasurementTimeMilliseconds = 1,
-                    WarmupTimeMilliseconds = 0, ResampleCount = 10)]
+                [PgBenchmark(SampleSize = 10, MeasurementTimeMilliseconds = 1,
+                    WarmupTimeMilliseconds = 1, ResampleCount = 10)]
                 public static void Failure(PgBencher bencher)
                     => bencher.Iterate(static () => Spi.Execute("SELECT 1 / 0"));
             }

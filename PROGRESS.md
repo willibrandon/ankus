@@ -92,9 +92,9 @@ incorrect. See [the detailed review](docs/contributing/evidence/port-history.md#
 ## Current complete acceptance evidence
 
 Primary CI runs all six modules against real published Native AOT extensions.
-The latest successful primary CI source is **de27abd**, with runtime **10.0.12-ankus.4**.
-[CI 37491227831](https://github.com/willibrandon/ankus/actions/runs/37491227831)
-passes; the latest [Docs run 37488835665](https://github.com/willibrandon/ankus/actions/runs/37488835665)
+The latest successful primary CI source is **aa49c7d**, with runtime **10.0.12-ankus.4**.
+[CI 37535642829](https://github.com/willibrandon/ankus/actions/runs/37535642829)
+passes; [Docs run 37535642827](https://github.com/willibrandon/ankus/actions/runs/37535642827)
 also passes. All eighteen actual reports and all sixty-seven required native recovery
 partitions independently verify, alongside the callback and prefix corpora on
 every platform; no primary job timed out.
@@ -103,9 +103,9 @@ also passes on source **e41c687**.
 
 | Source | Platform / PostgreSQL | Result | Duration |
 | --- | --- | --- | --- |
-| Latest primary CI, **de27abd / ankus.4** | Linux x64 / 18 | 13,411 total; 13,363 passed; 48 platform skips; zero failures | 40m21s job |
-| Same CI / revision / runtime | macOS ARM64 / 18 | 13,411 total; 13,351 passed; 60 platform skips; zero failures | 29m34s job |
-| Same CI / revision / runtime | Windows x64 / 17 | 13,411 total; 13,383 passed; 28 platform skips; zero failures | 39m28s job |
+| Latest primary CI, **aa49c7d / ankus.4** | Linux x64 / 18 | 13,422 total; 13,374 passed; 48 platform skips; zero failures | 40m37s job |
+| Same CI / revision / runtime | macOS ARM64 / 18 | 13,422 total; 13,362 passed; 60 platform skips; zero failures | 28m49s job |
+| Same CI / revision / runtime | Windows x64 / 17 | 13,422 total; 13,394 passed; 28 platform skips; zero failures | 39m37s job |
 | SQL/datetime composition, parent **e41c687 / ankus.4** | Linux x64 / 18.6 | 13,337 total; 13,289 passed; 48 platform skips; zero failures | 42m46.885s tests; 43m41.597s command |
 | Function-provider composition, parent **4da0bec / ankus.4** | Linux x64 / 18.6 | 13,365 total; 13,317 passed; 48 platform skips; zero failures | 42m39.165s tests; 43m46.937s command |
 | Type-provider composition, parent **97842d3 / ankus.4** | Linux x64 / 18.6 | 13,411 total; 13,363 passed; 48 platform skips; zero failures | 42m39.033s tests; 43m35.244s command |
@@ -125,20 +125,22 @@ the current source remains required, alongside the never-covered combinations.
 | [Version CI 37154140634](https://github.com/willibrandon/ankus/actions/runs/37154140634), **c24297f / ankus.4** | Linux x64 / each of 13–17 and 19 beta 4 | 11,640 total per major; 11,623 passed; 17 platform skips; zero failures | 38m20s–40m57s jobs |
 | [Version CI 37145038020](https://github.com/willibrandon/ankus/actions/runs/37145038020), **b9b7eb5 / ankus.4** | macOS ARM64 / 15 and 16 | 11,609 total per major; 11,580 passed; 29 platform skips; zero failures | 26m17s / 26m32s jobs |
 | Same version CI / revision / runtime | Windows x64 / 13 and 18 | 11,609 total per major; 11,584 passed; 25 platform skips; zero failures | 33m51s / 31m46s jobs |
-| [Intel CI 37460600236](https://github.com/willibrandon/ankus/actions/runs/37460600236), **e41c687 / ankus.4** | macOS x64 / 18.6 | 13,210 total; 13,150 passed; 60 platform skips; zero failures | 4h16m36s job |
+| [Intel CI 37536883192](https://github.com/willibrandon/ankus/actions/runs/37536883192), **8b7e33b / ankus.4** | macOS x64 / 18.6 | 13,422 total; 13,362 passed; 60 platform skips; zero failures | 1h46m04s job |
 
 Earlier timings, outcomes, failed checks and superseded acceptance details remain
 in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-table-before-spi-flow-acceptance-2026-10-05).
 
 ## Active validation and work
 
-- **de27abd** passes complete primary CI; the latest docs run also passes. All eighteen platform reports
+- **aa49c7d** passes complete primary CI; its docs run also passes. All eighteen platform reports
   and native recovery, datetime, SQL, function-provider, callback, prefix and
   module-identity partitions independently verify.
   Crash tests retain their deadlines, fsync and durability checks. The earlier
   macOS allocation variance remains unattributed.
-- Hosted Intel refresh **37460600236** passes its complete **13,210**-case macOS
-  x64/PostgreSQL 18 suite with zero failures.
+- Dedicated Intel refresh **37536883192** passes its complete **13,422**-case
+  macOS x64/PostgreSQL 18 suite: **13,362** passed, **60** platform skips and
+  zero failures. The full integration module completed in **1h39m56.422s**;
+  the complete job took **1h46m04s**.
 - A private Intel macOS x64 runner is online with macOS **15.8.1**, PostgreSQL
   **18.6** and LLVM **20.1.8**. The additional-platform workflow now selects its
   generic repository label only for owner-triggered `main` runs, gives the complete
@@ -156,7 +158,8 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   binding frontend. An exact Intel Native AOT extension publish passes, followed
   by all **1,223** build-tool cases with zero failures and nine platform skips.
   The first corrected complete live suite ran for **54m26s** before the inherited
-  60-minute job limit cancelled it; the six-hour replacement run remains pending.
+  60-minute job limit cancelled it. Its six-hour replacement completed successfully
+  in **1h46m04s**.
 - Function-provider diagnostics pass complete Linux/PostgreSQL **18.6** acceptance:
   **13,365** total, zero failures. All **1,853** ordinary source inputs and the
   exact **2,038**-file evidence archive verify; ten changed/new files are promoted.
@@ -188,6 +191,32 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   missing crash-test isolation annotation are corrected. The complete v0.19.3
   release audit and source-derived header maintenance command remain explicit
   requirements; no release-delta item is deferred.
+- The benchmark sampling audit found that the earlier runner recalibrated and
+  discarded short samples instead of retaining Criterion's fixed plan. The
+  current change uses Criterion's exponential warmup and automatic linear/flat
+  plan, rejects zero-duration samples, records the chosen mode, emits mean,
+  median, median-absolute-deviation, slope and standard-deviation estimates,
+  varies per-sample stack offsets, keeps Criterion's fixed 95% confidence level
+  separate from significance, and reports slope as the primary linear estimate.
+  Batched timing now matches pgrx's actual backend bridge by including input
+  preparation, transaction boundaries and the routine in the elapsed interval.
+  The six Linux modules pass **13,434** total: **13,386** passed, **48** platform
+  skips and zero failures. The integration module accounts for **5,017** total,
+  **5,002** passed and **15** skips in **43m11.907s**. The rebuilt generator suite
+  passes **4,469/4,469** after the final SQL-literal correction. The exact-current
+  Release build has zero warnings and errors; API freshness verifies **244** pages
+  and **2,791** members; the site builds **295** pages and reports zero errors,
+  warnings or hints.
+- That matrix exposed a test-only PostgreSQL 13 incompatibility: the datetime
+  cached-plan test queried execution-counter columns introduced in PostgreSQL 14.
+  The test now inspects the prepared-statement row through JSON, verifies the
+  absent PG13 fields and retains exact generic/custom execution counts on PG14+.
+  All four PostgreSQL 13 cases pass against a real server. The Windows/PostgreSQL
+  18 failure was separate: generated escape-string literals embedded physical
+  CR/LF bytes, allowing checkout normalization to change an enum label before
+  installation. Generated literals now emit explicit `\\r` and `\\n` escapes;
+  the exact publication case and all four datetime cases pass **5/5** on
+  PostgreSQL 18.
 - Earlier-member cache investigation confirms that declaration ordinals change
   after unrelated insertions. Stable header identities and exact-current-span
   regression tests are drafted separately; they have no execution evidence yet.

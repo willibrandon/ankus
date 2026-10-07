@@ -26,7 +26,7 @@ public sealed class PgBenchmarkAttribute : Attribute
     }
 
     /// <summary>
-    /// Gets or sets the number of measurement samples.
+    /// Gets or sets the number of measurement samples, which must be at least ten.
     /// </summary>
     public int SampleSize
     {
@@ -35,7 +35,7 @@ public sealed class PgBenchmarkAttribute : Attribute
     } = 100;
 
     /// <summary>
-    /// Gets or sets the target total measurement time in milliseconds.
+    /// Gets or sets the positive target total measurement time in milliseconds.
     /// </summary>
     public int MeasurementTimeMilliseconds
     {
@@ -44,7 +44,7 @@ public sealed class PgBenchmarkAttribute : Attribute
     } = 5_000;
 
     /// <summary>
-    /// Gets or sets the warmup time in milliseconds.
+    /// Gets or sets the positive warmup time in milliseconds.
     /// </summary>
     public int WarmupTimeMilliseconds
     {
@@ -53,7 +53,7 @@ public sealed class PgBenchmarkAttribute : Attribute
     } = 3_000;
 
     /// <summary>
-    /// Gets or sets the statistical resample count.
+    /// Gets or sets the positive statistical resample count.
     /// </summary>
     public int ResampleCount
     {
@@ -62,7 +62,7 @@ public sealed class PgBenchmarkAttribute : Attribute
     } = 100_000;
 
     /// <summary>
-    /// Gets or sets the relative change below which a comparison is treated as noise.
+    /// Gets or sets the finite, nonnegative relative change below which a comparison is treated as noise.
     /// </summary>
     public double NoiseThreshold
     {
@@ -71,7 +71,7 @@ public sealed class PgBenchmarkAttribute : Attribute
     } = 0.01;
 
     /// <summary>
-    /// Gets or sets the significance level used for comparisons.
+    /// Gets or sets the significance level used for comparisons, between zero and one.
     /// </summary>
     public double SignificanceLevel
     {

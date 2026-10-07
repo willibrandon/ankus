@@ -413,10 +413,17 @@ public sealed class DateTimeExampleTests(TestContext context)
                 string changed = await ScalarAsync<string>(connection, transaction, "SELECT " + reference, token);
                 Assert.AreNotEqual(original, changed, "The independent PostgreSQL result must actually change between the selected zones.");
                 Assert.AreEqual(changed, await ScalarAsync<string>(connection, transaction, "EXECUTE datetime_zone_contract", token));
-                Assert.AreEqual(2L, await ScalarAsync<long>(connection, transaction,
-                    "SELECT generic_plans FROM pg_prepared_statements WHERE name = 'datetime_zone_contract'", token));
-                Assert.AreEqual(0L, await ScalarAsync<long>(connection, transaction,
-                    "SELECT custom_plans FROM pg_prepared_statements WHERE name = 'datetime_zone_contract'", token));
+                // PostgreSQL 13 predates the execution counters, so inspect the row as JSON to keep the probe parseable there.
+                Assert.IsTrue(await ScalarAsync<bool>(connection, transaction, """
+                    SELECT CASE WHEN current_setting('server_version_num')::integer < 140000
+                        THEN NOT (to_jsonb(prepared) ? 'generic_plans')
+                            AND NOT (to_jsonb(prepared) ? 'custom_plans')
+                        ELSE (to_jsonb(prepared) ->> 'generic_plans')::bigint = 2
+                            AND (to_jsonb(prepared) ->> 'custom_plans')::bigint = 0
+                        END
+                    FROM pg_prepared_statements prepared
+                    WHERE name = 'datetime_zone_contract'
+                    """, token));
             }
             finally
             {

@@ -31,7 +31,8 @@ public sealed class PgBencher
     }
 
     /// <summary>
-    /// Registers a loop whose input setup is excluded from measured work.
+    /// Registers a loop that prepares one input immediately before each invocation.
+    /// Input preparation is included in the elapsed sample.
     /// </summary>
     /// <typeparam name="TInput">The prepared input type.</typeparam>
     /// <param name="setup">The input factory.</param>
@@ -45,7 +46,8 @@ public sealed class PgBencher
     }
 
     /// <summary>
-    /// Registers a result-producing loop whose input setup is excluded from measured work.
+    /// Registers a result-producing loop that prepares one input immediately before each invocation.
+    /// Input preparation is included in the elapsed sample.
     /// </summary>
     /// <typeparam name="TInput">The prepared input type.</typeparam>
     /// <typeparam name="TResult">The measured result type.</typeparam>
@@ -89,7 +91,7 @@ internal sealed class PgBenchmarkRoutine(Func<object?>? setup, Action<object?> r
         => Measure(iterations, mode, subtransaction);
 
     /// <summary>
-    /// Measures an exact iteration count while excluding batched input creation.
+    /// Measures an exact iteration count using pgrx's benchmark timing boundary.
     /// </summary>
     internal long Measure(long iterations, PgBenchmarkTransactionMode mode, Action<Action> subtransaction)
     {
@@ -121,70 +123,43 @@ internal sealed class PgBenchmarkRoutine(Func<object?>? setup, Action<object?> r
 
     private long MeasureBatched(long iterations, PgBenchmarkTransactionMode mode, Action<Action> subtransaction)
     {
-        long elapsed = 0;
+        long started = Stopwatch.GetTimestamp();
         long remaining = iterations;
         long perBatch = Math.Max(1, batchSize.GetIterationsPerBatch(iterations));
         while (remaining > 0)
         {
-            int current = checked((int)Math.Min(remaining, perBatch));
+            long current = Math.Min(remaining, perBatch);
             if (mode == PgBenchmarkTransactionMode.Shared)
             {
-                object?[] inputs = PrepareBatch(current, out _);
-                long started = Stopwatch.GetTimestamp();
-                InvokeBatch(inputs);
-                elapsed += Stopwatch.GetTimestamp() - started;
+                InvokeBatch(current);
             }
             else if (mode == PgBenchmarkTransactionMode.SubtransactionPerBatch)
             {
-                long setupElapsed = 0;
-                long started = Stopwatch.GetTimestamp();
-                subtransaction(() =>
-                {
-                    object?[] inputs = PrepareBatch(current, out setupElapsed);
-                    InvokeBatch(inputs);
-                });
-                elapsed += Stopwatch.GetTimestamp() - started - setupElapsed;
+                subtransaction(() => InvokeBatch(current));
             }
             else
             {
-                for (int index = 0; index < current; index++)
+                for (long index = 0; index < current; index++)
                 {
-                    long setupElapsed = 0;
-                    long started = Stopwatch.GetTimestamp();
                     subtransaction(() =>
                     {
-                        long setupStarted = Stopwatch.GetTimestamp();
                         object? input = setup!();
-                        setupElapsed = Stopwatch.GetTimestamp() - setupStarted;
                         routine(input);
                     });
-                    elapsed += Stopwatch.GetTimestamp() - started - setupElapsed;
                 }
             }
 
             remaining -= current;
         }
 
-        return elapsed;
+        return Stopwatch.GetTimestamp() - started;
     }
 
-    private object?[] PrepareBatch(int count, out long elapsed)
+    private void InvokeBatch(long count)
     {
-        long started = Stopwatch.GetTimestamp();
-        object?[] inputs = new object?[count];
-        for (int index = 0; index < inputs.Length; index++)
+        for (long index = 0; index < count; index++)
         {
-            inputs[index] = setup!();
-        }
-
-        elapsed = Stopwatch.GetTimestamp() - started;
-        return inputs;
-    }
-
-    private void InvokeBatch(object?[] inputs)
-    {
-        foreach (object? input in inputs)
-        {
+            object? input = setup!();
             routine(input);
         }
     }

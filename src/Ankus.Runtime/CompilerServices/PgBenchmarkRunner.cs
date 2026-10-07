@@ -1,6 +1,7 @@
 using System.Buffers;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 
@@ -25,32 +26,32 @@ public sealed class PgBenchmarkConfiguration(
     double significanceLevel)
 {
     /// <summary>
-    /// Gets the number of measurement samples.
+    /// Gets the number of measurement samples, which is at least ten.
     /// </summary>
     public int SampleSize { get; } = sampleSize;
 
     /// <summary>
-    /// Gets the target total measurement time in milliseconds.
+    /// Gets the positive target total measurement time in milliseconds.
     /// </summary>
     public int MeasurementTimeMilliseconds { get; } = measurementTimeMilliseconds;
 
     /// <summary>
-    /// Gets the warmup time in milliseconds.
+    /// Gets the positive warmup time in milliseconds.
     /// </summary>
     public int WarmupTimeMilliseconds { get; } = warmupTimeMilliseconds;
 
     /// <summary>
-    /// Gets the statistical resample count.
+    /// Gets the positive statistical resample count.
     /// </summary>
     public int ResampleCount { get; } = resampleCount;
 
     /// <summary>
-    /// Gets the relative noise threshold.
+    /// Gets the finite, nonnegative relative noise threshold.
     /// </summary>
     public double NoiseThreshold { get; } = noiseThreshold;
 
     /// <summary>
-    /// Gets the comparison significance level.
+    /// Gets the comparison significance level, between zero and one.
     /// </summary>
     public double SignificanceLevel { get; } = significanceLevel;
 }
@@ -124,6 +125,8 @@ public sealed class PgBenchmarkDefinition(
 [EditorBrowsable(EditorBrowsableState.Never)]
 public static class PgBenchmarkRunner
 {
+    private const double ConfidenceLevel = 0.95;
+
     /// <summary>
     /// Describes one generated benchmark without running author code.
     /// </summary>
@@ -180,6 +183,7 @@ public static class PgBenchmarkRunner
             Sample[] samples = [];
             Estimate[] estimates = [];
             Comparison? comparison = null;
+            PgBenchmarkSamplingMode? samplingMode = null;
             recovery(() =>
             {
                 Validate(definition.Configuration);
@@ -187,110 +191,238 @@ public static class PgBenchmarkRunner
                 var bencher = new PgBencher();
                 benchmark(bencher);
                 PgBenchmarkRoutine routine = bencher.TakeRoutine();
-                WarmUp(routine, definition, subtransaction);
-                samples = Measure(routine, definition, subtransaction);
-                estimates = EstimateSamples(samples, definition.Configuration);
+                (long warmupElapsed, long warmupIterations) = WarmUp(routine, definition, subtransaction);
+                (PgBenchmarkSamplingMode selectedMode, Sample[] measuredSamples) = Measure(
+                    routine, definition, subtransaction, warmupElapsed, warmupIterations);
+                samplingMode = selectedMode;
+                samples = measuredSamples;
+                estimates = EstimateSamples(samples, definition.Configuration, selectedMode);
                 comparison = baseline is null ? null : Compare(samples, baseline.Value, definition.Configuration);
             });
-            return WriteResult(definition, samples, estimates, comparison, null);
+            return WriteResult(definition, samples, estimates, comparison, samplingMode, null);
         }
         catch (Exception exception)
         {
-            return WriteResult(definition, [], [], null, exception.Message);
+            return WriteResult(definition, [], [], null, null, exception.Message);
         }
     }
 
     private static void Validate(PgBenchmarkConfiguration configuration)
     {
-        if (configuration.SampleSize < 2 || configuration.MeasurementTimeMilliseconds <= 0 ||
-            configuration.WarmupTimeMilliseconds < 0 || configuration.ResampleCount <= 0 ||
-            !double.IsFinite(configuration.NoiseThreshold) || configuration.NoiseThreshold is < 0 or >= 1 ||
+        if (configuration.SampleSize < 10 || configuration.MeasurementTimeMilliseconds <= 0 ||
+            configuration.WarmupTimeMilliseconds <= 0 || configuration.ResampleCount <= 0 ||
+            !double.IsFinite(configuration.NoiseThreshold) || configuration.NoiseThreshold < 0 ||
             !double.IsFinite(configuration.SignificanceLevel) || configuration.SignificanceLevel is <= 0 or >= 1)
         {
             throw new InvalidOperationException("The generated benchmark configuration is invalid.");
         }
     }
 
-    private static void WarmUp(PgBenchmarkRoutine routine, PgBenchmarkDefinition definition, Action<Action> subtransaction)
+    private static (long ElapsedTicks, long Iterations) WarmUp(
+        PgBenchmarkRoutine routine,
+        PgBenchmarkDefinition definition,
+        Action<Action> subtransaction)
+        => WarmUp(iterations => routine.Measure(iterations, definition.TransactionMode, subtransaction),
+            MillisecondsToTicks(definition.Configuration.WarmupTimeMilliseconds));
+
+    /// <summary>
+    /// Runs Criterion's exponentially increasing warmup sequence and retains its complete calibration.
+    /// </summary>
+    /// <param name="measure">The routine that measures the exact requested iteration count.</param>
+    /// <param name="targetTicks">The nonnegative warmup target in stopwatch ticks.</param>
+    /// <returns>The cumulative elapsed ticks and iteration count.</returns>
+    internal static (long ElapsedTicks, long Iterations) WarmUp(Func<long, long> measure, long targetTicks)
     {
-        long target = MillisecondsToTicks(definition.Configuration.WarmupTimeMilliseconds);
+        ArgumentNullException.ThrowIfNull(measure);
+        ArgumentOutOfRangeException.ThrowIfNegative(targetTicks);
         long elapsed = 0;
+        long totalIterations = 0;
         long iterations = 1;
-        while (elapsed < target)
+        while (true)
         {
-            elapsed += routine.Measure(iterations, definition.TransactionMode, subtransaction);
-            iterations = Math.Min(checked(iterations * 2), int.MaxValue);
+            if (totalIterations > long.MaxValue - iterations)
+            {
+                throw new InvalidOperationException("The benchmark warmup exceeded the supported iteration range.");
+            }
+
+            long measurement = measure(iterations);
+            if (measurement < 0)
+            {
+                throw new InvalidOperationException("The benchmark warmup returned a negative duration.");
+            }
+
+            if (elapsed > long.MaxValue - measurement)
+            {
+                throw new InvalidOperationException("The benchmark warmup exceeded the supported duration range.");
+            }
+
+            elapsed += measurement;
+            totalIterations += iterations;
+            if (elapsed > targetTicks)
+            {
+                return (elapsed, totalIterations);
+            }
+
+            iterations = iterations > long.MaxValue / 2 ? long.MaxValue : iterations * 2;
         }
     }
 
-    private static Sample[] Measure(PgBenchmarkRoutine routine, PgBenchmarkDefinition definition, Action<Action> subtransaction)
+    private static (PgBenchmarkSamplingMode SamplingMode, Sample[] Samples) Measure(
+        PgBenchmarkRoutine routine,
+        PgBenchmarkDefinition definition,
+        Action<Action> subtransaction,
+        long warmupElapsed,
+        long warmupIterations)
     {
         PgBenchmarkConfiguration configuration = definition.Configuration;
-        long targetPerSample = Math.Max(1, MillisecondsToTicks(configuration.MeasurementTimeMilliseconds) / configuration.SampleSize);
-        long MeasureRoutine(long count) => routine.Measure(count, definition.TransactionMode, subtransaction);
-        long iterations = MeasureSample(MeasureRoutine, 1, targetPerSample).Iterations;
+        (PgBenchmarkSamplingMode samplingMode, long[] iterationCounts) = CreateSamplingPlan(
+            warmupElapsed,
+            warmupIterations,
+            configuration.SampleSize,
+            MillisecondsToTicks(configuration.MeasurementTimeMilliseconds));
+        (long Iterations, long ElapsedTicks)[] measurements = MeasureSamples(
+            iterations => routine.Measure(iterations, definition.TransactionMode, subtransaction),
+            iterationCounts);
 
         var samples = new Sample[configuration.SampleSize];
         for (int index = 0; index < samples.Length; index++)
         {
-            (long sampleIterations, long elapsed) = MeasureSample(MeasureRoutine, iterations, targetPerSample);
-            iterations = sampleIterations;
+            (long iterations, long elapsed) = measurements[index];
             samples[index] = new(index, iterations, TicksToNanoseconds(elapsed));
         }
 
-        return samples;
+        return (samplingMode, samples);
     }
 
     /// <summary>
-    /// Expands a timing batch until its actual duration meets the sample target or the iteration bound.
+    /// Creates Criterion's automatic linear or flat measurement plan from the complete warmup.
     /// </summary>
-    /// <param name="measure">The routine that measures the exact requested iteration count.</param>
-    /// <param name="iterations">The initial positive iteration count, bounded by <see cref="int.MaxValue"/>.</param>
-    /// <param name="target">The positive target duration in stopwatch ticks.</param>
-    /// <returns>The actual iteration count and elapsed ticks of the retained measurement.</returns>
-    internal static (long Iterations, long ElapsedTicks) MeasureSample(Func<long, long> measure, long iterations, long target)
+    /// <param name="warmupElapsedTicks">The positive cumulative warmup duration.</param>
+    /// <param name="warmupIterations">The positive cumulative warmup iteration count.</param>
+    /// <param name="sampleSize">The number of samples, which is at least ten.</param>
+    /// <param name="measurementTicks">The positive target duration for all samples.</param>
+    /// <returns>The selected mode and exact iteration count for each measurement sample.</returns>
+    internal static (PgBenchmarkSamplingMode SamplingMode, long[] IterationCounts) CreateSamplingPlan(
+        long warmupElapsedTicks,
+        long warmupIterations,
+        int sampleSize,
+        long measurementTicks)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(warmupElapsedTicks);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(warmupIterations);
+        ArgumentOutOfRangeException.ThrowIfLessThan(sampleSize, 10);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(measurementTicks);
+
+        double meanExecutionTicks = (double)warmupElapsedTicks / warmupIterations;
+        double totalLinearRuns = (double)sampleSize * (sampleSize + 1L) / 2;
+        long linearStep = IterationCount(measurementTicks / meanExecutionTicks / totalLinearRuns);
+        double expectedLinearTicks = totalLinearRuns * linearStep * meanExecutionTicks;
+        if (expectedLinearTicks > 2d * measurementTicks)
+        {
+            long flatIterations = IterationCount(measurementTicks / (double)sampleSize / meanExecutionTicks);
+            return (PgBenchmarkSamplingMode.Flat, [.. Enumerable.Repeat(flatIterations, sampleSize)]);
+        }
+
+        long[] counts = new long[sampleSize];
+        for (int index = 0; index < counts.Length; index++)
+        {
+            long multiplier = index + 1L;
+            counts[index] = linearStep > long.MaxValue / multiplier ? long.MaxValue : linearStep * multiplier;
+        }
+
+        return (PgBenchmarkSamplingMode.Linear, counts);
+
+        static long IterationCount(double value)
+            => value >= long.MaxValue ? long.MaxValue : Math.Max(1, checked((long)Math.Ceiling(value)));
+    }
+
+    /// <summary>
+    /// Measures every planned sample exactly once and retains its actual duration.
+    /// </summary>
+    /// <param name="measure">The routine that measures an exact iteration count.</param>
+    /// <param name="iterationCounts">The positive planned counts in sample order.</param>
+    /// <returns>The retained iteration count and elapsed ticks for every sample.</returns>
+    internal static (long Iterations, long ElapsedTicks)[] MeasureSamples(
+        Func<long, long> measure,
+        IReadOnlyList<long> iterationCounts)
     {
         ArgumentNullException.ThrowIfNull(measure);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(iterations);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(iterations, int.MaxValue);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(target);
-        while (true)
+        ArgumentNullException.ThrowIfNull(iterationCounts);
+        (long Iterations, long ElapsedTicks)[] measurements = new (long Iterations, long ElapsedTicks)[iterationCounts.Count];
+        for (int index = 0; index < measurements.Length; index++)
         {
-            long elapsed = measure(iterations);
+            long iterations = iterationCounts[index];
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(iterations);
+            long elapsed = MeasureWithStackOffset(measure, iterations, index);
             if (elapsed < 0)
             {
                 throw new InvalidOperationException("The benchmark measurement returned a negative duration.");
             }
 
-            if (elapsed >= target)
-            {
-                return (iterations, elapsed);
-            }
-
-            if (iterations == int.MaxValue)
-            {
-                if (elapsed == 0)
-                {
-                    throw new InvalidOperationException("The benchmark measurement remained below timer resolution at the iteration limit.");
-                }
-
-                return (iterations, elapsed);
-            }
-
-            iterations = Math.Min(iterations * 2, int.MaxValue);
+            measurements[index] = (iterations, elapsed);
         }
+
+        return measurements;
     }
 
-    private static Estimate[] EstimateSamples(Sample[] samples, PgBenchmarkConfiguration configuration)
+    [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.NoOptimization)]
+    private static long MeasureWithStackOffset(Func<long, long> measure, long iterations, int sampleIndex)
     {
+        Span<byte> stackSpace = stackalloc byte[sampleIndex % Environment.SystemPageSize];
+        if (!stackSpace.IsEmpty)
+        {
+            stackSpace[0] = unchecked((byte)sampleIndex);
+        }
+
+        long elapsed = measure(iterations);
+        if (!stackSpace.IsEmpty)
+        {
+            PgBenchmark.BlackBox(stackSpace[0]);
+        }
+
+        return elapsed;
+    }
+
+    /// <summary>
+    /// Computes Criterion's absolute estimates for retained measurement samples.
+    /// </summary>
+    /// <param name="samples">The retained samples.</param>
+    /// <param name="configuration">The validated benchmark configuration.</param>
+    /// <param name="samplingMode">The concrete sampling mode.</param>
+    /// <returns>The ordered estimates emitted in the benchmark result.</returns>
+    internal static Estimate[] EstimateSamples(
+        Sample[] samples,
+        PgBenchmarkConfiguration configuration,
+        PgBenchmarkSamplingMode samplingMode)
+    {
+        if (samples.Any(static sample => sample.ElapsedNanoseconds == 0))
+        {
+            throw new InvalidOperationException(
+                "At least one benchmark measurement took zero time per iteration. " +
+                "Verify that the routine is measured correctly.");
+        }
+
         double[] values = SampleValues(samples);
         var random = new Random(1_262_774_131);
-        (double[] means, double[] medians) = Bootstrap(values, configuration.ResampleCount, random);
-        return
-        [
-            CreateEstimate("mean", Mean(values), means, 0.95),
-            CreateEstimate("median", Median(values), medians, 0.95),
-        ];
+        (double[] means, double[] standardDeviations, double[] medians, double[] medianAbsoluteDeviations) =
+            BootstrapStatistics(values, configuration.ResampleCount, random);
+        var estimates = new List<Estimate>
+        {
+            CreateEstimate("mean", Mean(values), means, ConfidenceLevel),
+            CreateEstimate("median", Median(values), medians, ConfidenceLevel),
+            CreateEstimate("median_abs_dev", MedianAbsoluteDeviation(values), medianAbsoluteDeviations, ConfidenceLevel),
+        };
+        if (samplingMode == PgBenchmarkSamplingMode.Linear)
+        {
+            double[] iterations = [.. samples.Select(static sample => (double)sample.Iterations)];
+            double[] elapsed = [.. samples.Select(static sample => sample.ElapsedNanoseconds)];
+            double[] slopes = BootstrapSlopes(iterations, elapsed, configuration.ResampleCount, random);
+            estimates.Add(CreateEstimate("slope", Slope(iterations, elapsed), slopes, ConfidenceLevel));
+        }
+
+        estimates.Add(CreateEstimate(
+            "std_dev", StandardDeviation(values), standardDeviations, ConfidenceLevel));
+        return [.. estimates];
     }
 
     private static Comparison Compare(Sample[] samples, PgJsonb baseline, PgBenchmarkConfiguration configuration)
@@ -300,11 +432,10 @@ public static class PgBenchmarkRunner
         var random = new Random(1_262_774_131);
         (double[] meanChanges, double[] medianChanges) = BootstrapChanges(
             current, previous, configuration.ResampleCount, random);
-        double confidence = 1 - configuration.SignificanceLevel;
         ComparisonEstimate mean = CreateComparisonEstimate("mean", Relative(Mean(current), Mean(previous)),
-            meanChanges, confidence);
+            meanChanges, ConfidenceLevel);
         ComparisonEstimate median = CreateComparisonEstimate("median", Relative(Median(current), Median(previous)),
-            medianChanges, confidence);
+            medianChanges, ConfidenceLevel);
         double pValue = PValue(current, previous, configuration.ResampleCount, random);
         string summary;
         if (pValue >= configuration.SignificanceLevel)
@@ -343,7 +474,7 @@ public static class PgBenchmarkRunner
         {
             long iterations = sample.GetProperty("iteration_count").GetInt64();
             double elapsed = sample.GetProperty("elapsed_ns").GetDouble();
-            if (iterations <= 0 || !double.IsFinite(elapsed) || elapsed < 0)
+            if (iterations <= 0 || !double.IsFinite(elapsed) || elapsed <= 0)
             {
                 throw new InvalidOperationException("The benchmark baseline contains an invalid sample.");
             }
@@ -358,20 +489,53 @@ public static class PgBenchmarkRunner
         return values;
     }
 
-    private static (double[] Means, double[] Medians) Bootstrap(double[] values, int count, Random random)
+    private static (
+        double[] Means,
+        double[] StandardDeviations,
+        double[] Medians,
+        double[] MedianAbsoluteDeviations) BootstrapStatistics(
+            double[] values,
+            int count,
+            Random random)
     {
         double[] means = new double[count];
+        double[] standardDeviations = new double[count];
         double[] medians = new double[count];
+        double[] medianAbsoluteDeviations = new double[count];
         double[] sample = new double[values.Length];
+        double[] deviations = new double[values.Length];
         for (int index = 0; index < count; index++)
         {
             Resample(values, sample, random);
             means[index] = Mean(sample);
+            standardDeviations[index] = StandardDeviation(sample);
             Array.Sort(sample);
-            medians[index] = MedianOrdered(sample);
+            double median = MedianOrdered(sample);
+            medians[index] = median;
+            medianAbsoluteDeviations[index] = MedianAbsoluteDeviation(sample, median, deviations);
         }
 
-        return (means, medians);
+        return (means, standardDeviations, medians, medianAbsoluteDeviations);
+    }
+
+    private static double[] BootstrapSlopes(double[] iterations, double[] elapsed, int count, Random random)
+    {
+        double[] slopes = new double[count];
+        double[] resampledIterations = new double[iterations.Length];
+        double[] resampledElapsed = new double[elapsed.Length];
+        for (int bootstrap = 0; bootstrap < count; bootstrap++)
+        {
+            for (int index = 0; index < iterations.Length; index++)
+            {
+                int selected = random.Next(iterations.Length);
+                resampledIterations[index] = iterations[selected];
+                resampledElapsed[index] = elapsed[selected];
+            }
+
+            slopes[bootstrap] = Slope(resampledIterations, resampledElapsed);
+        }
+
+        return slopes;
     }
 
     private static (double[] Means, double[] Medians) BootstrapChanges(
@@ -436,12 +600,20 @@ public static class PgBenchmarkRunner
         return lower == upper ? ordered[lower] : ordered[lower] + (ordered[upper] - ordered[lower]) * (position - lower);
     }
 
-    private static double PValue(double[] current, double[] previous, int count, Random random)
+    /// <summary>
+    /// Computes Criterion's mixed-bootstrap two-sided p-value for two sample distributions.
+    /// </summary>
+    /// <param name="current">The current per-iteration sample values.</param>
+    /// <param name="previous">The baseline per-iteration sample values.</param>
+    /// <param name="count">The positive resample count.</param>
+    /// <param name="random">The resampling source.</param>
+    /// <returns>The two-sided p-value.</returns>
+    internal static double PValue(double[] current, double[] previous, int count, Random random)
     {
         double observed = SampleT(current, previous);
-        if (double.IsNaN(observed))
+        if (!double.IsFinite(observed))
         {
-            return Mean(current) == Mean(previous) ? 1 : 0;
+            throw new InvalidOperationException("The benchmark comparison could not compute a finite T statistic.");
         }
 
         double[] combined = [.. current, .. previous];
@@ -466,7 +638,7 @@ public static class PgBenchmarkRunner
 
         if (finite == 0)
         {
-            return Mean(current) == Mean(previous) ? 1 : 0;
+            throw new InvalidOperationException("The benchmark comparison produced an empty T distribution.");
         }
 
         return Math.Min(1, 2d * Math.Min(below, finite - below) / finite);
@@ -505,6 +677,33 @@ public static class PgBenchmarkRunner
         return ordered.Length % 2 == 0 ? (ordered[middle - 1] + ordered[middle]) / 2 : ordered[middle];
     }
 
+    private static double MedianAbsoluteDeviation(double[] values)
+        => MedianAbsoluteDeviation(values, Median(values), new double[values.Length]);
+
+    private static double MedianAbsoluteDeviation(double[] values, double median, double[] deviations)
+    {
+        for (int index = 0; index < values.Length; index++)
+        {
+            deviations[index] = Math.Abs(values[index] - median);
+        }
+
+        Array.Sort(deviations);
+        return MedianOrdered(deviations) * 1.4826;
+    }
+
+    private static double Slope(ReadOnlySpan<double> iterations, ReadOnlySpan<double> elapsed)
+    {
+        double products = 0;
+        double squares = 0;
+        for (int index = 0; index < iterations.Length; index++)
+        {
+            products += iterations[index] * elapsed[index];
+            squares += iterations[index] * iterations[index];
+        }
+
+        return products / squares;
+    }
+
     private static double Variance(ReadOnlySpan<double> values, double mean)
     {
         if (values.Length < 2)
@@ -539,6 +738,7 @@ public static class PgBenchmarkRunner
         Sample[] samples,
         Estimate[] estimates,
         Comparison? comparison,
+        PgBenchmarkSamplingMode? samplingMode,
         string? error)
         => WriteJson(writer =>
         {
@@ -552,6 +752,15 @@ public static class PgBenchmarkRunner
             else
             {
                 writer.WriteString("error_text", error);
+            }
+
+            if (samplingMode is null)
+            {
+                writer.WriteNull("sampling_mode");
+            }
+            else
+            {
+                writer.WriteString("sampling_mode", SamplingModeName(samplingMode.Value));
             }
 
             writer.WriteStartArray("estimates");
@@ -642,6 +851,14 @@ public static class PgBenchmarkRunner
             _ => throw new InvalidOperationException("The generated benchmark transaction mode is invalid."),
         };
 
+    private static string SamplingModeName(PgBenchmarkSamplingMode mode)
+        => mode switch
+        {
+            PgBenchmarkSamplingMode.Linear => "linear",
+            PgBenchmarkSamplingMode.Flat => "flat",
+            _ => throw new InvalidOperationException("The benchmark sampling mode is invalid."),
+        };
+
     private static PgJsonb WriteJson(Action<Utf8JsonWriter> write)
     {
         var buffer = new ArrayBufferWriter<byte>();
@@ -682,9 +899,30 @@ public static class PgBenchmarkRunner
 
     private static double TicksToNanoseconds(long ticks) => ticks * 1_000_000_000d / Stopwatch.Frequency;
 
-    private sealed record Sample(int Index, long Iterations, double ElapsedNanoseconds);
+    /// <summary>
+    /// Carries one retained benchmark measurement into analysis and reporting.
+    /// </summary>
+    /// <param name="Index">The zero-based sample index.</param>
+    /// <param name="Iterations">The measured iteration count.</param>
+    /// <param name="ElapsedNanoseconds">The measured elapsed nanoseconds.</param>
+    internal sealed record Sample(int Index, long Iterations, double ElapsedNanoseconds);
 
-    private sealed record Estimate(string Kind, double Point, double? StandardError, double? ConfidenceLevel, double? LowerBound, double? UpperBound);
+    /// <summary>
+    /// Carries one absolute benchmark estimate into result serialization.
+    /// </summary>
+    /// <param name="Kind">The statistic name.</param>
+    /// <param name="Point">The point estimate.</param>
+    /// <param name="StandardError">The bootstrap standard error.</param>
+    /// <param name="ConfidenceLevel">The confidence level.</param>
+    /// <param name="LowerBound">The confidence interval lower bound.</param>
+    /// <param name="UpperBound">The confidence interval upper bound.</param>
+    internal sealed record Estimate(
+        string Kind,
+        double Point,
+        double? StandardError,
+        double? ConfidenceLevel,
+        double? LowerBound,
+        double? UpperBound);
 
     private sealed record ComparisonEstimate(
         string Kind,

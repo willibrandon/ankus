@@ -41,7 +41,7 @@ public sealed partial class PgFunctionGeneratorTests
     }
 
     /// <summary>
-    /// Generated declarations also preserve line endings in user-authored defaults and enum labels.
+    /// Generated declarations preserve authored default expressions and escape enum-label line endings.
     /// </summary>
     /// <param name="enumeration">Whether the declaration emits an enum label instead of a parameter default.</param>
     /// <param name="value">The exact authored text.</param>
@@ -64,7 +64,8 @@ public sealed partial class PgFunctionGeneratorTests
         string sql = InstallationBody(output);
         if (enumeration)
         {
-            Assert.AreEqual("CREATE TYPE \"labelled\" AS ENUM (E'" + value + "');\n", sql);
+            string escaped = value.Replace("\r", "\\r").Replace("\n", "\\n");
+            Assert.AreEqual("CREATE TYPE \"labelled\" AS ENUM (E'" + escaped + "');\n", sql);
         }
         else
         {

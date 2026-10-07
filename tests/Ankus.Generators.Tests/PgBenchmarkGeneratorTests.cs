@@ -42,8 +42,8 @@ public sealed partial class PgFunctionGeneratorTests
                 internal static void Prepare() { }
 
                 [Ankus.PgBenchmark(Setup = nameof(Prepare), Transaction = Ankus.PgBenchmarkTransactionMode.SubtransactionPerBatch,
-                    SampleSize = 7, MeasurementTimeMilliseconds = 11, WarmupTimeMilliseconds = 13,
-                    ResampleCount = 17, NoiseThreshold = 0.02, SignificanceLevel = 0.03)]
+                    SampleSize = 17, MeasurementTimeMilliseconds = 11, WarmupTimeMilliseconds = 13,
+                    ResampleCount = 19, NoiseThreshold = 0.02, SignificanceLevel = 0.03)]
                 public static void Add(Ankus.PgBencher bencher) => bencher.Iterate(static () => 1 + 2);
             }
             """, options: new BenchmarkOptions(true, "/work/project"), path: "/work/project/Benchmarks.cs");
@@ -62,7 +62,7 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.Contains("global::Extension.Benchmarks.@Add(bencher)", dispatchers);
         Assert.Contains("Benchmarks.cs", dispatchers);
         Assert.Contains("AnkusGeneratedBenchmarkSources.Line", dispatchers);
-        Assert.Contains("new global::Ankus.CompilerServices.PgBenchmarkConfiguration(7, 11, 13, 17, 0.02, 0.03)", dispatchers);
+        Assert.Contains("new global::Ankus.CompilerServices.PgBenchmarkConfiguration(17, 11, 13, 19, 0.02, 0.03)", dispatchers);
         string sourceLines = compilation.SyntaxTrees.Single(static tree =>
             tree.FilePath.EndsWith("BenchmarkSourceLines.g.cs", StringComparison.Ordinal)).GetText(context.CancellationToken).ToString();
         Assert.Contains("=> 9,", sourceLines);
@@ -80,10 +80,11 @@ public sealed partial class PgFunctionGeneratorTests
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate("""
             public static class Benchmarks
             {
-                [Ankus.PgBenchmark(SampleSize = 1)]
+                [Ankus.PgBenchmark(SampleSize = 9)]
                 public static void Invalid(Ankus.PgBencher bencher) { }
 
-                [Ankus.PgBenchmark(SampleSize = 2, MeasurementTimeMilliseconds = 1, WarmupTimeMilliseconds = 0)]
+                [Ankus.PgBenchmark(SampleSize = 10, MeasurementTimeMilliseconds = 1,
+                    WarmupTimeMilliseconds = 1, NoiseThreshold = 2)]
                 public static void Valid(Ankus.PgBencher bencher) => bencher.Iterate(static () => 42);
             }
             """, options: new BenchmarkOptions(true, string.Empty));
@@ -107,6 +108,7 @@ public sealed partial class PgFunctionGeneratorTests
     [DataRow("public static class B { [Ankus.PgBenchmark] public static int Run(Ankus.PgBencher b) => 1; }", "ANKUS130")]
     [DataRow("public static class B { [Ankus.PgBenchmark] public static void Run() { } }", "ANKUS130")]
     [DataRow("public static class B { [Ankus.PgBenchmark(Setup = \"Missing\")] public static void Run(Ankus.PgBencher b) { } }", "ANKUS131")]
+    [DataRow("public static class B { [Ankus.PgBenchmark(WarmupTimeMilliseconds = 0)] public static void Run(Ankus.PgBencher b) { } }", "ANKUS132")]
     [DataRow("public static class B { [Ankus.PgBenchmark, Ankus.PgFunction] public static void Run(Ankus.PgBencher b) { } }", "ANKUS133")]
     public void RejectsInvalidBenchmarkContracts(string source, string diagnostic)
     {

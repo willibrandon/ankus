@@ -99,7 +99,7 @@ internal static class PgBenchmarkPipeline
             return Invalid("Transaction");
         }
 
-        if (sampleSize < 2)
+        if (sampleSize < 10)
         {
             return Invalid("SampleSize");
         }
@@ -109,7 +109,7 @@ internal static class PgBenchmarkPipeline
             return Invalid("MeasurementTimeMilliseconds");
         }
 
-        if (warmup < 0)
+        if (warmup <= 0)
         {
             return Invalid("WarmupTimeMilliseconds");
         }
@@ -119,7 +119,7 @@ internal static class PgBenchmarkPipeline
             return Invalid("ResampleCount");
         }
 
-        if (double.IsNaN(noise) || double.IsInfinity(noise) || noise is < 0 or >= 1)
+        if (double.IsNaN(noise) || double.IsInfinity(noise) || noise < 0)
         {
             return Invalid("NoiseThreshold");
         }

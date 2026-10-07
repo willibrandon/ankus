@@ -133,8 +133,21 @@ public sealed partial class ToolCommandTests
             JsonElement result = entry.GetProperty("result");
             Assert.AreEqual("ok", result.GetProperty("status").GetString());
             Assert.IsGreaterThan(1, result.GetProperty("source_line").GetInt32());
-            Assert.AreEqual(2, result.GetProperty("samples").GetArrayLength());
+            Assert.AreEqual(10, result.GetProperty("samples").GetArrayLength());
             Assert.IsNull(result.GetProperty("error_text").GetString());
+            string? samplingMode = result.GetProperty("sampling_mode").GetString();
+            Assert.IsTrue(samplingMode is "linear" or "flat");
+            JsonElement[] estimates = [.. result.GetProperty("estimates").EnumerateArray()];
+            JsonElement primary = estimates.FirstOrDefault(static value =>
+                value.GetProperty("estimate_kind").GetString() == "slope");
+            if (primary.ValueKind == JsonValueKind.Undefined)
+            {
+                primary = estimates.First(static value => value.GetProperty("estimate_kind").GetString() == "mean");
+            }
+
+            string printed = primary.GetProperty("point_estimate_ns").GetDouble()
+                .ToString("N2", CultureInfo.InvariantCulture) + " ns";
+            Assert.Contains("Benchmarking " + InsertBenchmark + Environment.NewLine + printed, run.StandardOutput);
             Assert.HasCount(3, history.RootElement.EnumerateArray());
             JsonElement automatic = history.RootElement.EnumerateArray().Single(value =>
                 value.GetProperty("group_name").GetString() == "persistent-session");
