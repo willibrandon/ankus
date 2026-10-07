@@ -19,7 +19,7 @@ public sealed class PgTypeAttribute : Attribute
 Generated CBOR contracts support inherited members and explicitly tagged class variants declared with
 [JsonDerivedTypeAttribute](https://learn.microsoft.com/dotnet/api/system.text.json.serialization.jsonderivedtypeattribute) and
 [JsonPolymorphicAttribute](https://learn.microsoft.com/dotnet/api/system.text.json.serialization.jsonpolymorphicattribute). Abstract classes require generated storage
-with concrete variants; explicit codecs require a concrete managed type.
+with concrete variants; explicit storage codecs require a concrete managed type.
 Unknown runtime subtypes are rejected to preserve stored type identity.
 
 Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object), [Attribute](https://learn.microsoft.com/dotnet/api/system.attribute)
@@ -45,7 +45,7 @@ An explicit PgTypeCodec with an accessible parameterless constructor; omit to us
 Generated CBOR contracts support inherited members and explicitly tagged class variants declared with
 [JsonDerivedTypeAttribute](https://learn.microsoft.com/dotnet/api/system.text.json.serialization.jsonderivedtypeattribute) and
 [JsonPolymorphicAttribute](https://learn.microsoft.com/dotnet/api/system.text.json.serialization.jsonpolymorphicattribute). Abstract classes require generated storage
-with concrete variants; explicit codecs require a concrete managed type.
+with concrete variants; explicit storage codecs require a concrete managed type.
 Unknown runtime subtypes are rejected to preserve stored type identity.
 
 
