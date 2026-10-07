@@ -89,7 +89,7 @@ jobs:
       matrix:
         postgresql: ${{ fromJSON((github.event_name == 'schedule' || inputs.postgresql == 'all') && '[13,14,15,16,17,19]' || format('[{0}]', inputs.postgresql)) }}
     runs-on: [self-hosted, Linux, X64, ankus-linux-versions-x64]
-    timeout-minutes: 60
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v5
 

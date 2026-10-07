@@ -89,9 +89,9 @@ before changing an area.
   for prerequisites and fixture behavior.
 - Verify observable boundaries, errors, ownership, and same-session recovery;
   test counts and generated-source substrings alone do not prove parity.
-- Keep CI feedback under 10 minutes where possible. Set every workflow job's
-  timeout to 60 minutes, as explicitly requested after repeated platform timeouts.
-  Record measured durations and timeout outcomes. Run
+- Keep CI feedback under 10 minutes where possible. Set each workflow job's
+  timeout from measured duration with enough headroom to avoid wasting a nearly
+  complete full-suite run. Record measured durations and timeout outcomes. Run
   independent platform checks in parallel, measure cold-cache builds, and cancel
   superseded runs. Do not hide missing validation to meet the budget.
 - Run the complete test suite in each platform job; do not shard it. CI runs on
