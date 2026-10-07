@@ -1,6 +1,6 @@
 <Project>
   <Target Name="_SelectAnkusNativeLibrarySuffix" BeforeTargets="SetupOSSpecificProps"
-          DependsOnTargets="ImportRuntimeIlcPackageTarget" Condition="'$(PublishAot)' == 'true'">
+          DependsOnTargets="ImportRuntimeIlcPackageTarget;_ResolveAnkusPostgresSelection" Condition="'$(PublishAot)' == 'true'">
     <!-- PostgreSQL on macOS used .so before PostgreSQL 16. Select the backend's
          name before linker, control-file and publication paths are constructed. -->
     <PropertyGroup Condition="'$(_targetOS)' == 'osx' and '$(AnkusPostgresMajor)' &lt; '16'">
@@ -59,7 +59,7 @@
       <_AnkusCommand>$(_AnkusCommand) &quot;$(CppLinker)&quot; &quot;$(_AnkusLibraries)&quot;</_AnkusCommand>
       <_AnkusCommand>$(_AnkusCommand) &quot;$(AnkusExtensionName)&quot; &quot;$(AnkusExtensionVersion)&quot;</_AnkusCommand>
       <_AnkusCommand>$(_AnkusCommand) &quot;$(NativeBinaryPrefix)$(TargetName)$(NativeBinaryExt)&quot;</_AnkusCommand>
-      <_AnkusCommand>$(_AnkusCommand) &quot;$(RuntimeIdentifier)&quot; &quot;$(AnkusPgConfigPath)&quot;</_AnkusCommand>
+      <_AnkusCommand>$(_AnkusCommand) &quot;$(RuntimeIdentifier)&quot; &quot;$(_AnkusResolvedPgConfigPath)&quot;</_AnkusCommand>
       <_AnkusCommand>$(_AnkusCommand) &quot;$(TargetTriple)&quot;</_AnkusCommand>
       <_AnkusCommand>$(_AnkusCommand) &quot;$(AnkusExtensionControlFile)&quot;</_AnkusCommand>
       <_AnkusCommand>$(_AnkusCommand) &quot;$(_AnkusArtifacts)version-controls.txt&quot;</_AnkusCommand>
@@ -87,7 +87,7 @@
 
   <Target Name="_PrepareAnkusNativeCalls" BeforeTargets="LinkNative" DependsOnTargets="IlcCompile">
     <PropertyGroup>
-      <_AnkusNativeCallsCommand>dotnet &quot;$(_AnkusBuildTool)&quot; binding-link &quot;$(_AnkusBindingsDirectory)native-records.json&quot; &quot;$(AnkusPgConfigPath)&quot; &quot;$(_AnkusArtifacts)&quot;</_AnkusNativeCallsCommand>
+      <_AnkusNativeCallsCommand>dotnet &quot;$(_AnkusBuildTool)&quot; binding-link &quot;$(_AnkusBindingsDirectory)native-records.json&quot; &quot;$(_AnkusResolvedPgConfigPath)&quot; &quot;$(_AnkusArtifacts)&quot;</_AnkusNativeCallsCommand>
       <_AnkusNativeCallsCommand>$(_AnkusNativeCallsCommand) &quot;$(NativeObject)&quot; &quot;$(CppLinker)&quot; &quot;$(_AnkusLibraries)&quot; &quot;$(TargetTriple)&quot;</_AnkusNativeCallsCommand>
       <_AnkusNativeCallsCommand>$(_AnkusNativeCallsCommand) &quot;$(_AnkusBindingCacheDirectory)&quot;</_AnkusNativeCallsCommand>
     </PropertyGroup>

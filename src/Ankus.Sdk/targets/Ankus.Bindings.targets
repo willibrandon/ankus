@@ -3,13 +3,40 @@
     <_AnkusPostgresMajorWasSpecified Condition="'$(AnkusPostgresMajor)' != ''">true</_AnkusPostgresMajorWasSpecified>
     <_AnkusPostgresMajorWasSpecified Condition="'$(_AnkusPostgresMajorWasSpecified)' == ''">false</_AnkusPostgresMajorWasSpecified>
     <AnkusPostgresMajor Condition="'$(AnkusPostgresMajor)' == ''">18</AnkusPostgresMajor>
-    <AnkusResolveBindingsDependsOn>$(AnkusResolveBindingsDependsOn);ResolveReferences;_PrepareAnkusBindingToolchain</AnkusResolveBindingsDependsOn>
+    <AnkusResolveBindingsDependsOn>_ResolveAnkusPostgresSelection;$(AnkusResolveBindingsDependsOn);ResolveReferences;_PrepareAnkusBindingToolchain</AnkusResolveBindingsDependsOn>
   </PropertyGroup>
+
+  <!-- A pg_config path is authoritative when the project did not explicitly select a major.
+       Resolve it before compiler constants, native suffixes and binding inputs consume the fallback. -->
+  <Target Name="_ResolveAnkusPostgresSelection">
+    <PropertyGroup>
+      <_AnkusResolvedPgConfigPath>$(AnkusPgConfigPath)</_AnkusResolvedPgConfigPath>
+      <_AnkusPgConfigDirectory>$([System.IO.Path]::GetDirectoryName('$(AnkusPgConfigPath)'))</_AnkusPgConfigDirectory>
+      <_AnkusResolvedPgConfigPath Condition="'$(_AnkusPgConfigDirectory)' != ''">$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(AnkusPgConfigPath)'))</_AnkusResolvedPgConfigPath>
+    </PropertyGroup>
+    <ItemGroup>
+      <_AnkusPgConfigVersionOutput Remove="@(_AnkusPgConfigVersionOutput)" />
+    </ItemGroup>
+    <Exec Command="&quot;$(_AnkusResolvedPgConfigPath)&quot; --version"
+          Condition="'$(_AnkusResolvedPgConfigPath)' != '' and '$(_AnkusPostgresMajorWasSpecified)' != 'true'"
+          ConsoleToMSBuild="true" StandardOutputImportance="Low">
+      <Output TaskParameter="ConsoleOutput" ItemName="_AnkusPgConfigVersionOutput" />
+    </Exec>
+    <PropertyGroup Condition="'$(_AnkusResolvedPgConfigPath)' != '' and '$(_AnkusPostgresMajorWasSpecified)' != 'true'">
+      <_AnkusPgConfigVersion>@(_AnkusPgConfigVersionOutput)</_AnkusPgConfigVersion>
+      <_AnkusPgConfigMajor>$([System.Text.RegularExpressions.Regex]::Match('$(_AnkusPgConfigVersion)', '[0-9]+').Value)</_AnkusPgConfigMajor>
+    </PropertyGroup>
+    <Error Condition="'$(_AnkusResolvedPgConfigPath)' != '' and '$(_AnkusPostgresMajorWasSpecified)' != 'true' and ('$(_AnkusPgConfigMajor)' == '' or '$(_AnkusPgConfigMajor)' &lt; '13' or '$(_AnkusPgConfigMajor)' &gt; '19')"
+           Text="AnkusPgConfigPath must identify a supported PostgreSQL 13–19 installation." />
+    <PropertyGroup Condition="'$(_AnkusResolvedPgConfigPath)' != '' and '$(_AnkusPostgresMajorWasSpecified)' != 'true'">
+      <AnkusPostgresMajor>$(_AnkusPgConfigMajor)</AnkusPostgresMajor>
+    </PropertyGroup>
+  </Target>
 
   <!-- Resolve after project evaluation so consumer and Directory.Build.targets overrides apply.
        Direct compiler entry points also need the selected-header symbol. -->
   <Target Name="_AddAnkusPostgresDefineConstants" AfterTargets="PrepareForBuild"
-          BeforeTargets="BeforeCompile;CoreCompile">
+          BeforeTargets="BeforeCompile;CoreCompile" DependsOnTargets="_ResolveAnkusPostgresSelection">
     <PropertyGroup>
       <DefineConstants>$(DefineConstants);ANKUS_PG$(AnkusPostgresMajor)</DefineConstants>
     </PropertyGroup>
@@ -50,7 +77,7 @@
       <_AnkusBindingsTargetTriple>@(_AnkusBindingToolchain->'%(TargetTriple)')</_AnkusBindingsTargetTriple>
       <!-- A final dot preserves quoted Windows directory arguments with a trailing backslash. -->
       <_AnkusBindingCacheDirectory Condition="'$(AnkusBindingCacheDirectory)' != ''">$([MSBuild]::EnsureTrailingSlash('$(AnkusBindingCacheDirectory)')).</_AnkusBindingCacheDirectory>
-      <_AnkusBindingsCommand>dotnet &quot;$(_AnkusBuildTool)&quot; binding-sources &quot;$(AnkusPostgresMajor)&quot; &quot;$(AnkusPgConfigPath)&quot; &quot;$(_AnkusBindingsOutput)&quot;</_AnkusBindingsCommand>
+      <_AnkusBindingsCommand>dotnet &quot;$(_AnkusBuildTool)&quot; binding-sources &quot;$(AnkusPostgresMajor)&quot; &quot;$(_AnkusResolvedPgConfigPath)&quot; &quot;$(_AnkusBindingsOutput)&quot;</_AnkusBindingsCommand>
       <_AnkusBindingsCommand>$(_AnkusBindingsCommand) &quot;$(_AnkusBindingsCompiler)&quot; &quot;$(_AnkusBindingsLibraries)&quot; &quot;$(RuntimeIdentifier)&quot; &quot;$(_AnkusBindingsTargetTriple)&quot;</_AnkusBindingsCommand>
       <_AnkusBindingsCommand>$(_AnkusBindingsCommand) &quot;$(AnkusClangPath)&quot; &quot;$(AnkusLibClangPath)&quot;</_AnkusBindingsCommand>
       <_AnkusBindingsCommand>$(_AnkusBindingsCommand) &quot;$(_AnkusBindingCacheDirectory)&quot;</_AnkusBindingsCommand>

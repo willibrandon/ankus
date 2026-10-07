@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
@@ -9,9 +11,9 @@ namespace Ankus.Generators;
 /// </summary>
 /// <param name="Path">The source tree's physical path.</param>
 /// <param name="TreeOccurrence">The occurrence among source trees sharing that exact path.</param>
-/// <param name="MemberIndex">The declaration ordinal, or minus one for a compilation-unit location.</param>
+/// <param name="MemberKey">The stable declaration-header path, or null for a compilation-unit location.</param>
 /// <param name="Span">The exact source span relative to its enclosing declaration.</param>
-internal readonly record struct GeneratorLocation(string Path, int TreeOccurrence, int MemberIndex, TextSpan Span)
+internal readonly record struct GeneratorLocation(string Path, int TreeOccurrence, string? MemberKey, TextSpan Span)
 {
     /// <summary>
     /// Detaches a source location from the semantic analysis that produced it.
@@ -34,9 +36,8 @@ internal readonly record struct GeneratorLocation(string Path, int TreeOccurrenc
                 SyntaxNode root = tree.GetRoot();
                 MemberDeclarationSyntax? member = root.FindNode(location.SourceSpan).AncestorsAndSelf()
                     .OfType<MemberDeclarationSyntax>().FirstOrDefault();
-                int index = member is null ? -1 : Array.FindIndex(Members(root), candidate => candidate == member);
                 SyntaxNode anchor = member ?? root;
-                return new(tree.FilePath, occurrence, index,
+                return new(tree.FilePath, occurrence, member is null ? null : Key(member),
                     new TextSpan(location.SourceSpan.Start - anchor.SpanStart, location.SourceSpan.Length));
             }
 
@@ -59,8 +60,44 @@ internal readonly record struct GeneratorLocation(string Path, int TreeOccurrenc
         string path = Path;
         SyntaxTree tree = compilation.SyntaxTrees.Where(tree => tree.FilePath == path).ElementAt(TreeOccurrence);
         SyntaxNode root = tree.GetRoot();
-        SyntaxNode anchor = MemberIndex < 0 ? root : Members(root)[MemberIndex];
+        string? memberKey = MemberKey;
+        SyntaxNode anchor = memberKey is null ? root : Members(root).Single(member => Key(member) == memberKey);
         return Location.Create(tree, new TextSpan(anchor.SpanStart + Span.Start, Span.Length));
+    }
+
+    /// <summary>
+    /// Builds a declaration path from whitespace-independent headers and same-header sibling occurrences.
+    /// </summary>
+    /// <param name="member">The declaration whose stable source anchor is required.</param>
+    /// <returns>The declaration key, independent of unrelated member insertion and implementation-body length.</returns>
+    internal static string Key(MemberDeclarationSyntax member)
+    {
+        var key = new StringBuilder();
+        foreach (MemberDeclarationSyntax part in member.AncestorsAndSelf().OfType<MemberDeclarationSyntax>().Reverse())
+        {
+            string header = Header(part);
+            int occurrence = 0;
+            if (part.Parent is SyntaxNode parent)
+            {
+                foreach (MemberDeclarationSyntax sibling in parent.ChildNodes().OfType<MemberDeclarationSyntax>())
+                {
+                    if (sibling == part)
+                    {
+                        break;
+                    }
+
+                    if (Header(sibling) == header)
+                    {
+                        occurrence++;
+                    }
+                }
+            }
+
+            key.Append(header.Length.ToString(CultureInfo.InvariantCulture)).Append(':').Append(header)
+                .Append('#').Append(occurrence.ToString(CultureInfo.InvariantCulture)).Append(';');
+        }
+
+        return key.ToString();
     }
 
     /// <summary>
@@ -71,6 +108,41 @@ internal readonly record struct GeneratorLocation(string Path, int TreeOccurrenc
     internal static MemberDeclarationSyntax[] Members(SyntaxNode root)
         => [.. root.DescendantNodes(static node => node is not BaseMethodDeclarationSyntax and not AccessorDeclarationSyntax
             and not AnonymousFunctionExpressionSyntax).OfType<MemberDeclarationSyntax>()];
+
+    /// <summary>
+    /// Encodes tokens through a declaration's implementation boundary without source trivia.
+    /// </summary>
+    private static string Header(MemberDeclarationSyntax member)
+    {
+        int end = member switch
+        {
+            BaseMethodDeclarationSyntax { Body: { } body } => body.SpanStart,
+            BaseMethodDeclarationSyntax { ExpressionBody: { } expression } => expression.SpanStart,
+            PropertyDeclarationSyntax { AccessorList: { } accessors } => accessors.SpanStart,
+            PropertyDeclarationSyntax { ExpressionBody: { } expression } => expression.SpanStart,
+            IndexerDeclarationSyntax { AccessorList: { } accessors } => accessors.SpanStart,
+            IndexerDeclarationSyntax { ExpressionBody: { } expression } => expression.SpanStart,
+            EventDeclarationSyntax { AccessorList: { } accessors } => accessors.SpanStart,
+            TypeDeclarationSyntax { OpenBraceToken.IsMissing: false } type => type.OpenBraceToken.SpanStart,
+            EnumDeclarationSyntax { OpenBraceToken.IsMissing: false } type => type.OpenBraceToken.SpanStart,
+            NamespaceDeclarationSyntax { OpenBraceToken.IsMissing: false } space => space.OpenBraceToken.SpanStart,
+            _ => member.Span.End,
+        };
+        var header = new StringBuilder();
+        foreach (SyntaxToken token in member.DescendantTokens(descendIntoTrivia: false))
+        {
+            if (token.SpanStart >= end)
+            {
+                break;
+            }
+
+            string text = token.Text;
+            header.Append(token.RawKind.ToString(CultureInfo.InvariantCulture)).Append(':')
+                .Append(text.Length.ToString(CultureInfo.InvariantCulture)).Append(':').Append(text).Append(';');
+        }
+
+        return header.ToString();
+    }
 
     /// <summary>
     /// Resolves graph attribution without retaining or consulting a compiler object.

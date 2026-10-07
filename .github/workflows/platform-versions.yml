@@ -103,7 +103,7 @@ jobs:
             postgresql: 18
     runs-on: [self-hosted, '${{ matrix.runner }}']
     concurrency:
-      group: ${{ matrix.runner == 'ankus-macos-arm64' && 'ankus-macos-arm64-full-suite' || format('{0}-{1}-{2}-{3}', github.workflow, github.run_id, matrix.rid, matrix.postgresql) }}
+      group: ${{ matrix.runner == 'ankus-macos-arm64' && 'ankus-macos-arm64-full-suite' || matrix.runner == 'ankus-windows-x64' && matrix.postgresql == 13 && 'ankus-windows-x64-full-suite-a' || matrix.runner == 'ankus-windows-x64' && 'ankus-windows-x64-full-suite-b' || format('{0}-{1}-{2}-{3}', github.workflow, github.run_id, matrix.rid, matrix.postgresql) }}
       cancel-in-progress: false
     timeout-minutes: 120
     steps:

@@ -42,7 +42,8 @@ internal sealed record GeneratorSourceMap(EquatableArray<GeneratorSourceMap.Entr
         var entries = new List<Entry>();
         foreach (GeneratorLocation location in locations.Where(static location => location.HasValue).Select(static location => location!.Value)
             .Distinct().OrderBy(static location => location.Path, StringComparer.Ordinal).ThenBy(static location => location.TreeOccurrence)
-            .ThenBy(static location => location.MemberIndex).ThenBy(static location => location.Span.Start).ThenBy(static location => location.Span.Length))
+            .ThenBy(static location => location.MemberKey, StringComparer.Ordinal).ThenBy(static location => location.Span.Start)
+            .ThenBy(static location => location.Span.Length))
         {
             cancellationToken.ThrowIfCancellationRequested();
             Location source = sources[(location.Path, location.TreeOccurrence)].Resolve(location);

@@ -131,9 +131,10 @@ the runner's default `PGROOT` or store device paths in tracked files.
 
 Check every installation with `postgresql-check` before dispatch. Each matrix
 cell runs the entire suite against its selected real server, with a 120-minute
-timeout and separate result artifacts. macOS ARM64 suites share a concurrency
-group because their runner services use one physical disk. Windows cells and
-independent machines can run simultaneously. Runtime artifacts reuse
+timeout and separate result artifacts. macOS ARM64 suites share one concurrency
+group. Windows suites share two concurrency lanes across the available runner
+services so independent cells overlap without saturating one physical host.
+Independent machines can run simultaneously. Runtime artifacts reuse
 the primary workflow's verified runtime cache. Failures do not cancel other
 cells, and there is no cancellation of earlier runs. Both actors must be the
 repository owner on `main`, and the workflow has no pull-request trigger.

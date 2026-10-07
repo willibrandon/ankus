@@ -8,8 +8,8 @@ namespace Ankus.Generators;
 /// </summary>
 /// <param name="Tree">The compiler tree retained only inside source-position analysis.</param>
 /// <param name="RootStart">The compilation-unit anchor for assembly attributes.</param>
-/// <param name="MemberStarts">Declaration starts in the coordinate system used by diagnostic inputs.</param>
-internal sealed record GeneratorSourceTree(SyntaxTree Tree, int RootStart, EquatableArray<int> MemberStarts)
+/// <param name="Members">Stable declaration keys and starts in the coordinate system used by diagnostic inputs.</param>
+internal sealed record GeneratorSourceTree(SyntaxTree Tree, int RootStart, EquatableArray<GeneratorSourceTree.MemberAnchor> Members)
 {
     /// <summary>
     /// Enumerates a source tree's declaration anchors once, independently of unrelated tree edits.
@@ -20,7 +20,8 @@ internal sealed record GeneratorSourceTree(SyntaxTree Tree, int RootStart, Equat
     internal static GeneratorSourceTree Create(SyntaxTree tree, CancellationToken cancellationToken)
     {
         SyntaxNode root = tree.GetRoot(cancellationToken);
-        return new(tree, root.SpanStart, new(GeneratorLocation.Members(root).Select(static member => member.SpanStart)));
+        return new(tree, root.SpanStart, new(GeneratorLocation.Members(root)
+            .Select(static member => new MemberAnchor(GeneratorLocation.Key(member), member.SpanStart))));
     }
 
     /// <summary>
@@ -30,7 +31,14 @@ internal sealed record GeneratorSourceTree(SyntaxTree Tree, int RootStart, Equat
     /// <returns>The current compiler location used only by source attribution analysis.</returns>
     internal Location Resolve(GeneratorLocation coordinates)
     {
-        int anchor = coordinates.MemberIndex < 0 ? RootStart : MemberStarts[coordinates.MemberIndex];
+        int anchor = coordinates.MemberKey is null ? RootStart : Members.Single(member => member.Key == coordinates.MemberKey).Start;
         return Location.Create(Tree, new TextSpan(anchor + coordinates.Span.Start, coordinates.Span.Length));
     }
+
+    /// <summary>
+    /// Retains one stable declaration identity and its current source start.
+    /// </summary>
+    /// <param name="Key">The declaration-header path.</param>
+    /// <param name="Start">The declaration's current source start.</param>
+    internal sealed record MemberAnchor(string Key, int Start);
 }

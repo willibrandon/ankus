@@ -73,7 +73,7 @@ defines the full scope; family-level implementation is not API-by-API completion
 | Workers and shared memory | Native signal globals, lifecycle/transaction boundaries and shared memory. Idle Wait recovers repeated real cancellation; transaction waits still abort and terminal reports remain sticky. Complete primary-platform CI passes. | Full source-contract and complete version/platform acceptance remain required. |
 | Functions and callbacks | Scalar/array/SETOF/TABLE, triggers/events, lifecycle, native callbacks, operators/conversions and installation-schema search paths. | Full upstream declaration/option audit and complete version/platform evidence. |
 | Aggregates and SQL graph | Static abstract aggregate capabilities, typed Requires/Before/SupportFunction references, deterministic SQL provenance and extended module magic. Empty SQL dependency anchors and exact authored CR/CRLF values pass complete native acceptance. | Remaining precise provider/graph diagnostics, inventoried contracts and complete version/platform acceptance. |
-| Generator caching | Detached equatable declaration/provider/reference models, declaration-relative locations and cached dispatcher/C/SQL artifacts across multi-declaration body edits and unrelated file insertion. Only selected SQL files are read, with the complete path catalog retained. | Inserting an unrelated member earlier in a file still invalidates composition. Broader precise diagnostics, useful semantic code fixes and final inventory audit remain required. |
+| Generator caching | Detached equatable declaration/provider/reference models, stable declaration-header locations and cached dispatcher/C/SQL artifacts across multi-declaration body edits, unrelated member insertion and unrelated file insertion. Only selected SQL files are read, with the complete path catalog retained. | Broader precise diagnostics, useful semantic code fixes and final inventory audit remain required. |
 | Values and ownership | Documented scalar, array, composite, temporal, JSON, network, geometry, custom codec and raw datum contracts. Interval equality, hashing and ordering agree with PostgreSQL while retaining exact components; complete primary-platform CI passes. | Remaining mapped/container contracts, parsing/formatting ergonomics and complete source-case mapping remain required. |
 | Runtime performance | Owned binary PgNumeric, direct decimal coefficient encoding, constant-time fixed-width array indexing, and a measured native guard for allowlisted pure built-ins. Catalog-miss errors require actual rollback; real-resource regressions and complete primary-platform CI pass. Persistent in-backend benchmarks provide batching, transaction modes and statistical baseline comparisons. | Complete current guard supported-version acceptance. Extend that tier only where ownership proofs and measurements justify it. Never weaken error recovery to reduce overhead. |
 | Native bindings | pgrx 0.19.3 inventories, matching PostgreSQL 19 beta 4 inputs and target-compiler ABI checks; typed pointers and ANKUS129 make raw caller obligations explicit. Complete current primary-platform compositions pass, with focused binding checks on all seven majors. | Full supported-major/platform tests and final inventory audit. |
@@ -258,40 +258,52 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   installation. Generated literals now emit explicit `\\r` and `\\n` escapes;
   the exact publication case and all four datetime cases pass **5/5** on
   PostgreSQL 18.
-- Earlier-member cache investigation confirms that declaration ordinals change
-  after unrelated insertions. Stable header identities and exact-current-span
-  regression tests are drafted separately; they have no execution evidence yet.
+- Generator source coordinates now use stable, trivia-independent declaration
+  header paths instead of ordinals among every member. Inserting an unrelated
+  field, method, nested type or earlier source tree keeps final composition and
+  rendering cached, while cached diagnostics resolve the exact current span.
+  The complete generator module passes **4,480/4,480** on Linux x64. The clean
+  Linux x64/PostgreSQL 18 complete suite passes **13,468 total / 13,420 succeeded /
+  48 skipped / 0 failed** in **43m35s**. The Release build succeeds with zero
+  warnings and errors in **1m11s**.
 - The pgrx **bc09b536** cargo-option delta is reconciled through Ankus's
   repeatable `--property` / `-p` boundary. Properties now reach automatic-response
   project discovery, restore, every build command, benchmark selection, the managed
   test build and nested Native AOT fixture publication. Custom restore configuration,
   package and intermediate roots with spaces, response-file precedence, repeated
   values, schema no-build reuse and relative `pg_config` selection have source cases.
-  The SDK now distinguishes its PostgreSQL 18 fallback from an authored major, so a
-  path-only project uses the executable's actual major. Local and complete-suite
-  acceptance now passes. Focused build, generator, command-selection,
-  response-file and nested-publication validation passes, including **26/26**
-  remaining PostgreSQL selection cases. A clean Linux x64/PostgreSQL 18 complete
-  suite passes **13,465 total / 13,417 succeeded / 48 skipped / 0 failed** in
-  **38m19s**. Two earlier attempts are rejected as evidence: one exhausted the
-  filesystem, and one placed generated consumer projects inside the repository,
-  causing them to inherit repository-only build policy.
+  The SDK now distinguishes its PostgreSQL 18 fallback from an authored major,
+  normalizes a relative `pg_config` against the project and derives the major from
+  that executable only when the project did not author one. Focused build,
+  generator, command-selection, response-file and nested-publication validation
+  passes, including all **11** affected Windows x64/PostgreSQL 17 cases. The exact
+  current Linux x64/PostgreSQL 18 source passes **13,468 total / 13,420 succeeded /
+  48 skipped / 0 failed**; its integration module completes in **27m21s**. Two
+  earlier local attempts are rejected as evidence: one exhausted the filesystem,
+  and one placed generated consumer projects inside the repository, causing them
+  to inherit repository-only build policy.
 - Linux x64 run **37581568110** passes the complete suite against PostgreSQL
   **13, 14, 15, 16, 17 and 19** at `557a470`; the primary PostgreSQL 18 cell in
   run **37580394349** also passes. The slowest compatibility cell completed in
   **73m54s**, validating the measured 120-minute job limit.
 - Primary run **37580394349** passes quality, all runtime jobs, Linux/PostgreSQL
-  18 and macOS ARM64/PostgreSQL 18. Windows/PostgreSQL 17 rejected one test-only
-  expectation: PostgreSQL 17 preserves authored CRLF script values, while the
-  normalization under test begins with PostgreSQL 18. The corrected assertion is
-  version-gated; replacement complete Windows evidence remains pending.
+  18 and macOS ARM64/PostgreSQL 18. Its Windows-only PostgreSQL 17 newline
+  expectation is corrected and passes in the newer run. Primary run
+  **37600534091** at `0a5f02f` passes quality, all runtime jobs, Linux and macOS,
+  but rejects four Windows cases: the SDK retained its fallback major for a
+  path-only project, isolated `pg_config.exe` fixtures omitted adjacent DLLs, and
+  three simultaneous full Windows suites starved a bounded collision test. The
+  fixes derive the implicit major from `pg_config`, copy its Windows runtime DLLs
+  and use two cross-workflow Windows full-suite lanes. Replacement complete
+  Windows evidence remains pending.
   Platform-version run **37583027994** is also rejected as acceptance evidence:
   concurrent macOS ARM64/PostgreSQL 15 and 16 jobs exhausted their shared disk.
   The retained PG16 failures are all write failures after the disk filled, and
   the PG15 unit reports contain no product-test failures. Stale generated data
   was removed, both runner services now share the concurrency-safe binding cache,
   and macOS ARM64 full suites serialize across primary and compatibility
-  workflows. Independent Windows cells remain parallel. Self-hosted test jobs
+  workflows. Windows suites use two concurrency lanes, so two remain parallel
+  without scheduling three complete suites on one host. Self-hosted test jobs
   clean ignored and untracked checkout outputs after uploading reports.
 
 Remaining diagnostics/code fixes, source-case mapping, samples, API and CLI

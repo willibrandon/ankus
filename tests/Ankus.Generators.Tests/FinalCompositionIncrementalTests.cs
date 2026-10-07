@@ -56,7 +56,31 @@ public sealed partial class PgFunctionGeneratorTests
     }
 
     /// <summary>
-    /// Cached later diagnostics resolve exact current spans after an earlier body grows and a tree is inserted.
+    /// Inserting an unrelated declaration before a function does not change its source identity.
+    /// </summary>
+    /// <param name="declaration">The unrelated declaration inserted earlier in the same containing type.</param>
+    [TestMethod]
+    [DataRow("private const int Helper = 1; ")]
+    [DataRow("private static int Helper() => 1; ")]
+    [DataRow("private sealed class Helper { } ")]
+    public void FinalCompositionCachesAfterEarlierMemberInsertion(string declaration)
+    {
+        const string Source = "public static class Functions { [Ankus.PgFunction] public static int Answer() => 42; }";
+        CSharpCompilation initial = ModuleCompilation(Source);
+        GeneratorDriver driver = RunModule(ModuleDriver(), initial, out Compilation first);
+        string editedSource = Source.Replace("[Ankus.PgFunction]", declaration + "[Ankus.PgFunction]", StringComparison.Ordinal);
+        driver = RunModule(driver, initial.ReplaceSyntaxTree(initial.SyntaxTrees.Single(), CSharpSyntaxTree.ParseText(
+            editedSource, path: "Module.cs", cancellationToken: context.CancellationToken)), out Compilation second);
+
+        Assert.AreEqual(42, InvokeSqlReferenceAnswer(second));
+        Assert.AreEqual(IncrementalStepRunReason.Cached, ModuleStep(driver, "ExtensionComposition"));
+        AssertFinalRenderingCached(driver);
+        Assert.AreEqual(ManifestValue(first, "Ankus.NativeSource"), ManifestValue(second, "Ankus.NativeSource"));
+        Assert.AreEqual(ManifestValue(first, "Ankus.SqlGraph"), ManifestValue(second, "Ankus.SqlGraph"));
+    }
+
+    /// <summary>
+    /// Cached later diagnostics resolve exact current spans after an earlier member and source tree are inserted.
     /// </summary>
     [TestMethod]
     public void FinalCompositionCachedDiagnosticsFollowLaterDeclarations()
@@ -68,7 +92,8 @@ public sealed partial class PgFunctionGeneratorTests
             context.CancellationToken);
         Diagnostic previous = Assert.ContainsSingle(first);
         Assert.AreEqual("ANKUS039", previous.Id);
-        string replacement = Source.Replace("=> 41;", "=> 42 + 0;", StringComparison.Ordinal);
+        string replacement = Source.Replace("[Ankus.PgFunction] public static Missing",
+            "private static int Helper() => 1; [Ankus.PgFunction] public static Missing", StringComparison.Ordinal);
         SyntaxTree current = CSharpSyntaxTree.ParseText(replacement, path: "Module.cs", cancellationToken: context.CancellationToken);
         SyntaxTree earlier = CSharpSyntaxTree.ParseText("internal static class Earlier { }", path: "Earlier.cs",
             cancellationToken: context.CancellationToken);

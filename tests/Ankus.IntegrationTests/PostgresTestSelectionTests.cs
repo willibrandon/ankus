@@ -427,12 +427,7 @@ public sealed partial class ToolCommandTests
             </Project>
             """, context.CancellationToken);
         string selectedDirectory = Directory.CreateDirectory(Path.Combine(root, "selected-postgres")).FullName;
-        string selectedPgConfig = Path.Combine(selectedDirectory, Path.GetFileName(s_installation.PgConfigPath));
-        File.Copy(s_installation.PgConfigPath, selectedPgConfig);
-        if (!OperatingSystem.IsWindows())
-        {
-            File.SetUnixFileMode(selectedPgConfig, File.GetUnixFileMode(s_installation.PgConfigPath));
-        }
+        string selectedPgConfig = CopyRunnablePgConfig(selectedDirectory);
 
         string relative = Path.GetRelativePath(root, selectedPgConfig);
         Assert.IsFalse(Path.IsPathFullyQualified(relative));
@@ -457,12 +452,7 @@ public sealed partial class ToolCommandTests
     {
         string root = CreateDirectory();
         string selectedDirectory = Directory.CreateDirectory(Path.Combine(root, "selected-postgres")).FullName;
-        string selectedPgConfig = Path.Combine(selectedDirectory, Path.GetFileName(s_installation.PgConfigPath));
-        File.Copy(s_installation.PgConfigPath, selectedPgConfig);
-        if (!OperatingSystem.IsWindows())
-        {
-            File.SetUnixFileMode(selectedPgConfig, File.GetUnixFileMode(s_installation.PgConfigPath));
-        }
+        string selectedPgConfig = CopyRunnablePgConfig(selectedDirectory);
 
         string project = Path.Combine(root, "Metadata.csproj");
         await File.WriteAllTextAsync(project, $$"""
@@ -480,6 +470,31 @@ public sealed partial class ToolCommandTests
         Assert.AreEqual(0, result.ExitCode, result.StandardOutput + result.StandardError);
         Assert.Contains("selection_pg" + MajorText(), result.StandardOutput);
         Assert.IsFalse(Directory.Exists(Path.Combine(root, "bin")));
+    }
+
+    /// <summary>
+    /// Copies pg_config with the adjacent runtime libraries required by Windows installations.
+    /// </summary>
+    /// <param name="destinationDirectory">The isolated directory that receives the executable.</param>
+    /// <returns>The copied pg_config path.</returns>
+    private static string CopyRunnablePgConfig(string destinationDirectory)
+    {
+        string selectedPgConfig = Path.Combine(destinationDirectory, Path.GetFileName(s_installation.PgConfigPath));
+        File.Copy(s_installation.PgConfigPath, selectedPgConfig);
+        if (OperatingSystem.IsWindows())
+        {
+            string sourceDirectory = Path.GetDirectoryName(s_installation.PgConfigPath)!;
+            foreach (string dependency in Directory.EnumerateFiles(sourceDirectory, "*.dll"))
+            {
+                File.Copy(dependency, Path.Combine(destinationDirectory, Path.GetFileName(dependency)));
+            }
+        }
+        else
+        {
+            File.SetUnixFileMode(selectedPgConfig, File.GetUnixFileMode(s_installation.PgConfigPath));
+        }
+
+        return selectedPgConfig;
     }
 
     /// <summary>
