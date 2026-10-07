@@ -38,6 +38,9 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
+      - name: Prepare LLVM header frontend
+        run: dotnet run --file ./eng/Ankus.Ci.cs -- header-frontend-setup
+
       - name: Read runtime identity
         id: runtime
         run: dotnet run --file ./eng/Ankus.Ci.cs -- metadata

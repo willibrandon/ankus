@@ -132,6 +132,12 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
 
 ## Active validation and work
 
+- Refreshed supported-major run **37573419284** failed before test execution
+  because the dedicated Linux version runner selected Clang 19 after header
+  collection began requiring the LLVM 20 declaration-only frontend. The run was
+  cancelled. Version CI now prepares LLVM 20 or later once before its parallel
+  jobs start, and Linux selection prefers any installed supported toolchain.
+  Replacement 13–17 and 19 evidence is pending.
 - **aa49c7d** passes complete primary CI; its docs run also passes. All eighteen platform reports
   and native recovery, datetime, SQL, function-provider, callback, prefix and
   module-identity partitions independently verify.

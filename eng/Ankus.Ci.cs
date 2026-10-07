@@ -117,6 +117,10 @@ try
             VerifyHeaderFrontend(args[1]);
             break;
 
+        case "header-frontend-setup":
+            ConfigureHeaderFrontend(repositoryRoot);
+            break;
+
         case "postgresql-check":
             RequireArguments(args, 3);
             VerifyPostgreSqlVersion(args[1]);
@@ -756,36 +760,15 @@ static void ConfigureWindowsToolchain()
 static void ConfigureHeaderFrontend(string repositoryRoot)
 {
     string directory;
-    if ((OperatingSystem.IsLinux() || OperatingSystem.IsMacOS()) &&
+    if (OperatingSystem.IsLinux())
+    {
+        directory = FindLinuxHeaderFrontendDirectory() ?? InstallLinuxHeaderFrontend(repositoryRoot);
+    }
+    else if (OperatingSystem.IsMacOS() &&
         Environment.GetEnvironmentVariable("RUNNER_ENVIRONMENT") == "self-hosted")
     {
         string resourceDirectory = Capture("clang", ["-print-resource-dir"]);
         directory = Path.GetFullPath(Path.Combine(resourceDirectory, "..", "..", "..", "bin"));
-    }
-    else if (OperatingSystem.IsLinux())
-    {
-        Dictionary<string, string> operatingSystem = File.ReadAllLines("/etc/os-release")
-            .Select(static line => line.Split('=', 2))
-            .Where(static parts => parts.Length == 2)
-            .ToDictionary(static parts => parts[0], static parts => parts[1].Trim('"'), StringComparer.Ordinal);
-        string codeName = operatingSystem.GetValueOrDefault("VERSION_CODENAME")
-            ?? throw new InvalidOperationException("VERSION_CODENAME is missing from /etc/os-release.");
-        string temporaryDirectory = Path.Combine(repositoryRoot, "artifacts", "ci");
-        Directory.CreateDirectory(temporaryDirectory);
-        string keyPath = Path.Combine(temporaryDirectory, "llvm.asc");
-        string sourcePath = Path.Combine(temporaryDirectory, "llvm.list");
-        using (HttpClient client = new())
-        {
-            File.WriteAllBytes(keyPath, client.GetByteArrayAsync("https://apt.llvm.org/llvm-snapshot.gpg.key").GetAwaiter().GetResult());
-        }
-
-        File.WriteAllText(sourcePath,
-            $"deb [signed-by=/usr/share/keyrings/llvm.gpg] https://apt.llvm.org/{codeName}/ llvm-toolchain-{codeName}-20 main{Environment.NewLine}");
-        Run("sudo", ["gpg", "--dearmor", "--yes", "--output", "/usr/share/keyrings/llvm.gpg", keyPath]);
-        Run("sudo", ["install", "-m", "644", sourcePath, "/etc/apt/sources.list.d/llvm.list"]);
-        Run("sudo", ["apt-get", "update"]);
-        Run("sudo", ["apt-get", "install", "--yes", "--no-install-recommends", "clang-20", "libclang-20-dev"]);
-        directory = "/usr/lib/llvm-20/bin";
     }
     else if (OperatingSystem.IsMacOS())
     {
@@ -810,6 +793,68 @@ static void ConfigureHeaderFrontend(string repositoryRoot)
     string pathFile = Environment.GetEnvironmentVariable("GITHUB_PATH")
         ?? throw new InvalidOperationException("GITHUB_PATH is required.");
     File.AppendAllText(pathFile, directory + Environment.NewLine);
+}
+
+static string? FindLinuxHeaderFrontendDirectory()
+{
+    string? selected = FindOnPath("clang");
+    if (selected is not null && HeaderFrontendMajor(selected) >= 20)
+    {
+        return Path.GetDirectoryName(Path.GetFullPath(selected));
+    }
+
+    if (!Directory.Exists("/usr/lib"))
+    {
+        return null;
+    }
+
+    return Directory.EnumerateDirectories("/usr/lib", "llvm-*")
+        .Select(static path => (Path: path, Major: ParseLlvmDirectoryMajor(path)))
+        .Where(static candidate => candidate.Major >= 20 && File.Exists(Path.Combine(candidate.Path, "bin", "clang")))
+        .OrderByDescending(static candidate => candidate.Major)
+        .Select(static candidate => Path.Combine(candidate.Path, "bin"))
+        .FirstOrDefault();
+}
+
+static int ParseLlvmDirectoryMajor(string path)
+{
+    string name = Path.GetFileName(path);
+    return name.StartsWith("llvm-", StringComparison.Ordinal) &&
+        int.TryParse(name.AsSpan("llvm-".Length), out int major) ? major : 0;
+}
+
+static int HeaderFrontendMajor(string compiler)
+{
+    string version = Capture(compiler, ["-dumpversion"]);
+    int separator = version.IndexOf('.');
+    ReadOnlySpan<char> major = separator < 0 ? version.AsSpan() : version.AsSpan(0, separator);
+    return int.TryParse(major, out int value) ? value : 0;
+}
+
+static string InstallLinuxHeaderFrontend(string repositoryRoot)
+{
+    Dictionary<string, string> operatingSystem = File.ReadAllLines("/etc/os-release")
+        .Select(static line => line.Split('=', 2))
+        .Where(static parts => parts.Length == 2)
+        .ToDictionary(static parts => parts[0], static parts => parts[1].Trim('"'), StringComparer.Ordinal);
+    string codeName = operatingSystem.GetValueOrDefault("VERSION_CODENAME")
+        ?? throw new InvalidOperationException("VERSION_CODENAME is missing from /etc/os-release.");
+    string temporaryDirectory = Path.Combine(repositoryRoot, "artifacts", "ci");
+    Directory.CreateDirectory(temporaryDirectory);
+    string keyPath = Path.Combine(temporaryDirectory, "llvm.asc");
+    string sourcePath = Path.Combine(temporaryDirectory, "llvm.list");
+    using (HttpClient client = new())
+    {
+        File.WriteAllBytes(keyPath, client.GetByteArrayAsync("https://apt.llvm.org/llvm-snapshot.gpg.key").GetAwaiter().GetResult());
+    }
+
+    File.WriteAllText(sourcePath,
+        $"deb [signed-by=/usr/share/keyrings/llvm.gpg] https://apt.llvm.org/{codeName}/ llvm-toolchain-{codeName}-20 main{Environment.NewLine}");
+    Run("sudo", ["gpg", "--dearmor", "--yes", "--output", "/usr/share/keyrings/llvm.gpg", keyPath]);
+    Run("sudo", ["install", "-m", "644", sourcePath, "/etc/apt/sources.list.d/llvm.list"]);
+    Run("sudo", ["apt-get", "update"]);
+    Run("sudo", ["apt-get", "install", "--yes", "--no-install-recommends", "clang-20", "libclang-20-dev"]);
+    return "/usr/lib/llvm-20/bin";
 }
 
 static void ConfigureMacOsSdk()

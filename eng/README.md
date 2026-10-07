@@ -27,6 +27,7 @@ repository root with `dotnet run --file`.
 | `runtime-test-build` | Prepare the staged runtime's PostgreSQL toolchain and build all test projects before saving CI caches. |
 | `windows-toolchain` | Select the latest supported Visual Studio installation with C++ x64 tools and export its developer environment to later CI steps. |
 | `runtime-test-run` | Run every already-built test module using the PostgreSQL and compiler environment prepared by `runtime-test-build`. |
+| `header-frontend-setup` | Select LLVM 20 or later and install LLVM 20 on Linux when no supported compiler is present. |
 | `header-frontend-check` | Check an explicit Clang executable for the declaration-only frontend required by header collection. |
 | `postgresql-check` | Check an explicit PostgreSQL 13–19 `pg_config` for its selected major and server headers without installing packages. |
 | `unit-test` | Build and run the five unit test modules. |
@@ -49,8 +50,9 @@ Use `--` before command arguments:
 dotnet run --file ./eng/Ankus.Ci.cs -- metadata
 ```
 
-`runtime-test` installs and selects LLVM 20 on hosted Linux and macOS, and uses
-dedicated Linux/macOS runners' Clang on PATH or the Windows runner's LLVM installation.
+`runtime-test` selects an installed LLVM 20 or later on Linux, installing LLVM 20
+when necessary. It installs LLVM 20 on hosted macOS, and uses dedicated macOS
+runners' Clang on PATH or the Windows runner's LLVM installation.
 It prints the compiler version and verifies
 `-skip-function-bodies` support before building or running tests. The platform
 default Clang can be too old even when Native AOT compilation works. Check a local
