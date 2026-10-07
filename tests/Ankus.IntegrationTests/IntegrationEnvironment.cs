@@ -245,7 +245,7 @@ internal static class IntegrationEnvironment
         string? value = Environment.GetEnvironmentVariable("ANKUS_PACKAGE_TEST_CONCURRENCY");
         if (string.IsNullOrWhiteSpace(value))
         {
-            return 3;
+            return Math.Clamp((Environment.ProcessorCount + 1) / 2, 1, 16);
         }
 
         if (!int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out int concurrency) || concurrency < 1)
