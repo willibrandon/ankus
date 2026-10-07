@@ -30,10 +30,13 @@ internal static class PackageProcessRunner
 
         try
         {
+            IReadOnlyDictionary<string, string?> processEnvironment = reserve
+                ? DisableMsBuildNodeReuse(environment)
+                : environment;
             return await ProcessRunner.RunAsync(
                 fileName,
                 arguments,
-                environment,
+                processEnvironment,
                 cancellationToken,
                 captureOutput,
                 workingDirectory);
@@ -45,6 +48,19 @@ internal static class PackageProcessRunner
                 s_slots.Release();
             }
         }
+    }
+
+    private static Dictionary<string, string?> DisableMsBuildNodeReuse(
+        IReadOnlyDictionary<string, string?> environment)
+    {
+        Dictionary<string, string?> result = new(environment.Count + 1, StringComparer.OrdinalIgnoreCase);
+        foreach ((string name, string? value) in environment)
+        {
+            result[name] = value;
+        }
+
+        result["MSBUILDDISABLENODEREUSE"] = "1";
+        return result;
     }
 
     /// <summary>

@@ -25,6 +25,7 @@ permissions:
 
 env:
   ANKUS_RUNNER_PRIVATE_IDENTIFIERS: ${{ secrets.ANKUS_RUNNER_PRIVATE_IDENTIFIERS }}
+  MSBUILDDISABLENODEREUSE: '1'
 
 jobs:
   runtime:

@@ -245,7 +245,7 @@ internal static class IntegrationEnvironment
         string? value = Environment.GetEnvironmentVariable("ANKUS_PACKAGE_TEST_CONCURRENCY");
         if (string.IsNullOrWhiteSpace(value))
         {
-            return Math.Clamp((Environment.ProcessorCount + 1) / 2, 1, 16);
+            return Math.Max(1, (Environment.ProcessorCount * 3 + 3) / 4);
         }
 
         if (!int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out int concurrency) || concurrency < 1)
@@ -266,6 +266,7 @@ internal static class IntegrationEnvironment
         List<string> arguments = ["publish", project, "--configuration", "Release", "--runtime", RuntimeInformation.RuntimeIdentifier,
             "--self-contained", "true", "--output", output,
             "-m:1",
+            "-nr:false",
             "-p:BuildProjectReferences=" + buildProjectReferences.ToString(CultureInfo.InvariantCulture).ToLowerInvariant(),
             "-p:AnkusPostgresMajor=" + installation.Version.Major.ToString(CultureInfo.InvariantCulture),
             "-p:AnkusPgConfigPath=" + installation.PgConfigPath,
@@ -274,7 +275,10 @@ internal static class IntegrationEnvironment
         await ProcessRunner.RunCheckedAsync(
             "dotnet",
             arguments,
-            new Dictionary<string, string?>(),
+            new Dictionary<string, string?>
+            {
+                ["MSBUILDDISABLENODEREUSE"] = "1",
+            },
             cancellationToken);
 
         RequireFile(Path.Combine(output, PublishedExtension.Read(output).Library));

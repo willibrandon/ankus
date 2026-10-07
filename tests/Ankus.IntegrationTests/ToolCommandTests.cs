@@ -41,7 +41,7 @@ public sealed partial class ToolCommandTests(TestContext context)
         string repository = IntegrationEnvironment.RepositoryRoot;
         s_root = IntegrationEnvironment.PhysicalDirectory(Directory.CreateTempSubdirectory("ankus-"));
         // Independent cases own concurrency; each generated consumer build stays on one MSBuild node.
-        await File.WriteAllTextAsync(Path.Combine(s_root, "Directory.Build.rsp"), "-m:1\n", token);
+        await File.WriteAllTextAsync(Path.Combine(s_root, "Directory.Build.rsp"), "-m:1\n-nr:false\n", token);
         s_home = Path.Combine(s_root, "Ankus home");
         s_published = Path.Combine(s_root, "published extension");
         s_installation = await IntegrationEnvironment.GetInstallationAsync(token);

@@ -146,8 +146,11 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   workers. Parallel sample publications and generated consumer builds now use one
   MSBuild node each, so the adjustable outer limit controls actual concurrent
   builds. PostgreSQL-selection tests also use the same limit. The changed
-  integration project builds in Release with zero warnings and errors; replacement
-  full-suite timing remains pending.
+  integration project builds in Release with zero warnings and errors. A following
+  run began with **35** retained MSBuild workers consuming **11.4 GiB** before its
+  full suite started. Workflows and build-intensive test children now disable node
+  reuse, and the local default uses three quarters of available logical processors.
+  Replacement full-suite timing remains pending.
 - The hosted quality job also forced solution restore and build through one
   MSBuild node. That obsolete serialization is removed; its clean build remains
   complete and warnings remain errors while independent projects build in parallel.
