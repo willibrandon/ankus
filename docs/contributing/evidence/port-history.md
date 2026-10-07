@@ -28938,3 +28938,22 @@ Before this change, primary source **7389de5** had green quality and documentati
 jobs while its three complete platform suites remained in progress. The refreshed
 Linux-version, platform-version and dedicated macOS x64 runs also remained active;
 no current failure was hidden or cancelled.
+
+## Unified CI publication concurrency — 2026-10-07
+
+Linux version run [37656004533](https://github.com/willibrandon/ankus/actions/runs/37656004533)
+showed that PostgreSQL 15 passed all **13,485** reported cases with **13,437**
+passes, **48** platform skips and zero failures, but its 10-processor runner took
+**1h40m41s**. The job used only two package-consumer slots. Initial publication
+of the 29 Native AOT test extensions ignored that setting and retained a separate
+hard limit of three, so the machine-level control could not tune the complete
+build workload.
+
+Native AOT sample publication and package-consumer tests now read the same
+validated `ANKUS_PACKAGE_TEST_CONCURRENCY` value. The repository's Linux primary
+and version settings are both six, matching the previously successful six-slot
+local full-suite configuration. Primary Linux jobs now target a dedicated runner
+label rather than the pool shared with supported-major jobs. Superseded primary,
+platform-version and supported-major runs using the old limits were cancelled so
+they no longer block current validation. A clean complete-suite timing on the
+unified setting remains required before claiming the improvement.

@@ -383,11 +383,11 @@ Central Package Management, and real SQL execution. A separate MSTest consumer
 references only the packed `Ankus.Testing`, runs ordinary `dotnet test`, and checks
 native error recovery as well as successful calls.
 
-Package-consumer tests default to three concurrent cases. Set
-`ANKUS_PACKAGE_TEST_CONCURRENCY` to a positive integer to increase or decrease
-the limit for the machine; malformed values fail initialization. The fixture logs
-the selected limit and logical processor count. MSTest's worker count can impose
-a lower limit. PostgreSQL releases
+Native AOT sample publication and package-consumer tests share one concurrency
+limit and default to three slots. Set `ANKUS_PACKAGE_TEST_CONCURRENCY` to a
+positive integer to increase or decrease both phases for the machine; malformed
+values fail initialization. The fixture logs the selected limit and logical
+processor count. MSTest's worker count can impose a lower limit. PostgreSQL releases
 before 18 use a separate staged installation for each slot, so consumers with
 the same extension name cannot overwrite another active test's control or SQL
 files. PostgreSQL 18 and later select each consumer's own extension directory.

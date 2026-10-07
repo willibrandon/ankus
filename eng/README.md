@@ -224,8 +224,9 @@ removes ignored and untracked checkout outputs. All platform suites remain
 complete and unsharded. Workflows do not automatically cancel earlier runs; jobs
 queue while their dedicated runner is busy.
 
-`ANKUS_PACKAGE_TEST_CONCURRENCY` controls package-consumer test slots and accepts
-any positive integer, with three as the fixture default. CI's manual
+`ANKUS_PACKAGE_TEST_CONCURRENCY` controls both Native AOT sample publication and
+package-consumer test slots. It accepts any positive integer, with three as the
+fixture default. CI's manual
 `package-test-concurrency` input overrides it for a comparison run. The repository
 variables `ANKUS_WINDOWS_PACKAGE_TEST_CONCURRENCY`,
 `ANKUS_LINUX_PACKAGE_TEST_CONCURRENCY` and `ANKUS_MACOS_PACKAGE_TEST_CONCURRENCY`

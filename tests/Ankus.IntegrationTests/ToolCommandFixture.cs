@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Globalization;
 using Ankus.PgConfig;
 using Ankus.Testing;
 
@@ -10,7 +9,7 @@ namespace Ankus.IntegrationTests;
 /// </summary>
 public sealed partial class ToolCommandTests
 {
-    private static readonly int s_concurrentCases = ReadConcurrentCases();
+    private static readonly int s_concurrentCases = IntegrationEnvironment.PackageTestConcurrency;
 
     private static readonly SemaphoreSlim s_caseSlots = new(s_concurrentCases, s_concurrentCases);
     private static readonly SemaphoreSlim s_sampleProjectLock = new(1, 1);
@@ -66,22 +65,6 @@ public sealed partial class ToolCommandTests
             string root = Path.Combine(s_root, "postgres " + Guid.NewGuid().ToString("N"));
             s_caseInstallations.Enqueue(await PostgresTestInstallation.StageAsync(s_installation, root, token));
         }
-    }
-
-    private static int ReadConcurrentCases()
-    {
-        string? value = Environment.GetEnvironmentVariable("ANKUS_PACKAGE_TEST_CONCURRENCY");
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return 3;
-        }
-
-        if (!int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out int concurrency) || concurrency < 1)
-        {
-            throw new InvalidOperationException("ANKUS_PACKAGE_TEST_CONCURRENCY must be a positive integer.");
-        }
-
-        return concurrency;
     }
 
     private PostgresInstallation PrepareCaseInstallation(string output)

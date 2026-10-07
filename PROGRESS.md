@@ -132,6 +132,15 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
 
 ## Active validation and work
 
+- Linux version run **37656004533** exposed a CI throughput defect rather than a
+  PostgreSQL 15 failure. Its 10-processor runner was restricted to two package
+  slots, while initial Native AOT publication ignored that setting and retained
+  a separate hard cap of three. PostgreSQL 15 passed **13,485** cases with zero
+  failures, but the job took **1h40m41s**. Both phases now share the adjustable
+  `ANKUS_PACKAGE_TEST_CONCURRENCY` setting; Linux primary and version runners use
+  six slots. Primary Linux CI is pinned to its dedicated runner so version-matrix
+  work cannot consume that lane. Superseded matrices using the old setting were
+  cancelled.
 - A local complete-suite run exposed a test-only Valgrind startup race: its
   separate 30-second witness deadline could expire under Native AOT load before
   the bounded cluster start completed. The regression now initializes the owned

@@ -16,6 +16,11 @@ internal static class IntegrationEnvironment
     private static PostgresTestInstallation? s_stagedInstallation;
 
     /// <summary>
+    /// Gets the configured Native AOT publication and package-consumer concurrency for this machine.
+    /// </summary>
+    internal static int PackageTestConcurrency { get; } = ReadPackageTestConcurrency();
+
+    /// <summary>
     /// Gets the repository root from the test binary's build location.
     /// </summary>
     internal static string RepositoryRoot
@@ -205,7 +210,7 @@ internal static class IntegrationEnvironment
         ParallelOptions options = new()
         {
             CancellationToken = cancellationToken,
-            MaxDegreeOfParallelism = Math.Min(Environment.ProcessorCount, 3),
+            MaxDegreeOfParallelism = PackageTestConcurrency,
         };
         await Parallel.ForEachAsync(extensions.AsMemory(1).ToArray(), options, async (extension, token) =>
         {
@@ -233,6 +238,22 @@ internal static class IntegrationEnvironment
         s_nativeExtensionFilesInstalled = installation.Version.Major < 18;
         Directory.Delete(publishRoot, true);
         return RequireFile(Path.Combine(NativeOutputDirectory, PublishedExtension.Read(NativeOutputDirectory).Library));
+    }
+
+    private static int ReadPackageTestConcurrency()
+    {
+        string? value = Environment.GetEnvironmentVariable("ANKUS_PACKAGE_TEST_CONCURRENCY");
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return 3;
+        }
+
+        if (!int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out int concurrency) || concurrency < 1)
+        {
+            throw new InvalidOperationException("ANKUS_PACKAGE_TEST_CONCURRENCY must be a positive integer.");
+        }
+
+        return concurrency;
     }
 
     private static async Task PublishExtensionAsync(string directory, string name, string output,
