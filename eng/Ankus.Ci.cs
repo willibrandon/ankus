@@ -978,6 +978,7 @@ static void WriteEnvironment(string name, string value)
 
 static void RunRuntimeTests(string repositoryRoot)
 {
+    using WindowsSuiteSlot? slot = WindowsSuiteSlot.Acquire();
     string integrationTestModule = "tests/Ankus.IntegrationTests/bin/Release/net10.0/Ankus.IntegrationTests.dll";
     Task integrationTests = Task.Run(() => RunTestModule(repositoryRoot, integrationTestModule));
     Task unitTests = Task.Run(() => RunUnitTestModules(repositoryRoot));
@@ -1420,6 +1421,68 @@ static string CaptureProcess(ProcessStartInfo start)
 static string QuoteArgument(string argument)
 {
     return argument.Any(char.IsWhiteSpace) ? $"\"{argument}\"" : argument;
+}
+
+/// <summary>
+/// Limits complete Windows test execution without GitHub concurrency groups that replace pending jobs.
+/// </summary>
+internal sealed class WindowsSuiteSlot(Mutex mutex) : IDisposable
+{
+    private readonly Mutex _mutex = mutex;
+    private bool _disposed;
+
+    /// <summary>
+    /// Acquires one of the two machine-wide suite slots for a self-hosted Windows runner.
+    /// </summary>
+    /// <returns>The acquired slot, or null outside self-hosted Windows execution.</returns>
+    internal static WindowsSuiteSlot? Acquire()
+    {
+        if (!OperatingSystem.IsWindows() || Environment.GetEnvironmentVariable("RUNNER_ENVIRONMENT") != "self-hosted")
+        {
+            return null;
+        }
+
+        Mutex[] slots =
+        [
+            new(false, @"Global\Ankus.CI.Windows.FullSuite.0"),
+            new(false, @"Global\Ankus.CI.Windows.FullSuite.1"),
+        ];
+        Console.WriteLine("Waiting for one of two Windows full-suite slots.");
+        int index;
+        try
+        {
+            index = WaitHandle.WaitAny(slots);
+        }
+        catch (AbandonedMutexException exception)
+        {
+            index = exception.MutexIndex;
+        }
+
+        for (int candidate = 0; candidate < slots.Length; candidate++)
+        {
+            if (candidate != index)
+            {
+                slots[candidate].Dispose();
+            }
+        }
+
+        Console.WriteLine($"Acquired Windows full-suite slot {index + 1} of 2.");
+        return new(slots[index]);
+    }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _mutex.ReleaseMutex();
+        _mutex.Dispose();
+        _disposed = true;
+        GC.SuppressFinalize(this);
+    }
 }
 
 /// <summary>

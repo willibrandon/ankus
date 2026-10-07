@@ -294,8 +294,8 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   path-only project, isolated `pg_config.exe` fixtures omitted adjacent DLLs, and
   three simultaneous full Windows suites starved a bounded collision test. The
   fixes derive the implicit major from `pg_config`, copy its Windows runtime DLLs
-  and use two cross-workflow Windows full-suite lanes. Replacement complete
-  Windows evidence remains pending.
+  and admit two cross-workflow Windows full-suite test commands at a time.
+  Replacement complete Windows evidence remains pending.
   Platform-version run **37583027994** is also rejected as acceptance evidence:
   concurrent macOS ARM64/PostgreSQL 15 and 16 jobs exhausted their shared disk.
   The retained PG16 failures are all write failures after the disk filled, and
@@ -303,11 +303,12 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   was removed and both runner services now share the concurrency-safe binding
   cache. Replacement run **37617324614** exposed a GitHub Actions scheduling
   contract: a shared concurrency group cancels the older pending job when a newer
-  job queues, even with `cancel-in-progress: false`. The macOS group is removed;
-  its runner capacity now queues every suite without replacement. Windows suites
-  use two concurrency lanes, so two remain parallel without scheduling three
-  complete suites on one host. Self-hosted test jobs clean ignored and untracked
-  checkout outputs after uploading reports.
+  job queues, even with `cancel-in-progress: false`. The same replacement then
+  cancelled the pending Windows/PostgreSQL 13 cell when a newer primary job entered
+  its lane. All GitHub concurrency groups are removed. Runner capacity queues
+  macOS work, while two machine-wide Windows test mutexes admit two complete suites
+  and preserve every additional queued job. Self-hosted test jobs clean ignored
+  and untracked checkout outputs after uploading reports.
 
 Remaining diagnostics/code fixes, source-case mapping, samples, API and CLI
 contracts, supported PostgreSQL/platform combinations, .NET servicing and release
