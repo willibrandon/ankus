@@ -141,6 +141,9 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
 - **82503bf** passes complete primary CI; its docs run also passes. All eighteen platform reports
   and native recovery, datetime, SQL, function-provider, callback, prefix and
   module-identity partitions independently verify.
+- Primary CI now includes the dedicated macOS x64 runner on every trusted push,
+  with the hosted Intel image as the pull-request fallback. Release-platform
+  validation no longer waits for the weekly additional-platform workflow.
   Crash tests retain their deadlines, fsync and durability checks. The earlier
   macOS allocation variance remains unattributed.
 - Dedicated Intel refresh **37536883192** passes its complete **13,422**-case

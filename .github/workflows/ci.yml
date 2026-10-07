@@ -58,6 +58,10 @@ jobs:
             rid: osx-arm64
             platform: osx
             architecture: arm64
+          - runner: ${{ github.repository == 'willibrandon/ankus' && github.actor == 'willibrandon' && github.triggering_actor == 'willibrandon' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && 'ankus-macos-x64' || 'macos-15-intel' }}
+            rid: osx-x64
+            platform: osx
+            architecture: x64
           - runner: ${{ github.repository == 'willibrandon/ankus' && github.actor == 'willibrandon' && github.triggering_actor == 'willibrandon' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && 'ankus-windows-x64' || 'windows-2025' }}
             rid: win-x64
             platform: windows
@@ -126,6 +130,9 @@ jobs:
             postgresql: 18
           - runner: ${{ github.repository == 'willibrandon/ankus' && github.actor == 'willibrandon' && github.triggering_actor == 'willibrandon' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && 'ankus-macos-arm64' || 'macos-15' }}
             rid: osx-arm64
+            postgresql: 18
+          - runner: ${{ github.repository == 'willibrandon/ankus' && github.actor == 'willibrandon' && github.triggering_actor == 'willibrandon' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && 'ankus-macos-x64' || 'macos-15-intel' }}
+            rid: osx-x64
             postgresql: 18
           - runner: ${{ github.repository == 'willibrandon/ankus' && github.actor == 'willibrandon' && github.triggering_actor == 'willibrandon' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && 'ankus-windows-x64' || 'windows-2025' }}
             rid: win-x64
