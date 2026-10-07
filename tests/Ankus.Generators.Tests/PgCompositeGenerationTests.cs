@@ -318,33 +318,34 @@ public sealed partial class PgFunctionGeneratorTests
     }
 
     /// <summary>
-    /// Invalid identifiers and misplaced, ambiguous or repeated bindings fail with the composite declaration diagnostic.
+    /// Invalid identifiers and misplaced, ambiguous or repeated bindings report their exact contract.
     /// </summary>
     /// <param name="method">The invalid attributed method.</param>
+    /// <param name="expected">The precise binding diagnostic.</param>
     [TestMethod]
-    [DataRow("public static Ankus.PgHeapTuple Echo([Ankus.PgCompositeType(null!)] Ankus.PgHeapTuple value) => value;")]
-    [DataRow("public static Ankus.PgHeapTuple Echo([Ankus.PgCompositeType(\"\")] Ankus.PgHeapTuple value) => value;")]
-    [DataRow("public static Ankus.PgHeapTuple Echo([Ankus.PgCompositeType(\"a\\0b\")] Ankus.PgHeapTuple value) => value;")]
-    [DataRow("public static Ankus.PgHeapTuple Echo([Ankus.PgCompositeType(\"\\ud800\")] Ankus.PgHeapTuple value) => value;")]
-    [DataRow("public static Ankus.PgHeapTuple Echo([Ankus.PgCompositeType(\"dog\", Schema = \"\")] Ankus.PgHeapTuple value) => value;")]
-    [DataRow("public static Ankus.PgHeapTuple Echo([Ankus.PgCompositeType(\"dog\", Schema = \"a\\0b\")] Ankus.PgHeapTuple value) => value;")]
-    [DataRow("public static Ankus.PgHeapTuple Echo([Ankus.PgCompositeType(\"dog\", Schema = \"\\udc00\")] Ankus.PgHeapTuple value) => value;")]
-    [DataRow("public static int Echo([Ankus.PgCompositeType(\"dog\")] int value) => value;")]
-    [DataRow("[return: Ankus.PgCompositeType(\"dog\")] public static int Echo() => 1;")]
-    [DataRow("public static Ankus.PgHeapTuple Echo([Ankus.PgCompositeType(\"dog\", Column = \"x\")] Ankus.PgHeapTuple value) => value;")]
-    [DataRow("[return: Ankus.PgCompositeType(\"dog\", Column = \"x\")] public static Ankus.PgHeapTuple Echo() => null!;")]
-    [DataRow("public static Ankus.PgHeapTuple Echo([Ankus.PgCompositeType(\"dog\"), Ankus.PgCompositeType(\"cat\")] Ankus.PgHeapTuple value) => value;")]
-    [DataRow("[return: Ankus.PgCompositeType(\"dog\"), Ankus.PgCompositeType(\"cat\")] public static Ankus.PgHeapTuple Echo() => null!;")]
-    [DataRow("[return: Ankus.PgCompositeType(\"dog\", Column = \"x\")] public static System.Collections.Generic.IEnumerable<Ankus.PgHeapTuple> Echo() => System.Array.Empty<Ankus.PgHeapTuple>();")]
-    [DataRow("[return: Ankus.PgCompositeType(\"dog\")] public static System.Collections.Generic.IEnumerable<(Ankus.PgHeapTuple One, Ankus.PgHeapTuple Two)> Echo() => System.Array.Empty<(Ankus.PgHeapTuple, Ankus.PgHeapTuple)>();")]
-    [DataRow("[return: Ankus.PgCompositeType(\"dog\", Column = \"One\")] public static System.Collections.Generic.IEnumerable<(Ankus.PgHeapTuple One, int Two)> Echo() => System.Array.Empty<(Ankus.PgHeapTuple, int)>();")]
-    [DataRow("[return: Ankus.PgCompositeType(\"dog\", Column = \"two\")] public static System.Collections.Generic.IEnumerable<(Ankus.PgHeapTuple One, int Two)> Echo() => System.Array.Empty<(Ankus.PgHeapTuple, int)>();")]
-    [DataRow("[return: Ankus.PgCompositeType(\"dog\", Column = \"one\"), Ankus.PgCompositeType(\"cat\", Column = \"one\")] public static System.Collections.Generic.IEnumerable<(Ankus.PgHeapTuple One, int Two)> Echo() => System.Array.Empty<(Ankus.PgHeapTuple, int)>();")]
-    [DataRow("[return: Ankus.PgCompositeType(\"dog\")] public static System.Collections.Generic.IEnumerable<int> Echo() => System.Array.Empty<int>();")]
-    public void InvalidCompositeBindingsAreDiagnosed(string method)
+    [DataRow("public static Ankus.PgHeapTuple Echo([Ankus.PgCompositeType(null!)] Ankus.PgHeapTuple value) => value;", "ANKUS401")]
+    [DataRow("public static Ankus.PgHeapTuple Echo([Ankus.PgCompositeType(\"\")] Ankus.PgHeapTuple value) => value;", "ANKUS401")]
+    [DataRow("public static Ankus.PgHeapTuple Echo([Ankus.PgCompositeType(\"a\\0b\")] Ankus.PgHeapTuple value) => value;", "ANKUS401")]
+    [DataRow("public static Ankus.PgHeapTuple Echo([Ankus.PgCompositeType(\"\\ud800\")] Ankus.PgHeapTuple value) => value;", "ANKUS401")]
+    [DataRow("public static Ankus.PgHeapTuple Echo([Ankus.PgCompositeType(\"dog\", Schema = \"\")] Ankus.PgHeapTuple value) => value;", "ANKUS401")]
+    [DataRow("public static Ankus.PgHeapTuple Echo([Ankus.PgCompositeType(\"dog\", Schema = \"a\\0b\")] Ankus.PgHeapTuple value) => value;", "ANKUS401")]
+    [DataRow("public static Ankus.PgHeapTuple Echo([Ankus.PgCompositeType(\"dog\", Schema = \"\\udc00\")] Ankus.PgHeapTuple value) => value;", "ANKUS401")]
+    [DataRow("public static int Echo([Ankus.PgCompositeType(\"dog\")] int value) => value;", "ANKUS406")]
+    [DataRow("[return: Ankus.PgCompositeType(\"dog\")] public static int Echo() => 1;", "ANKUS406")]
+    [DataRow("public static Ankus.PgHeapTuple Echo([Ankus.PgCompositeType(\"dog\", Column = \"x\")] Ankus.PgHeapTuple value) => value;", "ANKUS411")]
+    [DataRow("[return: Ankus.PgCompositeType(\"dog\", Column = \"x\")] public static Ankus.PgHeapTuple Echo() => null!;", "ANKUS411")]
+    [DataRow("public static Ankus.PgHeapTuple Echo([Ankus.PgCompositeType(\"dog\"), Ankus.PgCompositeType(\"cat\")] Ankus.PgHeapTuple value) => value;", "ANKUS409")]
+    [DataRow("[return: Ankus.PgCompositeType(\"dog\"), Ankus.PgCompositeType(\"cat\")] public static Ankus.PgHeapTuple Echo() => null!;", "ANKUS409")]
+    [DataRow("[return: Ankus.PgCompositeType(\"dog\", Column = \"x\")] public static System.Collections.Generic.IEnumerable<Ankus.PgHeapTuple> Echo() => System.Array.Empty<Ankus.PgHeapTuple>();", "ANKUS403")]
+    [DataRow("[return: Ankus.PgCompositeType(\"dog\")] public static System.Collections.Generic.IEnumerable<(Ankus.PgHeapTuple One, Ankus.PgHeapTuple Two)> Echo() => System.Array.Empty<(Ankus.PgHeapTuple, Ankus.PgHeapTuple)>();", "ANKUS404")]
+    [DataRow("[return: Ankus.PgCompositeType(\"dog\", Column = \"One\")] public static System.Collections.Generic.IEnumerable<(Ankus.PgHeapTuple One, int Two)> Echo() => System.Array.Empty<(Ankus.PgHeapTuple, int)>();", "ANKUS403")]
+    [DataRow("[return: Ankus.PgCompositeType(\"dog\", Column = \"two\")] public static System.Collections.Generic.IEnumerable<(Ankus.PgHeapTuple One, int Two)> Echo() => System.Array.Empty<(Ankus.PgHeapTuple, int)>();", "ANKUS406")]
+    [DataRow("[return: Ankus.PgCompositeType(\"dog\", Column = \"one\"), Ankus.PgCompositeType(\"cat\", Column = \"one\")] public static System.Collections.Generic.IEnumerable<(Ankus.PgHeapTuple One, int Two)> Echo() => System.Array.Empty<(Ankus.PgHeapTuple, int)>();", "ANKUS407")]
+    [DataRow("[return: Ankus.PgCompositeType(\"dog\")] public static System.Collections.Generic.IEnumerable<int> Echo() => System.Array.Empty<int>();", "ANKUS404")]
+    public void InvalidCompositeBindingsAreDiagnosed(string method, string expected)
     {
         (_, ImmutableArray<Diagnostic> diagnostics) = Generate("public static class Functions { [Ankus.PgFunction] " + method + " }");
-        Assert.AreEqual("ANKUS009", Assert.ContainsSingle(diagnostics).Id);
+        Assert.AreEqual(expected, Assert.ContainsSingle(diagnostics).Id);
     }
 
     /// <summary>
@@ -372,7 +373,7 @@ public sealed partial class PgFunctionGeneratorTests
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate("public static class Functions { [Ankus.PgFunction] [return: Ankus.PgCompositeType(" + binding + ")] public static Ankus.PgHeapTuple Echo() => null!; }");
         if (bytes > 63)
         {
-            Assert.AreEqual("ANKUS009", Assert.ContainsSingle(diagnostics).Id);
+            Assert.AreEqual("ANKUS401", Assert.ContainsSingle(diagnostics).Id);
             return;
         }
 

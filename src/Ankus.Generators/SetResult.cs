@@ -7,8 +7,28 @@ namespace Ankus.Generators;
 /// </summary>
 internal sealed record SetResult
 {
-    private static readonly DiagnosticDescriptor s_invalid = new(
-        "ANKUS008", "Invalid PostgreSQL set result", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true,
+    private static readonly DiagnosticDescriptor s_columnNamesRequireSet = new(
+        "ANKUS396", "PostgreSQL column names require a set result", "'{0}' uses PgColumnNames but does not return IEnumerable<T>",
+        "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true,
+        helpLinkUri: "https://willibrandon.github.io/ankus/sets-and-tables/");
+    private static readonly DiagnosticDescriptor s_unsupportedColumns = new(
+        "ANKUS397", "PostgreSQL set result has unsupported columns",
+        "'{0}' must return supported scalar or array values, or a flat tuple of at most 1664 supported columns",
+        "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true,
+        helpLinkUri: "https://willibrandon.github.io/ankus/sets-and-tables/");
+    private static readonly DiagnosticDescriptor s_nullColumnNames = new(
+        "ANKUS398", "PostgreSQL table column names cannot be null", "'{0}' must pass a non-null name array to PgColumnNames",
+        "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true,
+        helpLinkUri: "https://willibrandon.github.io/ankus/sets-and-tables/");
+    private static readonly DiagnosticDescriptor s_missingColumnNames = new(
+        "ANKUS399", "PostgreSQL table result requires column names",
+        "'{0}' must name every tuple element or apply PgColumnNames to name every TABLE column",
+        "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true,
+        helpLinkUri: "https://willibrandon.github.io/ankus/sets-and-tables/");
+    private static readonly DiagnosticDescriptor s_invalidColumnNames = new(
+        "ANKUS400", "Invalid PostgreSQL table column names",
+        "'{0}' requires one distinct SQL identifier per TABLE column, each at most 63 UTF-8 bytes",
+        "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true,
         helpLinkUri: "https://willibrandon.github.io/ankus/sets-and-tables/");
 
     /// <summary>
@@ -96,7 +116,7 @@ internal sealed record SetResult
             if (namesAttribute is not null)
             {
                 valid = false;
-                Error("PgColumnNames requires an IEnumerable return.");
+                Error(s_columnNamesRequireSet, AttributeLocation());
             }
 
             return null;
@@ -138,7 +158,7 @@ internal sealed record SetResult
                 }
             }
 
-            Error("Set elements must be supported scalar or array values, or flat tuples of supported values with at most 1664 columns.");
+            Error(s_unsupportedColumns, FunctionDeclarationDiagnostics.Result(method, context.CancellationToken));
             return null;
         }
 
@@ -147,7 +167,7 @@ internal sealed record SetResult
             if (namesAttribute.ConstructorArguments.Length != 1 || namesAttribute.ConstructorArguments[0].IsNull)
             {
                 valid = false;
-                Error("PgColumnNames requires non-null column names.");
+                Error(s_nullColumnNames, AttributeLocation());
                 return null;
             }
 
@@ -157,7 +177,7 @@ internal sealed record SetResult
         if (values[0] != "value" && names is null)
         {
             valid = false;
-            Error("TABLE tuple elements must be named, or use PgColumnNames to name every column.");
+            Error(s_missingColumnNames, FunctionDeclarationDiagnostics.Result(method, context.CancellationToken));
             return null;
         }
 
@@ -166,7 +186,7 @@ internal sealed record SetResult
             names.Distinct(StringComparer.Ordinal).Count() != names.Length))
         {
             valid = false;
-            Error("TABLE requires one distinct SQL identifier per column, each at most 63 UTF-8 bytes.");
+            Error(s_invalidColumnNames, AttributeLocation());
             return null;
         }
 
@@ -178,7 +198,10 @@ internal sealed record SetResult
             Values = new(values),
         };
 
-        void Error(string message)
-            => context.Report(s_invalid, method.Locations.FirstOrDefault(), method.Name, message);
+        Location? AttributeLocation() => namesAttribute?.ApplicationSyntaxReference?.GetSyntax(context.CancellationToken).GetLocation()
+            ?? method.Locations.FirstOrDefault();
+
+        void Error(DiagnosticDescriptor descriptor, Location? location)
+            => context.Report(descriptor, location, method.Name);
     }
 }

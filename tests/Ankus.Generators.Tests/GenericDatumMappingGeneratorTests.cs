@@ -91,7 +91,7 @@ public sealed partial class PgFunctionGeneratorTests
     [TestMethod]
     public void GenericDatumMappingsPreserveUnmappedDeriveDiagnostics()
         => AssertDatumMappingError("[Ankus.PgEquality] public readonly record struct Value<T>(int Word);",
-            "ANKUS018", "require a valid, accessible PgType, PgEnum or PgDatumType");
+            "ANKUS413", "must have a valid, accessible PgType, PgEnum, or PgDatumType");
 
     /// <summary>
     /// A selected closure must find its exact converter interface instead of borrowing a sibling's implementation.

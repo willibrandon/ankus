@@ -339,6 +339,12 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   solution build has zero warnings and errors. API freshness verifies **244**
   pages and **2,793** members; documentation checks report no errors, warnings or
   hints, and the production site builds all **295** pages.
+- The former free-text set-result, SQL type-binding and generated-operator
+  diagnostics are split into `ANKUS396`–`ANKUS418`. Each error identifies one
+  correction and points to the return type, parameter, binding attribute or
+  generated-type declaration that must change. Focused binding and operator
+  validation passes **92/92**, and the complete generator suite passes
+  **4,497/4,497**.
 
 Remaining diagnostics/code fixes, source-case mapping, samples, API and CLI
 contracts, supported PostgreSQL/platform combinations, .NET servicing and release

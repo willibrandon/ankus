@@ -384,7 +384,7 @@ public sealed partial class PgFunctionGeneratorTests
     [DataRow("Ankus.PgParameter(Name = \"memory\")", "ANKUS056")]
     [DataRow("Ankus.PgParameter(Default = \"NULL\")", "ANKUS056")]
     [DataRow("Ankus.PgNumericPrecision(5, 2)", "ANKUS003")]
-    [DataRow("Ankus.PgCompositeType(\"memory\")", "ANKUS009")]
+    [DataRow("Ankus.PgCompositeType(\"memory\")", "ANKUS406")]
     public void VirtualContextSqlMetadataIsDiagnosed(string attribute, string expected)
     {
         (_, ImmutableArray<Diagnostic> diagnostics) = Generate(
@@ -427,7 +427,7 @@ public sealed partial class PgFunctionGeneratorTests
                     => new[] { context };
             }
             """);
-        AssertVirtualContextDiagnostic(diagnostics, "ANKUS008");
+        AssertVirtualContextDiagnostic(diagnostics, "ANKUS397");
     }
 
     /// <summary>

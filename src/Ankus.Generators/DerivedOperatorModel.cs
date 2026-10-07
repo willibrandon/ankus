@@ -6,6 +6,32 @@ using Microsoft.CodeAnalysis;
 namespace Ankus.Generators;
 
 /// <summary>
+/// Identifies one independently correctable generated-operator contract.
+/// </summary>
+internal enum DerivedOperatorError
+{
+    /// <summary>
+    /// The datum mapping cannot read the declared value.
+    /// </summary>
+    Reader,
+
+    /// <summary>
+    /// The managed value lacks exact equality semantics.
+    /// </summary>
+    Equality,
+
+    /// <summary>
+    /// The managed value lacks exact ordering semantics.
+    /// </summary>
+    Ordering,
+
+    /// <summary>
+    /// The managed value lacks PostgreSQL-compatible hashing semantics.
+    /// </summary>
+    Hashing,
+}
+
+/// <summary>
 /// Detaches generated value semantics and authored graph policy from compiler symbols.
 /// </summary>
 /// <param name="Identity">The exact declaring type identity.</param>
@@ -23,7 +49,7 @@ namespace Ankus.Generators;
 /// <param name="Error">The optional semantic validation failure.</param>
 internal sealed record DerivedOperatorModel(DeclarationIdentity Identity, string Display, string DiagnosticName, string Managed,
     FunctionType? Value, bool Enumeration, string Underlying, string Symbol, SqlDeclarationOptions? Equality,
-    SqlDeclarationOptions? Ordering, SqlDeclarationOptions? Hashing, GeneratorLocation? Location, string? Error)
+    SqlDeclarationOptions? Ordering, SqlDeclarationOptions? Hashing, GeneratorLocation? Location, DerivedOperatorError? Error)
 {
     /// <summary>
     /// Analyzes exact interface contracts once without resolving extension graph ownership.
@@ -39,22 +65,22 @@ internal sealed record DerivedOperatorModel(DeclarationIdentity Identity, string
         string managed = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
         FunctionType? value = FunctionType.Create(type.WithNullableAnnotation(NullableAnnotation.NotAnnotated));
         bool enumeration = type.TypeKind == TypeKind.Enum;
-        string? error = null;
+        DerivedOperatorError? error = null;
         if (value?.DatumType is { CanRead: false })
         {
-            error = "Generated operators require a datum reader for the exact declared PgDatumType.";
+            error = DerivedOperatorError.Reader;
         }
         else if (!enumeration && !Implements("System.IEquatable<T>", type))
         {
-            error = "Generated equality, ordering and hashing require IEquatable<T> for the exact declared type.";
+            error = DerivedOperatorError.Equality;
         }
         else if (ordering is not null && !enumeration && !Implements("System.IComparable<T>", type))
         {
-            error = "PgOrdering requires IComparable<T> for the exact declared type.";
+            error = DerivedOperatorError.Ordering;
         }
         else if (hashing is not null && !enumeration && !Implements("Ankus.IPgHashable", null))
         {
-            error = "PgHashing requires IPgHashable with a stable, equality-compatible GetPostgresHashCode implementation.";
+            error = DerivedOperatorError.Hashing;
         }
 
         using SHA256 hash = SHA256.Create();

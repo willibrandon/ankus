@@ -82,24 +82,45 @@ public sealed partial class PgFunctionGeneratorTests
     /// Rejects missing, ambiguous, malformed, or incompatible raw type bindings before SQL emission.
     /// </summary>
     /// <param name="method">The invalid declaration.</param>
+    /// <param name="expected">The precise binding diagnostics in report order.</param>
     [TestMethod]
-    [DataRow("public static int Value(Ankus.PgDatum value) => 0;")]
-    [DataRow("public static Ankus.PgDatum Value() => null!;")]
-    [DataRow("public static System.Collections.Generic.IEnumerable<Ankus.PgDatum> Value() => null!;")]
-    [DataRow("[return: Ankus.PgSqlType(\"x\")] public static System.Collections.Generic.IEnumerable<(Ankus.PgDatum A, Ankus.PgDatum B)> Value() => null!;")]
-    [DataRow("[return: Ankus.PgSqlType(\"x\", Column=\"absent\")] public static System.Collections.Generic.IEnumerable<(Ankus.PgDatum A, int B)> Value() => null!;")]
-    [DataRow("[return: Ankus.PgSqlType(\"x\", Column=\"a\")] public static Ankus.PgDatum Value() => null!;")]
-    [DataRow("[return: Ankus.PgSqlType(\"x\")] public static int Value() => 0;")]
-    [DataRow("[return: Ankus.PgSqlType(\"\")] public static Ankus.PgDatum Value() => null!;")]
-    [DataRow("[return: Ankus.PgSqlType(\"x\", Schema=\"\")] public static Ankus.PgDatum Value() => null!;")]
-    [DataRow("[return: Ankus.PgSqlType(\"x\"), Ankus.PgSqlType(\"y\")] public static Ankus.PgDatum Value() => null!;")]
-    [DataRow("public static int Value([Ankus.PgSqlType(\"x\")] int value) => value;")]
-    [DataRow("public static int Value([Ankus.PgSqlType(\"x\")] Ankus.PgDatum[] value) => 0;")]
-    public void InvalidRawBindingsAreDiagnosed(string method)
+    [DataRow("public static int Value(Ankus.PgDatum value) => 0;", "ANKUS410")]
+    [DataRow("public static Ankus.PgDatum Value() => null!;", "ANKUS410")]
+    [DataRow("public static System.Collections.Generic.IEnumerable<Ankus.PgDatum> Value() => null!;", "ANKUS408")]
+    [DataRow("[return: Ankus.PgSqlType(\"x\")] public static System.Collections.Generic.IEnumerable<(Ankus.PgDatum A, Ankus.PgDatum B)> Value() => null!;", "ANKUS404,ANKUS408,ANKUS408")]
+    [DataRow("[return: Ankus.PgSqlType(\"x\", Column=\"absent\")] public static System.Collections.Generic.IEnumerable<(Ankus.PgDatum A, int B)> Value() => null!;", "ANKUS403,ANKUS408")]
+    [DataRow("[return: Ankus.PgSqlType(\"x\", Column=\"a\")] public static Ankus.PgDatum Value() => null!;", "ANKUS411")]
+    [DataRow("[return: Ankus.PgSqlType(\"x\")] public static int Value() => 0;", "ANKUS405")]
+    [DataRow("[return: Ankus.PgSqlType(\"\")] public static Ankus.PgDatum Value() => null!;", "ANKUS401")]
+    [DataRow("[return: Ankus.PgSqlType(\"x\", Schema=\"\")] public static Ankus.PgDatum Value() => null!;", "ANKUS401")]
+    [DataRow("[return: Ankus.PgSqlType(\"x\"), Ankus.PgSqlType(\"y\")] public static Ankus.PgDatum Value() => null!;", "ANKUS409")]
+    [DataRow("public static int Value([Ankus.PgSqlType(\"x\")] int value) => value;", "ANKUS405")]
+    [DataRow("public static int Value([Ankus.PgSqlType(\"x\")] Ankus.PgDatum[] value) => 0;", "ANKUS405")]
+    public void InvalidRawBindingsAreDiagnosed(string method, string expected)
     {
         (_, ImmutableArray<Diagnostic> diagnostics) = Generate("public static class Functions { [Ankus.PgFunction] " + method + " }");
-        Assert.IsNotEmpty(diagnostics);
-        Assert.IsTrue(diagnostics.All(static diagnostic => diagnostic.Id == "ANKUS016"));
+        Assert.AreSequenceEqual(expected.Split(','), diagnostics.Select(static diagnostic => diagnostic.Id));
+    }
+
+    /// <summary>
+    /// Binding diagnostics select the attribute, parameter, or result that must change.
+    /// </summary>
+    /// <param name="method">The invalid declaration.</param>
+    /// <param name="expectedId">The precise diagnostic identifier.</param>
+    /// <param name="highlight">The exact syntax selected by the diagnostic.</param>
+    [TestMethod]
+    [DataRow("public static int Value(Ankus.PgDatum value) => 0;", "ANKUS410", "value")]
+    [DataRow("public static Ankus.PgDatum Value() => null!;", "ANKUS410", "Ankus.PgDatum")]
+    [DataRow("[return: Ankus.PgSqlType(\"\")] public static Ankus.PgDatum Value() => null!;", "ANKUS401", "Ankus.PgSqlType(\"\")")]
+    [DataRow("[return: Ankus.PgSqlType(\"x\")] public static int Value() => 0;", "ANKUS405", "Ankus.PgSqlType(\"x\")")]
+    [DataRow("public static System.Collections.Generic.IEnumerable<Ankus.PgDatum> Value() => null!;", "ANKUS408", "System.Collections.Generic.IEnumerable<Ankus.PgDatum>")]
+    public void SqlTypeBindingDiagnosticsPointAtTheCorrectSyntax(string method, string expectedId, string highlight)
+    {
+        (_, ImmutableArray<Diagnostic> diagnostics) = Generate("public static class Functions { [Ankus.PgFunction] " + method + " }");
+        Diagnostic diagnostic = Assert.ContainsSingle(diagnostics);
+        Assert.AreEqual(expectedId, diagnostic.Id);
+        Assert.AreEqual(highlight,
+            diagnostic.Location.SourceTree!.GetText(context.CancellationToken).ToString(diagnostic.Location.SourceSpan));
     }
 
     /// <summary>

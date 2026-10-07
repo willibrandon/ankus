@@ -390,9 +390,9 @@ public sealed partial class PgFunctionGeneratorTests
     /// <param name="method">The invalid attributed test declaration.</param>
     /// <param name="id">The established conversion diagnostic.</param>
     [TestMethod]
-    [DataRow("[return: Ankus.PgColumnNames(\"column\")] public static void Invalid() { }", "ANKUS008")]
-    [DataRow("[return: Ankus.PgSqlType(\"uuid\")] public static void Invalid() { }", "ANKUS016")]
-    [DataRow("public static void Invalid([Ankus.PgCompositeType(\"row\")] Ankus.PgMemoryContext memory) { }", "ANKUS009")]
+    [DataRow("[return: Ankus.PgColumnNames(\"column\")] public static void Invalid() { }", "ANKUS396")]
+    [DataRow("[return: Ankus.PgSqlType(\"uuid\")] public static void Invalid() { }", "ANKUS405")]
+    [DataRow("public static void Invalid([Ankus.PgCompositeType(\"row\")] Ankus.PgMemoryContext memory) { }", "ANKUS406")]
     public void PgTestRejectsInvalidConversionPolicies(string method, string id)
     {
         (_, ImmutableArray<Diagnostic> diagnostics) = Generate("public static partial class Checks { [Ankus.PgTest] " + method + " }",

@@ -31,11 +31,7 @@ ANKUS377 | Ankus | Error | duplicate SQL function signature
 ANKUS002 | Ankus | Error | Invalid PostgreSQL function name
 ANKUS003 | Ankus | Error | Invalid numeric precision or scale constraint
 ANKUS005 | Ankus | Error | Invalid installation dependency graph or SQL replacement
-ANKUS008 | Ankus | Error | Invalid PostgreSQL set result or table columns
-ANKUS009 | Ankus | Error | Invalid named composite type or TABLE column binding
-ANKUS016 | Ankus | Error | Invalid raw PostgreSQL type or TABLE column binding
 ANKUS017 | Ankus | Error | Invalid PostgreSQL base type or storage codec
-ANKUS018 | Ankus | Error | Invalid generated PostgreSQL operators
 ANKUS024 | Ankus | Error | Ambiguous reference nullability in a SQL parameter or result
 ANKUS026 | Ankus | Error | Invalid managed SQL dependency reference
 ANKUS027 | Ankus | Error | Invalid generated planner support function
@@ -381,3 +377,26 @@ ANKUS366 | Ankus | Error | Precise custom SQL input declaration contract
 ANKUS367 | Ankus | Error | Precise custom SQL input declaration contract
 ANKUS368 | Ankus | Error | Precise custom SQL input declaration contract
 ANKUS369 | Ankus | Error | Precise custom SQL input declaration contract
+ANKUS396 | Ankus | Error | PostgreSQL column names require a set result
+ANKUS397 | Ankus | Error | PostgreSQL set result has unsupported columns
+ANKUS398 | Ankus | Error | PostgreSQL table column names cannot be null
+ANKUS399 | Ankus | Error | PostgreSQL table result requires column names
+ANKUS400 | Ankus | Error | Invalid PostgreSQL table column names
+ANKUS401 | Ankus | Error | Invalid PostgreSQL type-binding identifier
+ANKUS402 | Ankus | Error | TABLE binding cannot select an aggregate element
+ANKUS403 | Ankus | Error | PostgreSQL type binding selects an unknown TABLE column
+ANKUS404 | Ankus | Error | PostgreSQL TABLE type binding is ambiguous
+ANKUS405 | Ankus | Error | Raw PostgreSQL type binding requires PgDatum
+ANKUS406 | Ankus | Error | Composite PostgreSQL type binding requires PgHeapTuple
+ANKUS407 | Ankus | Error | PostgreSQL TABLE output has multiple type bindings
+ANKUS408 | Ankus | Error | Raw PostgreSQL TABLE output requires a type binding
+ANKUS409 | Ankus | Error | PostgreSQL value has multiple type bindings
+ANKUS410 | Ankus | Error | Raw PostgreSQL value requires a type binding
+ANKUS411 | Ankus | Error | TABLE column selector requires a TABLE result
+ANKUS412 | Ankus | Error | Aggregate element selector requires a tuple input
+ANKUS413 | Ankus | Error | Generated PostgreSQL operators require a supported type
+ANKUS414 | Ankus | Error | Generated PostgreSQL operators require a datum reader
+ANKUS415 | Ankus | Error | Generated PostgreSQL operators require managed equality
+ANKUS416 | Ankus | Error | Generated PostgreSQL ordering requires managed comparison
+ANKUS417 | Ankus | Error | Generated PostgreSQL hashing requires a stable managed hash
+ANKUS418 | Ankus | Error | Generated PostgreSQL ordering or hashing requires equality

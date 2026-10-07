@@ -211,12 +211,12 @@ public sealed partial class PgFunctionGeneratorTests
     /// <param name="id">The exact diagnostic category.</param>
     /// <param name="reason">The specific rejected contract.</param>
     [TestMethod]
-    [DataRow("writer-equality", "ANKUS018", "require a datum reader")]
-    [DataRow("writer-ordering", "ANKUS018", "require a datum reader")]
-    [DataRow("writer-hashing", "ANKUS018", "require a datum reader")]
-    [DataRow("equatable", "ANKUS018", "require IEquatable<T>")]
-    [DataRow("comparable", "ANKUS018", "requires IComparable<T>")]
-    [DataRow("hashable", "ANKUS018", "requires IPgHashable")]
+    [DataRow("writer-equality", "ANKUS414", "requires an IPgDatumReader<T>")]
+    [DataRow("writer-ordering", "ANKUS414", "requires an IPgDatumReader<T>")]
+    [DataRow("writer-hashing", "ANKUS414", "requires an IPgDatumReader<T>")]
+    [DataRow("equatable", "ANKUS415", "must implement IEquatable<T>")]
+    [DataRow("comparable", "ANKUS416", "must implement IComparable<T>")]
+    [DataRow("hashable", "ANKUS417", "must implement IPgHashable")]
     [DataRow("mapping", "ANKUS145", "exact non-nullable managed type")]
     [DataRow("provider", "ANKUS395", "requires a PgSqlTypeProvider")]
     public void InvalidMappedOperatorContractsAreDiagnosed(string change, string id, string reason)
@@ -265,7 +265,7 @@ public sealed partial class PgFunctionGeneratorTests
         }
         else
         {
-            AssertDatumMappingError(source, "ANKUS018", "boolean same-schema");
+            AssertDatumMappingError(source, "ANKUS418", "boolean same-schema");
         }
     }
 

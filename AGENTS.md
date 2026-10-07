@@ -92,8 +92,9 @@ before changing an area.
 - Keep CI feedback under 10 minutes where possible. Set each workflow job's
   timeout from measured duration with enough headroom to avoid wasting a nearly
   complete full-suite run. Record measured durations and timeout outcomes. Run
-  independent platform checks in parallel, measure cold-cache builds, and cancel
-  superseded runs. Do not hide missing validation to meet the budget.
+  independent platform checks in parallel and measure cold-cache builds. Let
+  queued and in-progress runs finish. Do not hide missing validation to meet the
+  budget.
 - Run the complete test suite in each platform job; do not shard it. CI runs on
   Linux x64, macOS ARM64, and Windows x64. Releases also include macOS x64.
 - CI platform evidence must run the full test suite against a real PostgreSQL

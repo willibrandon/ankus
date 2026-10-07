@@ -28841,3 +28841,39 @@ Exact-current Linux x64/PostgreSQL **18.6** acceptance passes **13,475** total:
 The Release solution build has zero warnings and errors. API freshness verifies
 **244** pages and **2,793** members, documentation checks report no errors,
 warnings or hints, and the production site builds **295** pages.
+
+## Precise set-result diagnostics — 2026-10-07
+
+The free-text `ANKUS008` result validator combined five independently correctable
+contracts. `ANKUS396`–`ANKUS400` now distinguish `PgColumnNames` on a scalar,
+unsupported set elements or tuple shapes, a null names array, unnamed table
+columns and invalid name sets. Attribute errors navigate to `PgColumnNames`;
+shape errors navigate to the return type. Boundary coverage retains the 1,664
+column limit, UTF-8 identifier length, duplicate names, nullable tuple rejection,
+incremental diagnostics, backend-test declarations and virtual memory-context
+validation. The complete generator module passes **4,487/4,487**.
+
+The free-text composite/raw binding diagnostics `ANKUS009` and `ANKUS016` are
+also retired. `ANKUS401`–`ANKUS412` distinguish invalid identifiers, TABLE and
+aggregate selectors, ambiguous or repeated bindings, incompatible managed
+representations and missing raw bindings. Missing parameter and result bindings
+navigate to the exact parameter or return type; authored binding failures
+navigate to their attribute. The focused contract set passes **55/55**, and its
+five exact-location cases pass **5/5**.
+
+The generated-operator model now carries a closed semantic failure kind instead
+of free-text. `ANKUS413`–`ANKUS418` distinguish an unsupported storage root,
+missing datum reader, missing managed equality/comparison/hash contracts and a
+missing exact SQL equality operator. The focused generated-operator set passes
+**32/32**. The complete generator suite for the combined diagnostic milestone
+passes **4,497/4,497** in **57.9 seconds**.
+
+CI run `37638478754` confirms the preceding Windows PostgreSQL 17 line-ending
+repair: quality, macOS ARM64/PostgreSQL 18 and Windows x64/PostgreSQL 17 are
+green. Windows completed in **42 minutes 52 seconds**. Linux x64/PostgreSQL 18
+remains in progress while this milestone proceeds.
+
+The Release solution build completes in **1 minute 33 seconds** with zero
+warnings and errors. API freshness verifies **244** pages and **2,793** members;
+documentation checks report no errors, warnings or hints, and the production
+site builds all **295** pages.

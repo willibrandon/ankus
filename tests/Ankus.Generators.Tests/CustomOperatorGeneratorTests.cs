@@ -146,21 +146,22 @@ public sealed partial class PgFunctionGeneratorTests
     /// Rejects missing or wrong exact contracts instead of selecting object or lookalike methods.
     /// </summary>
     /// <param name="source">A complete invalid declaration.</param>
+    /// <param name="expected">The precise generated-operator diagnostic.</param>
     [TestMethod]
-    [DataRow("[Ankus.PgEquality] public readonly record struct Value(int Number);")]
-    [DataRow("[Ankus.PgType][Ankus.PgEquality] public sealed class Value { public int Number{get;set;} }")]
-    [DataRow("[Ankus.PgType][Ankus.PgEquality] public sealed class Value:System.IEquatable<int> { public int Number{get;set;} public bool Equals(int other)=>true; }")]
-    [DataRow("[Ankus.PgType][Ankus.PgEquality][Ankus.PgOrdering] public readonly record struct Value(int Number);")]
-    [DataRow("[Ankus.PgType][Ankus.PgEquality][Ankus.PgOrdering] public readonly record struct Value(int Number):System.IComparable<int> { public int CompareTo(int other)=>0; }")]
-    [DataRow("[Ankus.PgType][Ankus.PgEquality][Ankus.PgHashing] public readonly record struct Value(int Number) { public int GetPostgresHashCode()=>7; }")]
-    [DataRow("[Ankus.PgType][Ankus.PgOrdering] public readonly record struct Value(int Number):System.IComparable<Value> { public int CompareTo(Value other)=>0; }")]
-    [DataRow("[Ankus.PgType][Ankus.PgHashing] public readonly record struct Value(int Number):Ankus.IPgHashable { public int GetPostgresHashCode()=>7; }")]
-    [DataRow("[Ankus.PgEnum][Ankus.PgOrdering] public enum Value { One,Two }")]
-    [DataRow("[Ankus.PgEnum][Ankus.PgHashing] public enum Value { One,Two }")]
-    public void InvalidCustomOperatorContractsAreDiagnosed(string source)
+    [DataRow("[Ankus.PgEquality] public readonly record struct Value(int Number);", "ANKUS413")]
+    [DataRow("[Ankus.PgType][Ankus.PgEquality] public sealed class Value { public int Number{get;set;} }", "ANKUS415")]
+    [DataRow("[Ankus.PgType][Ankus.PgEquality] public sealed class Value:System.IEquatable<int> { public int Number{get;set;} public bool Equals(int other)=>true; }", "ANKUS415")]
+    [DataRow("[Ankus.PgType][Ankus.PgEquality][Ankus.PgOrdering] public readonly record struct Value(int Number);", "ANKUS416")]
+    [DataRow("[Ankus.PgType][Ankus.PgEquality][Ankus.PgOrdering] public readonly record struct Value(int Number):System.IComparable<int> { public int CompareTo(int other)=>0; }", "ANKUS416")]
+    [DataRow("[Ankus.PgType][Ankus.PgEquality][Ankus.PgHashing] public readonly record struct Value(int Number) { public int GetPostgresHashCode()=>7; }", "ANKUS417")]
+    [DataRow("[Ankus.PgType][Ankus.PgOrdering] public readonly record struct Value(int Number):System.IComparable<Value> { public int CompareTo(Value other)=>0; }", "ANKUS418")]
+    [DataRow("[Ankus.PgType][Ankus.PgHashing] public readonly record struct Value(int Number):Ankus.IPgHashable { public int GetPostgresHashCode()=>7; }", "ANKUS418")]
+    [DataRow("[Ankus.PgEnum][Ankus.PgOrdering] public enum Value { One,Two }", "ANKUS418")]
+    [DataRow("[Ankus.PgEnum][Ankus.PgHashing] public enum Value { One,Two }", "ANKUS418")]
+    public void InvalidCustomOperatorContractsAreDiagnosed(string source, string expected)
     {
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source);
-        Diagnostic error = Assert.ContainsSingle(diagnostics.Where(static diagnostic => diagnostic.Id == "ANKUS018"));
+        Diagnostic error = Assert.ContainsSingle(diagnostics.Where(diagnostic => diagnostic.Id == expected));
         Assert.AreEqual(DiagnosticSeverity.Error, error.Severity);
         Assert.IsFalse(compilation.Assembly.GetAttributes().Any(static attribute => attribute.AttributeClass?.ToDisplayString() == "System.Reflection.AssemblyMetadataAttribute" &&
             (string?)attribute.ConstructorArguments[0].Value == "Ankus.Sql" && !string.IsNullOrEmpty((string?)attribute.ConstructorArguments[1].Value)));
@@ -228,7 +229,7 @@ public sealed partial class PgFunctionGeneratorTests
         string source = CustomOperatorValueSource.Replace("[Ankus.PgEquality]", string.Empty, StringComparison.Ordinal) +
             "public static class Functions { [Ankus.PgOperator(\"=\")][Ankus.PgFunction(Schema=\"elsewhere\")] public static bool Equal(Value a,Value b)=>true; }";
         (_, ImmutableArray<Diagnostic> diagnostics) = Generate(source);
-        Assert.ContainsSingle(diagnostics.Where(static diagnostic => diagnostic.Id == "ANKUS018"));
+        Assert.ContainsSingle(diagnostics.Where(static diagnostic => diagnostic.Id == "ANKUS418"));
     }
 
     /// <summary>
@@ -243,7 +244,7 @@ public sealed partial class PgFunctionGeneratorTests
         string source = CustomOperatorValueSource.Replace("[Ankus.PgEquality][Ankus.PgOrdering][Ankus.PgHashing]", $"[Ankus.{attribute}]", StringComparison.Ordinal) +
             "public static class Functions { [Ankus.PgOperator(\"=\")] public static int Equal(Value a,Value b)=>0; }";
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source);
-        Assert.ContainsSingle(diagnostics.Where(static diagnostic => diagnostic.Id == "ANKUS018"));
+        Assert.ContainsSingle(diagnostics.Where(static diagnostic => diagnostic.Id == "ANKUS418"));
         Assert.IsFalse(compilation.Assembly.GetAttributes().Any(static attribute => attribute.AttributeClass?.ToDisplayString() == "System.Reflection.AssemblyMetadataAttribute" &&
             (string?)attribute.ConstructorArguments[0].Value == "Ankus.Sql" && !string.IsNullOrEmpty((string?)attribute.ConstructorArguments[1].Value)));
     }

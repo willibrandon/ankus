@@ -229,7 +229,7 @@ public sealed partial class PgFunctionGeneratorTests
                 public static System.Collections.Generic.IEnumerable<{{element}}> Rows() => System.Array.Empty<{{element}}>();
             }
             """);
-        Assert.AreEqual("ANKUS008", Assert.ContainsSingle(diagnostics).Id);
+        Assert.AreEqual("ANKUS397", Assert.ContainsSingle(diagnostics).Id);
     }
 
     /// <summary>
@@ -284,7 +284,7 @@ public sealed partial class PgFunctionGeneratorTests
             """);
         if (bytes == 64)
         {
-            Assert.AreEqual("ANKUS008", Assert.ContainsSingle(diagnostics).Id);
+            Assert.AreEqual("ANKUS400", Assert.ContainsSingle(diagnostics).Id);
         }
         else
         {
@@ -298,29 +298,30 @@ public sealed partial class PgFunctionGeneratorTests
     /// </summary>
     /// <param name="attributes">Return-column attributes, if any.</param>
     /// <param name="element">The unsupported element or row shape.</param>
+    /// <param name="expected">The precise diagnostic identifier for the invalid declaration.</param>
     [TestMethod]
-    [DataRow("", "(int, string)")]
-    [DataRow("", "(int Named, string)")]
-    [DataRow("", "System.ValueTuple<int>")]
-    [DataRow("", "(int Id, string Name)?")]
-    [DataRow("", "((int Id, string Name) Nested, int Count)")]
-    [DataRow("", "(int URL, string Url)")]
-    [DataRow("", "System.Uri")]
-    [DataRow("", "(int Id, System.Uri Address)")]
-    [DataRow("", "System.Collections.Generic.IEnumerable<int>")]
-    [DataRow("", "(int Id, System.Collections.Generic.IEnumerable<int> Values)")]
-    [DataRow("", "int[,]")]
-    [DataRow("[return: Ankus.PgColumnNames()]", "int")]
-    [DataRow("[return: Ankus.PgColumnNames(null!)]", "int")]
-    [DataRow("[return: Ankus.PgColumnNames(\"\")]", "int")]
-    [DataRow("[return: Ankus.PgColumnNames(\"bad\\0name\")]", "int")]
-    [DataRow("[return: Ankus.PgColumnNames(\"\\ud800\")]", "int")]
-    [DataRow("[return: Ankus.PgColumnNames(\"one\", \"two\")]", "int")]
-    [DataRow("[return: Ankus.PgColumnNames(\"one\")]", "(int A, int B)")]
-    [DataRow("[return: Ankus.PgColumnNames(\"same\", \"same\")]", "(int A, int B)")]
-    [DataRow("[return: Ankus.PgColumnNames(\"a\", null!)]", "(int A, int B)")]
-    [DataRow("[return: Ankus.PgColumnNames(\"row\")]", "(int Id, string Name)?")]
-    public void InvalidSetRowShapesAndNamesAreDiagnosed(string attributes, string element)
+    [DataRow("", "(int, string)", "ANKUS399")]
+    [DataRow("", "(int Named, string)", "ANKUS399")]
+    [DataRow("", "System.ValueTuple<int>", "ANKUS399")]
+    [DataRow("", "(int Id, string Name)?", "ANKUS397")]
+    [DataRow("", "((int Id, string Name) Nested, int Count)", "ANKUS397")]
+    [DataRow("", "(int URL, string Url)", "ANKUS400")]
+    [DataRow("", "System.Uri", "ANKUS397")]
+    [DataRow("", "(int Id, System.Uri Address)", "ANKUS397")]
+    [DataRow("", "System.Collections.Generic.IEnumerable<int>", "ANKUS397")]
+    [DataRow("", "(int Id, System.Collections.Generic.IEnumerable<int> Values)", "ANKUS397")]
+    [DataRow("", "int[,]", "ANKUS397")]
+    [DataRow("[return: Ankus.PgColumnNames()]", "int", "ANKUS400")]
+    [DataRow("[return: Ankus.PgColumnNames(null!)]", "int", "ANKUS398")]
+    [DataRow("[return: Ankus.PgColumnNames(\"\")]", "int", "ANKUS400")]
+    [DataRow("[return: Ankus.PgColumnNames(\"bad\\0name\")]", "int", "ANKUS400")]
+    [DataRow("[return: Ankus.PgColumnNames(\"\\ud800\")]", "int", "ANKUS400")]
+    [DataRow("[return: Ankus.PgColumnNames(\"one\", \"two\")]", "int", "ANKUS400")]
+    [DataRow("[return: Ankus.PgColumnNames(\"one\")]", "(int A, int B)", "ANKUS400")]
+    [DataRow("[return: Ankus.PgColumnNames(\"same\", \"same\")]", "(int A, int B)", "ANKUS400")]
+    [DataRow("[return: Ankus.PgColumnNames(\"a\", null!)]", "(int A, int B)", "ANKUS400")]
+    [DataRow("[return: Ankus.PgColumnNames(\"row\")]", "(int Id, string Name)?", "ANKUS397")]
+    public void InvalidSetRowShapesAndNamesAreDiagnosed(string attributes, string element, string expected)
     {
         (_, ImmutableArray<Diagnostic> diagnostics) = Generate($$"""
             public static class Functions
@@ -330,9 +331,30 @@ public sealed partial class PgFunctionGeneratorTests
             }
             """);
         Diagnostic diagnostic = Assert.ContainsSingle(diagnostics);
-        Assert.AreEqual("ANKUS008", diagnostic.Id);
+        Assert.AreEqual(expected, diagnostic.Id);
         Assert.AreEqual(DiagnosticSeverity.Error, diagnostic.Severity);
         Assert.IsTrue(diagnostic.Location.IsInSource);
+    }
+
+    /// <summary>
+    /// Each set-result contract points at the declaration syntax that needs correction.
+    /// </summary>
+    /// <param name="declaration">The invalid set or table declaration.</param>
+    /// <param name="expectedId">The precise diagnostic identifier.</param>
+    /// <param name="highlight">The exact return type or attribute selected by the diagnostic.</param>
+    [TestMethod]
+    [DataRow("[return: Ankus.PgColumnNames(\"value\")] public static int Value() => 0;", "ANKUS396", "Ankus.PgColumnNames(\"value\")")]
+    [DataRow("public static System.Collections.Generic.IEnumerable<System.Uri> Rows() => [];", "ANKUS397", "System.Collections.Generic.IEnumerable<System.Uri>")]
+    [DataRow("[return: Ankus.PgColumnNames(null!)] public static System.Collections.Generic.IEnumerable<int> Rows() => [];", "ANKUS398", "Ankus.PgColumnNames(null!)")]
+    [DataRow("public static System.Collections.Generic.IEnumerable<(int, string)> Rows() => [];", "ANKUS399", "System.Collections.Generic.IEnumerable<(int, string)>")]
+    [DataRow("[return: Ankus.PgColumnNames(\"same\", \"same\")] public static System.Collections.Generic.IEnumerable<(int, int)> Rows() => [];", "ANKUS400", "Ankus.PgColumnNames(\"same\", \"same\")")]
+    public void SetResultDiagnosticsPointAtTheCorrectSyntax(string declaration, string expectedId, string highlight)
+    {
+        (_, ImmutableArray<Diagnostic> diagnostics) = Generate("public static class Functions { [Ankus.PgFunction] " + declaration + " }");
+        Diagnostic diagnostic = Assert.ContainsSingle(diagnostics);
+        Assert.AreEqual(expectedId, diagnostic.Id);
+        Assert.AreEqual(highlight,
+            diagnostic.Location.SourceTree!.GetText(context.CancellationToken).ToString(diagnostic.Location.SourceSpan));
     }
 
     /// <summary>
@@ -373,7 +395,7 @@ public sealed partial class PgFunctionGeneratorTests
     public void ColumnNamesOnScalarResultsAreDiagnosed(string method)
     {
         (_, ImmutableArray<Diagnostic> diagnostics) = Generate("public static class Functions { [Ankus.PgFunction] " + method + " }");
-        Assert.AreEqual("ANKUS008", Assert.ContainsSingle(diagnostics).Id);
+        Assert.AreEqual("ANKUS396", Assert.ContainsSingle(diagnostics).Id);
     }
 
     /// <summary>

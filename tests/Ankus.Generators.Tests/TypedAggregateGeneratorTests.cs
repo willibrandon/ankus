@@ -414,7 +414,7 @@ public sealed partial class PgFunctionGeneratorTests
     [DataRow("[Ankus.PgNumericPrecision(5,2,Element=\"Amount\"),Ankus.PgNumericPrecision(6,3,Element=\"Amount\")]", "ANKUS003")]
     [DataRow("[Ankus.PgNumericPrecision(0,2,Element=\"Amount\")]", "ANKUS003")]
     [DataRow("[Ankus.PgNumericPrecision(5,2,Element=\"Count\")]", "ANKUS003")]
-    [DataRow("[Ankus.PgSqlType(\"numeric\",Element=\"Amount\")]", "ANKUS016")]
+    [DataRow("[Ankus.PgSqlType(\"numeric\",Element=\"Amount\")]", "ANKUS405")]
     [DataRow("[Ankus.PgParameter(Element=\"Amount\",Variadic=true)]", "ANKUS103")]
     public void TypedAggregateTupleMetadataRejectsInvalidSelections(string attributes, string diagnostic)
         => AssertInvalidAggregate("[Ankus.PgAggregate(InitialCondition=\"0\")] public sealed class Invalid : Ankus.IPgAggregate<long,(decimal Amount,int Count)> { " +
@@ -431,8 +431,8 @@ public sealed partial class PgFunctionGeneratorTests
     [DataRow("[Ankus.PgParameter(Name=\"first\"),Ankus.PgParameter(Name=\"second\")] int value", "ANKUS057")]
     [DataRow("[Ankus.PgNumericPrecision(5,2,Element=\"missing\")] decimal value", "ANKUS003")]
     [DataRow("[Ankus.PgNumericPrecision(5,2),Ankus.PgNumericPrecision(6,3)] decimal value", "ANKUS003")]
-    [DataRow("[Ankus.PgSqlType(\"int4\",Element=\"missing\")] Ankus.PgDatum value", "ANKUS016")]
-    [DataRow("[Ankus.PgCompositeType(\"item\",Element=\"missing\")] Ankus.PgHeapTuple value", "ANKUS009")]
+    [DataRow("[Ankus.PgSqlType(\"int4\",Element=\"missing\")] Ankus.PgDatum value", "ANKUS412")]
+    [DataRow("[Ankus.PgCompositeType(\"item\",Element=\"missing\")] Ankus.PgHeapTuple value", "ANKUS412")]
     public void TypedAggregateMetadataCannotLeakIntoScalarFunctions(string parameter, string diagnostic)
         => AssertInvalidAggregate("public static class Invalid { [Ankus.PgFunction] public static int Value(" + parameter + ") => 0; }", diagnostic);
 

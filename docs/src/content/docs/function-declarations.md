@@ -368,6 +368,30 @@ Keep `PgFunction.SupportFunction = "pg_catalog.textlike_support"` for an existin
 external SQL routine. PostgreSQL validates its signature at installation. Choose
 either the external SQL name or `PgSupportFunction` for a declaration.
 
+## Named SQL type bindings
+
+`PgSqlType` binds a `PgDatum` value to an exact PostgreSQL type.
+`PgCompositeType` binds `PgHeapTuple` or its array element to a named composite.
+On a TABLE result, use `Column` to select one output. `Element` is reserved for
+typed aggregate tuple inputs.
+
+Binding diagnostics identify the exact contract:
+
+| Diagnostic | Required correction |
+| --- | --- |
+| ANKUS401 | Use valid type and schema identifiers. |
+| ANKUS402 | Replace `Element` with `Column` on a TABLE result. |
+| ANKUS403 | Select an existing TABLE output name. |
+| ANKUS404 | Set `Column` when more than one TABLE output could match. |
+| ANKUS405 | Apply `PgSqlType` only to `PgDatum`. |
+| ANKUS406 | Apply `PgCompositeType` only to `PgHeapTuple` or its array element. |
+| ANKUS407 | Retain one binding for a TABLE output. |
+| ANKUS408 | Add `PgSqlType` for every raw TABLE output. |
+| ANKUS409 | Retain one binding on a parameter or scalar result. |
+| ANKUS410 | Add `PgSqlType` to an unbound `PgDatum` parameter or scalar result. |
+| ANKUS411 | Use `Column` only on TABLE results. |
+| ANKUS412 | Use `Element` only on typed aggregate tuple inputs. |
+
 ## Declaration diagnostics
 
 For `ANKUS056`, supported C# editors offer **Remove SQL metadata from injected

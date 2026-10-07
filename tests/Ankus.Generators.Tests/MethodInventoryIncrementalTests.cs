@@ -168,7 +168,7 @@ public sealed partial class PgFunctionGeneratorTests
             (sequence ? "System.Collections.Generic.IEnumerable<Missing>" : "Missing") + " Answer() => default!; }";
         CSharpCompilation initial = ModuleCompilation(source);
         GeneratorDriver driver = ModuleDriver().RunGeneratorsAndUpdateCompilation(initial, out _, out ImmutableArray<Diagnostic> previous, context.CancellationToken);
-        Assert.AreEqual(sequence ? "ANKUS008" : "ANKUS039", Assert.ContainsSingle(previous).Id);
+        Assert.AreEqual(sequence ? "ANKUS397" : "ANKUS039", Assert.ContainsSingle(previous).Id);
         SyntaxTree tree = CSharpSyntaxTree.ParseText(source + "\n// independent edit", path: "Module.cs", cancellationToken: context.CancellationToken);
         CSharpCompilation edited = initial.ReplaceSyntaxTree(initial.SyntaxTrees.Single(), tree);
         driver = driver.RunGeneratorsAndUpdateCompilation(edited, out _, out ImmutableArray<Diagnostic> errors, context.CancellationToken);

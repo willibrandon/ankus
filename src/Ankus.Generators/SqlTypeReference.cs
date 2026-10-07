@@ -12,12 +12,56 @@ namespace Ankus.Generators;
 /// <param name="IsArray">Whether the binding identifies an array type.</param>
 internal sealed record SqlTypeReference(string Name, string? Schema, bool IsRaw = false, bool IsArray = false)
 {
-    private static readonly DiagnosticDescriptor s_invalid = new(
-        "ANKUS009", "Invalid PostgreSQL composite binding", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true,
-        helpLinkUri: "https://willibrandon.github.io/ankus/composites/#named-composite-types");
-    private static readonly DiagnosticDescriptor s_invalidRaw = new(
-        "ANKUS016", "Invalid PostgreSQL raw type binding", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true,
-        helpLinkUri: "https://willibrandon.github.io/ankus/raw-values/#raw-sql-values");
+    private const string HelpLink = "https://willibrandon.github.io/ankus/function-declarations/#named-sql-type-bindings";
+
+    private static readonly DiagnosticDescriptor s_invalidIdentifier = new(
+        "ANKUS401", "Invalid PostgreSQL type-binding identifier",
+        "'{0}' has an invalid PostgreSQL type or schema identifier; use nonempty names of at most 63 UTF-8 bytes with valid Unicode and no zero characters",
+        "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLink);
+    private static readonly DiagnosticDescriptor s_tableElement = new(
+        "ANKUS402", "TABLE binding cannot select an aggregate element",
+        "'{0}' applies Element to a TABLE output binding; use Column to select a TABLE output",
+        "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLink);
+    private static readonly DiagnosticDescriptor s_unknownColumn = new(
+        "ANKUS403", "PostgreSQL type binding selects an unknown TABLE column",
+        "'{0}' applies Column to a name that is not an output of this TABLE result",
+        "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLink);
+    private static readonly DiagnosticDescriptor s_ambiguousOutput = new(
+        "ANKUS404", "PostgreSQL TABLE type binding is ambiguous",
+        "'{0}' has a return binding without exactly one matching TABLE output; set Column to select the output explicitly",
+        "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLink);
+    private static readonly DiagnosticDescriptor s_rawRepresentation = new(
+        "ANKUS405", "Raw PostgreSQL type binding requires PgDatum",
+        "'{0}' applies PgSqlType to a value that is not PgDatum; use PgDatum or remove the raw binding",
+        "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLink);
+    private static readonly DiagnosticDescriptor s_compositeRepresentation = new(
+        "ANKUS406", "Composite PostgreSQL type binding requires PgHeapTuple",
+        "'{0}' applies PgCompositeType to a value that is not PgHeapTuple or an array of PgHeapTuple",
+        "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLink);
+    private static readonly DiagnosticDescriptor s_duplicateOutput = new(
+        "ANKUS407", "PostgreSQL TABLE output has multiple type bindings",
+        "'{0}' applies more than one SQL type binding to the same TABLE output; retain exactly one binding",
+        "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLink);
+    private static readonly DiagnosticDescriptor s_missingOutput = new(
+        "ANKUS408", "Raw PostgreSQL TABLE output requires a type binding",
+        "'{0}' has a PgDatum TABLE output without PgSqlType; bind every raw output to its PostgreSQL type",
+        "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLink);
+    private static readonly DiagnosticDescriptor s_duplicateValue = new(
+        "ANKUS409", "PostgreSQL value has multiple type bindings",
+        "'{0}' has more than one PgSqlType or PgCompositeType binding on '{1}'; retain exactly one binding",
+        "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLink);
+    private static readonly DiagnosticDescriptor s_missingValue = new(
+        "ANKUS410", "Raw PostgreSQL value requires a type binding",
+        "'{0}' uses PgDatum for '{1}' without PgSqlType; bind the raw value to its PostgreSQL type",
+        "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLink);
+    private static readonly DiagnosticDescriptor s_columnContext = new(
+        "ANKUS411", "TABLE column selector requires a TABLE result",
+        "'{0}' applies Column outside a TABLE result; remove Column or bind a named TABLE output",
+        "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLink);
+    private static readonly DiagnosticDescriptor s_elementContext = new(
+        "ANKUS412", "Aggregate element selector requires a tuple input",
+        "'{0}' applies Element outside a typed aggregate tuple input; remove Element or bind an aggregate tuple element",
+        "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLink);
 
     /// <summary>
     /// Gets whether the binding names PostgreSQL's internal callback type.
@@ -76,12 +120,14 @@ internal sealed record SqlTypeReference(string Name, string? Schema, bool IsRaw 
         bool valid = true;
         foreach (IParameterSymbol parameter in method.Parameters)
         {
-            valid &= ValidateValue(parameter.Type, parameter.GetAttributes(), method, parameter.Name, context);
+            valid &= ValidateValue(parameter.Type, parameter.GetAttributes(), method, parameter.Name, context,
+                location: parameter.Locations.FirstOrDefault());
         }
 
         if (set is null)
         {
-            valid &= ValidateValue(method.ReturnType, method.GetReturnTypeAttributes(), method, "return", context);
+            valid &= ValidateValue(method.ReturnType, method.GetReturnTypeAttributes(), method, "return", context,
+                location: FunctionDeclarationDiagnostics.Result(method, context.CancellationToken));
         }
         else
         {
@@ -97,7 +143,7 @@ internal sealed record SqlTypeReference(string Name, string? Schema, bool IsRaw 
 
                 if (AttributeValues.Get<string?>(attribute, "Element", null) is not null)
                 {
-                    Error(attribute, "Element selects a typed aggregate tuple input; use Column for SQL TABLE outputs.");
+                    Error(attribute, s_tableElement);
                     continue;
                 }
 
@@ -108,7 +154,7 @@ internal sealed record SqlTypeReference(string Name, string? Schema, bool IsRaw 
                     index = set.Names is null ? -1 : Array.IndexOf<string>([.. set.Names], column);
                     if (index < 0)
                     {
-                        Error(attribute, "Column must name an existing SQL TABLE output; scalar and SETOF returns cannot select a column.");
+                        Error(attribute, s_unknownColumn);
                         continue;
                     }
                 }
@@ -117,7 +163,7 @@ internal sealed record SqlTypeReference(string Name, string? Schema, bool IsRaw 
                     int[] candidates = [.. Enumerable.Range(0, columns.Length).Where(candidate => Matches(columns[candidate], attribute))];
                     if (candidates.Length != 1)
                     {
-                        Error(attribute, "A return binding without Column requires exactly one matching output; select each TABLE column explicitly when ambiguous.");
+                        Error(attribute, s_ambiguousOutput);
                         continue;
                     }
 
@@ -126,13 +172,13 @@ internal sealed record SqlTypeReference(string Name, string? Schema, bool IsRaw 
 
                 if (!Matches(columns[index], attribute))
                 {
-                    Error(attribute, Requirement(attribute));
+                    Error(attribute, RepresentationDiagnostic(attribute));
                     continue;
                 }
 
                 if (!bound.Add(index))
                 {
-                    Error(attribute, "Each output may have only one SQL type binding.");
+                    Error(attribute, s_duplicateOutput);
                     continue;
                 }
 
@@ -145,17 +191,18 @@ internal sealed record SqlTypeReference(string Name, string? Schema, bool IsRaw 
             {
                 if (columns[index].IsRaw && columns[index].Binding is null)
                 {
-                    Error(null, "Each PgDatum output requires a PgSqlType binding.");
+                    valid = false;
+                    context.Report(s_missingOutput, FunctionDeclarationDiagnostics.Result(method, context.CancellationToken), method.Name);
                 }
             }
         }
 
         return valid;
 
-        void Error(AttributeData? attribute, string message)
+        void Error(AttributeData? attribute, DiagnosticDescriptor descriptor)
         {
             valid = false;
-            Report(attribute, method, message, context);
+            Report(attribute, method, descriptor, context, method.Name);
         }
     }
 
@@ -163,61 +210,62 @@ internal sealed record SqlTypeReference(string Name, string? Schema, bool IsRaw 
     /// Validates one SQL value after any aggregate tuple-element selection.
     /// </summary>
     internal static bool ValidateValue(ITypeSymbol type, ImmutableArray<AttributeData> attributes, IMethodSymbol method,
-        string target, GeneratorDiagnostics context, bool grouped = false)
+        string target, GeneratorDiagnostics context, bool grouped = false, Location? location = null)
     {
         bool valid = true;
         AttributeData[] bindings = [.. Bindings(attributes)];
         if (bindings.Length > 1)
         {
-            Error(bindings[1], $"'{target}' may have only one SQL type binding.");
+            Error(bindings[1], s_duplicateValue, method.Name, target);
             return false;
         }
 
         if (bindings.Length == 0 && FunctionType.Create(type)?.IsRaw == true)
         {
-            Error(null, $"'{target}' requires a PgSqlType binding for its PgDatum value.");
+            valid = false;
+            context.Report(s_missingValue, location ?? method.Locations.FirstOrDefault(), method.Name, target);
         }
 
         foreach (AttributeData attribute in bindings)
         {
-            if (!ValidateName(attribute, Error))
+            if (!ValidateName(attribute, (invalid, descriptor) => Error(invalid, descriptor, method.Name)))
             {
                 continue;
             }
 
             if (AttributeValues.Get<string?>(attribute, "Column", null) is not null)
             {
-                Error(attribute, "Column may be used only to select a SQL TABLE output.");
+                Error(attribute, s_columnContext, method.Name);
             }
             else if (!grouped && AttributeValues.Get<string?>(attribute, "Element", null) is not null)
             {
-                Error(attribute, "Element may be used only to select a typed aggregate tuple input.");
+                Error(attribute, s_elementContext, method.Name);
             }
             else if (!Matches(FunctionType.Create(type), attribute))
             {
-                Error(attribute, Requirement(attribute));
+                Error(attribute, RepresentationDiagnostic(attribute), method.Name);
             }
         }
 
         return valid;
 
-        void Error(AttributeData? attribute, string message)
+        void Error(AttributeData? attribute, DiagnosticDescriptor descriptor, params string[] arguments)
         {
             valid = false;
-            Report(attribute, method, message, context);
+            Report(attribute, method, descriptor, context, arguments);
         }
     }
 
     /// <summary>
     /// Checks identifiers shared by scalar, TABLE and aggregate element bindings.
     /// </summary>
-    private static bool ValidateName(AttributeData attribute, Action<AttributeData?, string> error)
+    private static bool ValidateName(AttributeData attribute, Action<AttributeData?, DiagnosticDescriptor> error)
     {
         string? typeName = attribute.ConstructorArguments.FirstOrDefault().Value as string;
         string? schemaName = AttributeValues.Get<string?>(attribute, "Schema", null);
         if (!SqlText.IsIdentifier(typeName) || schemaName is not null && !SqlText.IsIdentifier(schemaName))
         {
-            error(attribute, "Type and schema names must be nonempty identifiers of at most 63 UTF-8 bytes, without zero characters or invalid Unicode.");
+            error(attribute, s_invalidIdentifier);
             return false;
         }
 
@@ -227,10 +275,11 @@ internal sealed record SqlTypeReference(string Name, string? Schema, bool IsRaw 
     /// <summary>
     /// Reports a binding diagnostic at its attribute or declaring method.
     /// </summary>
-    private static void Report(AttributeData? attribute, IMethodSymbol method, string message, GeneratorDiagnostics context)
-        => context.Report(attribute is null || IsRawBinding(attribute) ? s_invalidRaw : s_invalid,
+    private static void Report(AttributeData? attribute, IMethodSymbol method, DiagnosticDescriptor descriptor,
+        GeneratorDiagnostics context, params string[] arguments)
+        => context.Report(descriptor,
             attribute?.ApplicationSyntaxReference?.GetSyntax(context.CancellationToken).GetLocation() ?? method.Locations.FirstOrDefault(),
-            method.Name, message);
+            arguments);
 
     /// <summary>
     /// Checks the managed representation selected by a binding attribute.
@@ -245,11 +294,10 @@ internal sealed record SqlTypeReference(string Name, string? Schema, bool IsRaw 
         => attribute.AttributeClass?.ToDisplayString() == "Ankus.PgSqlTypeAttribute";
 
     /// <summary>
-    /// Describes the managed representation required by an invalid binding.
+    /// Selects the managed-representation diagnostic for one binding attribute.
     /// </summary>
-    private static string Requirement(AttributeData attribute) => IsRawBinding(attribute)
-        ? "PgSqlType requires a PgDatum value. Use IsArray to bind a datum containing an array."
-        : "PgCompositeType requires a PgHeapTuple value or array element.";
+    private static DiagnosticDescriptor RepresentationDiagnostic(AttributeData attribute)
+        => IsRawBinding(attribute) ? s_rawRepresentation : s_compositeRepresentation;
 
     /// <summary>
     /// Selects attributes that bind a managed value to a named SQL type.

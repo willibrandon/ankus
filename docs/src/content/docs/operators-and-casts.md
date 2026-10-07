@@ -273,10 +273,21 @@ fallbacks. Replacement classes can choose their names and `DEFAULT` status.
 `PgEquality` has no SQL override controls. See
 [index-family SQL controls](/custom-sql/#replace-index-families).
 
-Ankus reports `ANKUS018` for invalid generated operator contracts and `ANKUS005`
-for duplicate signatures or invalid installation dependencies. Arbitrary custom
-SQL is validated by PostgreSQL during installation. Generated objects are
-extension members and move with a relocatable extension.
+Generated-operator diagnostics distinguish the required correction:
+
+| Diagnostic | Required correction |
+| --- | --- |
+| ANKUS413 | Add a valid, accessible `PgType`, `PgEnum`, or `PgDatumType` declaration. |
+| ANKUS414 | Add an exact datum reader to the mapped type. |
+| ANKUS415 | Implement `IEquatable<T>` for the exact managed type. |
+| ANKUS416 | Implement `IComparable<T>` for the exact managed type. |
+| ANKUS417 | Implement `IPgHashable` with an equality-compatible hash. |
+| ANKUS418 | Add `PgEquality` or an exact same-schema boolean `=` operator. |
+
+Graph diagnostics report duplicate signatures or invalid installation
+dependencies. Arbitrary custom SQL is validated by PostgreSQL during
+installation. Generated objects are extension members and move with a
+relocatable extension.
 
 ## Casts
 

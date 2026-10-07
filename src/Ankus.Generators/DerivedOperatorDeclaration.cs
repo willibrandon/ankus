@@ -7,9 +7,32 @@ namespace Ankus.Generators;
 /// </summary>
 internal static class DerivedOperatorDeclaration
 {
-    private static readonly DiagnosticDescriptor s_invalid = new(
-        "ANKUS018", "Invalid generated PostgreSQL operators", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true,
-        helpLinkUri: "https://willibrandon.github.io/ankus/operators-and-casts/#generated-type-operators");
+    private const string HelpLink = "https://willibrandon.github.io/ankus/operators-and-casts/#generated-type-operators";
+
+    private static readonly DiagnosticDescriptor s_root = new(
+        "ANKUS413", "Generated PostgreSQL operators require a supported type",
+        "'{0}' must have a valid, accessible PgType, PgEnum, or PgDatumType declaration before generating operators",
+        "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLink);
+    private static readonly DiagnosticDescriptor s_reader = new(
+        "ANKUS414", "Generated PostgreSQL operators require a datum reader",
+        "'{0}' requires an IPgDatumReader<T> for its exact PgDatumType before generating operators",
+        "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLink);
+    private static readonly DiagnosticDescriptor s_equality = new(
+        "ANKUS415", "Generated PostgreSQL operators require managed equality",
+        "'{0}' must implement IEquatable<T> for its exact declared type",
+        "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLink);
+    private static readonly DiagnosticDescriptor s_ordering = new(
+        "ANKUS416", "Generated PostgreSQL ordering requires managed comparison",
+        "'{0}' must implement IComparable<T> for its exact declared type",
+        "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLink);
+    private static readonly DiagnosticDescriptor s_hashing = new(
+        "ANKUS417", "Generated PostgreSQL hashing requires a stable managed hash",
+        "'{0}' must implement IPgHashable with an equality-compatible GetPostgresHashCode implementation",
+        "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLink);
+    private static readonly DiagnosticDescriptor s_missingEquality = new(
+        "ANKUS418", "Generated PostgreSQL ordering or hashing requires equality",
+        "'{0}' must declare PgEquality or a boolean same-schema PgOperator(\"=\") for its exact SQL type",
+        "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLink);
 
     /// <summary>
     /// Identifies explicit operator-generation attributes without requiring a valid storage declaration.
@@ -36,12 +59,19 @@ internal static class DerivedOperatorDeclaration
         if (value is null || sql is null || value.DatumType is null &&
             (value.CustomType is null && value.Enumeration is null || typeEntity is null))
         {
-            return Invalid("Generated operators require a valid, accessible PgType, PgEnum or PgDatumType declaration.");
+            return Invalid(s_root);
         }
 
         if (model.Error is not null)
         {
-            return Invalid(model.Error);
+            return Invalid(model.Error.Value switch
+            {
+                DerivedOperatorError.Reader => s_reader,
+                DerivedOperatorError.Equality => s_equality,
+                DerivedOperatorError.Ordering => s_ordering,
+                DerivedOperatorError.Hashing => s_hashing,
+                _ => throw new InvalidOperationException("Unknown generated-operator diagnostic."),
+            });
         }
 
         string? schema = value.CustomType?.Schema ?? value.Enumeration?.Schema ?? value.DatumType?.Schema;
@@ -49,7 +79,7 @@ internal static class DerivedOperatorDeclaration
         string equalitySignature = sql.EqualitySignature.Compose(providers).Replace("\0", string.Empty);
         if (equality is null && !operators.ContainsKey(equalitySignature))
         {
-            return Invalid("PgOrdering and PgHashing require PgEquality or a boolean same-schema PgOperator(\"=\") for the exact SQL type.");
+            return Invalid(s_missingEquality);
         }
 
         Dictionary<string, DerivedSqlEmission.Function> sqlFunctions = sql.Functions.ToDictionary(static function => function.Role, StringComparer.Ordinal);
@@ -93,9 +123,9 @@ internal static class DerivedOperatorDeclaration
 
         return true;
 
-        bool Invalid(string message)
+        bool Invalid(DiagnosticDescriptor descriptor)
         {
-            context.Report(s_invalid, model.Location?.Resolve(compilation), model.DiagnosticName, message);
+            context.Report(descriptor, model.Location?.Resolve(compilation), model.DiagnosticName);
             return false;
         }
 

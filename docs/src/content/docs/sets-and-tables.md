@@ -92,6 +92,12 @@ nested tuples and nullable tuple rows are rejected. Make individual fields
 nullable to represent SQL NULL. `ValueTuple<T>` is supported with an explicit
 single column name.
 
+Invalid result shapes report the precise declaration contract. `ANKUS396`
+requires `PgColumnNames` to accompany `IEnumerable<T>`, `ANKUS397` rejects an
+unsupported element or tuple shape, `ANKUS398` rejects a null names array,
+`ANKUS399` requires names for unnamed table columns, and `ANKUS400` rejects
+invalid, duplicate, missing, or excess column names.
+
 ## Empty sets and NULL
 
 An empty sequence returns zero rows. A nullable sequence that returns `null`

@@ -120,13 +120,13 @@ public sealed partial class PgFunctionGeneratorTests
         CSharpCompilation initial = ModuleCompilation(Source);
         GeneratorDriver driver = ModuleDriver().RunGeneratorsAndUpdateCompilation(initial, out _,
             out ImmutableArray<Diagnostic> previous, context.CancellationToken);
-        Assert.AreEqual("ANKUS018", Assert.ContainsSingle(previous).Id);
+        Assert.AreEqual("ANKUS416", Assert.ContainsSingle(previous).Id);
         SyntaxTree tree = CSharpSyntaxTree.ParseText(Source + "\n// independent edit", path: "Module.cs", cancellationToken: context.CancellationToken);
         CSharpCompilation edited = initial.ReplaceSyntaxTree(initial.SyntaxTrees.Single(), tree);
         driver = driver.RunGeneratorsAndUpdateCompilation(edited, out Compilation failed, out ImmutableArray<Diagnostic> errors, context.CancellationToken);
         Diagnostic error = Assert.ContainsSingle(errors);
 
-        Assert.AreEqual("ANKUS018", error.Id);
+        Assert.AreEqual("ANKUS416", error.Id);
         Assert.AreSame(tree, error.Location.SourceTree);
         Assert.AreEqual(Assert.ContainsSingle(previous).Location.SourceSpan, error.Location.SourceSpan);
         Assert.AreEqual(IncrementalStepRunReason.Unchanged, ModuleStep(driver, "DatumAnalysis"));
