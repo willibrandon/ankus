@@ -140,6 +140,9 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   and retain macOS at four because its twelve CPUs were already saturated.
   Complete replacement run **37671527838** is in progress without a reported
   failure; its final measured durations remain pending.
+- The hosted quality job also forced solution restore and build through one
+  MSBuild node. That obsolete serialization is removed; its clean build remains
+  complete and warnings remain errors while independent projects build in parallel.
 - Linux version run **37656004533** exposed a CI throughput defect rather than a
   PostgreSQL 15 failure. Its 10-processor runner was restricted to two package
   slots, while initial Native AOT publication ignored that setting and retained
