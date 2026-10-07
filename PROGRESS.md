@@ -300,11 +300,14 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   concurrent macOS ARM64/PostgreSQL 15 and 16 jobs exhausted their shared disk.
   The retained PG16 failures are all write failures after the disk filled, and
   the PG15 unit reports contain no product-test failures. Stale generated data
-  was removed, both runner services now share the concurrency-safe binding cache,
-  and macOS ARM64 full suites serialize across primary and compatibility
-  workflows. Windows suites use two concurrency lanes, so two remain parallel
-  without scheduling three complete suites on one host. Self-hosted test jobs
-  clean ignored and untracked checkout outputs after uploading reports.
+  was removed and both runner services now share the concurrency-safe binding
+  cache. Replacement run **37617324614** exposed a GitHub Actions scheduling
+  contract: a shared concurrency group cancels the older pending job when a newer
+  job queues, even with `cancel-in-progress: false`. The macOS group is removed;
+  its runner capacity now queues every suite without replacement. Windows suites
+  use two concurrency lanes, so two remain parallel without scheduling three
+  complete suites on one host. Self-hosted test jobs clean ignored and untracked
+  checkout outputs after uploading reports.
 
 Remaining diagnostics/code fixes, source-case mapping, samples, API and CLI
 contracts, supported PostgreSQL/platform combinations, .NET servicing and release
