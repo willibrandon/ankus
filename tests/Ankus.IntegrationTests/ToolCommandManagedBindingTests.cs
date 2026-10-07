@@ -681,10 +681,10 @@ public sealed partial class ToolCommandTests
                 "/I" + Path.Combine(s_installation.ServerIncludeDirectory, "port", "win32_msvc"), "/Fo" + artifact, file]
             : [.. await s_installation.GetPreprocessorArgumentsAsync(token), "-std=gnu11", "-Wall", "-Wextra", "-Werror", "-O2", "-fPIC", "-c",
                 "-isystem", s_installation.ServerIncludeDirectory, "-isystem", s_installation.IncludeDirectory, file, "-o", artifact];
-        await ProcessRunner.RunCheckedAsync(compiler, options, s_environment, token, workingDirectory: directory);
+        await PackageProcessRunner.RunCheckedAsync(compiler, options, s_environment, token, workingDirectory: directory);
         string archiver = OperatingSystem.IsWindows() ? "lib.exe" : "ar";
         string[] archive = OperatingSystem.IsWindows() ? ["/nologo", "/OUT:" + library, artifact] : ["rcs", library, artifact];
-        await ProcessRunner.RunCheckedAsync(archiver, archive, s_environment, token, workingDirectory: directory);
+        await PackageProcessRunner.RunCheckedAsync(archiver, archive, s_environment, token, workingDirectory: directory);
         return library;
     }
 
@@ -741,7 +741,7 @@ public sealed partial class ToolCommandTests
         await File.WriteAllTextAsync(sentinel, "preserve unrelated temporary files", token);
         string cache = Path.Combine(temporary, "binding-cache");
         string[] command = [helper, "binding-sources", MajorText(), s_installation.PgConfigPath, output, "", "", "", "", "", "", cache];
-        (await ProcessRunner.RunAsync("dotnet", command, environment, token, workingDirectory: s_root)).EnsureSuccess("dotnet", command);
+        (await PackageProcessRunner.RunAsync("dotnet", command, environment, token, workingDirectory: s_root)).EnsureSuccess("dotnet", command);
         Assert.IsEmpty(Directory.GetDirectories(temporary, "ankus-node-*"));
         Assert.IsEmpty(Directory.GetDirectories(temporary, "ankus-source-*"));
         string[] names = ["native-binding.g.cs", "native-binding.assembly-name", "native-binding.identity", "Ankus.NativeBindings.csproj",
@@ -753,7 +753,7 @@ public sealed partial class ToolCommandTests
             expected.Add(name, await File.ReadAllBytesAsync(Path.Combine(output, name), token));
         }
 
-        ProcessResult rejected = await ProcessRunner.RunAsync("dotnet",
+        ProcessResult rejected = await PackageProcessRunner.RunAsync("dotnet",
             [.. command[..^2], Path.Combine(output, "missing-libclang"), cache], environment, token, workingDirectory: s_root);
         Assert.AreEqual(1, rejected.ExitCode);
         Assert.Contains("Cannot locate the selected libclang library", rejected.StandardError);
@@ -774,7 +774,7 @@ public sealed partial class ToolCommandTests
         field["OffsetBits"] = 0;
         // Keep the cache manifest internally consistent so only native verification can reject this false layout.
         await ReplaceCachedArtifactAsync(cache, "native-records.json", JsonSerializer.SerializeToUtf8Bytes(records, s_bindingJsonOptions), token);
-        ProcessResult invalidLayout = await ProcessRunner.RunAsync("dotnet", command, environment, token, workingDirectory: s_root);
+        ProcessResult invalidLayout = await PackageProcessRunner.RunAsync("dotnet", command, environment, token, workingDirectory: s_root);
         Assert.AreEqual(1, invalidLayout.ExitCode);
         Assert.Contains("offset RangeTblRef.rtindex", invalidLayout.StandardError);
         foreach (string name in names)
@@ -786,7 +786,7 @@ public sealed partial class ToolCommandTests
         Assert.IsEmpty(Directory.GetDirectories(temporary, "ankus-source-*"));
         await ReplaceCachedArtifactAsync(cache, "native-records.json", expected["native-records.json"], token);
         await ReplaceCachedArtifactAsync(cache, "native-node-availability.json", "[{\"Type\":\"RangeTblRef\",\"Field\":\"rtindex\"}]"u8.ToArray(), token);
-        ProcessResult invalidAvailability = await ProcessRunner.RunAsync("dotnet", command, environment, token, workingDirectory: s_root);
+        ProcessResult invalidAvailability = await PackageProcessRunner.RunAsync("dotnet", command, environment, token, workingDirectory: s_root);
         Assert.AreEqual(1, invalidAvailability.ExitCode);
         Assert.Contains("Current native node observations disagree with the cached companion contract", invalidAvailability.StandardError);
         foreach (string name in names)
@@ -799,7 +799,7 @@ public sealed partial class ToolCommandTests
         await ReplaceCachedArtifactAsync(cache, "native-node-availability.json", expected["native-node-availability.json"], token);
         await ReplaceCachedArtifactAsync(cache, "native-node-declarations.json",
             "{\"AbsentTypes\":[\"RangeTblRef\"],\"AbsentTags\":[],\"AdditionalTags\":[],\"ChangedTags\":[]}"u8.ToArray(), token);
-        ProcessResult invalidDeclarations = await ProcessRunner.RunAsync("dotnet", command, environment, token, workingDirectory: s_root);
+        ProcessResult invalidDeclarations = await PackageProcessRunner.RunAsync("dotnet", command, environment, token, workingDirectory: s_root);
         Assert.AreEqual(1, invalidDeclarations.ExitCode);
         Assert.Contains("Current native node observations disagree with the cached companion contract", invalidDeclarations.StandardError);
         foreach (string name in names)
@@ -814,8 +814,8 @@ public sealed partial class ToolCommandTests
         string[] concurrentCommand = [.. command];
         concurrentCommand[4] = concurrentOutput;
         ProcessResult[] recovered = await Task.WhenAll(
-            ProcessRunner.RunAsync("dotnet", command, environment, token, workingDirectory: s_root),
-            ProcessRunner.RunAsync("dotnet", concurrentCommand, environment, token, workingDirectory: s_root));
+            PackageProcessRunner.RunAsync("dotnet", command, environment, token, workingDirectory: s_root),
+            PackageProcessRunner.RunAsync("dotnet", concurrentCommand, environment, token, workingDirectory: s_root));
         foreach (ProcessResult result in recovered)
         {
             result.EnsureSuccess("dotnet", command);

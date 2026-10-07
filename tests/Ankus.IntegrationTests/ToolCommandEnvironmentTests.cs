@@ -23,7 +23,7 @@ public sealed partial class ToolCommandTests
             ? Path.GetRelativePath(s_root, s_installation.PgConfigPath)
             : s_installation.PgConfigPath;
         // An unintended download selection must fail before HTTP requests or installation creation.
-        ProcessResult initialized = await ProcessRunner.RunAsync(s_tool, ["init", "--jobs", "0"], environment,
+        ProcessResult initialized = await PackageProcessRunner.RunAsync(s_tool, ["init", "--jobs", "0"], environment,
             context.CancellationToken, workingDirectory: s_root);
         Assert.AreEqual(0, initialized.ExitCode, initialized.StandardOutput + initialized.StandardError);
         var registry = new PostgresRegistry(home);
@@ -31,7 +31,7 @@ public sealed partial class ToolCommandTests
         using JsonDocument document = JsonDocument.Parse(await File.ReadAllTextAsync(registry.ConfigurationPath, context.CancellationToken));
         Assert.HasCount(1, document.RootElement.EnumerateObject());
         Assert.HasCount(2, Directory.GetFileSystemEntries(home));
-        ProcessResult info = await ProcessRunner.RunAsync(s_tool, ["info", "--pg", MajorText()], environment,
+        ProcessResult info = await PackageProcessRunner.RunAsync(s_tool, ["info", "--pg", MajorText()], environment,
             context.CancellationToken, workingDirectory: s_root);
         Assert.AreEqual(0, info.ExitCode, info.StandardError);
         Assert.Contains(s_installation.PgConfigPath, info.StandardOutput);
@@ -63,7 +63,7 @@ public sealed partial class ToolCommandTests
             environment["ANKUS_HOME"] = Path.GetRelativePath(s_root, home);
         }
 
-        ProcessResult result = await ProcessRunner.RunAsync(s_tool, ["info", "--pg", MajorText()], environment,
+        ProcessResult result = await PackageProcessRunner.RunAsync(s_tool, ["info", "--pg", MajorText()], environment,
             context.CancellationToken, workingDirectory: s_root);
         Assert.AreNotEqual(0, result.ExitCode);
         Assert.Contains(configuration, result.StandardError);
@@ -92,7 +92,7 @@ public sealed partial class ToolCommandTests
             await File.WriteAllTextAsync(configuration, Original, context.CancellationToken);
             Dictionary<string, string?> environment = EnvironmentConfiguration(home);
             environment["PG" + major.ToString(CultureInfo.InvariantCulture) + "_PG_CONFIG"] = s_installation.PgConfigPath;
-            ProcessResult result = await ProcessRunner.RunAsync(s_tool,
+            ProcessResult result = await PackageProcessRunner.RunAsync(s_tool,
                 ["init", "--home", home, s_postgresOption, s_installation.PgConfigPath], environment,
                 context.CancellationToken, workingDirectory: s_root);
             Assert.AreNotEqual(0, result.ExitCode, "Environment default for PostgreSQL " + major.ToString(CultureInfo.InvariantCulture));
@@ -117,13 +117,13 @@ public sealed partial class ToolCommandTests
         await File.WriteAllTextAsync(configuration, Original, context.CancellationToken);
         Dictionary<string, string?> environment = EnvironmentConfiguration(other);
         environment["PG" + MajorText() + "_PG_CONFIG"] = "missing-environment-config";
-        ProcessResult initialized = await ProcessRunner.RunAsync(s_tool,
+        ProcessResult initialized = await PackageProcessRunner.RunAsync(s_tool,
             ["init", "--home", home, s_postgresOption, s_installation.PgConfigPath], environment,
             context.CancellationToken, workingDirectory: s_root);
         Assert.AreEqual(0, initialized.ExitCode, initialized.StandardOutput + initialized.StandardError);
         Assert.AreEqual(s_installation.PgConfigPath, new PostgresRegistry(home).GetPath(s_installation.Version.Major));
         Assert.AreEqual(Original, await File.ReadAllTextAsync(configuration, context.CancellationToken));
-        ProcessResult info = await ProcessRunner.RunAsync(s_tool, ["info", "--home", home, "--pg", MajorText()], environment,
+        ProcessResult info = await PackageProcessRunner.RunAsync(s_tool, ["info", "--home", home, "--pg", MajorText()], environment,
             context.CancellationToken, workingDirectory: s_root);
         Assert.AreEqual(0, info.ExitCode, info.StandardError);
         Assert.Contains(s_installation.PgConfigPath, info.StandardOutput);
@@ -147,7 +147,7 @@ public sealed partial class ToolCommandTests
         int major = value == "wrong-major" ? (s_installation.Version.Major == 13 ? 14 : 13) : s_installation.Version.Major;
         environment["PG" + major.ToString(CultureInfo.InvariantCulture) + "_PG_CONFIG"] = value == "wrong-major"
             ? s_installation.PgConfigPath : value;
-        ProcessResult result = await ProcessRunner.RunAsync(s_tool, ["init", "--jobs", "0"], environment,
+        ProcessResult result = await PackageProcessRunner.RunAsync(s_tool, ["init", "--jobs", "0"], environment,
             context.CancellationToken, workingDirectory: s_root);
         Assert.AreNotEqual(0, result.ExitCode);
         Assert.AreEqual(Original, await File.ReadAllTextAsync(configuration, context.CancellationToken));

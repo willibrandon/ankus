@@ -26,7 +26,7 @@ public sealed partial class ToolCommandTests
             "-- Create the extension before running the ordinary SQL tests.\nCREATE EXTENSION acme_worker_probe;\n";
         Assert.AreEqual(setup, (await File.ReadAllTextAsync(Path.Combine(suite, "sql", "setup.sql"), token)).ReplaceLineEndings("\n"));
         Assert.AreEqual(setup, (await File.ReadAllTextAsync(Path.Combine(suite, "expected", "setup.out"), token)).ReplaceLineEndings("\n"));
-        ProcessResult tests = await ProcessRunner.RunAsync("dotnet",
+        ProcessResult tests = await PackageProcessRunner.RunAsync("dotnet",
             ["test", "--report-trx", "-p:AnkusPostgresMajor=" + MajorText()], s_environment, token, workingDirectory: output);
         tests.EnsureSuccess("dotnet", ["test"]);
         string trx = Directory.GetFiles(output, "*.trx", SearchOption.AllDirectories).Single();

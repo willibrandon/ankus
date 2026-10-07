@@ -140,6 +140,12 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   and retain macOS at four because its twelve CPUs were already saturated.
   Complete replacement run **37671527838** is in progress without a reported
   failure; its final measured durations remain pending.
+- The package limit now surrounds build-intensive `dotnet` and `ankus` child
+  processes instead of every PostgreSQL 18 tool test from initialization through
+  cleanup. Fast CLI checks, filesystem assertions and backend work no longer wait
+  behind Native AOT compilers. PostgreSQL 13–17 retain the full-test lease only
+  where each active test requires its own staged installation. The changed
+  integration project builds in Release with zero warnings and errors.
 - The hosted quality job also forced solution restore and build through one
   MSBuild node. That obsolete serialization is removed; its clean build remains
   complete and warnings remain errors while independent projects build in parallel.

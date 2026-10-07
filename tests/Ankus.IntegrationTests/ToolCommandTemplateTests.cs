@@ -62,12 +62,12 @@ public sealed partial class ToolCommandTests
         await AssertTemplateRegressionIgnoreAsync(output, name, token);
 
         Dictionary<string, string?> environment = CreateConsumerEnvironment();
-        (await ProcessRunner.RunAsync("dotnet", ["tool", "restore"], environment, token, workingDirectory: output))
+        (await PackageProcessRunner.RunAsync("dotnet", ["tool", "restore"], environment, token, workingDirectory: output))
             .EnsureSuccess("dotnet", ["tool", "restore"]);
-        ProcessResult help = await ProcessRunner.RunAsync("dotnet", ["ankus", "--help"], environment, token, workingDirectory: output);
+        ProcessResult help = await PackageProcessRunner.RunAsync("dotnet", ["ankus", "--help"], environment, token, workingDirectory: output);
         help.EnsureSuccess("dotnet", ["ankus", "--help"]);
         Assert.Contains("PostgreSQL", help.StandardOutput);
-        ProcessResult tests = await ProcessRunner.RunAsync("dotnet", ["test", "--report-trx", "-p:AnkusPostgresMajor=" + MajorText()],
+        ProcessResult tests = await PackageProcessRunner.RunAsync("dotnet", ["test", "--report-trx", "-p:AnkusPostgresMajor=" + MajorText()],
             environment, token, workingDirectory: output);
         tests.EnsureSuccess("dotnet", ["test"]);
         XDocument report = XDocument.Load(Directory.GetFiles(output, "*.trx", SearchOption.AllDirectories).Single());
@@ -100,7 +100,7 @@ public sealed partial class ToolCommandTests
     /// <param name="token">Cancels Git and fixture file creation.</param>
     private static async Task AssertTemplateRegressionIgnoreAsync(string directory, string name, CancellationToken token)
     {
-        (await ProcessRunner.RunAsync("git", ["init", "--quiet", "--initial-branch=main"], s_environment, token,
+        (await PackageProcessRunner.RunAsync("git", ["init", "--quiet", "--initial-branch=main"], s_environment, token,
             workingDirectory: directory)).EnsureSuccess("git", ["init"]);
         string root = "src/" + name + "/pg_regress/";
         string[] generated = [root + "results/setup.out", root + "regression.diffs", root + "regression.out"];
@@ -111,7 +111,7 @@ public sealed partial class ToolCommandTests
             await File.WriteAllTextAsync(file, "generated regression output", token);
         }
 
-        ProcessResult ignored = await ProcessRunner.RunAsync("git", ["check-ignore", "--", .. generated],
+        ProcessResult ignored = await PackageProcessRunner.RunAsync("git", ["check-ignore", "--", .. generated],
             s_environment, token, workingDirectory: directory);
         Assert.AreEqual(0, ignored.ExitCode, ignored.StandardError);
         Assert.AreSequenceEqual(generated, ignored.StandardOutput.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries));
@@ -122,7 +122,7 @@ public sealed partial class ToolCommandTests
             Assert.IsTrue(File.Exists(Path.Combine(directory, path.Replace('/', Path.DirectorySeparatorChar))));
         }
 
-        ProcessResult visible = await ProcessRunner.RunAsync("git", ["check-ignore", "--", .. authored],
+        ProcessResult visible = await PackageProcessRunner.RunAsync("git", ["check-ignore", "--", .. authored],
             s_environment, token, workingDirectory: directory);
         Assert.AreEqual(1, visible.ExitCode);
         Assert.IsEmpty(visible.StandardOutput);
@@ -185,12 +185,12 @@ public sealed partial class ToolCommandTests
     {
         string hive = Path.Combine(CreateDirectory(), "isolated template hive");
         string package = Path.Combine(s_root, "feed", "Ankus.Templates." + s_version + ".nupkg");
-        ProcessResult installed = await ProcessRunner.RunAsync("dotnet", ["new", "install", package, "--debug:custom-hive", hive],
+        ProcessResult installed = await PackageProcessRunner.RunAsync("dotnet", ["new", "install", package, "--debug:custom-hive", hive],
             s_environment, token, workingDirectory: s_root);
         installed.EnsureSuccess("dotnet", ["new", "install"]);
         Assert.Contains("ankus-worker", installed.StandardOutput);
         Assert.Contains("Ankus PostgreSQL extension", installed.StandardOutput);
-        ProcessResult created = await ProcessRunner.RunAsync("dotnet", ["new", template, "--name", name, "--output", output,
+        ProcessResult created = await PackageProcessRunner.RunAsync("dotnet", ["new", template, "--name", name, "--output", output,
             "--debug:custom-hive", hive], s_environment, token, workingDirectory: s_root);
         created.EnsureSuccess("dotnet", ["new", template]);
     }

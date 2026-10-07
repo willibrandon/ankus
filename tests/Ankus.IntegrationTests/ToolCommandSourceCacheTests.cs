@@ -72,7 +72,7 @@ public sealed partial class ToolCommandTests
                 string output = Path.Combine(root, name);
                 string[] arguments = [Path.Combine(directory, "Ankus.Build.dll"), "binding-sources", MajorText(),
                     s_installation.PgConfigPath, output, "", "", RuntimeInformation.RuntimeIdentifier, "", "", "", cache];
-                ProcessResult result = await ProcessRunner.RunAsync("dotnet", arguments, s_environment, token, workingDirectory: root);
+                ProcessResult result = await PackageProcessRunner.RunAsync("dotnet", arguments, s_environment, token, workingDirectory: root);
                 result.EnsureSuccess("dotnet", ["binding-sources"]);
                 Assert.Contains(reused ? "Native binding sources: reused after native verification."
                     : "Native binding sources: collected and verified.", result.StandardOutput);

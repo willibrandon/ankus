@@ -34,12 +34,12 @@ public sealed partial class ToolCommandTests
             ["MSBuildWarningsAsErrors"] = null,
         };
         string[] build = ["build", project, "-c", "Release", "--no-incremental"];
-        ProcessResult ordinary = await ProcessRunner.RunAsync("dotnet", build, environment, token, workingDirectory: output);
+        ProcessResult ordinary = await PackageProcessRunner.RunAsync("dotnet", build, environment, token, workingDirectory: output);
         Assert.AreEqual(0, ordinary.ExitCode, ordinary.StandardOutput + ordinary.StandardError);
         Assert.Contains("warning CS1030", ordinary.StandardOutput + ordinary.StandardError);
         Assert.Contains("Consumer warnings remain visible.", ordinary.StandardOutput + ordinary.StandardError);
 
-        ProcessResult strict = await ProcessRunner.RunAsync("dotnet", [.. build, "-p:TreatWarningsAsErrors=true"],
+        ProcessResult strict = await PackageProcessRunner.RunAsync("dotnet", [.. build, "-p:TreatWarningsAsErrors=true"],
             environment, token, workingDirectory: output);
         Assert.AreNotEqual(0, strict.ExitCode);
         Assert.Contains("error CS1030", strict.StandardOutput + strict.StandardError);
@@ -53,7 +53,7 @@ public sealed partial class ToolCommandTests
                     => System.Threading.Tasks.Task.FromResult(42);
             }
             """, token);
-        ProcessResult invalid = await ProcessRunner.RunAsync("dotnet", build, environment, token, workingDirectory: output);
+        ProcessResult invalid = await PackageProcessRunner.RunAsync("dotnet", build, environment, token, workingDirectory: output);
         Assert.AreNotEqual(0, invalid.ExitCode);
         Assert.Contains("error ANKUS031", invalid.StandardOutput + invalid.StandardError);
         Assert.Contains("warning CS1030", invalid.StandardOutput + invalid.StandardError);

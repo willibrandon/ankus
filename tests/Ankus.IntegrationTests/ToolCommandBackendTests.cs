@@ -187,12 +187,12 @@ public sealed partial class ToolCommandTests
                     => Path.GetFullPath(Path.Combine(Path.GetDirectoryName(source)!, "../../src/BackendProbe/BackendProbe.csproj"));
             }
             """, token);
-        ProcessResult listing = await ProcessRunner.RunAsync("dotnet", ["test", "--list-tests"], s_environment, token, workingDirectory: output);
+        ProcessResult listing = await PackageProcessRunner.RunAsync("dotnet", ["test", "--list-tests"], s_environment, token, workingDirectory: output);
         Assert.AreEqual(0, listing.ExitCode, listing.StandardOutput + listing.StandardError);
         Assert.Contains("BackendProbe.BackendChecks.WritesRows()", listing.StandardOutput);
         Assert.Contains("BackendProbe.BackendChecks.QuotedExpectedFailure()", listing.StandardOutput);
         Assert.IsFalse(Directory.Exists(Path.Combine(extensionRoot, "bin", "ankus-test-publish")));
-        ProcessResult result = await ProcessRunner.RunAsync("dotnet",
+        ProcessResult result = await PackageProcessRunner.RunAsync("dotnet",
             ["test", "--report-trx", "-p:AnkusPostgresMajor=" + MajorText()], s_environment, token, workingDirectory: output);
         Assert.AreNotEqual(0, result.ExitCode, "Incorrect expected errors must fail the host test run.");
         XDocument report = XDocument.Load(Directory.GetFiles(output, "*.trx", SearchOption.AllDirectories).Single());

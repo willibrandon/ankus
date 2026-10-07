@@ -70,7 +70,7 @@ public sealed partial class ToolCommandTests
             Console.WriteLine($"PORT_PROBE:{observed}|{Directory.Exists(data)}|{Directory.Exists(sockets)}");
             """, token);
         reservation.Dispose();
-        ProcessResult result = await ProcessRunner.RunAsync("dotnet",
+        ProcessResult result = await PackageProcessRunner.RunAsync("dotnet",
             ["run", "--project", consumerProject, "--", extensionProject, home, MajorText()],
             s_environment, token, workingDirectory: consumerRoot);
         Assert.AreEqual(0, result.ExitCode, result.StandardOutput + result.StandardError);

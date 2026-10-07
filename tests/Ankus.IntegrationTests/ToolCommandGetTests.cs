@@ -173,7 +173,7 @@ public sealed partial class ToolCommandTests
         Assert.IsEmpty(explicitProject.StandardError);
         new XDocument(new XElement("Solution", new XElement("Project", new XAttribute("Path", "src/ControlProbe.csproj"))))
             .Save(Path.Combine(directory, "Query.slnx"));
-        ProcessResult solution = await ProcessRunner.RunAsync(s_tool, ["get", "extname", "--home", home],
+        ProcessResult solution = await PackageProcessRunner.RunAsync(s_tool, ["get", "extname", "--home", home],
             s_environment, token, workingDirectory: directory);
         Assert.AreEqual(0, solution.ExitCode, solution.StandardError);
         Assert.AreEqual(explicitProject.StandardOutput, solution.StandardOutput);
@@ -199,14 +199,14 @@ public sealed partial class ToolCommandTests
         string[] query = ["get", "git_hash", "--project", project, "--home", Path.Combine(directory, "no registration")];
         try
         {
-            ProcessResult missingGit = await ProcessRunner.RunAsync("git", ["-C", directory, "rev-parse", "--verify", "HEAD"], s_environment, token);
+            ProcessResult missingGit = await PackageProcessRunner.RunAsync("git", ["-C", directory, "rev-parse", "--verify", "HEAD"], s_environment, token);
             ProcessResult missing = await InvokeAsync(query, token);
             Assert.AreNotEqual(0, missing.ExitCode);
             Assert.AreEqual(missingGit.ExitCode, missing.ExitCode);
             Assert.AreEqual(missingGit.StandardError, missing.StandardError);
             Assert.IsEmpty(missing.StandardOutput);
-            (await ProcessRunner.RunAsync("git", ["init", "--quiet", directory], s_environment, token)).EnsureSuccess("git", ["init"]);
-            ProcessResult unbornGit = await ProcessRunner.RunAsync("git", ["-C", directory, "rev-parse", "--verify", "HEAD"], s_environment, token);
+            (await PackageProcessRunner.RunAsync("git", ["init", "--quiet", directory], s_environment, token)).EnsureSuccess("git", ["init"]);
+            ProcessResult unbornGit = await PackageProcessRunner.RunAsync("git", ["-C", directory, "rev-parse", "--verify", "HEAD"], s_environment, token);
             ProcessResult unborn = await InvokeAsync(query, token);
             Assert.AreNotEqual(0, unborn.ExitCode);
             Assert.AreEqual(unbornGit.ExitCode, unborn.ExitCode);
@@ -215,10 +215,10 @@ public sealed partial class ToolCommandTests
             string? previous = null;
             foreach (string message in new[] { "first", "second" })
             {
-                (await ProcessRunner.RunAsync("git", ["-C", directory, "-c", "user.name=Ankus Tests",
+                (await PackageProcessRunner.RunAsync("git", ["-C", directory, "-c", "user.name=Ankus Tests",
                     "-c", "user.email=tests@example.invalid", "-c", "commit.gpgsign=false", "commit", "--allow-empty", "--quiet", "-m", message],
                     s_environment, token)).EnsureSuccess("git", ["commit"]);
-                ProcessResult expected = await ProcessRunner.RunAsync("git", ["-C", directory, "rev-parse", "HEAD"], s_environment, token);
+                ProcessResult expected = await PackageProcessRunner.RunAsync("git", ["-C", directory, "rev-parse", "HEAD"], s_environment, token);
                 expected.EnsureSuccess("git", ["rev-parse"]);
                 ProcessResult actual = await InvokeAsync(query, token);
                 Assert.AreEqual(0, actual.ExitCode, actual.StandardError);

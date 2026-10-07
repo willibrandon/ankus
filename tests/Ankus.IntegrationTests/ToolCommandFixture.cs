@@ -19,15 +19,22 @@ public sealed partial class ToolCommandTests
     private bool _ownsCaseSlot;
 
     /// <summary>
-    /// Reserves an independent package-consumer slot before executing a test.
+    /// Reserves an independent pre-18 installation before executing a test.
     /// </summary>
     [TestInitialize]
     public async Task ReserveCaseAsync()
     {
+        if (s_installation.Version.Major >= 18)
+        {
+            return;
+        }
+
         await s_caseSlots.WaitAsync(context.CancellationToken);
         _ownsCaseSlot = true;
-        if (s_installation.Version.Major < 18 && !s_caseInstallations.TryDequeue(out _caseInstallation))
+        if (!s_caseInstallations.TryDequeue(out _caseInstallation))
         {
+            s_caseSlots.Release();
+            _ownsCaseSlot = false;
             throw new InvalidOperationException("The reserved package-consumer slot has no PostgreSQL installation.");
         }
     }

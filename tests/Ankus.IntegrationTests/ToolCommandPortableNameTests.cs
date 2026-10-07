@@ -32,10 +32,10 @@ public sealed partial class ToolCommandTests
 
         string hive = Path.Combine(directory, "template hive");
         string package = Path.Combine(s_root, "feed", "Ankus.Templates." + s_version + ".nupkg");
-        ProcessResult installed = await ProcessRunner.RunAsync("dotnet", ["new", "install", package, "--debug:custom-hive", hive],
+        ProcessResult installed = await PackageProcessRunner.RunAsync("dotnet", ["new", "install", package, "--debug:custom-hive", hive],
             s_environment, token, workingDirectory: s_root);
         Assert.AreEqual(0, installed.ExitCode, installed.StandardError);
-        ProcessResult templated = await ProcessRunner.RunAsync("dotnet",
+        ProcessResult templated = await PackageProcessRunner.RunAsync("dotnet",
             ["new", "ankus", "--name", name, "--output", template, "--debug:custom-hive", hive],
             s_environment, token, workingDirectory: s_root);
         Assert.AreEqual(0, templated.ExitCode, templated.StandardError);

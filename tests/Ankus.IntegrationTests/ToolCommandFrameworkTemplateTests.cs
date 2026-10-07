@@ -22,9 +22,9 @@ public sealed partial class ToolCommandTests
         {
             string hive = Path.Combine(CreateDirectory(), "isolated invalid template hive");
             string package = Path.Combine(s_root, "feed", "Ankus.Templates." + s_version + ".nupkg");
-            (await ProcessRunner.RunAsync("dotnet", ["new", "install", package, "--debug:custom-hive", hive],
+            (await PackageProcessRunner.RunAsync("dotnet", ["new", "install", package, "--debug:custom-hive", hive],
                 s_environment, token, workingDirectory: s_root)).EnsureSuccess("dotnet", ["new", "install"]);
-            result = await ProcessRunner.RunAsync("dotnet", ["new", "ankus", "--name", "UnknownFramework", "--output", output,
+            result = await PackageProcessRunner.RunAsync("dotnet", ["new", "ankus", "--name", "UnknownFramework", "--output", output,
                 "--test-framework", "unknown", "--debug:custom-hive", hive], s_environment, token, workingDirectory: s_root);
         }
         else
@@ -61,9 +61,9 @@ public sealed partial class ToolCommandTests
         {
             string hive = Path.Combine(CreateDirectory(), "isolated template hive");
             string package = Path.Combine(s_root, "feed", "Ankus.Templates." + s_version + ".nupkg");
-            (await ProcessRunner.RunAsync("dotnet", ["new", "install", package, "--debug:custom-hive", hive],
+            (await PackageProcessRunner.RunAsync("dotnet", ["new", "install", package, "--debug:custom-hive", hive],
                 s_environment, token, workingDirectory: s_root)).EnsureSuccess("dotnet", ["new", "install"]);
-            (await ProcessRunner.RunAsync("dotnet", ["new", worker ? "ankus-worker" : "ankus", "--name", Name,
+            (await PackageProcessRunner.RunAsync("dotnet", ["new", worker ? "ankus-worker" : "ankus", "--name", Name,
                 "--output", output, "--test-framework", framework, "--debug:custom-hive", hive],
                 s_environment, token, workingDirectory: s_root)).EnsureSuccess("dotnet", ["new"]);
         }
@@ -87,7 +87,7 @@ public sealed partial class ToolCommandTests
         Assert.IsFalse(Directory.Exists(Path.Combine(output, "Frameworks")));
         string[] references = [.. project.Descendants("ProjectReference").Select(static reference => (string)reference.Attribute("Include")!)];
         Assert.AreSequenceEqual(["../../src/" + Name + "/" + Name + ".csproj"], references);
-        (await ProcessRunner.RunAsync("dotnet", ["sln", Name + ".slnx", "list"], s_environment, token,
+        (await PackageProcessRunner.RunAsync("dotnet", ["sln", Name + ".slnx", "list"], s_environment, token,
             workingDirectory: output)).EnsureSuccess("dotnet", ["sln", "list"]);
         string extensionDirectory = Path.Combine(output, "src", Name);
         Dictionary<string, string?> environment = CreateConsumerEnvironment();
@@ -100,9 +100,9 @@ public sealed partial class ToolCommandTests
                     => throw new InvalidOperationException("The ignored backend case must never execute.");
             }
             """, token);
-        (await ProcessRunner.RunAsync("dotnet", ["tool", "restore"], environment, token,
+        (await PackageProcessRunner.RunAsync("dotnet", ["tool", "restore"], environment, token,
             workingDirectory: output)).EnsureSuccess("dotnet", ["tool", "restore"]);
-        ProcessResult tests = await ProcessRunner.RunAsync("dotnet", ["test", "--report-trx",
+        ProcessResult tests = await PackageProcessRunner.RunAsync("dotnet", ["test", "--report-trx",
             "-p:AnkusPostgresMajor=" + MajorText()], environment, token, workingDirectory: output);
         tests.EnsureSuccess("dotnet", ["test"]);
         XDocument report = XDocument.Load(Directory.GetFiles(output, "*.trx", SearchOption.AllDirectories).Single());

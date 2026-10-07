@@ -213,7 +213,7 @@ public sealed partial class ToolCommandTests
         string projectDirectory = Path.GetDirectoryName(project)!;
         string controlFile = Path.Combine(projectDirectory, "author.control");
         await File.WriteAllTextAsync(controlFile, control, token);
-        ProcessResult tests = await ProcessRunner.RunAsync("dotnet", ["test", "--report-trx", "-p:AnkusPostgresMajor=" + MajorText()],
+        ProcessResult tests = await PackageProcessRunner.RunAsync("dotnet", ["test", "--report-trx", "-p:AnkusPostgresMajor=" + MajorText()],
             s_environment, token, workingDirectory: output);
         tests.EnsureSuccess("dotnet", ["test"]);
         string trx = Assert.ContainsSingle(Directory.GetFiles(output, "*.trx", SearchOption.AllDirectories));

@@ -51,7 +51,7 @@ public sealed partial class ToolCommandTests
 
         string sentinel = Path.Combine(Path.GetDirectoryName(snapshot)!, "preserve-user-file.txt");
         await File.WriteAllTextAsync(sentinel, "unrelated content", token);
-        ProcessResult cleaned = await ProcessRunner.RunAsync("dotnet",
+        ProcessResult cleaned = await PackageProcessRunner.RunAsync("dotnet",
             ["clean", Path.Combine(extension, "TestCommandProbe.csproj"), "-c", "Debug",
                 "-r", RuntimeInformation.RuntimeIdentifier,
                 "--artifacts-path", Path.Combine(extension, "obj", "ankus-test-build"),
@@ -80,7 +80,7 @@ public sealed partial class ToolCommandTests
         if (ordinaryPublication)
         {
             string publication = Path.Combine(output, "ordinary publication");
-            ProcessResult published = await ProcessRunner.RunAsync("dotnet",
+            ProcessResult published = await PackageProcessRunner.RunAsync("dotnet",
                 ["publish", project, "-c", "Debug", "-o", publication, "-p:AnkusIncludeTests=false",
                     "-p:AnkusPostgresMajor=" + MajorText(), "-p:AnkusPgConfigPath=" + s_installation.PgConfigPath],
                 s_environment, token, workingDirectory: output);
@@ -90,7 +90,7 @@ public sealed partial class ToolCommandTests
         }
         else
         {
-            ProcessResult invalid = await ProcessRunner.RunAsync("dotnet", ["build", project, "-p:AnkusReuseSchema=invalid"],
+            ProcessResult invalid = await PackageProcessRunner.RunAsync("dotnet", ["build", project, "-p:AnkusReuseSchema=invalid"],
                 s_environment, token, workingDirectory: output);
             Assert.AreNotEqual(0, invalid.ExitCode);
             Assert.Contains("AnkusReuseSchema must be true or false", invalid.StandardOutput + invalid.StandardError);
@@ -236,6 +236,6 @@ public sealed partial class ToolCommandTests
         string[] arguments = direct
             ? ["test", .. runner, "--results-directory", reports, "-p:AnkusPostgresMajor=" + MajorText(), "-p:AnkusPgConfigPath=" + s_installation.PgConfigPath]
             : ["test", "--home", s_home, .. reuse ? new[] { "--all", "--no-schema" } : ["--pg", MajorText()], "--results-directory", reports, "--", .. runner];
-        return ProcessRunner.RunAsync(direct ? "dotnet" : s_tool, arguments, environment, token, workingDirectory: output);
+        return PackageProcessRunner.RunAsync(direct ? "dotnet" : s_tool, arguments, environment, token, workingDirectory: output);
     }
 }

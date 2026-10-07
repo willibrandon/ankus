@@ -54,13 +54,13 @@ public sealed partial class ToolCommandTests(TestContext context)
         string compilerTools = Path.Combine(repository, "artifacts", "nativeaot", runtimeIdentifier, "compiler") +
                                Path.DirectorySeparatorChar;
         string runtimeSource = Path.Combine(repository, "artifacts", "nativeaot", runtimeIdentifier, "source");
-        await ProcessRunner.RunCheckedAsync("dotnet",
+        await PackageProcessRunner.RunCheckedAsync("dotnet",
             ["pack", Path.Combine(repository, "src/Ankus.NativeAot.Runtime"), "-c", "Release", "-o", feed,
                 "-p:AnkusRuntimeIdentifier=" + runtimeIdentifier, "-p:AnkusRuntimeSdkPath=" + runtimeSdk,
                 "-p:AnkusRuntimeSourcePath=" + runtimeSource,
                 "-bl:" + Path.Combine(repository, "artifacts", "runtime-package-pack-{}.binlog")],
             new Dictionary<string, string?>(), token);
-        await ProcessRunner.RunCheckedAsync("dotnet",
+        await PackageProcessRunner.RunCheckedAsync("dotnet",
             ["pack", Path.Combine(repository, "src/Ankus.NativeAot.Compiler"), "-c", "Release", "-o", feed,
                 "-p:AnkusCompilerRuntimeIdentifier=" + runtimeIdentifier,
                 "-p:AnkusCompilerToolsPath=" + compilerTools,
@@ -72,7 +72,7 @@ public sealed partial class ToolCommandTests(TestContext context)
             "src/Ankus.Sdk", "src/Ankus.Tool", "src/Ankus.Testing", "src/Ankus.Templates"];
         foreach (string project in projects)
         {
-            await ProcessRunner.RunCheckedAsync("dotnet",
+            await PackageProcessRunner.RunCheckedAsync("dotnet",
                 ["pack", Path.Combine(repository, project), "-c", "Release", "-o", feed, "-p:Version=" + s_version,
                     "-bl:" + Path.Combine(repository, "artifacts", "package-pack-{}.binlog")],
                 new Dictionary<string, string?>(), token);
@@ -105,7 +105,7 @@ public sealed partial class ToolCommandTests(TestContext context)
             new XElement("add", new XAttribute("key", "nuget.org"), new XAttribute("value", "https://api.nuget.org/v3/index.json")))))
             .Save(config);
         string toolDirectory = Path.Combine(s_root, "installed tool");
-        await ProcessRunner.RunCheckedAsync("dotnet",
+        await PackageProcessRunner.RunCheckedAsync("dotnet",
             ["tool", "install", "Ankus.Tool", "--version", s_version, "--tool-path", toolDirectory, "--configfile", config],
             s_environment, token, workingDirectory: s_root);
         s_tool = Path.Combine(toolDirectory, OperatingSystem.IsWindows() ? "ankus.exe" : "ankus");
@@ -903,7 +903,7 @@ public sealed partial class ToolCommandTests(TestContext context)
                 }
             }
             """, context.CancellationToken);
-        ProcessResult result = await ProcessRunner.RunAsync("dotnet", ["test", "-bl:tests-{}.binlog", "--report-trx"],
+        ProcessResult result = await PackageProcessRunner.RunAsync("dotnet", ["test", "-bl:tests-{}.binlog", "--report-trx"],
             s_environment, context.CancellationToken, workingDirectory: projectDirectory);
         result.EnsureSuccess("dotnet", ["test"]);
         string trx = Directory.GetFiles(projectDirectory, "*.trx", SearchOption.AllDirectories).Single();
@@ -937,13 +937,13 @@ public sealed partial class ToolCommandTests(TestContext context)
         Assert.AreEqual(s_version, packages.Descendants("PackageVersion").Single(element => (string?)element.Attribute("Include") == "Ankus.Testing").Attribute("Version")!.Value);
         Assert.IsFalse(File.Exists(Path.Combine(output, ".editorconfig")));
         Assert.IsTrue(File.Exists(Path.Combine(output, ".gitignore")));
-        ProcessResult listing = await ProcessRunner.RunCheckedAsync("dotnet", ["sln", "Acme.HTTPProbe.slnx", "list"],
+        ProcessResult listing = await PackageProcessRunner.RunCheckedAsync("dotnet", ["sln", "Acme.HTTPProbe.slnx", "list"],
             s_environment, token, workingDirectory: output);
         Assert.Contains("Acme.HTTPProbe.Tests.csproj", listing.StandardOutput);
 
         string logs = Path.Combine(IntegrationEnvironment.RepositoryRoot, "artifacts", "test-logs", "generated-solution");
         Directory.CreateDirectory(logs);
-        ProcessResult tests = await ProcessRunner.RunAsync("dotnet",
+        ProcessResult tests = await PackageProcessRunner.RunAsync("dotnet",
             ["test", "--report-trx", "-bl:" + Path.Combine(logs, "generated-tests-{}.binlog"), "-p:AnkusPostgresMajor=" + MajorText()],
             s_environment, token, workingDirectory: output);
         tests.EnsureSuccess("dotnet", ["test"]);
@@ -964,7 +964,7 @@ public sealed partial class ToolCommandTests(TestContext context)
         Assert.IsNotEmpty(Directory.GetFiles(Path.Combine(projectDirectory, "bin", "ankus-test-logs"), "*.log"));
 
         string published = Path.Combine(output, "published");
-        ProcessResult publish = await ProcessRunner.RunAsync(s_tool,
+        ProcessResult publish = await PackageProcessRunner.RunAsync(s_tool,
             ["publish", "--home", s_home, "--pg", MajorText(), "-o", published],
             s_environment, token, workingDirectory: output);
         publish.EnsureSuccess(s_tool, ["publish"]);
@@ -983,7 +983,7 @@ public sealed partial class ToolCommandTests(TestContext context)
         string functions = Path.Combine(projectDirectory, "Functions.cs");
         string text = await File.ReadAllTextAsync(functions, token);
         await File.WriteAllTextAsync(functions, text.Replace("checked(left + right)", "checked(left - right)", StringComparison.Ordinal), token);
-        ProcessResult changed = await ProcessRunner.RunAsync("dotnet",
+        ProcessResult changed = await PackageProcessRunner.RunAsync("dotnet",
             ["test", "--filter", "FullyQualifiedName~FunctionsExecuteInPostgres", "-bl:" + Path.Combine(logs, "changed-tests-{}.binlog"),
                 "-p:AnkusPostgresMajor=" + MajorText()],
             s_environment, token, workingDirectory: output);
@@ -1024,7 +1024,7 @@ public sealed partial class ToolCommandTests(TestContext context)
             document.Save(project);
         }
 
-        ProcessResult result = await ProcessRunner.RunAsync("dotnet",
+        ProcessResult result = await PackageProcessRunner.RunAsync("dotnet",
             ["test", "--filter", "FullyQualifiedName~FunctionsExecuteInPostgres", "-bl:initialization-failure-{}.binlog",
                 "-p:AnkusPostgresMajor=" + MajorText()],
             s_environment, token, workingDirectory: output);
@@ -1052,7 +1052,7 @@ public sealed partial class ToolCommandTests(TestContext context)
         (await InvokeAsync(["new", name, "--output", output, "--extension-name", extension], token)).EnsureSuccess(s_tool, ["new"]);
         string project = Path.Combine(output, "src", name, name + ".csproj");
         Assert.AreEqual(extension, XDocument.Load(project).Descendants("AnkusExtensionName").Single().Value);
-        ProcessResult build = await ProcessRunner.RunAsync("dotnet", ["build", "-bl:names-{}.binlog"],
+        ProcessResult build = await PackageProcessRunner.RunAsync("dotnet", ["build", "-bl:names-{}.binlog"],
             s_environment, token, workingDirectory: output);
         build.EnsureSuccess("dotnet", ["build"]);
     }
@@ -1113,7 +1113,7 @@ public sealed partial class ToolCommandTests(TestContext context)
         XDocument document = XDocument.Load(solution);
         document.Root!.Add(new XElement("Project", new XAttribute("Path", "src/Second/Second.csproj")));
         document.Save(solution);
-        ProcessResult result = await ProcessRunner.RunAsync(s_tool,
+        ProcessResult result = await PackageProcessRunner.RunAsync(s_tool,
             ["publish", "--home", s_home, "--pg", MajorText(), "-o", "published"],
             s_environment, token, workingDirectory: output);
         Assert.AreEqual(1, result.ExitCode);
@@ -1151,10 +1151,10 @@ public sealed partial class ToolCommandTests(TestContext context)
     }
 
     private static Task<ProcessResult> RunDotnetAsync(string[] arguments, CancellationToken token)
-        => ProcessRunner.RunAsync("dotnet", arguments, s_environment, token, workingDirectory: s_root);
+        => PackageProcessRunner.RunAsync("dotnet", arguments, s_environment, token, workingDirectory: s_root);
 
     private static Task<ProcessResult> InvokeAsync(string[] arguments, CancellationToken token)
-        => ProcessRunner.RunAsync(s_tool, arguments, s_environment, token, workingDirectory: s_root);
+        => PackageProcessRunner.RunAsync(s_tool, arguments, s_environment, token, workingDirectory: s_root);
 
     private static int DifferentMajor()
         => s_installation.Version.Major == 19 ? 18 : 19;

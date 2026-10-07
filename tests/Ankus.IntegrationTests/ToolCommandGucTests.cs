@@ -200,13 +200,13 @@ public sealed partial class ToolCommandTests
         Assert.StartsWith(s_root + Path.DirectorySeparatorChar, environment["NUGET_PACKAGES"]!);
         Assert.IsFalse(project.StartsWith(IntegrationEnvironment.RepositoryRoot, StringComparison.Ordinal));
         string output = Path.Combine(directory, "published");
-        ProcessResult published = await ProcessRunner.RunAsync("dotnet",
+        ProcessResult published = await PackageProcessRunner.RunAsync("dotnet",
             ["publish", project, "-c", "Release", "-r", RuntimeInformation.RuntimeIdentifier, "-o", output,
                 "-p:AnkusPostgresMajor=" + MajorText(), "-p:AnkusPgConfigPath=" + s_installation.PgConfigPath,
                 "-bl:" + Path.Combine(directory, "guc-publish-{}.binlog")],
             environment, token, workingDirectory: directory);
         published.EnsureSuccess("dotnet", ["publish"]);
-        ProcessResult evaluated = await ProcessRunner.RunAsync("dotnet",
+        ProcessResult evaluated = await PackageProcessRunner.RunAsync("dotnet",
             ["msbuild", project, "-target:ResolveReferences", "-verbosity:quiet", "-property:Configuration=Release",
                 "-getProperty:MSBuildAllProjects,EnforceCodeStyleInBuild,GenerateDocumentationFile,_AnkusBuildTool",
                 "-getItem:ProjectReference,Analyzer"], environment, token, workingDirectory: directory);

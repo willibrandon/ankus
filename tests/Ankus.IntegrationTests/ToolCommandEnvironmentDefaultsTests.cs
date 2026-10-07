@@ -27,7 +27,7 @@ public sealed partial class ToolCommandTests
             .Save(Path.Combine(directory, "Selection.csproj"));
         Dictionary<string, string?> environment = EnvironmentDefaultsConfiguration(home);
         environment["PG_VERSION"] = (prefix ? "pg" : "") + MajorText();
-        ProcessResult result = await ProcessRunner.RunAsync(s_tool, ["status"], environment, token, workingDirectory: directory);
+        ProcessResult result = await PackageProcessRunner.RunAsync(s_tool, ["status"], environment, token, workingDirectory: directory);
 
         Assert.AreEqual(0, result.ExitCode, result.StandardError);
         Assert.AreEqual(s_installation.Label + ": stopped" + Environment.NewLine, result.StandardOutput);
@@ -58,7 +58,7 @@ public sealed partial class ToolCommandTests
             .Save(Path.Combine(directory, "Selection.csproj"));
         Dictionary<string, string?> environment = EnvironmentDefaultsConfiguration(home);
         environment["PG_VERSION"] = value;
-        ProcessResult result = await ProcessRunner.RunAsync(s_tool, ["info", "version"], environment, token, workingDirectory: directory);
+        ProcessResult result = await PackageProcessRunner.RunAsync(s_tool, ["info", "version"], environment, token, workingDirectory: directory);
 
         Assert.AreEqual(0, result.ExitCode, result.StandardError);
         Assert.AreEqual(s_installation.Version + Environment.NewLine, result.StandardOutput);
@@ -88,7 +88,7 @@ public sealed partial class ToolCommandTests
         string original = await File.ReadAllTextAsync(configuration, token);
         Dictionary<string, string?> environment = EnvironmentDefaultsConfiguration(home);
         environment["PG_VERSION"] = value;
-        ProcessResult result = await ProcessRunner.RunAsync(s_tool, ["status"], environment, token, workingDirectory: s_root);
+        ProcessResult result = await PackageProcessRunner.RunAsync(s_tool, ["status"], environment, token, workingDirectory: s_root);
 
         Assert.AreEqual(1, result.ExitCode);
         Assert.IsEmpty(result.StandardOutput);
@@ -120,7 +120,7 @@ public sealed partial class ToolCommandTests
             _ => throw new ArgumentException("Unknown selection.", nameof(selection)),
         };
         string[] command = selection == "argument" ? ["info", "version"] : ["status"];
-        ProcessResult result = await ProcessRunner.RunAsync(s_tool, [.. command, .. selected], environment, token, workingDirectory: s_root);
+        ProcessResult result = await PackageProcessRunner.RunAsync(s_tool, [.. command, .. selected], environment, token, workingDirectory: s_root);
 
         Assert.AreEqual(0, result.ExitCode, result.StandardError);
         Assert.AreEqual((selection == "argument" ? s_installation.Version.ToString() : s_installation.Label + ": stopped") +
@@ -139,7 +139,7 @@ public sealed partial class ToolCommandTests
         Dictionary<string, string?> environment = EnvironmentDefaultsConfiguration(home);
         int major = DifferentMajor();
         environment["PG_VERSION"] = "pg" + major.ToString(CultureInfo.InvariantCulture);
-        ProcessResult result = await ProcessRunner.RunAsync(s_tool, ["status"], environment, token, workingDirectory: s_root);
+        ProcessResult result = await PackageProcessRunner.RunAsync(s_tool, ["status"], environment, token, workingDirectory: s_root);
 
         Assert.AreEqual(1, result.ExitCode);
         Assert.IsEmpty(result.StandardOutput);
@@ -174,7 +174,7 @@ public sealed partial class ToolCommandTests
         string original = await File.ReadAllTextAsync(configuration, token);
         Dictionary<string, string?> environment = EnvironmentDefaultsConfiguration(home);
         environment["PG_VERSION"] = dockerValue ? "18.6-1.pgdg13+1" : "pg" + DifferentMajor().ToString(CultureInfo.InvariantCulture);
-        ProcessResult result = await ProcessRunner.RunAsync(s_tool, ["info", information], environment, token, workingDirectory: directory);
+        ProcessResult result = await PackageProcessRunner.RunAsync(s_tool, ["info", information], environment, token, workingDirectory: directory);
 
         string expected = information switch
         {
@@ -228,7 +228,7 @@ public sealed partial class ToolCommandTests
         ];
         foreach ((string name, string[] arguments) in commands)
         {
-            ProcessResult result = await ProcessRunner.RunAsync(s_tool, arguments, environment, token, workingDirectory: directory);
+            ProcessResult result = await PackageProcessRunner.RunAsync(s_tool, arguments, environment, token, workingDirectory: directory);
             Assert.AreEqual(0, result.ExitCode, name + ": " + result.StandardError);
             PublishedExtension manifest = PublishedExtension.Read(publication);
             Assert.AreEqual(s_installation.Version.Major, manifest.PostgresMajor, name);
@@ -287,7 +287,7 @@ public sealed partial class ToolCommandTests
         string[] client = explicitClient ? ["--pgcli", "false"] : [];
         try
         {
-            ProcessResult result = await ProcessRunner.RunAsync(s_tool,
+            ProcessResult result = await PackageProcessRunner.RunAsync(s_tool,
                 ["connect", "--pg-config", s_installation.PgConfigPath, "--port", port.ToString(CultureInfo.InvariantCulture),
                     .. selected, .. client, "--", "-X", "-A", "-t", "-c", "SELECT current_database()"],
                 environment, token, workingDirectory: s_root);
@@ -316,7 +316,7 @@ public sealed partial class ToolCommandTests
         string home = Path.Combine(directory, "unused home");
         Dictionary<string, string?> environment = EnvironmentDefaultsConfiguration(home);
         environment["ANKUS_PGCLI"] = "invalid";
-        ProcessResult result = await ProcessRunner.RunAsync(s_tool,
+        ProcessResult result = await PackageProcessRunner.RunAsync(s_tool,
             [command, "--pg-config", s_installation.PgConfigPath], environment,
             context.CancellationToken, workingDirectory: s_root);
 
@@ -349,7 +349,7 @@ public sealed partial class ToolCommandTests
         string[] client = overrideClient ? ["--pgcli", "false"] : [];
         try
         {
-            ProcessResult result = await ProcessRunner.RunAsync(s_tool,
+            ProcessResult result = await PackageProcessRunner.RunAsync(s_tool,
                 ["connect", "--pg-config", s_installation.PgConfigPath, "--port", port.ToString(CultureInfo.InvariantCulture),
                     "--database", "client_selection", .. client, "--", "-X", "-A", "-t", "-c", "SELECT 42"],
                 environment, token, workingDirectory: directory);
@@ -399,7 +399,7 @@ public sealed partial class ToolCommandTests
         Dictionary<string, string?> environment = EnvironmentDefaultsConfiguration(home);
         environment["PG_VERSION"] = invalid ? "invalid" : "pg" + DifferentMajor().ToString(CultureInfo.InvariantCulture);
         string[] staging = operation == "package" ? ["--output", output, "--prefix-dir", "flat"] : ["--destdir", output];
-        ProcessResult result = await ProcessRunner.RunAsync(s_tool, [operation, "--from", s_published, .. staging],
+        ProcessResult result = await PackageProcessRunner.RunAsync(s_tool, [operation, "--from", s_published, .. staging],
             environment, token, workingDirectory: directory);
 
         Assert.AreEqual(0, result.ExitCode, result.StandardError);

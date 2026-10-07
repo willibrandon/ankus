@@ -69,7 +69,7 @@ public sealed partial class ToolCommandTests
         string configuration = Path.Combine(home, "config.json");
         string original = new JsonObject { [s_postgresKey] = "missing-scriptable-registration" }.ToJsonString();
         await File.WriteAllTextAsync(configuration, original, context.CancellationToken);
-        ProcessResult result = await ProcessRunner.RunAsync(s_tool, ["info", command, "--home", home], s_environment,
+        ProcessResult result = await PackageProcessRunner.RunAsync(s_tool, ["info", command, "--home", home], s_environment,
             context.CancellationToken, workingDirectory: directory);
         Assert.AreEqual(0, result.ExitCode, result.StandardError);
         Assert.AreEqual(await ExpectedInfoValueAsync(command) + Environment.NewLine, result.StandardOutput);
@@ -88,7 +88,7 @@ public sealed partial class ToolCommandTests
             new XElement("TargetFramework", "net10.0"), new XElement("AnkusPostgresMajor", DifferentMajor()),
             new XElement("AnkusPgConfigPath", s_installation.PgConfigPath))))
             .Save(Path.Combine(directory, "Selection.csproj"));
-        ProcessResult result = await ProcessRunner.RunAsync(s_tool, ["info", "version", "--home", s_home], s_environment,
+        ProcessResult result = await PackageProcessRunner.RunAsync(s_tool, ["info", "version", "--home", s_home], s_environment,
             context.CancellationToken, workingDirectory: directory);
         Assert.AreNotEqual(0, result.ExitCode);
         Assert.IsEmpty(result.StandardOutput);
@@ -107,7 +107,7 @@ public sealed partial class ToolCommandTests
         string original = new JsonObject { [s_postgresKey] = s_installation.PgConfigPath }.ToJsonString();
         await File.WriteAllTextAsync(configuration, original, context.CancellationToken);
         Dictionary<string, string?> environment = EnvironmentConfiguration(home);
-        ProcessResult result = await ProcessRunner.RunAsync(s_tool, ["info", "pg-config", MajorText()], environment,
+        ProcessResult result = await PackageProcessRunner.RunAsync(s_tool, ["info", "pg-config", MajorText()], environment,
             context.CancellationToken, workingDirectory: s_root);
         Assert.AreEqual(0, result.ExitCode, result.StandardError);
         Assert.AreEqual(s_installation.PgConfigPath + Environment.NewLine, result.StandardOutput);
@@ -213,7 +213,7 @@ public sealed partial class ToolCommandTests
             return s_installation.PgConfigPath;
         }
 
-        ProcessResult version = await ProcessRunner.RunAsync(s_installation.PgConfigPath, ["--version"], s_environment,
+        ProcessResult version = await PackageProcessRunner.RunAsync(s_installation.PgConfigPath, ["--version"], s_environment,
             context.CancellationToken);
         version.EnsureSuccess(s_installation.PgConfigPath, ["--version"]);
         return version.StandardOutput.Split(' ', StringSplitOptions.RemoveEmptyEntries)[1].Trim();

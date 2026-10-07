@@ -50,8 +50,8 @@ public sealed partial class ToolCommandTests
             : [.. await s_installation.GetPreprocessorArgumentsAsync(token), "-std=gnu11", "-Wall", "-Wextra", "-Werror", "-O2",
                 "-isystem", s_installation.ServerIncludeDirectory, "-isystem", s_installation.IncludeDirectory, file, "-o", executable,
                 "-ffunction-sections", "-fdata-sections", OperatingSystem.IsMacOS() ? "-Wl,-dead_strip" : "-Wl,--gc-sections"];
-        await ProcessRunner.RunCheckedAsync(compiler, options, s_environment, token, workingDirectory: output);
-        ProcessResult execution = await ProcessRunner.RunCheckedAsync(executable, [], s_environment, token, workingDirectory: output);
+        await PackageProcessRunner.RunCheckedAsync(compiler, options, s_environment, token, workingDirectory: output);
+        ProcessResult execution = await PackageProcessRunner.RunCheckedAsync(executable, [], s_environment, token, workingDirectory: output);
         Assert.AreEqual("PostgreSQL full transaction ID values retained\n", execution.StandardOutput.ReplaceLineEndings("\n"));
         Assert.AreEqual("", execution.StandardError);
     }

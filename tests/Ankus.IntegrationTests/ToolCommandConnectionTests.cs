@@ -49,7 +49,7 @@ public sealed partial class ToolCommandTests
                 Assert.IsTrue(await cluster.CreateDatabaseAsync(name, token));
                 Assert.IsFalse(await cluster.CreateDatabaseAsync(name, token));
                 string connection = await cluster.GetConnectionStringAsync(name, token);
-                ProcessResult result = await ProcessRunner.RunAsync(s_installation.PsqlPath,
+                ProcessResult result = await PackageProcessRunner.RunAsync(s_installation.PsqlPath,
                     ["-X", "-A", "-t", "--dbname", connection, "-c", "SELECT encode(convert_to(current_database(), 'UTF8'), 'base64')"],
                     s_environment, token);
                 Assert.AreEqual(0, result.ExitCode, result.StandardError);
@@ -92,7 +92,7 @@ public sealed partial class ToolCommandTests
             {
                 ["PGHOSTADDR"] = "192.0.2.1", ["PGDATABASE"] = "wrong", ["PGSERVICE"] = "missing-service",
             };
-            ProcessResult first = await ProcessRunner.RunAsync(s_tool,
+            ProcessResult first = await PackageProcessRunner.RunAsync(s_tool,
                 [.. options, "--port", port.ToString(CultureInfo.InvariantCulture), "--", "-X", "-A", "-t", "-v", "ON_ERROR_STOP=1",
                     "-c", "CREATE TABLE retained(value integer); INSERT INTO retained VALUES (42); SELECT value FROM retained"], environment, token,
                 workingDirectory: s_root);

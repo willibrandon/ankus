@@ -102,7 +102,7 @@ public sealed partial class ToolCommandTests
 
                 // Recover the owned cluster so PostgreSQL reclaims stale shared memory before normal disposal.
                 using var recoveryTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-                await ProcessRunner.RunCheckedAsync(cluster.Installation.PgCtlPath,
+                await PackageProcessRunner.RunCheckedAsync(cluster.Installation.PgCtlPath,
                     ["start", "-D", cluster.DataDirectory, "-l", cluster.LogFilePath, "-w", "-t", "30"],
                     s_environment, recoveryTimeout.Token, captureOutput: false);
                 await WaitForWorkerClusterRestartAsync(cluster, postmaster!.Id, recoveryTimeout.Token);

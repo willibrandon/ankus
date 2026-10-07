@@ -34,7 +34,7 @@ public sealed partial class ToolCommandTests
             ["ANKUS_TEST_EXPECTED_HOME"] = home,
         };
 
-        ProcessResult rejected = await ProcessRunner.RunAsync("dotnet",
+        ProcessResult rejected = await PackageProcessRunner.RunAsync("dotnet",
             ["build", project, "-p:AnkusPostgresMajor=" + MajorText()], environment, token, workingDirectory: directory);
         Assert.AreNotEqual(0, rejected.ExitCode, "An unavailable registered server must not fall back to another installation.");
         Assert.Contains(Path.GetFullPath(Missing, home), rejected.StandardOutput + rejected.StandardError);
@@ -60,7 +60,7 @@ public sealed partial class ToolCommandTests
             }
             """, token);
         string reports = Path.Combine(directory, "reports");
-        ProcessResult tested = await ProcessRunner.RunAsync("dotnet",
+        ProcessResult tested = await PackageProcessRunner.RunAsync("dotnet",
             ["test", "--solution", Path.Combine(output, "HomeProbe.slnx"), "--report-trx", "--results-directory", reports,
                 "-p:AnkusPostgresMajor=" + MajorText()],
             environment, token, workingDirectory: directory);
@@ -84,7 +84,7 @@ public sealed partial class ToolCommandTests
 
         // A built host must keep the selected home even when launched from another directory.
         await WriteRegistrationAsync(Missing);
-        ProcessResult rejectedHost = await ProcessRunner.RunAsync("dotnet",
+        ProcessResult rejectedHost = await PackageProcessRunner.RunAsync("dotnet",
             ["test", "--solution", Path.Combine(output, "HomeProbe.slnx"), "--no-build", "--report-trx",
                 "--results-directory", Path.Combine(directory, "rejected-host-reports"),
                 "-p:AnkusPostgresMajor=" + MajorText()], environment, token, workingDirectory: output);

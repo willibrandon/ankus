@@ -181,7 +181,7 @@ public sealed partial class ToolCommandTests
         await File.WriteAllTextAsync(Path.Combine(directory, "Broken.cs"), "#error broken direct publication", token);
         string output = CreateDirectory();
         File.Copy(Path.Combine(s_published, PublishedExtension.FileName), Path.Combine(output, PublishedExtension.FileName));
-        ProcessResult result = await ProcessRunner.RunAsync("dotnet",
+        ProcessResult result = await PackageProcessRunner.RunAsync("dotnet",
             ["publish", project, "--configuration", "Release", "--output", output,
                 "-p:AnkusPostgresMajor=" + MajorText(),
                 "-p:AnkusPgConfigPath=" + s_installation.PgConfigPath], s_environment, token, workingDirectory: directory);

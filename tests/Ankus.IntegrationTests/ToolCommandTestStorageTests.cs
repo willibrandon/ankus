@@ -80,7 +80,7 @@ public sealed partial class ToolCommandTests
             ["ANKUS_TEST_DATA_DIRECTORY"] = null,
         };
         string reports = Path.Combine(output, "direct reports");
-        ProcessResult result = await ProcessRunner.RunAsync("dotnet",
+        ProcessResult result = await PackageProcessRunner.RunAsync("dotnet",
             ["test", "--project", Path.Combine(hostRoot, "TestCommandProbe.Tests.csproj"),
                 "-p:AnkusPostgresMajor=" + MajorText(), "-p:AnkusPgConfigPath=" + s_installation.PgConfigPath,
                 "--filter", "FullyQualifiedName~DirectFixtureUsesSelectedStorage", "--report-trx", "--report-trx-filename", "storage.trx", "--results-directory", reports],

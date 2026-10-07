@@ -50,7 +50,7 @@ public sealed partial class ToolCommandTests
             ? ["-p:Configuration=Shipping", "-p:ForwardedFixtureProperty=enabled"]
             : ["-p:Configuration=Shipping", "-p:AnkusPostgresMajor=" + MajorText(),
                 "-p:ForwardedFixtureProperty=enabled", .. installationProperty, .. outputProperty];
-        ProcessResult result = await ProcessRunner.RunAsync(s_tool,
+        ProcessResult result = await PackageProcessRunner.RunAsync(s_tool,
             ["test", .. selected, .. configuration, .. dataArguments, "--results-directory", reports, "--", "--project", host,
                 "--report-trx", "--report-trx-filename", "selected.trx", "--filter",
                 "FullyQualifiedName~ConfigurationAndVersionReachBackend|FullyQualifiedName~DeclaredTestsExecuteInPostgres",
@@ -281,7 +281,7 @@ public sealed partial class ToolCommandTests
                     => Path.GetFullPath(Path.Combine(Path.GetDirectoryName(source)!, "../../src/TestCommandProbe/TestCommandProbe.csproj"));
             }
             """, token);
-        ProcessResult result = await ProcessRunner.RunAsync(s_tool,
+        ProcessResult result = await PackageProcessRunner.RunAsync(s_tool,
             ["test", "--home", s_home, "--pg", MajorText(), "--results-directory", Path.Combine(output, "guard reports"), "--",
                 "--filter", "FullyQualifiedName~RejectsConflictingInstallationBeforePublication", "--report-trx", "--report-trx-filename", "guards.trx"],
             s_environment, token, workingDirectory: output);
@@ -341,7 +341,7 @@ public sealed partial class ToolCommandTests
             }
             """, token);
         string reports = Path.Combine(output, "abandoned reports");
-        ProcessResult result = await ProcessRunner.RunAsync(s_tool,
+        ProcessResult result = await PackageProcessRunner.RunAsync(s_tool,
             ["test", "--home", s_home, "--all", .. dataArguments, "--results-directory", reports, "--", "--filter", "FullyQualifiedName~AbandonsCluster"],
             s_environment, token, workingDirectory: output);
         Assert.AreNotEqual(0, result.ExitCode, result.StandardOutput + result.StandardError);
@@ -440,7 +440,7 @@ public sealed partial class ToolCommandTests
             }
 
             Assert.IsFalse(process.HasExited, process.HasExited ? await standardOutput + await standardError : "");
-            ProcessResult signal = await ProcessRunner.RunAsync("/bin/kill", ["-TERM", process.Id.ToString(CultureInfo.InvariantCulture)],
+            ProcessResult signal = await PackageProcessRunner.RunAsync("/bin/kill", ["-TERM", process.Id.ToString(CultureInfo.InvariantCulture)],
                 new Dictionary<string, string?>(), token);
             Assert.AreEqual(0, signal.ExitCode, signal.StandardError);
             using var shutdown = CancellationTokenSource.CreateLinkedTokenSource(token);
@@ -466,7 +466,7 @@ public sealed partial class ToolCommandTests
         {
             if (!process.HasExited)
             {
-                await ProcessRunner.RunAsync("/bin/kill", ["-TERM", process.Id.ToString(CultureInfo.InvariantCulture)],
+                await PackageProcessRunner.RunAsync("/bin/kill", ["-TERM", process.Id.ToString(CultureInfo.InvariantCulture)],
                     new Dictionary<string, string?>(), CancellationToken.None);
                 using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(45));
                 try
@@ -489,7 +489,7 @@ public sealed partial class ToolCommandTests
                     using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(30));
                     foreach (string pid in Directory.EnumerateFiles(evidence[3], "postmaster.pid", SearchOption.AllDirectories))
                     {
-                        await ProcessRunner.RunCheckedAsync(s_installation.PgCtlPath,
+                        await PackageProcessRunner.RunCheckedAsync(s_installation.PgCtlPath,
                             ["stop", "-D", Path.GetDirectoryName(pid)!, "-m", "immediate", "-w", "-t", "25"],
                             new Dictionary<string, string?>(), cleanup.Token);
                     }

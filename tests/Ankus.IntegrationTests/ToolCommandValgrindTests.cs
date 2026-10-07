@@ -113,7 +113,7 @@ public sealed partial class ToolCommandTests
     /// <param name="token">Cancels the command.</param>
     /// <returns>The actual process result.</returns>
     private static Task<ProcessResult> InvokeValgrindCommandAsync(string[] arguments, Dictionary<string, string?> environment, CancellationToken token)
-        => ProcessRunner.RunAsync(s_tool, arguments, environment, token, workingDirectory: s_root);
+        => PackageProcessRunner.RunAsync(s_tool, arguments, environment, token, workingDirectory: s_root);
 
     /// <summary>
     /// Missing instrumentation fails before initialization; dry-run selection requires neither a tool nor a server.
@@ -133,7 +133,7 @@ public sealed partial class ToolCommandTests
         // Staging selects the installation's real pg_config binary. Distribution
         // wrappers may require other commands that this intentionally empty PATH hides.
         var environment = new Dictionary<string, string?>(s_environment) { ["PATH"] = executables };
-        ProcessResult missing = await ProcessRunner.RunAsync(s_tool, ["start", "--home", home, "--pg", MajorText(),
+        ProcessResult missing = await PackageProcessRunner.RunAsync(s_tool, ["start", "--home", home, "--pg", MajorText(),
             "--pg-config", installation.PgConfigPath, "--valgrind"], environment, token, workingDirectory: s_root);
         Assert.AreEqual(1, missing.ExitCode, missing.StandardOutput + missing.StandardError);
         Assert.Contains("Install Valgrind", missing.StandardError);
@@ -144,7 +144,7 @@ public sealed partial class ToolCommandTests
         string dotnet = Environment.GetEnvironmentVariable("PATH")!.Split(Path.PathSeparator)
             .Select(static directory => Path.Combine(directory, "dotnet")).First(File.Exists);
         File.CreateSymbolicLink(Path.Combine(executables, "dotnet"), dotnet);
-        ProcessResult dry = await ProcessRunner.RunAsync(s_tool, [.. RegressionOptions(installation, home, project, 12345),
+        ProcessResult dry = await PackageProcessRunner.RunAsync(s_tool, [.. RegressionOptions(installation, home, project, 12345),
             "--valgrind", "--dry-run"], environment, token, workingDirectory: s_root);
         Assert.AreEqual(0, dry.ExitCode, dry.StandardOutput + dry.StandardError);
         Assert.Contains("Would start PostgreSQL under Valgrind Memcheck", dry.StandardOutput);
@@ -188,7 +188,7 @@ public sealed partial class ToolCommandTests
                 return 3;
             }
             """, token);
-        ProcessResult compile = await ProcessRunner.RunAsync("cc", [source, "-o", launcher], new Dictionary<string, string?>(), token);
+        ProcessResult compile = await PackageProcessRunner.RunAsync("cc", [source, "-o", launcher], new Dictionary<string, string?>(), token);
         Assert.AreEqual(0, compile.ExitCode, compile.StandardError);
         string home = CreateDirectory();
         var cluster = new PostgresDevelopmentCluster(s_installation, home);
@@ -204,7 +204,7 @@ public sealed partial class ToolCommandTests
         Task<ProcessResult>? starting = null;
         try
         {
-            starting = ProcessRunner.RunAsync(s_tool, ["start", "--home", home, "--pg", MajorText(),
+            starting = PackageProcessRunner.RunAsync(s_tool, ["start", "--home", home, "--pg", MajorText(),
                 "--pg-config", s_installation.PgConfigPath, "--port", port.ToString(CultureInfo.InvariantCulture),
                 "--valgrind", "--timeout", "3"], environment, token, workingDirectory: s_root);
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
