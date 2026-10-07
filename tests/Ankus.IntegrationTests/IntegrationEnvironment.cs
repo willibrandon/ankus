@@ -262,8 +262,10 @@ internal static class IntegrationEnvironment
         string project = Path.Combine(RepositoryRoot, directory, name, name + ".csproj");
         string logs = Path.Combine(RepositoryRoot, "artifacts", "test-logs", "publish");
         Directory.CreateDirectory(logs);
+        // Parallel.ForEachAsync owns publication concurrency; nested MSBuild nodes would multiply it.
         List<string> arguments = ["publish", project, "--configuration", "Release", "--runtime", RuntimeInformation.RuntimeIdentifier,
             "--self-contained", "true", "--output", output,
+            "-m:1",
             "-p:BuildProjectReferences=" + buildProjectReferences.ToString(CultureInfo.InvariantCulture).ToLowerInvariant(),
             "-p:AnkusPostgresMajor=" + installation.Version.Major.ToString(CultureInfo.InvariantCulture),
             "-p:AnkusPgConfigPath=" + installation.PgConfigPath,

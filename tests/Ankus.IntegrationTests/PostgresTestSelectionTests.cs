@@ -64,7 +64,7 @@ public sealed partial class ToolCommandTests
             _ => [],
         };
         Dictionary<string, string?> environment = SelectionEnvironment();
-        ProcessResult result = await ProcessRunner.RunAsync("dotnet",
+        ProcessResult result = await PackageProcessRunner.RunAsync("dotnet",
             ["test", .. arguments, "--filter", "FullyQualifiedName~SelectedVersionReachesPostgres", "--report-trx"],
             environment, token, workingDirectory: output);
 
@@ -130,7 +130,7 @@ public sealed partial class ToolCommandTests
             "forwarded-quoted-major" => ["-p:AnkusPostgresMajor=\"" + MajorText() + "\""],
             _ => [],
         };
-        ProcessResult result = await ProcessRunner.RunAsync(s_tool,
+        ProcessResult result = await PackageProcessRunner.RunAsync(s_tool,
             ["test", "--home", s_home, .. arguments, "--", "--project", project,
                 .. forwarded, "--filter", "FullyQualifiedName~SelectedVersionReachesPostgres"],
             SelectionEnvironment(), token, workingDirectory: CreateDirectory());
@@ -181,7 +181,7 @@ public sealed partial class ToolCommandTests
                 .EnsureSuccess("dotnet", ["sln", "add"]);
         }
 
-        ProcessResult result = await ProcessRunner.RunAsync(s_tool,
+        ProcessResult result = await PackageProcessRunner.RunAsync(s_tool,
             ["test", "--home", s_home, "--", .. selection, "--filter", "FullyQualifiedName~SelectedVersionReachesPostgres"],
             SelectionEnvironment(), token, workingDirectory: layout == "directory" ? output : CreateDirectory());
 
@@ -216,7 +216,7 @@ public sealed partial class ToolCommandTests
             "self-contained" => ["--", "-p:SelfContained=false"],
             _ => ["--all", "--", "-p:AnkusPostgresMajor=" + MajorText()],
         };
-        ProcessResult result = await ProcessRunner.RunAsync(s_tool, ["test", "--home", s_home, .. arguments],
+        ProcessResult result = await PackageProcessRunner.RunAsync(s_tool, ["test", "--home", s_home, .. arguments],
             SelectionEnvironment(), context.CancellationToken, workingDirectory: CreateDirectory());
 
         Assert.AreNotEqual(0, result.ExitCode);
@@ -247,7 +247,7 @@ public sealed partial class ToolCommandTests
         new XDocument(new XElement("Project", new XElement("PropertyGroup",
             new XElement("AnkusPostgresMajor", s_installation.Version.Major),
             new XElement("AnkusPgConfigPath", s_installation.PgConfigPath)))).Save(Path.Combine(directory, "Selection.csproj"));
-        ProcessResult result = await ProcessRunner.RunAsync(s_tool, [command, "--home", directory],
+        ProcessResult result = await PackageProcessRunner.RunAsync(s_tool, [command, "--home", directory],
             SelectionEnvironment(), context.CancellationToken, workingDirectory: directory);
 
         Assert.AreEqual(0, result.ExitCode, result.StandardOutput + result.StandardError);
@@ -287,7 +287,7 @@ public sealed partial class ToolCommandTests
                 "<Project><PropertyGroup><AnkusPostgresMajor>19</AnkusPostgresMajor></PropertyGroup></Project>", context.CancellationToken);
         }
 
-        ProcessResult result = await ProcessRunner.RunAsync(s_tool, ["info", "--home", directory],
+        ProcessResult result = await PackageProcessRunner.RunAsync(s_tool, ["info", "--home", directory],
             SelectionEnvironment(), context.CancellationToken, workingDirectory: directory);
         string output = result.StandardOutput + result.StandardError;
         Assert.AreNotEqual(0, result.ExitCode);
@@ -326,7 +326,7 @@ public sealed partial class ToolCommandTests
         string[] commands = ["info", "test", "start", "stop", "status"];
         foreach (string command in commands)
         {
-            ProcessResult result = await ProcessRunner.RunAsync(s_tool, [command, "--home", directory],
+            ProcessResult result = await PackageProcessRunner.RunAsync(s_tool, [command, "--home", directory],
                 SelectionEnvironment(), token, workingDirectory: directory);
             Assert.AreNotEqual(0, result.ExitCode, command);
             Assert.IsEmpty(result.StandardOutput, command);
@@ -334,7 +334,7 @@ public sealed partial class ToolCommandTests
             Assert.DoesNotContain("PostgreSQL 18 is not registered", result.StandardError, command);
         }
 
-        ProcessResult explicitSelection = await ProcessRunner.RunAsync(s_tool,
+        ProcessResult explicitSelection = await PackageProcessRunner.RunAsync(s_tool,
             ["info", "--home", s_home, "--pg", MajorText()], SelectionEnvironment(), token, workingDirectory: directory);
         Assert.AreEqual(0, explicitSelection.ExitCode, explicitSelection.StandardError);
         Assert.DoesNotContain("different PostgreSQL installations", explicitSelection.StandardError);

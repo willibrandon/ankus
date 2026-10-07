@@ -227,7 +227,9 @@ queue while their dedicated runner is busy.
 `ANKUS_PACKAGE_TEST_CONCURRENCY` controls both Native AOT sample publication and
 build-intensive package-consumer child processes. It accepts any positive integer.
 Without an override, the fixture uses one slot per two logical processors, bounded
-from one to sixteen. CI's manual
+from one to sixteen. Parallel sample publications and generated consumer builds
+use one MSBuild node each, preventing nested build workers from multiplying the
+configured outer limit. CI's manual
 `package-test-concurrency` input overrides it for a comparison run. The repository
 variables `ANKUS_WINDOWS_PACKAGE_TEST_CONCURRENCY`,
 `ANKUS_LINUX_PACKAGE_TEST_CONCURRENCY` and `ANKUS_MACOS_PACKAGE_TEST_CONCURRENCY`
