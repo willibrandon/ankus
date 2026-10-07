@@ -243,13 +243,14 @@ public sealed class PostgresValgrindTests(TestContext context)
         Task<bool>? starting = null;
         try
         {
+            Assert.IsTrue(await cluster.StartAsync(new PostgresDevelopmentOptions { Port = port }, token));
+            Assert.IsTrue(await cluster.StopAsync(token));
+            File.Delete(cluster.LogFilePath);
             starting = cluster.StartAsync(options, cancellation.Token);
             string witness = Path.Combine(cluster.DataDirectory, "valgrind-started");
-            using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
-            deadline.CancelAfter(TimeSpan.FromSeconds(30));
             while (!File.Exists(witness) && !starting.IsCompleted)
             {
-                await Task.Delay(20, deadline.Token);
+                await Task.Delay(20, token);
             }
 
             Assert.IsTrue(File.Exists(witness), "Startup must reach the native preload before interruption.");

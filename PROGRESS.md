@@ -132,6 +132,11 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
 
 ## Active validation and work
 
+- A local complete-suite run exposed a test-only Valgrind startup race: its
+  separate 30-second witness deadline could expire under Native AOT load before
+  the bounded cluster start completed. The regression now initializes the owned
+  cluster before injecting the preload delay and relies on the production
+  timeout/cancellation contract. Both cases pass **2/2** in **8m52.961s**.
 - Refreshed supported-major run **37573419284** failed before test execution
   because the dedicated Linux version runner selected Clang 19 after header
   collection began requiring the LLVM 20 declaration-only frontend. The run was

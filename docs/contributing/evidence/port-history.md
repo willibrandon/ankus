@@ -28919,3 +28919,22 @@ its black-boxed value. This preserves the production rejection of unmeasurable
 benchmarks while making the test exercise comparison semantics rather than timer
 resolution. The focused regression passes **1/1** and the complete Runtime suite
 passes **2,237/2,237** on Linux x64. Replacement Windows evidence remains required.
+
+## Valgrind startup interruption fixture — 2026-10-07
+
+A local complete-suite run exposed two failures in
+`ValgrindInterruptedStartupStopsOwnedServer`. The fixture imposed an independent
+30-second deadline while waiting for its preload witness. Under concurrent Native
+AOT load, that deadline could expire before the cluster's own bounded startup and
+cleanup path completed, so the test failed without exercising the intended
+timeout or cancellation contract.
+
+The fixture now initializes and stops its owned cluster before injecting the
+native preload delay, removes the duplicate witness deadline and relies on the
+production startup timeout or caller cancellation. Both timeout and explicit
+cancellation cases pass **2/2** in **8m52.961s** on Linux x64/PostgreSQL 18.6.
+
+Before this change, primary source **7389de5** had green quality and documentation
+jobs while its three complete platform suites remained in progress. The refreshed
+Linux-version, platform-version and dedicated macOS x64 runs also remained active;
+no current failure was hidden or cancelled.
