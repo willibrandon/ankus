@@ -15,7 +15,7 @@ public sealed partial class ToolCommandTests
     public async Task SharedLocksDeferPendingInterruptsUntilRelease(bool exclusive)
     {
         CancellationToken token = context.CancellationToken;
-        string output = await PublishPackageConsumerAsync("LwLockInterrupts", "ankus_lwlock_interrupts", LwLockInterruptSource, token);
+        string output = await GetSharedPublicationAsync(s_lwLockInterruptPublication, token);
         await using PostgresTestCluster cluster = await StartPublishedClusterAsync(output, token, sharedPreload: true);
         await using NpgsqlConnection caller = await cluster.OpenConnectionAsync(token);
         await using NpgsqlConnection observer = await cluster.OpenConnectionAsync(token);

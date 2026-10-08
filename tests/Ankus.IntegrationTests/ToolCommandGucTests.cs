@@ -177,10 +177,16 @@ public sealed partial class ToolCommandTests
     /// <summary>
     /// Publishes with test-owned packages and proves the consumer has no repository references or style imports.
     /// </summary>
-    private async Task<string> PublishPackageConsumerAsync(string name, string extension, string source, CancellationToken token,
+    private Task<string> PublishPackageConsumerAsync(string name, string extension, string source, CancellationToken token,
         bool coldPackages = false)
+        => PublishPackageConsumerInDirectoryAsync(CreateDirectory(), name, extension, source, token, coldPackages);
+
+    /// <summary>
+    /// Publishes a packaged consumer into the caller's test-owned or fixture-owned directory.
+    /// </summary>
+    private static async Task<string> PublishPackageConsumerInDirectoryAsync(string directory, string name, string extension,
+        string source, CancellationToken token, bool coldPackages = false)
     {
-        string directory = CreateDirectory();
         string project = Path.Combine(directory, name + ".csproj");
         new XDocument(new XElement("Project", new XAttribute("Sdk", "Ankus.Sdk/" + s_version),
             new XElement("PropertyGroup", new XElement("TargetFramework", "net10.0"),

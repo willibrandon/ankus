@@ -19,7 +19,7 @@ public sealed partial class ToolCommandTests
     public async Task WorkerTransactionsRecoverCancellationButRetainTerminalReports(int mode)
     {
         CancellationToken token = context.CancellationToken;
-        string output = await PublishPackageConsumerAsync("WorkerCancellation", "ankus_worker_cancellation", WorkerCancellationSource, token);
+        string output = await GetSharedPublicationAsync(s_workerCancellationPublication, token);
         await using PostgresTestCluster cluster = await StartPublishedClusterAsync(output, token, sharedPreload: true,
             additionalConfiguration: ["max_worker_processes = 4", "max_parallel_workers = 0", "max_logical_replication_workers = 0", "log_error_verbosity = verbose"]);
         await using NpgsqlConnection connection = await cluster.OpenConnectionAsync(token);
@@ -101,7 +101,7 @@ public sealed partial class ToolCommandTests
     private async Task WorkerIdleCancellationAsync(bool poll)
     {
         CancellationToken token = context.CancellationToken;
-        string output = await PublishPackageConsumerAsync("WorkerCancellation", "ankus_worker_cancellation", WorkerCancellationSource, token);
+        string output = await GetSharedPublicationAsync(s_workerCancellationPublication, token);
         await using PostgresTestCluster cluster = await StartPublishedClusterAsync(output, token, sharedPreload: true,
             additionalConfiguration: ["max_worker_processes = 4", "max_parallel_workers = 0", "max_logical_replication_workers = 0", "log_error_verbosity = verbose"]);
         await using NpgsqlConnection connection = await cluster.OpenConnectionAsync(token);

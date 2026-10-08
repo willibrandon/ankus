@@ -219,6 +219,7 @@ public sealed partial class ToolCommandTests(TestContext context)
         (await InvokeAsync(
             ["publish", "--home", s_home, "--pg", MajorText(), "--project", s_project, "--output", s_published], token))
             .EnsureSuccess(s_tool, ["publish"]);
+        InitializeSharedPublications();
     }
 
     /// <summary>
@@ -227,6 +228,7 @@ public sealed partial class ToolCommandTests(TestContext context)
     [ClassCleanup]
     public static async Task CleanupAsync()
     {
+        await CleanupSharedPublicationsAsync();
         while (s_caseInstallations.TryDequeue(out PostgresTestInstallation? installation))
         {
             await installation.DisposeAsync();

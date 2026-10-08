@@ -9,6 +9,14 @@
     <PackageReference Include="Npgsql" />
     <ProjectReference Include="../../src/Ankus.Testing/Ankus.Testing.csproj" />
     <ProjectReference Include="../../src/Ankus.Tool/Ankus.Tool.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../Ankus.TestExtension/Ankus.TestExtension.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../Ankus.GucOnlyExtension/Ankus.GucOnlyExtension.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../Ankus.GucPrefixExtension/Ankus.GucPrefixExtension.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../Ankus.GucUnicodePrefixExtension/Ankus.GucUnicodePrefixExtension.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../Ankus.GucHooksExtension/Ankus.GucHooksExtension.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../Ankus.PreloadExtension/Ankus.PreloadExtension.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../Ankus.GucAssignExtension/Ankus.GucAssignExtension.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../Ankus.GucShowExtension/Ankus.GucShowExtension.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../../samples/Ankus.Examples.Enums/Ankus.Examples.Enums.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../../samples/Ankus.Examples.Arrays/Ankus.Examples.Arrays.csproj" />
     <ProjectReference Include="../../samples/Ankus.Examples.Bytea/Ankus.Examples.Bytea.csproj" ReferenceOutputAssembly="false" />
@@ -25,6 +33,11 @@
     <ProjectReference Include="../../samples/Ankus.Examples.Spi/Ankus.Examples.Spi.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../../samples/Ankus.Examples.Strings/Ankus.Examples.Strings.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../../samples/Ankus.Examples.Ranges/Ankus.Examples.Ranges.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../samples/Ankus.Examples.Triggers/Ankus.Examples.Triggers.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../samples/Ankus.Examples.EventTriggers/Ankus.Examples.EventTriggers.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../samples/Ankus.Examples.Aggregates/Ankus.Examples.Aggregates.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../samples/Ankus.Examples.Initialization/Ankus.Examples.Initialization.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../samples/Ankus.Examples.Configuration/Ankus.Examples.Configuration.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
 </Project>

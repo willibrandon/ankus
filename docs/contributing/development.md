@@ -173,6 +173,14 @@ need that capacity even though the fixture removes its temporary directories
 after the run. A full temporary filesystem is a failed prerequisite, not a
 reason to skip consumer tests.
 
+The six worker-cancellation cases share one immutable installed-package
+publication; the two lightweight-lock interrupt cases share another. Each case
+still starts its own PostgreSQL cluster and runs its complete cancellation,
+terminal-error and recovery checks. The class fixture
+owns the publication until every case finishes; cancellation of one case stops
+that case's wait without interrupting another case's build. Tests of publishing,
+source edits and cold package restore continue to own separate projects.
+
 Memory cleanup checks query `ankus_test_memory.contexts`, installed by the test
 extension. On PostgreSQL 14 and later this view reads the server's memory-context
 catalog. PostgreSQL 13 uses the standalone C allocator fixture to walk the actual

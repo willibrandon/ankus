@@ -92,9 +92,9 @@ incorrect. See [the detailed review](docs/contributing/evidence/port-history.md#
 ## Current complete acceptance evidence
 
 Primary CI runs all six modules against real published Native AOT extensions.
-The latest successful primary CI source is **821bd8e**, with runtime **10.0.12-ankus.4**.
-[CI 37730340878](https://github.com/willibrandon/ankus/actions/runs/37730340878)
-passes; [Docs run 37730340963](https://github.com/willibrandon/ankus/actions/runs/37730340963)
+The latest successful primary CI source is **174ddc6**, with runtime **10.0.12-ankus.4**.
+[CI 37734356955](https://github.com/willibrandon/ankus/actions/runs/37734356955)
+passes; [Docs run 37734356934](https://github.com/willibrandon/ankus/actions/runs/37734356934)
 also passes. All eighteen module reports were inspected: each platform completed
 all six modules with zero failures. No primary job timed out.
 A complete [Intel refresh](https://github.com/willibrandon/ankus/actions/runs/37460600236)
@@ -102,9 +102,9 @@ also passes on source **e41c687**.
 
 | Source | Platform / PostgreSQL | Result | Duration |
 | --- | --- | --- | --- |
-| Latest primary CI, **821bd8e / ankus.4** | Linux x64 / 18 | 13,530 total; 13,482 passed; 48 platform skips; zero failures | 11m55s test step; 14m01s job |
-| Same CI / revision / runtime | macOS ARM64 / 18 | 13,530 total; 13,470 passed; 60 platform skips; zero failures | 12m19s test step; 14m00s job |
-| Same CI / revision / runtime | Windows x64 / 17 | 13,530 total; 13,494 passed; 36 platform skips; zero failures | 21m17s test step; 23m35s job |
+| Latest primary CI, **174ddc6 / ankus.4** | Linux x64 / 18 | 13,550 total; 13,502 passed; 48 platform skips; zero failures | 11m51s test step; 13m59s job |
+| Same CI / revision / runtime | macOS ARM64 / 18 | 13,550 total; 13,490 passed; 60 platform skips; zero failures | 12m58s test step; 14m42s job |
+| Same CI / revision / runtime | Windows x64 / 17 | 13,550 total; 13,514 passed; 36 platform skips; zero failures | 21m06s test step; 23m25s job |
 | SQL/datetime composition, parent **e41c687 / ankus.4** | Linux x64 / 18.6 | 13,337 total; 13,289 passed; 48 platform skips; zero failures | 42m46.885s tests; 43m41.597s command |
 | Function-provider composition, parent **4da0bec / ankus.4** | Linux x64 / 18.6 | 13,365 total; 13,317 passed; 48 platform skips; zero failures | 42m39.165s tests; 43m46.937s command |
 | Type-provider composition, parent **97842d3 / ankus.4** | Linux x64 / 18.6 | 13,411 total; 13,363 passed; 48 platform skips; zero failures | 42m39.033s tests; 43m35.244s command |
@@ -130,6 +130,19 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
 
 ## Active validation and work
 
+- Six worker-cancellation cases and two lock-interrupt cases now share two
+  immutable packaged probe publications instead of compiling eight identical
+  binaries. Every case retains its own PostgreSQL cluster and all assertions;
+  cold-package and compilation-behavior tests retain fresh outputs. On macOS
+  x64/PostgreSQL **18.6**, the eight-case execution interval falls from
+  **114.063s** to **39.166s**, with **8/8** passing. Fixture startup is excluded
+  from that comparison. Windows x64/PostgreSQL **17.11** passes **8/8** in a
+  **28.590s** case interval (**2m51.778s** including fixture startup). Both use
+  SDK **10.0.401**. Standalone integration-project restore now includes all
+  published fixture projects through explicit build-only references; the
+  missing dependency previously caused `NETSDK1004` before tests started.
+  Windows Release has zero warnings/errors; documentation checks pass.
+  Complete-suite validation of this change is pending.
 - Compiler-cache hits now retain shared read ownership instead of serializing
   every consumer's content validation and artifact copy. Replacement waits for
   all readers and closes admission to new readers; retention remains exclusive.
@@ -146,7 +159,9 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   wait for compiler slots; actual compilation and test-host publication retain
   the existing bound. All **19** scheduling and real regression-command cases
   pass on Windows/PostgreSQL **17.11**, including native diffs, failed clients
-  and read-only dry runs. Complete-suite validation of these changes remains pending.
+  and read-only dry runs. All six modules subsequently passed on every primary
+  platform in **37734356955**, with timings above. The cache microbenchmark
+  improvement did not materially shorten complete-suite feedback.
 - Windows native-tool helpers with a one-processor build budget spent time
   waiting for thread-pool workers blocked on synchronous redirected pipes.
   Dedicated readers for non-cancellable Windows pipes reduce a measured warm
