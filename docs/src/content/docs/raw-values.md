@@ -454,6 +454,18 @@ still the installed head; replacing it after another extension has installed a
 hook would discard that extension's chain. Dropping SQL declarations does not
 unload the native module or automatically unregister hooks.
 
+Make each installation idempotent. A failed `PgModuleLoad` runs again on the
+next load, or before the next invocation of a callback that the failed attempt
+already installed. Record each hook's installation immediately after assigning
+it, as `s_installed` does above, so a retry never saves your own hook as the
+previous hook. Checking whether the global still holds your callback is not
+enough once another library has chained after yours. If a callback reaches
+itself through such a cycle anyway, the native callback boundary raises
+PostgreSQL's `stack depth limit exceeded` error (SQLSTATE `54001`) instead of
+overflowing the native stack. The
+[hooks sample](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.Hooks)
+ports pgrx's `hooks` example with three independently recorded installations.
+
 An `emit_log_hook` handler receives borrowed `ErrorData*`. Copy any fields you
 need to retain before returning or invoking another hook. PostgreSQL permits
 the hook to disable `output_to_server`; other changes to the diagnostic are

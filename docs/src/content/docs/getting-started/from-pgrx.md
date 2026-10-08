@@ -116,7 +116,9 @@ For deliberate error recovery comparable to a `PgTryBuilder` recovery scope,
 use `PgTransaction.RunInSubtransaction` around work that must roll back. A plain
 `catch (Exception)` cannot make an unrecovered raw native failure successful.
 Cancellation, `Fatal` and `Panic` remain pending even after a catch or rollback.
-See [recoverable work](/transaction-callbacks/#recoverable-work).
+See [recoverable work](/transaction-callbacks/#recoverable-work) and the
+[try and catch sample](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.TryCatch),
+which maps `catch_when`, `catch_rust_panic`, `rethrow` and `finally` to C#.
 
 Use `PgInterrupts.Check()` where Rust code would use `check_for_interrupts!` in
 a long loop. Call it on the PostgreSQL thread; thread-pool continuations do not

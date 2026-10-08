@@ -1,0 +1,3 @@
+comment = 'PostgreSQL error and managed exception handling with catch, rethrow and finally'
+relocatable = false
+superuser = false

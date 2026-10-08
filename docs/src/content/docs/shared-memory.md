@@ -42,6 +42,10 @@ Add the published library to `shared_preload_libraries` and restart PostgreSQL:
 shared_preload_libraries = 'MyExtension'
 ```
 
+The [shared memory sample](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.SharedMemory)
+ports pgrx's `shmem` example: a bounded list, deque and map, a struct and an
+integer behind separate lightweight locks, and an atomic Boolean.
+
 Registration reserves space during startup. The initializer runs when PostgreSQL
 creates the shared value, after registration finishes. It can read configuration,
 write log messages and use memory contexts; SQL is unavailable in the postmaster.

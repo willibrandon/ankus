@@ -9,6 +9,8 @@ internal static class NativeCallbackBridge
     /// Dispatches a registered static managed handler and raises errors only after the managed frame returns.
     /// </summary>
     internal const string Source = """
+        #include "miscadmin.h"
+
         typedef int (*AnkusManagedNativeCallback)(const AnkusNativeCallArgument *, size_t, void *, size_t, void *);
 
         typedef struct AnkusNativeCallbackContext
@@ -20,6 +22,8 @@ internal static class NativeCallbackBridge
             AnkusInitializationLog log;
         } AnkusNativeCallbackContext;
 
+        static int ankus_native_callback_depth = 0;
+
         #if !defined(WIN32)
         __attribute__((visibility("hidden")))
         #endif
@@ -27,6 +31,15 @@ internal static class NativeCallbackBridge
         ankus_dispatch_native_callback(AnkusManagedNativeCallback callback, const AnkusNativeCallArgument *arguments,
             size_t count, void *result, size_t result_size)
         {
+            /* A hook saved as its own previous hook, or any other cycle through this module's callbacks,
+             * recurses through nested dispatch until the native stack overflows and PostgreSQL restarts
+             * every backend. Report PostgreSQL's ordinary stack-depth error before entering managed code.
+             * Outermost dispatch, including log hooks reporting a stack-depth error, keeps its behavior. */
+            if (ankus_native_callback_depth > 0)
+            {
+                check_stack_depth();
+            }
+
             if (callback == NULL)
             {
                 ereport(ERROR, (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
@@ -50,6 +63,7 @@ internal static class NativeCallbackBridge
                 IsTransactionState() && !ankus_worker_restore_in_progress() ? ankus_spi_execute : NULL,
                 &memory, ankus_read_guc, ankus_initialization_log };
             volatile bool entered = false;
+            ankus_native_callback_depth++;
             PG_TRY();
             {
                 ankus_fork_host_enter();
@@ -63,6 +77,7 @@ internal static class NativeCallbackBridge
             }
             PG_FINALLY();
             {
+                ankus_native_callback_depth--;
                 MemoryContextSwitchTo(caller_identity != 0 && ankus_memory_context_by_id(caller_identity) == NULL
                     ? recovery : caller);
                 ankus_release_error(error);

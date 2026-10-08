@@ -1,0 +1,4 @@
+comment = 'Memory context lifecycle and set-function and background-worker state patterns'
+relocatable = false
+superuser = false
+trusted = false

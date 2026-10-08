@@ -29,6 +29,10 @@ catch (PgException error)
 }
 ```
 
+The [try and catch sample](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.TryCatch)
+ports pgrx's `PgTryBuilder` examples to filtered `catch` and `finally` blocks,
+using this scope to recover from a PostgreSQL error before returning a fallback.
+
 The generic overload returns the callback's result after successful release.
 Nested scopes recover independently: catch an inner scope's exception outside
 its callback to continue the outer scope. A managed exception also rolls back
@@ -132,7 +136,11 @@ PgSubtransactionCallback registration = PgTransaction.RegisterSubtransactionCall
 | `Abort` | After it rolls back | No |
 
 The callback receives `PgSubtransactionId` values for the current and parent IDs.
-Dispose its registration to stop future calls. Subtransactions that Ankus opens
+Dispose its registration to stop future calls. Subtransaction IDs are
+backend-local counters, not transaction IDs. The
+[subtransaction information sample](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.Subtransactions)
+reports a transaction ID's status, parents and nesting level from
+PostgreSQL's `pg_subtrans` data. Subtransactions that Ankus opens
 for its private error guards do not appear as events, including those opened by
 another Ankus extension in the same session. Savepoints and PL/pgSQL `EXCEPTION`
 blocks inside SQL that a guard runs do appear.

@@ -23,6 +23,11 @@ are available independently of SPI, including initialization and configuration
 hooks. They do not enable database queries in callback phases where PostgreSQL
 prohibits queries. Do not call them from a worker thread or after `await`.
 
+The [memory contexts sample](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.MemoryContexts)
+ports pgrx's `memory_contexts` example. It resets scratch contexts after
+temporary work, returns sets, and keeps a background worker's counter in
+`TopMemoryContext`. It also shows a stale allocation rejected after reset.
+
 For a growable PostgreSQL binary buffer, use
 [`PgStringInfoStream`](/stringinfo/). It supports ordinary stream writes, strict
 UTF-8 text, checked byte copies, and explicit native ownership transfers.

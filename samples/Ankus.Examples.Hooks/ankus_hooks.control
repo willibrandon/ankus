@@ -1,0 +1,4 @@
+comment = 'Safety-catch hooks: DELETE requires WHERE and only superusers can TRUNCATE'
+relocatable = false
+superuser = true
+trusted = false

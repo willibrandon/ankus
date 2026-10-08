@@ -1,0 +1,3 @@
+comment = 'Transaction status, subtransaction ancestry and commit timestamps for transaction IDs'
+relocatable = false
+superuser = false

@@ -1,0 +1,3 @@
+comment = 'Shared-memory collections, values and atomics; requires shared_preload_libraries'
+relocatable = false
+superuser = false

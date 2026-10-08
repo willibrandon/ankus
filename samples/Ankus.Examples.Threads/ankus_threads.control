@@ -1,0 +1,3 @@
+comment = 'Managed threads, backend-thread enforcement and a parse-analysis hook'
+relocatable = false
+superuser = false

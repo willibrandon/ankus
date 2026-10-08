@@ -41,6 +41,12 @@
     <ProjectReference Include="../../samples/Ankus.Examples.CustomSql/Ankus.Examples.CustomSql.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../../samples/Ankus.Examples.Initialization/Ankus.Examples.Initialization.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../../samples/Ankus.Examples.Configuration/Ankus.Examples.Configuration.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../samples/Ankus.Examples.MemoryContexts/Ankus.Examples.MemoryContexts.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../samples/Ankus.Examples.SharedMemory/Ankus.Examples.SharedMemory.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../samples/Ankus.Examples.TryCatch/Ankus.Examples.TryCatch.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../samples/Ankus.Examples.Subtransactions/Ankus.Examples.Subtransactions.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../samples/Ankus.Examples.Threads/Ankus.Examples.Threads.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../samples/Ankus.Examples.Hooks/Ankus.Examples.Hooks.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
 </Project>

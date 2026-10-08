@@ -54,6 +54,15 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.Contains("AnkusError *error = MemoryContextAllocZero(TopMemoryContext, sizeof(AnkusError));", native);
         Assert.Contains("caller_identity != 0 && ankus_memory_context_by_id(caller_identity) == NULL", native);
         Assert.Contains("ankus_fork_host_enter();", native);
+
+        // Nested dispatch, such as a hook saved as its own previous hook, checks PostgreSQL's stack depth before
+        // entering managed code, and every exit path restores the nesting count.
+        AssertOrdered(native[native.IndexOf("ankus_dispatch_native_callback(AnkusManagedNativeCallback callback", StringComparison.Ordinal)..],
+        [
+            "if (ankus_native_callback_depth > 0)", "check_stack_depth();", "if (callback == NULL)",
+            "ankus_native_callback_depth++;", "PG_TRY();", "ankus_fork_host_enter();", "ANKUS_MANAGED_INVOKE(",
+            "PG_FINALLY();", "ankus_native_callback_depth--;", "PG_END_TRY();",
+        ]);
         Assert.Contains("RhEnableForkSupport();", native);
         Assert.DoesNotContain(registration, native);
         Assert.DoesNotContain("ankus_ensure_module_loaded", native);

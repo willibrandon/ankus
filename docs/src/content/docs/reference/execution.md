@@ -43,6 +43,10 @@ multiple PostgreSQL backends can each create their own managed work. For
 long-running database work with its own transaction and shutdown lifecycle, use
 a [PostgreSQL background worker](/background-workers/).
 
+The [threads sample](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.Threads)
+ports pgrx's `pgthread` example. Its managed thread is rejected before running
+SPI, and its tasks sum a copied array without calling PostgreSQL.
+
 Call `PgInterrupts.Check()` periodically in long managed loops on the backend
 thread. A managed loop does not otherwise guarantee a PostgreSQL interrupt check;
 an unrelated .NET `CancellationToken` is not automatically connected to query

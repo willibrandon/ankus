@@ -74,6 +74,26 @@ aggregates named composite types defined by custom SQL.
 The [generic aggregate sample](samples/Ankus.Examples.GenericAggregates/) counts
 changes in any input type with PostgreSQL's datum copy and comparison bindings.
 
+The [memory contexts sample](samples/Ankus.Examples.MemoryContexts/) resets
+scratch contexts, returns sets and keeps a background worker's counter in
+`TopMemoryContext`.
+
+The [shared memory sample](samples/Ankus.Examples.SharedMemory/) shares bounded
+collections, lock-protected values and an atomic between preloaded backends.
+
+The [try and catch sample](samples/Ankus.Examples.TryCatch/) maps pgrx's
+`PgTryBuilder` to filtered `catch` and `finally` blocks, recovering from
+PostgreSQL errors in a subtransaction.
+
+The [subtransaction information sample](samples/Ankus.Examples.Subtransactions/)
+reports a transaction ID's status, parents, nesting level and commit time.
+
+The [threads sample](samples/Ankus.Examples.Threads/) computes on managed threads
+and shows that only the backend thread can call PostgreSQL.
+
+The [hooks sample](samples/Ankus.Examples.Hooks/) chains executor, parse-analysis
+and utility hooks, installing each one exactly once.
+
 PostgreSQL 18 and later can report the library's name and version through
 `pg_get_loaded_modules()`. See [native module identity](docs/src/content/docs/reference/build-settings.md#native-module-identity)
 for project defaults and attribute overrides.

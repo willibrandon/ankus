@@ -62,9 +62,14 @@ On PostgreSQL 13–16, worker SQL follows the parallel error boundary described 
 [SPI queries](/spi/#errors-and-transactions).
 
 Each successful phase runs once. If `PgModuleLoad` fails, the next load retries it.
-If `PgInitialize` fails after successful registration, registration remains in
-place and only initialization retries. Installed native hooks and managed state
-are not automatically rolled back; registration code owns their cleanup.
+A callback that the failed attempt already installed also retries registration
+before its handler runs. If `PgInitialize` fails after successful registration,
+registration remains in place and only initialization retries. Installed native
+hooks and managed state are not automatically rolled back; registration code owns
+their cleanup. Record each hook installation as soon as it succeeds, so a retry
+does not install the same hook again and save it as its own previous hook. See
+[idempotent hook installation](/raw-values/#managed-native-callbacks-and-hooks)
+and the [hooks sample](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.Hooks).
 
 ## Database access and failure
 

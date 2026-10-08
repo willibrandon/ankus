@@ -1,3 +1,4 @@
+using Ankus.Testing;
 using Npgsql;
 
 namespace Ankus.IntegrationTests;
@@ -43,6 +44,56 @@ public sealed class NativeUtilityHookTests(TestContext context)
             command.CommandText = "SELECT utility_hook_values.native_utility_hook_restore()";
             Assert.IsTrue(Assert.IsInstanceOfType<bool>(await command.ExecuteScalarAsync(CancellationToken.None)));
         }
+    }
+
+    /// <summary>
+    /// A hook registration retried after a failed load saves its own hook as the previous hook; the callback boundary turns
+    /// the resulting unbounded recursion into PostgreSQL's stack-depth error instead of a native stack overflow.
+    /// </summary>
+    [TestMethod]
+    public async Task RetriedUnguardedHookRegistrationReportsStackDepth()
+    {
+        CancellationToken token = context.CancellationToken;
+        PostgresTestClusterOptions options = await IntegrationEnvironment.CreateOptionsAsync(token);
+        await using PostgresTestCluster cluster = await PostgresTestCluster.StartAsync(options, token);
+        await using (NpgsqlConnection setup = await cluster.OpenConnectionAsync(token))
+        {
+            await using var install = new NpgsqlCommand("CREATE SCHEMA datatype; CREATE EXTENSION ankus_test WITH SCHEMA datatype", setup);
+            await install.ExecuteNonQueryAsync(token);
+        }
+
+        await using NpgsqlConnection observer = await cluster.OpenConnectionAsync(token);
+        await using NpgsqlConnection connection = await cluster.OpenConnectionAsync(token);
+        int backend = connection.ProcessID;
+        await using var command = new NpgsqlCommand("SET ankus_test.module_load = 'unguarded-hook'", connection);
+        await command.ExecuteNonQueryAsync(token);
+        command.CommandText = "LOAD 'Ankus.TestExtension'";
+        PostgresException failed = await Assert.ThrowsExactlyAsync<PostgresException>(() => command.ExecuteNonQueryAsync(token));
+        Assert.AreEqual("P7870", failed.SqlState);
+        Assert.AreEqual("Module registration failed after installing its hook.", failed.MessageText);
+
+        // The first attempt's hook remains installed. Its next invocation retries the failed registration before
+        // running the handler, and the repeated installation saves the hook as its own previous hook.
+        command.CommandText = "SET application_name = 'ankus self-chained registration'";
+        PostgresException recursion = await Assert.ThrowsExactlyAsync<PostgresException>(() => command.ExecuteNonQueryAsync(token));
+        Assert.AreEqual("54001", recursion.SqlState);
+        Assert.AreEqual("stack depth limit exceeded", recursion.MessageText);
+        command.CommandText = "SELECT datatype.module_load_attempts() || '|' || utility_hook_values.native_utility_hook_self_chained()";
+        Assert.AreEqual("2|true", await command.ExecuteScalarAsync(token));
+        command.CommandText = "SELECT utility_hook_values.native_utility_hook_result()";
+        string[] result = Assert.IsInstanceOfType<string>(await command.ExecuteScalarAsync(token)).Split('|');
+        Assert.AreEqual("none", result[0]);
+        Assert.IsGreaterThan(10, int.Parse(result[1], System.Globalization.CultureInfo.InvariantCulture),
+            "The self-chained hook must recurse until PostgreSQL's stack-depth check stops it.");
+
+        // Restoring the original hook recovers the same backend; other backends were never affected.
+        command.CommandText = "SELECT utility_hook_values.native_utility_hook_restore()";
+        Assert.IsTrue(Assert.IsInstanceOfType<bool>(await command.ExecuteScalarAsync(token)));
+        command.CommandText = "SET application_name = 'ankus restored registration'; SELECT pg_catalog.pg_backend_pid()";
+        Assert.AreEqual(backend, await command.ExecuteScalarAsync(token));
+        await using var peer = new NpgsqlCommand("SELECT 6 * 7", observer);
+        Assert.AreEqual(42, await peer.ExecuteScalarAsync(token));
+        Assert.DoesNotContain("terminated by signal", cluster.ReadServerLog());
     }
 
     /// <summary>

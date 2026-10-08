@@ -9,6 +9,7 @@ namespace Ankus.TestExtension;
 [PgSchema("utility_hook_values")]
 public static partial class NativeUtilityHookFunctions
 {
+    private static ProcessUtility_hook_type s_original;
     private static ProcessUtility_hook_type s_previous;
     private static bool s_installed;
     private static int s_mode;
@@ -38,12 +39,48 @@ public static partial class NativeUtilityHookFunctions
         {
             if (!s_installed)
             {
-                s_previous = NativeGlobals.ProcessUtility_hook;
+                s_original = NativeGlobals.ProcessUtility_hook;
+                s_previous = s_original;
                 NativeGlobals.ProcessUtility_hook = Hook;
                 s_installed = true;
             }
 
             return NativeGlobals.ProcessUtility_hook.DangerousGetAddress() == Hook.DangerousGetAddress();
+        }
+    }
+
+    /// <summary>
+    /// Installs the hook without checking for an earlier installation, as pgrx's hook examples do in <c>_PG_init</c>.
+    /// </summary>
+    /// <remarks>
+    /// Repeating this installation, for example when PostgreSQL retries a failed library load, saves this hook
+    /// as its own previous hook. Restoration still returns the hook that preceded the first installation.
+    /// </remarks>
+    internal static void InstallUnguarded()
+    {
+        unsafe
+        {
+            if (!s_installed)
+            {
+                s_original = NativeGlobals.ProcessUtility_hook;
+                s_installed = true;
+            }
+
+            s_previous = NativeGlobals.ProcessUtility_hook;
+            NativeGlobals.ProcessUtility_hook = Hook;
+        }
+    }
+
+    /// <summary>
+    /// Reports whether the saved previous hook is this hook's own native entry.
+    /// </summary>
+    /// <returns>Whether chaining to the previous hook would invoke this hook again.</returns>
+    [PgFunction]
+    public static bool NativeUtilityHookSelfChained()
+    {
+        unsafe
+        {
+            return s_installed && s_previous.DangerousGetAddress() == Hook.DangerousGetAddress();
         }
     }
 
@@ -55,9 +92,9 @@ public static partial class NativeUtilityHookFunctions
     public static string NativeUtilityHookResult() => s_result + "|" + s_calls.ToString(CultureInfo.InvariantCulture);
 
     /// <summary>
-    /// Restores the previous utility hook.
+    /// Restores the utility hook that preceded the first installation.
     /// </summary>
-    /// <returns>Whether the previous hook is installed again.</returns>
+    /// <returns>Whether that hook is installed again.</returns>
     [PgFunction]
     public static bool NativeUtilityHookRestore()
     {
@@ -65,11 +102,12 @@ public static partial class NativeUtilityHookFunctions
         {
             if (s_installed)
             {
-                NativeGlobals.ProcessUtility_hook = s_previous;
+                NativeGlobals.ProcessUtility_hook = s_original;
+                s_previous = s_original;
                 s_installed = false;
             }
 
-            return NativeGlobals.ProcessUtility_hook.DangerousGetAddress() == s_previous.DangerousGetAddress();
+            return NativeGlobals.ProcessUtility_hook.DangerousGetAddress() == s_original.DangerousGetAddress();
         }
     }
 
