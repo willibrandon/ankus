@@ -102,14 +102,27 @@ Duplicate known members and duplicate dictionary keys are rejected. Unknown
 members are skipped with input validation, allowing readers to tolerate added
 fields. JSON names and dictionary keys are case-sensitive.
 
+Dictionary entries are written in ordinal (UTF-16 code unit) key order, in both
+JSON and CBOR. Equal dictionaries therefore produce identical storage bytes and
+text regardless of insertion order or comparer, unlike pgrx's `HashMap` storage.
+Readers accept keys in any order, including storage written by earlier versions.
+A deserialized dictionary uses `StringComparer.Ordinal`; the original comparer is
+not stored. Copy it to a dictionary with another comparer if lookups need one,
+for example `new Dictionary<string, T>(value, StringComparer.OrdinalIgnoreCase)`.
+Writing fails when a comparer admits two keys that are equal under ordinal
+comparison, because storage could not distinguish them.
+
 Unsupported shapes and serialization attributes produce a specific declaration
 diagnostic. Hidden inherited members, arbitrary framework types,
 multidimensional arrays, and non-string dictionary keys currently require an
 explicit codec. Passing an undeclared runtime subclass is rejected so additional
 state is not silently discarded. Nesting is limited to 64 containers; cyclic
-graphs fail at that limit. CBOR preserves non-finite floating-point values; JSON
-output rejects
-them because JSON has no exact representation.
+graphs fail at that limit. CBOR preserves infinities, negative zero and every
+NaN's sign and payload bits, including signaling NaNs. A NaN uses a full-width
+`float` or `double` encoding instead of CBOR's shorter canonical NaN, which pgrx's
+`serde_cbor` storage writes for every NaN. Input that would narrow a wider CBOR
+value or NaN payload into `float` is rejected. JSON output rejects non-finite
+values because JSON has no exact representation.
 
 Malformed JSON input raises SQLSTATE `22P02`; malformed CBOR raises `22P03`.
 Trailing data, numeric overflow or underflow, required null values, and invalid Unicode are

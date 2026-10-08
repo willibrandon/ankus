@@ -19,7 +19,8 @@ public sealed class PgTemporalConvenienceTests
         Assert.AreEqual(new PgInterval(0, 0, long.MinValue), PgInterval.FromMicroseconds(long.MinValue));
         Assert.AreEqual(new PgInterval(int.MinValue, 0, 0), PgInterval.FromMonths(int.MinValue));
         Assert.AreEqual(new PgInterval(0, int.MaxValue, 0), PgInterval.FromDays(int.MaxValue));
-        Assert.AreEqual(new PgInterval(1, 2, 3), new PgInterval(-1, 2, -3).Abs());
+        PgInterval absolute = new PgInterval(-1, 2, -3).Abs();
+        Assert.AreEqual((1, -2, 3L), (absolute.Months, absolute.Days, absolute.Microseconds));
         Assert.AreEqual(default(PgInterval), default(PgInterval).Abs());
         Assert.AreEqual(PgInterval.PositiveInfinity, PgInterval.NegativeInfinity.Abs());
         Assert.ThrowsExactly<OverflowException>(() => new PgInterval(int.MinValue, 0, 0).Abs());
@@ -80,4 +81,5 @@ public sealed class PgTemporalConvenienceTests
 /// </summary>
 [JsonSerializable(typeof(PgNumeric))]
 [JsonSerializable(typeof(PgDate))]
+[JsonSerializable(typeof(PgInterval))]
 internal sealed partial class DetachedScalarContext : JsonSerializerContext;

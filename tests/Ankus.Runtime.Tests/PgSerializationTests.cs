@@ -283,6 +283,108 @@ public sealed class PgSerializationTests
     }
 
     /// <summary>
+    /// Keeps a binary32 NaN's sign, quiet bit and payload in a full-width CBOR float.
+    /// </summary>
+    /// <param name="bits">The binary32 NaN bit pattern.</param>
+    [TestMethod]
+    [DataRow(0x7FC00000u)]
+    [DataRow(0xFFC00000u)]
+    [DataRow(0x7FC00001u)]
+    [DataRow(0x7F800001u)]
+    [DataRow(0xFFBFFFFFu)]
+    [DataRow(0x7FFFFFFFu)]
+    public void SingleNaNPayloadsRoundTripExactly(uint bits)
+    {
+        var codec = new ScalarCodec<float>(static (ref reader) => reader.ReadSingle(), static (writer, item) => writer.WriteSingle(item));
+        float value = BitConverter.UInt32BitsToSingle(bits);
+        byte[] encoded = Encode(codec, value);
+        Assert.AreEqual("FA" + bits.ToString("X8", CultureInfo.InvariantCulture), Convert.ToHexString(encoded));
+        Assert.AreEqual(bits, BitConverter.SingleToUInt32Bits(codec.Read(encoded)));
+        Assert.ThrowsExactly<ArgumentException>(() => codec.Format(value));
+    }
+
+    /// <summary>
+    /// Keeps a binary64 NaN's sign, quiet bit and payload in a full-width CBOR double.
+    /// </summary>
+    /// <param name="bits">The binary64 NaN bit pattern.</param>
+    [TestMethod]
+    [DataRow(0x7FF8000000000000ul)]
+    [DataRow(0xFFF8000000000000ul)]
+    [DataRow(0x7FF8000000000001ul)]
+    [DataRow(0x7FF0000000000001ul)]
+    [DataRow(0xFFF7FFFFFFFFFFFFul)]
+    [DataRow(0x7FFFFFFFFFFFFFFFul)]
+    public void DoubleNaNPayloadsRoundTripExactly(ulong bits)
+    {
+        var codec = new ScalarCodec<double>(static (ref reader) => reader.ReadDouble(), static (writer, item) => writer.WriteDouble(item));
+        double value = BitConverter.UInt64BitsToDouble(bits);
+        byte[] encoded = Encode(codec, value);
+        Assert.AreEqual("FB" + bits.ToString("X16", CultureInfo.InvariantCulture), Convert.ToHexString(encoded));
+        Assert.AreEqual(bits, BitConverter.DoubleToUInt64Bits(codec.Read(encoded)));
+        Assert.ThrowsExactly<ArgumentException>(() => codec.Format(value));
+    }
+
+    /// <summary>
+    /// Reads previously canonicalized and wider NaN encodings only when the requested width keeps their payload.
+    /// </summary>
+    [TestMethod]
+    public void NaNInputRejectsPayloadLoss()
+    {
+        var singleCodec = new ScalarCodec<float>(static (ref reader) => reader.ReadSingle(), static (writer, item) => writer.WriteSingle(item));
+        var doubleCodec = new ScalarCodec<double>(static (ref reader) => reader.ReadDouble(), static (writer, item) => writer.WriteDouble(item));
+        Assert.AreEqual(0x7FC00000u, BitConverter.SingleToUInt32Bits(singleCodec.Read(Convert.FromHexString("F97E00"))));
+        Assert.AreEqual(0x7FF8000000000000ul, BitConverter.DoubleToUInt64Bits(doubleCodec.Read(Convert.FromHexString("F97E00"))));
+        Assert.AreEqual(0xFFC00000u, BitConverter.SingleToUInt32Bits(singleCodec.Read(Convert.FromHexString("FBFFF8000000000000"))));
+        Assert.AreEqual(0x7FC00001u, BitConverter.SingleToUInt32Bits(singleCodec.Read(Convert.FromHexString("FB7FF8000020000000"))));
+        Assert.AreEqual(0xFFF8000020000000ul, BitConverter.DoubleToUInt64Bits(doubleCodec.Read(Convert.FromHexString("FAFFC00001"))));
+        Assert.AreEqual("22P03", Assert.ThrowsExactly<PgException>(() => singleCodec.Read(Convert.FromHexString("FB7FF8000000000001"))).SqlState);
+        Assert.AreEqual("22P03", Assert.ThrowsExactly<PgException>(() => singleCodec.Read(Convert.FromHexString("FB7FF0000000000001"))).SqlState);
+    }
+
+    /// <summary>
+    /// Orders dictionary entries by ordinal UTF-16 key regardless of insertion order or the dictionary's comparer.
+    /// </summary>
+    [TestMethod]
+    public void DictionaryEntriesUseOrdinalKeyOrder()
+    {
+        string[] keys = ["b", "", "a", "B", "\u00E9", "\uD83D\uDE00", "\uE000", "aa", "A"];
+        string[] expected = ["", "A", "B", "a", "aa", "b", "\u00E9", "\uD83D\uDE00", "\uE000"];
+        var forward = new Dictionary<string, int>();
+        var backward = new Dictionary<string, int>(StringComparer.Ordinal);
+        for (int index = 0; index < keys.Length; index++)
+        {
+            forward.Add(keys[index], index);
+            backward.Add(keys[keys.Length - index - 1], keys.Length - index - 1);
+        }
+
+        KeyValuePair<string, int>[] first = PgTypeWriter.GetOrderedEntries(forward);
+        KeyValuePair<string, int>[] second = PgTypeWriter.GetOrderedEntries(backward);
+        Assert.AreSequenceEqual(expected, first.Select(static entry => entry.Key));
+        Assert.AreSequenceEqual(first, second);
+        Assert.AreEqual(4, first[6].Value);
+        var folded = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase) { ["b"] = 1, ["A"] = 2 };
+        Assert.AreSequenceEqual([new KeyValuePair<string, int>("A", 2), new KeyValuePair<string, int>("b", 1)],
+            PgTypeWriter.GetOrderedEntries(folded));
+        Assert.IsEmpty(PgTypeWriter.GetOrderedEntries(new Dictionary<string, int>()));
+        Assert.ThrowsExactly<ArgumentNullException>(() => PgTypeWriter.GetOrderedEntries<int>(null!));
+    }
+
+    /// <summary>
+    /// Rejects a comparer that admits ordinally equal keys, which storage could not distinguish.
+    /// </summary>
+    [TestMethod]
+    public void DictionaryEntriesRejectOrdinallyDuplicateKeys()
+    {
+        var identities = new Dictionary<string, int>(ReferenceEqualityComparer.Instance)
+        {
+            [new string('k', 1)] = 1,
+            [new string('k', 1)] = 2,
+        };
+        Assert.HasCount(2, identities);
+        Assert.ThrowsExactly<InvalidOperationException>(() => PgTypeWriter.GetOrderedEntries(identities));
+    }
+
+    /// <summary>
     /// Keeps representable subnormal values and rejects a nonzero number that would become zero.
     /// </summary>
     [TestMethod]

@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Buffers.Binary;
 using System.ComponentModel;
 using System.Formats.Cbor;
 using System.Text.Json;
@@ -11,6 +12,16 @@ namespace Ankus;
 [EditorBrowsable(EditorBrowsableState.Never)]
 public sealed class PgTypeWriter : IDisposable
 {
+    /// <summary>
+    /// Contains the CBOR initial byte of a binary32 floating-point value.
+    /// </summary>
+    private const byte SinglePrecisionFloatHeader = 0xFA;
+
+    /// <summary>
+    /// Contains the CBOR initial byte of a binary64 floating-point value.
+    /// </summary>
+    private const byte DoublePrecisionFloatHeader = 0xFB;
+
     private readonly IBufferWriter<byte> _destination;
     private readonly Utf8JsonWriter? _json;
     private readonly CborWriter? _cbor;
@@ -96,14 +107,24 @@ public sealed class PgTypeWriter : IDisposable
     }
 
     /// <summary>
-    /// Writes binary32 storage; JSON rejects non-finite numbers.
+    /// Writes binary32 storage, keeping a NaN's sign and payload bits in a full-width float; JSON rejects non-finite numbers.
     /// </summary>
     /// <param name="value">The value.</param>
     public void WriteSingle(float value)
     {
         if (_cbor is not null)
         {
-            _cbor.WriteSingle(value);
+            if (float.IsNaN(value))
+            {
+                Span<byte> encoded = stackalloc byte[1 + sizeof(float)];
+                encoded[0] = SinglePrecisionFloatHeader;
+                BinaryPrimitives.WriteSingleBigEndian(encoded[1..], value);
+                _cbor.WriteEncodedValue(encoded);
+            }
+            else
+            {
+                _cbor.WriteSingle(value);
+            }
         }
         else
         {
@@ -112,14 +133,24 @@ public sealed class PgTypeWriter : IDisposable
     }
 
     /// <summary>
-    /// Writes binary64 storage; JSON rejects non-finite numbers.
+    /// Writes binary64 storage, keeping a NaN's sign and payload bits in a full-width double; JSON rejects non-finite numbers.
     /// </summary>
     /// <param name="value">The value.</param>
     public void WriteDouble(double value)
     {
         if (_cbor is not null)
         {
-            _cbor.WriteDouble(value);
+            if (double.IsNaN(value))
+            {
+                Span<byte> encoded = stackalloc byte[1 + sizeof(double)];
+                encoded[0] = DoublePrecisionFloatHeader;
+                BinaryPrimitives.WriteDoubleBigEndian(encoded[1..], value);
+                _cbor.WriteEncodedValue(encoded);
+            }
+            else
+            {
+                _cbor.WriteDouble(value);
+            }
         }
         else
         {
@@ -164,6 +195,29 @@ public sealed class PgTypeWriter : IDisposable
         {
             _json!.WriteStringValue(value);
         }
+    }
+
+    /// <summary>
+    /// Orders dictionary entries by ordinal key so equal dictionaries write identical storage and text.
+    /// </summary>
+    /// <typeparam name="TValue">The dictionary value type.</typeparam>
+    /// <param name="value">The dictionary; its comparer does not affect the order.</param>
+    /// <returns>A new array of the entries in ascending ordinal UTF-16 key order.</returns>
+    /// <exception cref="InvalidOperationException">The dictionary's comparer admits ordinally equal keys.</exception>
+    public static KeyValuePair<string, TValue>[] GetOrderedEntries<TValue>(Dictionary<string, TValue> value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        KeyValuePair<string, TValue>[] entries = [.. value];
+        Array.Sort(entries, static (left, right) => string.CompareOrdinal(left.Key, right.Key));
+        for (int index = 1; index < entries.Length; index++)
+        {
+            if (string.Equals(entries[index - 1].Key, entries[index].Key, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException("Dictionary keys must be unique under ordinal comparison.");
+            }
+        }
+
+        return entries;
     }
 
     /// <summary>

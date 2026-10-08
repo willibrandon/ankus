@@ -82,6 +82,55 @@ public sealed partial class PgFunctionGeneratorTests
     }
 
     /// <summary>
+    /// Writes dictionary keys in ordinal order for identical storage and text, reads ordinal dictionaries and keeps NaN payloads.
+    /// </summary>
+    [TestMethod]
+    public void DefaultSerializedDictionariesAndNaNsUseDeterministicExactStorage()
+    {
+        string[] actual = RunSerializedProbe<string[]>("""
+            [Ankus.PgType] public sealed record Value(System.Collections.Generic.Dictionary<string, int> Map, float Single, double Double);
+            """, """
+            string[] keys = new[] { "b", "", "a", "B", "\u00E9", "\uD83D\uDE00", "\uE000", "aa", "A" };
+            var forward = new System.Collections.Generic.Dictionary<string, int>();
+            var backward = new System.Collections.Generic.Dictionary<string, int>(System.StringComparer.Ordinal);
+            for (int index = 0; index < keys.Length; index++)
+            {
+                forward.Add(keys[index], index);
+                backward.Add(keys[keys.Length - index - 1], keys.Length - index - 1);
+            }
+
+            float single = System.BitConverter.UInt32BitsToSingle(0xFF800001u);
+            double number = System.BitConverter.UInt64BitsToDouble(0x7FF8000000000001ul);
+            var first = new System.Buffers.ArrayBufferWriter<byte>();
+            var second = new System.Buffers.ArrayBufferWriter<byte>();
+            codec.Write(new Value(forward, single, number), first);
+            codec.Write(new Value(backward, single, number), second);
+            Value decoded = codec.Read(first.WrittenSpan);
+            var folded = new System.Collections.Generic.Dictionary<string, int>(System.StringComparer.OrdinalIgnoreCase) { ["b"] = 1, ["A"] = 2 };
+            var foldedBytes = new System.Buffers.ArrayBufferWriter<byte>();
+            codec.Write(new Value(folded, 0, 0), foldedBytes);
+            Value unfolded = codec.Read(foldedBytes.WrittenSpan);
+            return new[]
+            {
+                System.Convert.ToHexString(first.WrittenSpan), System.Convert.ToHexString(second.WrittenSpan),
+                codec.Format(new Value(forward, 1, 2)), codec.Format(new Value(backward, 1, 2)),
+                string.Join("|", decoded.Map.Keys), System.Object.ReferenceEquals(decoded.Map.Comparer, System.StringComparer.Ordinal).ToString(),
+                System.BitConverter.SingleToUInt32Bits(decoded.Single).ToString("X8"), System.BitConverter.DoubleToUInt64Bits(decoded.Double).ToString("X16"),
+                unfolded.Map.ContainsKey("A").ToString(), unfolded.Map.ContainsKey("a").ToString(), unfolded.Map.Count.ToString(),
+            };
+            """);
+        Assert.HasCount(11, actual);
+        Assert.AreEqual(actual[0], actual[1]);
+        Assert.EndsWith("6653696E676C65FAFF800001" + "66446F75626C65FB7FF8000000000001", actual[0]);
+        Assert.AreEqual(actual[2], actual[3]);
+        using JsonDocument document = JsonDocument.Parse(actual[2]);
+        string[] expected = ["", "A", "B", "a", "aa", "b", "\u00E9", "\uD83D\uDE00", "\uE000"];
+        Assert.AreSequenceEqual(expected, document.RootElement.GetProperty("Map").EnumerateObject().Select(static property => property.Name));
+        Assert.AreSequenceEqual(expected, actual[4].Split('|'));
+        Assert.AreSequenceEqual(["True", "FF800001", "7FF8000000000001", "True", "False", "2"], actual[5..]);
+    }
+
+    /// <summary>
     /// Preserves nullable containers, nullable elements, nested records, empty values and Unicode dictionary keys.
     /// </summary>
     [TestMethod]

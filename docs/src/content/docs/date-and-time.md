@@ -170,10 +170,15 @@ microsecond rounding. A rejected construction raises `PgException` and leaves
 the backend usable after normal error recovery.
 
 `FromYears` through `FromMicroseconds` provide individual unit factories.
-`FromMicroseconds` preserves the complete signed 64-bit value. `Abs` takes the
-absolute value of each stored component, throwing on signed minimum values.
-`Sign` and `ToComparisonMicroseconds` use PostgreSQL's thirty-day-month comparison
-convention; they do not calculate elapsed time across a calendar.
+`FromMicroseconds` preserves the complete signed 64-bit value. `Sign`, `Abs` and
+`ToComparisonMicroseconds` use PostgreSQL's thirty-day-month comparison
+convention; they do not calculate elapsed time across a calendar. `Sign` compares
+the combined duration with zero, so one month minus thirty days has sign zero.
+`Abs` returns the interval unchanged when its sign is zero or positive and
+otherwise negates every component together. One month minus thirty-one days
+becomes minus one month plus thirty-one days, which compares as one day, and
+equivalent intervals have equivalent absolute values. Negating a component equal
+to its signed minimum value throws `OverflowException`.
 
 `PgInterval.PositiveInfinity` and `NegativeInfinity` require PostgreSQL 17 or
 later. Their finite component properties are zero; check `IsFinite` first.
@@ -205,9 +210,23 @@ input errors must propagate because independent rollback is unavailable. See
 
 Dates, times, and timestamps also expose `ToIsoString`, using PostgreSQL's ISO JSON
 representation independently of `DateStyle`. A `PgTimestampTz` is formatted in the
-session's timezone, with its offset. `ToPostgresString` and `ToIsoString` are
-explicit server-formatting methods; the record struct's `ToString()` remains a
-managed diagnostic representation.
+session's timezone, with its offset. `ToPostgresString` and these `ToIsoString`
+methods are explicit server-formatting methods; the record struct's `ToString()`
+remains a managed diagnostic representation.
+
+`PgInterval.ToIsoString()` formats an ISO 8601 duration without a backend. It
+produces the same text as PostgreSQL's `iso_8601` interval style, independently of
+the session's `IntervalStyle`:
+
+```csharp
+new PgInterval(months: 14, days: -3, microseconds: -7_200_500_000).ToIsoString();
+// P1Y2M-3DT-2H-0.5S
+```
+
+Years and months share the month component's sign. Hours, minutes, and seconds
+share the microsecond component's sign. Zero is `PT0S`, and the PostgreSQL 17
+infinities are `infinity` and `-infinity`. PostgreSQL interval input reads this
+text with the same components under every `IntervalStyle`.
 
 `PgTimestampTz.ToIsoString(zone)` formats an instant in an explicit timezone. Its
 offset comes from that instant, including historical offsets and daylight-saving
@@ -328,12 +347,29 @@ internal partial class AppointmentJsonContext : JsonSerializerContext;
 PgJson json = PgJson.Serialize(appointment, AppointmentJsonContext.Default.Appointment);
 ```
 
-Dates, times, and timestamps serialize as PostgreSQL ISO strings; intervals use
-the session's `IntervalStyle`. BC dates, infinities, 24:00, and second-resolution
-offsets remain representable. Nullable types serialize as JSON null. Reading and
-writing temporal JSON requires the backend thread, and parsing follows the same
-rules as `Parse`. Invalid values throw `JsonException` with the property path and
-the underlying `PgException` when PostgreSQL rejected the input.
+Dates, times, and timestamps serialize as PostgreSQL ISO strings. Intervals
+serialize as the ISO 8601 durations returned by `PgInterval.ToIsoString()`, so
+their JSON does not depend on `IntervalStyle`. PostgreSQL's own
+`to_json(interval)` follows the session's style instead. For example, the
+interval `-1 day -02:00:00` is written as `P-1DT-2H`. Under `sql_standard`,
+PostgreSQL would output `-1 2:00:00`, which another session reads as
+`-1 days +02:00:00`.
+
+BC dates, infinities, 24:00, and second-resolution offsets remain representable.
+Nullable types serialize as JSON null. Interval JSON is written without a backend.
+Ankus also reads its own finite ISO 8601 interval text without a backend,
+restoring the identical month, day, and microsecond components. Other temporal
+JSON reading and writing requires the backend thread, and parsing follows the
+same rules as `Parse`. Backend parsing also handles other interval spellings,
+such as session-style text written by earlier Ankus versions, infinity, and the
+all-maximum and all-minimum component triples that PostgreSQL 17 reads as
+infinity. Invalid values throw `JsonException` with the property path and the
+underlying `PgException` when PostgreSQL rejected the input.
+
+PostgreSQL 13 and 14 cannot output a time component beyond the signed 32-bit
+hour range, and their ISO 8601 input rejects such hour fields. Ankus JSON still
+round-trips those intervals, but casting their JSON text to `interval` in SQL
+fails on those servers.
 
 ## SPI
 

@@ -43,6 +43,51 @@ public sealed class PgNumericTests
         => Assert.ThrowsExactly<OverflowException>(() => PgNumeric.FromCanonicalText(text).ToDecimal());
 
     /// <summary>
+    /// Keeps the exact value and display scale, so converting back restores the identical numeric.
+    /// </summary>
+    /// <param name="text">Canonical PostgreSQL output representable by decimal with its display scale.</param>
+    /// <param name="scale">The display scale that decimal must retain.</param>
+    [TestMethod]
+    [DataRow("1.0000000000000000000000000000", 28)]
+    [DataRow("0.0000000000000000000000000000", 28)]
+    [DataRow("-0.0000000000000000000000000001", 28)]
+    [DataRow("7.9228162514264337593543950335", 28)]
+    [DataRow("7922816251426433759354395033.5", 1)]
+    [DataRow("79228162514264337593543950335", 0)]
+    [DataRow("-79228162514264337593543950335", 0)]
+    [DataRow("123.4500", 4)]
+    [DataRow("0", 0)]
+    public void DecimalConversionRetainsDisplayScale(string text, int scale)
+    {
+        PgNumeric numeric = PgNumeric.FromCanonicalText(text);
+        decimal value = numeric.ToDecimal();
+        Assert.AreEqual(scale, value.Scale);
+        Assert.AreEqual(text, value.ToString(CultureInfo.InvariantCulture));
+        Assert.AreEqual(text, PgNumeric.FromDecimal(value).Text);
+        Assert.AreEqual(value, (decimal)numeric);
+    }
+
+    /// <summary>
+    /// Rejects trailing fractional zeros that decimal cannot carry instead of silently reducing the display scale.
+    /// </summary>
+    /// <param name="text">A canonical PostgreSQL value whose numeric value fits decimal but whose display scale does not.</param>
+    [TestMethod]
+    [DataRow("1.00000000000000000000000000000")]
+    [DataRow("0.00000000000000000000000000000")]
+    [DataRow("0.10000000000000000000000000000")]
+    [DataRow("-1.00000000000000000000000000000")]
+    [DataRow("7922816251426433759354395033.50")]
+    [DataRow("79228162514264337593543950335.0")]
+    [DataRow("1.0000000000000000000000000000000000000000")]
+    public void DecimalConversionRejectsDisplayScaleLoss(string text)
+    {
+        PgNumeric numeric = PgNumeric.FromCanonicalText(text);
+        Assert.ThrowsExactly<OverflowException>(() => numeric.ToDecimal());
+        Assert.ThrowsExactly<OverflowException>(() => (decimal)numeric);
+        Assert.AreEqual(text, numeric.Text);
+    }
+
+    /// <summary>
     /// Checks equality/hash normalization, including NaN and differently scaled zeroes.
     /// </summary>
     /// <param name="left">The first canonical numeric.</param>
@@ -105,7 +150,7 @@ public sealed class PgNumericTests
         Assert.AreEqual(value, PgNumeric.FromBigInteger(value).ToBigInteger());
         Assert.AreEqual(-value, PgNumeric.FromBigInteger(-value).ToBigInteger());
         Assert.AreEqual(new BigInteger(1), PgNumeric.FromCanonicalText("1.00000000000000000000000000000000").ToBigInteger());
-        Assert.AreEqual(1m, PgNumeric.FromCanonicalText("1.00000000000000000000000000000000").ToDecimal());
+        Assert.ThrowsExactly<OverflowException>(() => PgNumeric.FromCanonicalText("1.00000000000000000000000000000000").ToDecimal());
         Assert.ThrowsExactly<OverflowException>(() => PgNumeric.FromDecimal(1.1m).ToBigInteger());
         Assert.ThrowsExactly<OverflowException>(() => PgNumeric.NaN.ToBigInteger());
         BigInteger limit = BigInteger.Pow(10, 131072);

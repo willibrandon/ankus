@@ -27,7 +27,9 @@ public sealed class ScalarJsonTests(TestContext context)
     [DataRow("timestamp", "-infinity", "-infinity")]
     [DataRow("timestamptz", "2024-11-03 06:30+00", "2024-11-03T01:30:00-05:00")]
     [DataRow("timestamptz", "infinity", "infinity")]
-    [DataRow("interval", "1 month -2 days 3 microseconds", "1 mon -2 days +00:00:00.000003")]
+    [DataRow("interval", "1 month -2 days 3 microseconds", "P1M-2DT0.000003S")]
+    [DataRow("interval", "-1 day -02:00:00", "P-1DT-2H")]
+    [DataRow("interval", "-1 year -1 month +1 day -00:00:00.5", "P-1Y-1M1DT-0.5S")]
     [DataRow("interval", "-infinity", "-infinity")]
     [DataRow("numeric", "123456789012345678901234567890.1234567890123456789000", "123456789012345678901234567890.1234567890123456789000")]
     [DataRow("numeric", "NaN", "NaN")]
@@ -106,7 +108,7 @@ public sealed class ScalarJsonTests(TestContext context)
         }, context.CancellationToken);
 
     /// <summary>
-    /// Checks IntervalStyle-dependent output remains parseable with the same stored components.
+    /// Reads PostgreSQL's style-dependent JSON and always writes the iso_8601 text, which every style parses identically.
     /// </summary>
     /// <param name="style">The session interval style.</param>
     [TestMethod]
@@ -114,21 +116,22 @@ public sealed class ScalarJsonTests(TestContext context)
     [DataRow("postgres_verbose")]
     [DataRow("sql_standard")]
     [DataRow("iso_8601")]
-    public Task IntervalJsonHonorsStyleAndRetainsComponents(string style)
-        => PostgresFixture.Cluster.RunInTransactionAsync(nameof(IntervalJsonHonorsStyleAndRetainsComponents), async (connection, transaction, token) =>
+    public Task IntervalJsonIgnoresStyleAndRetainsComponents(string style)
+        => PostgresFixture.Cluster.RunInTransactionAsync(nameof(IntervalJsonIgnoresStyleAndRetainsComponents), async (connection, transaction, token) =>
         {
             await using var settings = new NpgsqlCommand($"SET LOCAL IntervalStyle = '{style}'", connection, transaction);
             await settings.ExecuteNonQueryAsync(token);
             await using var command = new NpgsqlCommand("""
-                SELECT interval_send(interval '1 month -2 days 123456789 microseconds'),
-                    interval_send((datatype.scalar_json('interval', '{"Value":"1 month -2 days 123456789 microseconds"}')->>'Value')::interval),
-                    datatype.scalar_json('interval', '{"Value":"1 month -2 days 123456789 microseconds"}')->>'Value',
-                    interval '1 month -2 days 123456789 microseconds'::text
+                SELECT interval_send(value), interval_send((payload->>'Value')::interval), payload->>'Value',
+                    interval_send((datatype.scalar_json('interval', payload)->>'Value')::interval)
+                FROM (SELECT value, datatype.scalar_json('interval', json_build_object('Value', value)) AS payload
+                    FROM (SELECT interval '1 month -2 days 123456789 microseconds' AS value) AS input) AS result
                 """, connection, transaction);
             await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(token);
             Assert.IsTrue(await reader.ReadAsync(token));
             Assert.AreSequenceEqual(reader.GetFieldValue<byte[]>(0), reader.GetFieldValue<byte[]>(1));
-            Assert.AreEqual(reader.GetString(3), reader.GetString(2));
+            Assert.AreEqual("P1M-2DT2M3.456789S", reader.GetString(2));
+            Assert.AreSequenceEqual(reader.GetFieldValue<byte[]>(0), reader.GetFieldValue<byte[]>(3));
         }, context.CancellationToken);
 
     /// <summary>

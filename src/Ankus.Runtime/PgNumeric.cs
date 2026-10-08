@@ -250,16 +250,22 @@ public readonly record struct PgNumeric : IComparable<PgNumeric>,
         => NativeBackend.Numeric<PgNumeric>(NumericOperation.FromDouble, [SpiParameter.Create(value)]);
 
     /// <summary>
-    /// Converts exactly to decimal, rejecting overflow, nonfinite values, and any change in numeric value.
+    /// Converts exactly to decimal, retaining the display scale and rejecting any value or scale change.
     /// </summary>
-    /// <returns>The decimal value.</returns>
-    /// <exception cref="OverflowException">The value cannot be represented exactly as a decimal.</exception>
+    /// <returns>The decimal with this value and this display scale, so FromDecimal restores the same numeric.</returns>
+    /// <remarks>
+    /// Like SqlDecimal, the conversion fails when decimal cannot carry the display scale, including trailing
+    /// fractional zeros beyond 28 digits or beyond its 96-bit coefficient. Round, Truncate, Rescale, or a SQL cast
+    /// to a smaller numeric scale reduces the scale explicitly first.
+    /// </remarks>
+    /// <exception cref="OverflowException">The value or its display scale cannot be represented exactly as a decimal.</exception>
     public decimal ToDecimal()
     {
         if (!IsFinite || !decimal.TryParse(Text, NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint,
-            CultureInfo.InvariantCulture, out decimal value) || this != FromDecimal(value))
+            CultureInfo.InvariantCulture, out decimal value) ||
+            !string.Equals(Text, PgNumericStorage.FromDecimal(value).Text, StringComparison.Ordinal))
         {
-            throw new OverflowException("The PostgreSQL numeric value cannot be represented exactly as a decimal.");
+            throw new OverflowException("The PostgreSQL numeric value or display scale cannot be represented exactly as a decimal.");
         }
 
         return value;
@@ -700,7 +706,7 @@ public readonly record struct PgNumeric : IComparable<PgNumeric>,
     }
 
     /// <summary>
-    /// Converts exactly to decimal, rejecting rounding, overflow, and nonfinite values.
+    /// Converts exactly to decimal, rejecting rounding, overflow, nonfinite values, and display-scale loss.
     /// </summary>
     public static explicit operator decimal(PgNumeric value)
     {

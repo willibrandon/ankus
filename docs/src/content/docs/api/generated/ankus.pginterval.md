@@ -11,6 +11,7 @@ Assembly: `Ankus.Runtime.dll`
 
 Preserves PostgreSQL interval's independent month, day, and microsecond components, including mixed signs.
 Equality and ordering use PostgreSQL's thirty-day-month comparison convention without changing stored components.
+JSON uses the session-independent ISO 8601 form returned by ToIsoString.
 
 ```csharp
 [JsonConverter(typeof(PgIntervalConverter))]
@@ -52,7 +53,8 @@ The signed time component.
 
 ### Abs()
 
-Takes the absolute value of each stored component, preserving their separation. No backend is required.
+Gets the absolute value under PostgreSQL's interval comparison, consistent with Sign, CompareTo, and equality.
+No backend is required.
 
 ```csharp
 public PgInterval Abs()
@@ -60,11 +62,16 @@ public PgInterval Abs()
 
 Returns: [PgInterval](/api/ankus.pginterval/)
 
-The component-wise absolute interval, or positive infinity.
+This interval with unchanged components when its Sign is zero or positive, otherwise its negation.
+Both infinities return positive infinity.
 
 Exceptions:
 
-- [OverflowException](https://learn.microsoft.com/dotnet/api/system.overflowexception): A finite component is its signed minimum value.
+- [OverflowException](https://learn.microsoft.com/dotnet/api/system.overflowexception): A negative interval has a component equal to its signed minimum value.
+
+A negative interval negates every component together, preserving their separation and mixed signs.
+One month minus thirty-one days therefore becomes minus one month plus thirty-one days, which compares as one day.
+The result never sorts below zero, and equivalent intervals have equivalent absolute values.
 
 <a id="member-ccb031ae8808ef39"></a>
 
@@ -600,6 +607,27 @@ Exceptions:
 
 - [InvalidOperationException](https://learn.microsoft.com/dotnet/api/system.invalidoperationexception): The interval is infinite.
 
+<a id="member-52657915b8c96f47"></a>
+
+### ToIsoString()
+
+Formats the interval as PostgreSQL's ISO 8601 duration, independently of the session's IntervalStyle.
+No backend is required.
+
+```csharp
+public string ToIsoString()
+```
+
+Returns: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The text PostgreSQL produces with IntervalStyle iso_8601, such as P1Y2M-3DT4H5M6.5S or PT0S,
+or infinity and -infinity for the PostgreSQL 17 infinities.
+
+Years and months share the sign of the month component, and hours, minutes, and seconds share the sign
+of the microsecond component, so mixed signs and every component remain exact. PostgreSQL interval input
+reads this form identically under every IntervalStyle. PostgreSQL 13 and 14 reject ISO 8601 hour fields
+beyond the signed 32-bit range; Ankus JSON reads this form without the backend.
+
 <a id="member-64f1bf28cfe0da91"></a>
 
 ### ToPostgresString()
@@ -612,7 +640,7 @@ public string ToPostgresString()
 
 Returns: [string](https://learn.microsoft.com/dotnet/api/system.string)
 
-The PostgreSQL interval text.
+The PostgreSQL interval text. Use ToIsoString for session-independent text.
 
 <a id="member-180f7fe6e0747535"></a>
 
@@ -771,7 +799,8 @@ Value: [PgInterval](/api/ankus.pginterval/)
 
 ### Sign
 
-Gets -1, 0, or 1 using PostgreSQL's thirty-day-month comparison, including infinities. No backend is required.
+Gets -1, 0, or 1 by comparing with zero under PostgreSQL's thirty-day-month comparison, including infinities.
+Mixed-sign components contribute to one comparison duration. No backend is required.
 
 ```csharp
 public int Sign { get; }

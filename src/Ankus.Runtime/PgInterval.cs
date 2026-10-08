@@ -5,9 +5,10 @@ namespace Ankus;
 /// <summary>
 /// Preserves PostgreSQL interval's independent month, day, and microsecond components, including mixed signs.
 /// Equality and ordering use PostgreSQL's thirty-day-month comparison convention without changing stored components.
+/// JSON uses the session-independent ISO 8601 form returned by ToIsoString.
 /// </summary>
 [JsonConverter(typeof(PgIntervalConverter))]
-public readonly record struct PgInterval : IComparable<PgInterval>
+public readonly partial record struct PgInterval : IComparable<PgInterval>
 {
     private readonly int _infinity;
 
@@ -193,16 +194,34 @@ public readonly record struct PgInterval : IComparable<PgInterval>
     public static bool operator >=(PgInterval left, PgInterval right) => left.CompareTo(right) >= 0;
 
     /// <summary>
-    /// Gets -1, 0, or 1 using PostgreSQL's thirty-day-month comparison, including infinities. No backend is required.
+    /// Gets -1, 0, or 1 by comparing with zero under PostgreSQL's thirty-day-month comparison, including infinities.
+    /// Mixed-sign components contribute to one comparison duration. No backend is required.
     /// </summary>
     public int Sign => IsFinite ? ToComparisonMicroseconds().CompareTo(Int128.Zero) : _infinity;
 
     /// <summary>
-    /// Takes the absolute value of each stored component, preserving their separation. No backend is required.
+    /// Gets the absolute value under PostgreSQL's interval comparison, consistent with Sign, CompareTo, and equality.
+    /// No backend is required.
     /// </summary>
-    /// <returns>The component-wise absolute interval, or positive infinity.</returns>
-    /// <exception cref="OverflowException">A finite component is its signed minimum value.</exception>
-    public PgInterval Abs() => IsFinite ? new(Math.Abs(Months), Math.Abs(Days), Math.Abs(Microseconds)) : PositiveInfinity;
+    /// <returns>
+    /// This interval with unchanged components when its Sign is zero or positive, otherwise its negation.
+    /// Both infinities return positive infinity.
+    /// </returns>
+    /// <remarks>
+    /// A negative interval negates every component together, preserving their separation and mixed signs.
+    /// One month minus thirty-one days therefore becomes minus one month plus thirty-one days, which compares as one day.
+    /// The result never sorts below zero, and equivalent intervals have equivalent absolute values.
+    /// </remarks>
+    /// <exception cref="OverflowException">A negative interval has a component equal to its signed minimum value.</exception>
+    public PgInterval Abs()
+    {
+        if (!IsFinite)
+        {
+            return PositiveInfinity;
+        }
+
+        return Sign >= 0 ? this : new(checked(-Months), checked(-Days), checked(-Microseconds));
+    }
 
     /// <summary>
     /// Adds interval components using PostgreSQL's rules.
@@ -274,7 +293,7 @@ public readonly record struct PgInterval : IComparable<PgInterval>
     /// <summary>
     /// Formats the interval using the session's IntervalStyle.
     /// </summary>
-    /// <returns>The PostgreSQL interval text.</returns>
+    /// <returns>The PostgreSQL interval text. Use ToIsoString for session-independent text.</returns>
     public string ToPostgresString() => PgTemporal.Call<string>(TemporalOperation.Format, SpiParameter.Create(this));
 
     /// <summary>

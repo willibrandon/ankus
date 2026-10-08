@@ -461,7 +461,7 @@ The arbitrary-precision integer.
 
 ### ToDecimal()
 
-Converts exactly to decimal, rejecting overflow, nonfinite values, and any change in numeric value.
+Converts exactly to decimal, retaining the display scale and rejecting any value or scale change.
 
 ```csharp
 public decimal ToDecimal()
@@ -469,11 +469,15 @@ public decimal ToDecimal()
 
 Returns: [decimal](https://learn.microsoft.com/dotnet/api/system.decimal)
 
-The decimal value.
+The decimal with this value and this display scale, so FromDecimal restores the same numeric.
 
 Exceptions:
 
-- [OverflowException](https://learn.microsoft.com/dotnet/api/system.overflowexception): The value cannot be represented exactly as a decimal.
+- [OverflowException](https://learn.microsoft.com/dotnet/api/system.overflowexception): The value or its display scale cannot be represented exactly as a decimal.
+
+Like SqlDecimal, the conversion fails when decimal cannot carry the display scale, including trailing
+fractional zeros beyond 28 digits or beyond its 96-bit coefficient. Round, Truncate, Rescale, or a SQL cast
+to a smaller numeric scale reduces the scale explicitly first.
 
 <a id="member-2a065a437ea6344a"></a>
 
@@ -850,7 +854,7 @@ Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
 
 ### explicit operator decimal(PgNumeric)
 
-Converts exactly to decimal, rejecting rounding, overflow, and nonfinite values.
+Converts exactly to decimal, rejecting rounding, overflow, nonfinite values, and display-scale loss.
 
 ```csharp
 public static explicit operator decimal(PgNumeric value)

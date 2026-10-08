@@ -107,6 +107,98 @@ public sealed class PgIntervalOrderingTests
     }
 
     /// <summary>
+    /// Absolute values follow Sign and PostgreSQL's comparison, negating every component of a negative interval together.
+    /// </summary>
+    /// <param name="months">The calendar months.</param>
+    /// <param name="days">The calendar days.</param>
+    /// <param name="micros">The elapsed microseconds.</param>
+    /// <param name="sign">The independently specified comparison sign.</param>
+    /// <param name="absoluteMonths">The expected absolute value's months.</param>
+    /// <param name="absoluteDays">The expected absolute value's days.</param>
+    /// <param name="absoluteMicros">The expected absolute value's microseconds.</param>
+    [TestMethod]
+    [DataRow(0, 0, 0L, 0, 0, 0, 0L)]
+    [DataRow(1, -30, 0L, 0, 1, -30, 0L)]
+    [DataRow(-1, 30, 0L, 0, -1, 30, 0L)]
+    [DataRow(1, -31, 0L, -1, -1, 31, 0L)]
+    [DataRow(-1, 31, 0L, 1, -1, 31, 0L)]
+    [DataRow(-1, 2, -3L, -1, 1, -2, 3L)]
+    [DataRow(0, -1, 86_400_000_001L, 1, 0, -1, 86_400_000_001L)]
+    [DataRow(0, 1, -86_400_000_001L, -1, 0, -1, 86_400_000_001L)]
+    [DataRow(1, -30, -1L, -1, -1, 30, 1L)]
+    [DataRow(int.MaxValue, 0, long.MinValue, 1, int.MaxValue, 0, long.MinValue)]
+    [DataRow(int.MinValue + 1, int.MaxValue, long.MaxValue, -1, int.MaxValue, -int.MaxValue, -long.MaxValue)]
+    [DataRow(-int.MaxValue, -int.MaxValue, -long.MaxValue, -1, int.MaxValue, int.MaxValue, long.MaxValue)]
+    public void AbsoluteValueFollowsComparisonSign(int months, int days, long micros, int sign,
+        int absoluteMonths, int absoluteDays, long absoluteMicros)
+    {
+        var value = new PgInterval(months, days, micros);
+        PgInterval absolute = value.Abs();
+        Assert.AreEqual(sign, value.Sign);
+        Assert.AreEqual((absoluteMonths, absoluteDays, absoluteMicros), (absolute.Months, absolute.Days, absolute.Microseconds));
+        Assert.AreEqual(Math.Abs(sign), absolute.Sign);
+        Assert.IsTrue(absolute >= value);
+        Assert.IsTrue(absolute >= default(PgInterval));
+        Assert.AreEqual(sign == 0, absolute == default(PgInterval));
+        Assert.AreEqual(sign >= 0, absolute.Equals(value));
+        if (months != int.MinValue && days != int.MinValue && micros != long.MinValue)
+        {
+            var negated = new PgInterval(-months, -days, -micros);
+            Assert.AreEqual(-sign, negated.Sign);
+            Assert.IsTrue(absolute >= negated);
+            Assert.AreEqual(sign <= 0, absolute.Equals(negated));
+            Assert.AreEqual(absolute, negated.Abs());
+        }
+    }
+
+    /// <summary>
+    /// Equivalent representations have equivalent absolute values and hashes while each keeps its own components.
+    /// </summary>
+    [TestMethod]
+    public void EquivalentIntervalsHaveEquivalentAbsoluteValues()
+    {
+        PgInterval[] negative = [PgInterval.FromMonths(-1), PgInterval.FromDays(-30), PgInterval.FromMicroseconds(-2_592_000_000_000),
+            new(-2, 30, 0), new(0, -31, 86_400_000_000)];
+        PgInterval[] expected = [PgInterval.FromMonths(1), PgInterval.FromDays(30), PgInterval.FromMicroseconds(2_592_000_000_000),
+            new(2, -30, 0), new(0, 31, -86_400_000_000)];
+        HashSet<PgInterval> absolutes = [];
+        for (int index = 0; index < negative.Length; index++)
+        {
+            PgInterval absolute = negative[index].Abs();
+            Assert.AreEqual((expected[index].Months, expected[index].Days, expected[index].Microseconds),
+                (absolute.Months, absolute.Days, absolute.Microseconds));
+            Assert.AreEqual(PgInterval.FromMonths(1), absolute);
+            Assert.AreEqual(PgInterval.FromMonths(1).GetHashCode(), absolute.GetHashCode());
+            Assert.AreEqual(negative[0], negative[index]);
+            absolutes.Add(absolute);
+        }
+
+        Assert.HasCount(1, absolutes);
+    }
+
+    /// <summary>
+    /// Only negative intervals are negated, so signed minimum components overflow only when negation is required.
+    /// </summary>
+    [TestMethod]
+    public void AbsoluteValueOverflowsOnlyWhenNegationIsRequired()
+    {
+        Assert.ThrowsExactly<OverflowException>(() => new PgInterval(int.MinValue, 0, 0).Abs());
+        Assert.ThrowsExactly<OverflowException>(() => new PgInterval(0, int.MinValue, 0).Abs());
+        Assert.ThrowsExactly<OverflowException>(() => new PgInterval(0, 0, long.MinValue).Abs());
+        Assert.ThrowsExactly<OverflowException>(() => new PgInterval(1, 0, long.MinValue).Abs());
+        Assert.ThrowsExactly<OverflowException>(() => new PgInterval(int.MinValue, int.MaxValue, long.MaxValue).Abs());
+        Assert.ThrowsExactly<OverflowException>(() => new PgInterval(int.MinValue, int.MinValue, long.MinValue).Abs());
+        PgInterval positive = new PgInterval(int.MaxValue, int.MinValue, long.MinValue).Abs();
+        Assert.AreEqual((int.MaxValue, int.MinValue, long.MinValue), (positive.Months, positive.Days, positive.Microseconds));
+        Assert.ThrowsExactly<OverflowException>(() => new PgInterval(1, int.MinValue, 0).Abs());
+        PgInterval days = new PgInterval(-1, int.MinValue + 1, 0).Abs();
+        Assert.AreEqual((1, int.MaxValue, 0L), (days.Months, days.Days, days.Microseconds));
+        Assert.AreEqual(PgInterval.PositiveInfinity, PgInterval.PositiveInfinity.Abs());
+        Assert.AreEqual(PgInterval.PositiveInfinity, PgInterval.NegativeInfinity.Abs());
+        Assert.IsFalse(PgInterval.NegativeInfinity.Abs().IsFinite);
+    }
+
+    /// <summary>
     /// Checks comparison and every ordering operator against an independently specified sign.
     /// </summary>
     /// <param name="left">The left interval.</param>

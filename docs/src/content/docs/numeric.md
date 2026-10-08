@@ -100,7 +100,16 @@ input errors must propagate because independent rollback is unavailable. See
 
 ## .NET conversions and SPI
 
-`FromDecimal` and `ToDecimal` preserve numeric value exactly. `FromBigInteger` and
+`FromDecimal` and `ToDecimal` preserve both the value and the display scale, so
+`FromDecimal(value.ToDecimal())` restores the same numeric. `ToDecimal` and the
+explicit `decimal` cast throw `OverflowException` for NaN, infinities, values that
+`decimal` would round, and display scales that `decimal` cannot carry. This
+includes trailing fractional zeros beyond 28 digits or beyond decimal's 96-bit
+coefficient, so `1.00000000000000000000000000000` (scale 29) is rejected.
+`System.Data.SqlTypes.SqlDecimal` rejects scales above 28 in the same way. To accept
+such values, reduce the scale explicitly with `Round`, `Truncate`, `Rescale`, or a
+SQL cast such as `::numeric(38,28)`. `decimal` function parameters, SPI results
+and array elements use the same checked conversion. `FromBigInteger` and
 `ToBigInteger` handle finite integers within PostgreSQL's range; fractional inputs
 are rejected by `ToBigInteger`.
 

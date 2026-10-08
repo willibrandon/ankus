@@ -385,13 +385,15 @@ public sealed class NumericTests(TestContext context)
             }, context.CancellationToken);
 
     /// <summary>
-    /// Checks generated decimal input adapters reject rounding and nonfinite values while the backend survives.
+    /// Checks generated decimal input adapters reject rounding, display-scale loss and nonfinite values while the backend survives.
     /// </summary>
     /// <param name="input">The unrepresentable value.</param>
     [TestMethod]
     [DataRow("8.0000000000000000000000000001")]
     [DataRow("0.00000000000000000000000000001")]
     [DataRow("79228162514264337593543950336")]
+    [DataRow("1.00000000000000000000000000000")]
+    [DataRow("7922816251426433759354395033.50")]
     [DataRow("NaN")]
     [DataRow("Infinity")]
     public Task GeneratedDecimalAdaptersRejectLossyInput(string input)

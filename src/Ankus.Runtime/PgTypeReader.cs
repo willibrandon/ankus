@@ -174,16 +174,21 @@ public ref struct PgTypeReader
     }
 
     /// <summary>
-    /// Reads a binary32 value, rejecting binary64 precision loss and JSON overflow.
+    /// Reads a binary32 value, keeping NaN payload bits and rejecting wider precision or payload loss and JSON overflow.
     /// </summary>
     /// <returns>The value.</returns>
     public float ReadSingle()
     {
         if (_cbor is not null)
         {
+            if (_cbor.PeekState() == CborReaderState.SinglePrecisionFloat)
+            {
+                return _cbor.ReadSingle();
+            }
+
             double number = ReadDouble();
             float result = (float)number;
-            if (!double.IsNaN(number) && result != number)
+            if (BitConverter.DoubleToInt64Bits(result) != BitConverter.DoubleToInt64Bits(number))
             {
                 throw new FormatException("The CBOR value is not exactly representable as Single.");
             }
@@ -202,7 +207,7 @@ public ref struct PgTypeReader
     }
 
     /// <summary>
-    /// Reads a binary64 value, rejecting integer precision loss and JSON overflow.
+    /// Reads a binary64 value, keeping NaN payload bits and rejecting integer precision loss and JSON overflow.
     /// </summary>
     /// <returns>The value.</returns>
     public double ReadDouble()

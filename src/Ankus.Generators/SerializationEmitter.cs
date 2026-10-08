@@ -207,8 +207,10 @@ internal static class SerializationEmitter
                 source.AppendLine("            writer.WriteEndArray();");
                 break;
             case "dictionary":
-                source.AppendLine("            writer.WriteStartObject(value.Count);");
-                source.AppendLine("            foreach (global::System.Collections.Generic.KeyValuePair<string, " + model.Nodes[node.Element!.Value].Managed + "> item in value)");
+                source.AppendLine("            global::System.Collections.Generic.KeyValuePair<string, " + model.Nodes[node.Element!.Value].Managed +
+                    ">[] entries = global::Ankus.PgTypeWriter.GetOrderedEntries(value);");
+                source.AppendLine("            writer.WriteStartObject(entries.Length);");
+                source.AppendLine("            foreach (global::System.Collections.Generic.KeyValuePair<string, " + model.Nodes[node.Element!.Value].Managed + "> item in entries)");
                 source.AppendLine("            {");
                 source.AppendLine("                writer.WritePropertyName(item.Key);");
                 source.AppendLine("                Write_" + node.Element!.Value + "(writer, item.Value);");
