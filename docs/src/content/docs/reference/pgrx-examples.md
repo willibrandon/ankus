@@ -3,7 +3,7 @@ title: pgrx examples
 description: Find the Ankus sample or guide that corresponds to each pgrx example.
 ---
 
-Each example in pgrx's `pgrx-examples` directory has an Ankus counterpart: a
+Most examples in pgrx's `pgrx-examples` directory have an Ankus counterpart: a
 runnable sample under [`samples/`](https://github.com/willibrandon/ankus/tree/main/samples)
 or, for Rust-only mechanisms, a guide that explains the .NET equivalent. Samples
 are ordinary projects; publish and install one as described in
@@ -17,16 +17,25 @@ are ordinary projects; publish and install one as described in
 | `benching` | [`Ankus.Examples.Benchmarks`](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.Benchmarks) | In-backend benchmarks through `ankus bench`. See [Benchmarks](/benchmarks/). |
 | `bytea` | [`Ankus.Examples.Bytea`](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.Bytea) | |
 | `composite_type` | [`Ankus.Examples.Composites`](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.Composites) | See [Composite values](/composites/). |
+| `custom_sql` | [`Ankus.Examples.CustomSql`](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.CustomSql) | Bootstrap, inline, file and final blocks in dependency order. See [Custom SQL](/custom-sql/). |
 | `custom_types` | [`Ankus.Examples.CustomTypes`](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.CustomTypes) | See [Custom types](/custom-types/). |
 | `datetime` | [`Ankus.Examples.DateTime`](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.DateTime) | See [Date and time values](/date-and-time/). |
 | `errors` | [`Ankus.Examples.Errors`](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.Errors) | Managed exceptions replace Rust panics. See [Logging and errors](/logging/). |
+| `generic_agg` | [`Ankus.Examples.GenericAggregates`](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.GenericAggregates) | Polymorphic aggregates using PostgreSQL's datum copy and comparison bindings. |
+| `hooks` | [`Ankus.Examples.Hooks`](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.Hooks) | Executor, parse-analysis and utility hooks installed once and chained. See [Raw values](/raw-values/#managed-native-callbacks-and-hooks). |
 | `json` | [`Ankus.Examples.Json`](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.Json) | See [JSON and UUID values](/json-and-uuid/). |
+| `memory_contexts` | [`Ankus.Examples.MemoryContexts`](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.MemoryContexts) | Scratch contexts, sets and a worker counter in `TopMemoryContext`. |
 | `numeric` | [`Ankus.Examples.Numeric`](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.Numeric) | See [Numeric values](/numeric/). |
 | `operators` | [`Ankus.Examples.Operators`](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.Operators) | See [Operators and casts](/operators-and-casts/). |
+| `pgthread` | [`Ankus.Examples.Threads`](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.Threads) | Managed threads compute; only the backend thread calls PostgreSQL. |
+| `pgtrybuilder` | [`Ankus.Examples.TryCatch`](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.TryCatch) | Filtered `catch` and `finally` replace `PgTryBuilder`. |
 | `range` | [`Ankus.Examples.Ranges`](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.Ranges) | See [Ranges](/ranges/). |
+| `schemas` | [`Ankus.Examples.Schemas`](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.Schemas) | Objects in the installation, extension-owned, `public` and `pg_catalog` schemas. |
+| `shmem` | [`Ankus.Examples.SharedMemory`](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.SharedMemory) | Bounded collections, locks and an atomic in preloaded shared memory. See [Shared memory](/shared-memory/). |
 | `spi`, `spi_srf` | [`Ankus.Examples.Spi`](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.Spi) | See [SPI queries](/spi/). |
 | `srf` | [`Ankus.Examples.Sets`](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.Sets) | C# iterators replace pgrx's iterator types. See [Sets and tables](/sets-and-tables/). |
 | `strings` | [`Ankus.Examples.Strings`](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.Strings) | |
+| `subtrans_infos` | [`Ankus.Examples.Subtransactions`](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.Subtransactions) | Transaction status, parents, nesting level and commit time. |
 | `triggers` | [`Ankus.Examples.Triggers`](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.Triggers) | See [Triggers](/triggers/). |
 
 Ankus also includes samples without a direct pgrx counterpart:
@@ -35,3 +44,7 @@ Ankus also includes samples without a direct pgrx counterpart:
 [`Ankus.Examples.Enums`](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.Enums),
 [`Ankus.Examples.EventTriggers`](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.EventTriggers) and
 [`Ankus.Examples.Initialization`](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.Initialization).
+
+These pgrx examples do not have an Ankus counterpart yet: `bad_ideas`,
+`custom_libname`, `nostd`, `notify`, `pglz_inspect`, `postgres_type_variants`,
+`rewrite_manip`, `versioned_custom_libname_so`, `versioned_so` and `wal_decoder`.
