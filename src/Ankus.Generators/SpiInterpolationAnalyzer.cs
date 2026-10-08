@@ -73,7 +73,7 @@ public sealed partial class SpiInterpolationAnalyzer : DiagnosticAnalyzer
                         var analysis = new SqlFlowAnalysis(spi, session, enumerable,
                             start.Compilation.GetSpecialType(SpecialType.System_String).ContainingAssembly, end.CancellationToken);
                         foreach (KeyValuePair<(SyntaxTree Tree, Microsoft.CodeAnalysis.Text.TextSpan Span), bool> result in
-                            analysis.Analyze(end.GetControlFlowGraph(root), root))
+                            analysis.Analyze(end.GetControlFlowGraph(root), root, end.OwningSymbol))
                         {
                             results[result.Key] = result.Value || results.TryGetValue(result.Key, out bool previous) && previous;
                         }
@@ -111,7 +111,7 @@ public sealed partial class SpiInterpolationAnalyzer : DiagnosticAnalyzer
             IConversionOperation conversion => ContainsInterpolation(conversion.Operand, spi),
             IParenthesizedOperation parentheses => ContainsInterpolation(parentheses.Operand, spi),
             IBinaryOperation { OperatorKind: BinaryOperatorKind.Add, Type.SpecialType: SpecialType.System_String } binary
-                => ContainsInterpolation(binary.LeftOperand, spi) || ContainsInterpolation(binary.RightOperand, spi),
+                => ConcatenatesRawText(binary.LeftOperand, spi) || ConcatenatesRawText(binary.RightOperand, spi),
             IConditionalOperation conditional => ContainsInterpolation(conditional.WhenTrue, spi) ||
                 conditional.WhenFalse is { } otherwise && ContainsInterpolation(otherwise, spi),
             ICoalesceOperation coalesce => ContainsInterpolation(coalesce.Value, spi) || ContainsInterpolation(coalesce.WhenNull, spi),
@@ -121,6 +121,30 @@ public sealed partial class SpiInterpolationAnalyzer : DiagnosticAnalyzer
                     ? !IsInvariantProvider(argument.Value, format.TargetMethod.ContainingAssembly)
                     : HasUnquotedFormatValue(argument.Value, spi)),
             _ => false,
+        };
+
+    /// <summary>
+    /// Treats every concatenated operand as raw text unless it is constant, quoted or itself free of raw formatting.
+    /// </summary>
+    /// <param name="operand">One operand of a string concatenation.</param>
+    /// <param name="spi">The actual runtime SPI type whose quoting results are SQL fragments.</param>
+    /// <returns>Whether concatenation can place an unquoted runtime value into command text.</returns>
+    private static bool ConcatenatesRawText(IOperation operand, INamedTypeSymbol spi)
+        => operand switch
+        {
+            _ when operand.ConstantValue.HasValue => false,
+            IConversionOperation { OperatorMethod: null } conversion => ConcatenatesRawText(conversion.Operand, spi),
+            IParenthesizedOperation parentheses => ConcatenatesRawText(parentheses.Operand, spi),
+            IBinaryOperation { OperatorKind: BinaryOperatorKind.Add, Type.SpecialType: SpecialType.System_String } binary
+                => ConcatenatesRawText(binary.LeftOperand, spi) || ConcatenatesRawText(binary.RightOperand, spi),
+            IConditionalOperation conditional => ConcatenatesRawText(conditional.WhenTrue, spi) ||
+                conditional.WhenFalse is { } otherwise && ConcatenatesRawText(otherwise, spi),
+            ICoalesceOperation coalesce => ConcatenatesRawText(coalesce.Value, spi) || ConcatenatesRawText(coalesce.WhenNull, spi),
+            ISwitchExpressionOperation expression => expression.Arms.Any(arm => ConcatenatesRawText(arm.Value, spi)),
+            IInterpolatedStringOperation or IInvocationOperation { TargetMethod: { Name: "Format", ContainingType.SpecialType: SpecialType.System_String } }
+                => ContainsInterpolation(operand, spi),
+            IThrowOperation => false,
+            _ => !IsQuoted(operand, spi),
         };
 
     /// <summary>

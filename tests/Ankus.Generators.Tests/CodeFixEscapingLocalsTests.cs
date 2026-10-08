@@ -98,10 +98,44 @@ public sealed partial class PgFunctionGeneratorTests
         """)]
     [DataRow("System.Span<int> value = RawEscapes.View(stackalloc int[] { 42 }); return value[0] + 1;", """
         {
-            System.Span<int> value;
+            scoped System.Span<int> value;
             unsafe
             {
                 value = RawEscapes.View(stackalloc int[] { 42 });
+            }
+
+            return value[0] + 1;
+        }
+        """)]
+    [DataRow("var value = RawEscapes.View(stackalloc int[] { 42 }); return value[0] + 1;", """
+        {
+            scoped global::System.Span<int> value;
+            unsafe
+            {
+                value = RawEscapes.View(stackalloc int[] { 42 });
+            }
+
+            return value[0] + 1;
+        }
+        """)]
+    [DataRow("System.Span<int> storage = stackalloc int[] { 42 }; System.Span<int> value = RawEscapes.View(storage); return value[0] + 1;", """
+        {
+            System.Span<int> storage = stackalloc int[] { 42 };
+            scoped System.Span<int> value;
+            unsafe
+            {
+                value = RawEscapes.View(storage);
+            }
+
+            return value[0] + 1;
+        }
+        """)]
+    [DataRow("System.Span<int> value = RawEscapes.View(new int[] { 42 }); return value[0] + 1;", """
+        {
+            System.Span<int> value;
+            unsafe
+            {
+                value = RawEscapes.View(new int[] { 42 });
             }
 
             return value[0] + 1;
@@ -128,6 +162,7 @@ public sealed partial class PgFunctionGeneratorTests
         Document corrected = await ApplyNativeCodeFixAsync(document, Assert.ContainsSingle(diagnostics));
         (Compilation after, ImmutableArray<Diagnostic> remaining) = await AnalyzeNativeCodeFixDocumentAsync(corrected);
         Assert.IsEmpty(remaining, "The offered action must apply its unsafe acknowledgment without losing declared locals.");
+        Assert.IsEmpty(IntroducedWarnings(before, after), "The unsafe acknowledgment must not relax a local's ref-safety errors into warnings.");
         Assert.AreEqual(43, ExecuteNativeConsumer(after));
         SyntaxNode root = (await corrected.GetSyntaxRootAsync(context.CancellationToken))!;
         MethodDeclarationSyntax method = Assert.ContainsSingle(root.DescendantNodes().OfType<MethodDeclarationSyntax>()
@@ -135,6 +170,69 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.IsNotNull(method.Body);
         Assert.AreEqual(SyntaxFactory.ParseStatement(expected).NormalizeWhitespace(eol: "\n").ToFullString(),
             method.Body.NormalizeWhitespace(eol: "\n").ToFullString());
+    }
+
+    /// <summary>
+    /// A heap-backed span that the method returns keeps its caller-safe declaration instead of being narrowed by scoped.
+    /// </summary>
+    [TestMethod]
+    public async Task NativeUnsafeFixKeepsReturnableSpanUnscoped()
+    {
+        const string Source = """
+            public sealed class Consumer
+            {
+                public static System.Span<int> Escape()
+                {
+                    System.Span<int> value = RawEscapes.View(new int[] { 42 });
+                    return value;
+                }
+
+                public static int Run() => Escape()[0] + 1;
+            }
+            """;
+        const string Expected = """
+            {
+                System.Span<int> value;
+                unsafe
+                {
+                    value = RawEscapes.View(new int[] { 42 });
+                }
+
+                return value;
+            }
+            """;
+        using var workspace = new AdhocWorkspace();
+        Document document = CreateCodeFixDocument(workspace, EscapingNativeDeclarations + Source);
+        (Compilation before, ImmutableArray<Diagnostic> diagnostics) = await AnalyzeNativeCodeFixDocumentAsync(document);
+        Assert.AreEqual(43, ExecuteNativeConsumer(before));
+        Document corrected = await ApplyNativeCodeFixAsync(document, Assert.ContainsSingle(diagnostics));
+        (Compilation after, ImmutableArray<Diagnostic> remaining) = await AnalyzeNativeCodeFixDocumentAsync(corrected);
+        Assert.IsEmpty(remaining);
+        Assert.IsEmpty(IntroducedWarnings(before, after));
+        Assert.AreEqual(43, ExecuteNativeConsumer(after));
+        SyntaxNode root = (await corrected.GetSyntaxRootAsync(context.CancellationToken))!;
+        MethodDeclarationSyntax method = Assert.ContainsSingle(root.DescendantNodes().OfType<MethodDeclarationSyntax>()
+            .Where(static declaration => declaration.Identifier.ValueText == "Escape"));
+        Assert.IsNotNull(method.Body);
+        Assert.AreEqual(SyntaxFactory.ParseStatement(Expected).NormalizeWhitespace(eol: "\n").ToFullString(),
+            method.Body.NormalizeWhitespace(eol: "\n").ToFullString());
+    }
+
+    /// <summary>
+    /// Lists compiler warnings present after a correction but absent from the original compilation.
+    /// </summary>
+    /// <param name="before">The original compilation.</param>
+    /// <param name="after">The corrected compilation.</param>
+    /// <returns>The introduced warning identifiers and messages.</returns>
+    private string[] IntroducedWarnings(Compilation before, Compilation after)
+    {
+        HashSet<string> original = [.. before.GetDiagnostics(context.CancellationToken)
+            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Warning)
+            .Select(static diagnostic => diagnostic.Id + ": " + diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture))];
+        return [.. after.GetDiagnostics(context.CancellationToken)
+            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Warning)
+            .Select(static diagnostic => diagnostic.Id + ": " + diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture))
+            .Where(warning => !original.Contains(warning))];
     }
 
     /// <summary>

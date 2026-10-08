@@ -67,6 +67,7 @@ public sealed partial class PgFunctionGeneratorTests
     [DataRow("public static int Run() { System.Func<int> read = Raw.Read; return read() + 1; }")]
     [DataRow("public static int Run() { try { throw new System.InvalidOperationException(); } catch (System.InvalidOperationException) when (Raw.Read() == 42) { return 43; } }")]
     [DataRow("public static int Run() { using var owner = new System.IO.MemoryStream(); int value = Raw.Read(); owner.WriteByte(1); return value + (int)owner.Length; }")]
+    [DataRow("public static int Run() { if ((object)Raw.Read() is int value) { return value + 1; } return 0; }")]
     public async Task NativeUnsafeFixPreservesManagedExecution(string members)
     {
         using var workspace = new AdhocWorkspace();
@@ -143,6 +144,34 @@ public sealed partial class PgFunctionGeneratorTests
         Diagnostic stale = Diagnostic.Create(descriptor, Location.Create(tree, new TextSpan(start, target.Length)), "Read");
         Assert.IsEmpty(await CodeFixActionsAsync(new NativeUnsafeAccessCodeFixProvider(), document, stale));
         Assert.AreEqual(source, (await document.GetTextAsync(context.CancellationToken)).ToString());
+    }
+
+    /// <summary>
+    /// A pattern variable read after its statement cannot move into an unsafe block, so no ineffective correction is offered.
+    /// </summary>
+    /// <param name="body">The compiler-valid consumer body whose pattern variable escapes the native statement.</param>
+    [TestMethod]
+    [DataRow("if ((object)Raw.Read() is not int value) { return 0; } return value + 1;")]
+    [DataRow("if (!((object)Raw.Read() is int value)) { return 0; } return value + 1;")]
+    [DataRow("if ((object)Raw.Read() is not int { } value) { return 0; } return value + 1;")]
+    public async Task NativeUnsafeFixIsNotOfferedForEscapingPatternVariables(string body)
+    {
+        using var workspace = new AdhocWorkspace();
+        string source = NativeFixDeclarations + "public sealed class Consumer { public static int Run() { " + body + " } }";
+        Document document = CreateCodeFixDocument(workspace, source);
+        (Compilation before, ImmutableArray<Diagnostic> diagnostics) = await AnalyzeNativeCodeFixDocumentAsync(document);
+        Assert.AreEqual(43, ExecuteNativeConsumer(before));
+        Diagnostic diagnostic = Assert.ContainsSingle(diagnostics);
+        Assert.IsEmpty(await CodeFixActionsAsync(new NativeUnsafeAccessCodeFixProvider(), document, diagnostic));
+        var provider = new NativeUnsafeAccessCodeFixProvider();
+        var fixContext = new FixAllContext(document, provider, FixAllScope.Project, nameof(NativeUnsafeAccessCodeFixProvider),
+            provider.FixableDiagnosticIds, new InjectedMetadataDiagnosticProvider(diagnostics), context.CancellationToken);
+        CodeAction? action = await provider.GetFixAllProvider().GetFixAsync(fixContext);
+        Assert.IsNotNull(action);
+        ApplyChangesOperation change = Assert.IsInstanceOfType<ApplyChangesOperation>(
+            Assert.ContainsSingle(await action.GetOperationsAsync(context.CancellationToken)));
+        Assert.AreEqual(source, (await change.ChangedSolution.GetDocument(document.Id)!.GetTextAsync(context.CancellationToken)).ToString(),
+            "Fix All leaves an escaping pattern variable's native statement for a manual edit.");
     }
 
     /// <summary>

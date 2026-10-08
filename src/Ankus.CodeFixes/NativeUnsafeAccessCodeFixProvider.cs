@@ -117,9 +117,11 @@ public sealed class NativeUnsafeAccessCodeFixProvider : CodeFixProvider
         SemanticModel model, CancellationToken cancellationToken)
     {
         DeclarationExpressionSyntax[] declarations = [.. statement.DescendantNodes().OfType<DeclarationExpressionSyntax>()];
+        SingleVariableDesignationSyntax[] patterns = [.. statement.DescendantNodes().OfType<SingleVariableDesignationSyntax>()
+            .Where(static designation => !designation.Ancestors().Any(static node => node is DeclarationExpressionSyntax))];
         var hoisted = new List<SyntaxNode>();
         StatementSyntax rewritten = statement;
-        if (declarations.Length != 0)
+        if (declarations.Length != 0 || patterns.Length != 0)
         {
             DataFlowAnalysis? flow = model.AnalyzeDataFlow(statement);
             if (flow is not { Succeeded: true })
@@ -128,6 +130,12 @@ public sealed class NativeUnsafeAccessCodeFixProvider : CodeFixProvider
             }
 
             HashSet<ISymbol> escaping = new(flow.ReadOutside.Concat(flow.WrittenOutside), SymbolEqualityComparer.Default);
+            if (patterns.Any(designation => model.GetDeclaredSymbol(designation, cancellationToken) is ILocalSymbol local && escaping.Contains(local)))
+            {
+                // A pattern variable cannot be declared apart from its pattern; an unsafe block would hide it from later statements.
+                return null;
+            }
+
             declarations = [.. declarations.Where(declaration => declaration.Designation.DescendantNodesAndSelf()
                 .OfType<SingleVariableDesignationSyntax>().Any(designation =>
                     model.GetDeclaredSymbol(designation, cancellationToken) is ILocalSymbol local && escaping.Contains(local)))];
@@ -157,7 +165,7 @@ public sealed class NativeUnsafeAccessCodeFixProvider : CodeFixProvider
         if (rewritten is LocalDeclarationStatementSyntax declarationStatement)
         {
             (SyntaxNode Target, ImmutableArray<SyntaxNode> Replacements)? localEdit = HoistDeclaration(declarationStatement,
-                (LocalDeclarationStatementSyntax)statement, model, cancellationToken);
+                (LocalDeclarationStatementSyntax)statement, hoisted, model, cancellationToken);
             return localEdit is null ? null : (statement, [.. hoisted, .. localEdit.Value.Replacements]);
         }
 
@@ -186,20 +194,23 @@ public sealed class NativeUnsafeAccessCodeFixProvider : CodeFixProvider
     /// </summary>
     /// <param name="declaration">The original local declaration.</param>
     /// <param name="original">The declaration retained in the original semantic model.</param>
+    /// <param name="hoisted">The escaping declaration-expression locals declared before the statement.</param>
     /// <param name="model">Its declared managed types.</param>
     /// <param name="cancellationToken">Cancels binding.</param>
     /// <returns>The declaration and unsafe assignments, or null for a contract requiring a broader manual edit.</returns>
     private static (SyntaxNode Target, ImmutableArray<SyntaxNode> Replacements)? HoistDeclaration(LocalDeclarationStatementSyntax declaration,
-        LocalDeclarationStatementSyntax original, SemanticModel model, CancellationToken cancellationToken)
+        LocalDeclarationStatementSyntax original, List<SyntaxNode> hoisted, SemanticModel model, CancellationToken cancellationToken)
     {
+        TypeSyntax declared = declaration.Declaration.Type;
+        ScopedTypeSyntax? scoped = declared as ScopedTypeSyntax;
+        TypeSyntax type = scoped?.Type ?? declared;
         if (declaration.UsingKeyword != default || declaration.AwaitKeyword != default ||
-            declaration.Modifiers.Any(SyntaxKind.ConstKeyword) || declaration.Declaration.Type is RefTypeSyntax ||
+            declaration.Modifiers.Any(SyntaxKind.ConstKeyword) || type is RefTypeSyntax ||
             original.Parent is not (BlockSyntax or SwitchSectionSyntax))
         {
             return null;
         }
 
-        TypeSyntax type = declaration.Declaration.Type;
         if (type.IsVar)
         {
             if (model.GetDeclaredSymbol(original.Declaration.Variables[0], cancellationToken) is not ILocalSymbol local ||
@@ -218,13 +229,59 @@ public sealed class NativeUnsafeAccessCodeFixProvider : CodeFixProvider
             return null;
         }
 
-        LocalDeclarationStatementSyntax outer = declaration.WithDeclaration(declaration.Declaration.WithType(type)
-            .WithVariables(SyntaxFactory.SeparatedList(declaration.Declaration.Variables.Select(static variable => variable.WithInitializer(null)))))
-            .WithAdditionalAnnotations(Formatter.Annotation);
         StatementSyntax[] assignments = [.. declaration.Declaration.Variables.Where(static variable => variable.Initializer is not null)
             .Select(static variable => SyntaxFactory.ExpressionStatement(SyntaxFactory.AssignmentExpression(SyntaxKind.SimpleAssignmentExpression,
                 SyntaxFactory.IdentifierName(variable.Identifier.WithoutTrivia()), variable.Initializer!.Value)))];
+        if (scoped is not null)
+        {
+            type = scoped.WithType(type);
+        }
+        else if (RequiresScopedDeclaration(declaration, original, hoisted, type, assignments, model, cancellationToken))
+        {
+            // An initialized ref struct takes its initializer's safe context; an uninitialized declaration would widen it to the caller.
+            type = SyntaxFactory.ScopedType(SyntaxFactory.Token(type.GetLeadingTrivia(), SyntaxKind.ScopedKeyword,
+                SyntaxFactory.TriviaList(SyntaxFactory.Space)), type.WithoutLeadingTrivia());
+        }
+
+        LocalDeclarationStatementSyntax outer = declaration.WithDeclaration(declaration.Declaration.WithType(type)
+            .WithVariables(SyntaxFactory.SeparatedList(declaration.Declaration.Variables.Select(static variable => variable.WithInitializer(null)))))
+            .WithAdditionalAnnotations(Formatter.Annotation);
         return (declaration, [outer, SyntaxFactory.UnsafeStatement(SyntaxFactory.Block(assignments)).WithAdditionalAnnotations(Formatter.Annotation)]);
+    }
+
+    /// <summary>
+    /// Determines whether separating a ref struct declaration from its initializer would widen the local's safe context.
+    /// </summary>
+    /// <param name="declaration">The declaration after earlier escaping-local rewrites.</param>
+    /// <param name="original">The declaration retained in the original semantic model.</param>
+    /// <param name="hoisted">The escaping declaration-expression locals declared before the statement.</param>
+    /// <param name="type">The explicit local type.</param>
+    /// <param name="assignments">The initializer assignments that will run after the declaration.</param>
+    /// <param name="model">The original semantic model.</param>
+    /// <param name="cancellationToken">Cancels binding.</param>
+    /// <returns>Whether the uninitialized declaration must be scoped to keep the original lifetime.</returns>
+    private static bool RequiresScopedDeclaration(LocalDeclarationStatementSyntax declaration, LocalDeclarationStatementSyntax original,
+        List<SyntaxNode> hoisted, TypeSyntax type, StatementSyntax[] assignments, SemanticModel model, CancellationToken cancellationToken)
+    {
+        if (assignments.Length == 0 || original.FirstAncestorOrSelf<MemberDeclarationSyntax>() is not { } member ||
+            model.GetDeclaredSymbol(original.Declaration.Variables[0], cancellationToken) is not ILocalSymbol { Type.IsRefLikeType: true })
+        {
+            return false;
+        }
+
+        // Compile the same split in safe code, where widening a stack-bound initializer is a ref-safety error rather than a warning.
+        LocalDeclarationStatementSyntax unscoped = declaration.WithDeclaration(declaration.Declaration.WithType(type)
+            .WithVariables(SyntaxFactory.SeparatedList(declaration.Declaration.Variables.Select(static variable => variable.WithInitializer(null)))));
+        SyntaxTree tree = original.SyntaxTree;
+        SyntaxNode tracked = tree.GetRoot(cancellationToken).TrackNodes(member, original);
+        SyntaxNode probeRoot = tracked.ReplaceNode(tracked.GetCurrentNode(original)!, [.. hoisted, unscoped, .. assignments]);
+        SyntaxTree probeTree = tree.WithRootAndOptions(probeRoot, tree.Options);
+        Compilation probe = model.Compilation.ReplaceSyntaxTree(tree, probeTree);
+        int originalErrors = model.GetDiagnostics(member.Span, cancellationToken)
+            .Count(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
+        int probeErrors = probe.GetSemanticModel(probeTree).GetDiagnostics(probeRoot.GetCurrentNode(member)!.Span, cancellationToken)
+            .Count(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
+        return probeErrors > originalErrors;
     }
 
     /// <summary>

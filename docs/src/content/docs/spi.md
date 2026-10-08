@@ -89,14 +89,31 @@ statements use positional parameters and explicit parameter types.
 
 The compiler check follows reaching local strings, `StringBuilder` contents and
 format-argument arrays, including aliases, reassignment, branches, loops, local
-callbacks and exception cleanup. Clearing a builder or replacing a command with
-literal SQL removes the earlier construction. Complete quoting results must occur
-outside SQL strings, quoted identifiers, dollar strings and comments; the helpers
-supply their own delimiters. Ordinary positional parameters remain valid in raw SQL.
+callbacks and exception cleanup. A parameter keeps its caller-supplied value on
+every path that does not replace it. Clearing a builder or replacing a command with
+literal SQL removes the earlier construction. Formatting a builder or tuple into a
+command, and `string.Concat`, `string.Join`, `string.Format` or another string
+operation that combines runtime text, counts as raw construction. Writes through
+`ref` locals, reference-returning methods, spans and deconstruction can replace a
+quoted local. Complete quoting results must occur outside SQL strings, quoted
+identifiers, dollar strings and comments; the helpers supply their own delimiters.
+Ordinary positional parameters remain valid in raw SQL.
+
+Lambdas and local functions are checked even when the method does not invoke them.
+A callback passed to LINQ, stored for later or otherwise not invoked locally is
+checked with the values assigned after its creation, and its parameters are
+treated as runtime values:
+
+```csharp
+// ANKUS044: the selector concatenates each runtime name into the command.
+long[] counts = [.. names.Select(name => Spi.ExecuteScalar<long>("SELECT count(*) FROM " + name))];
+```
 
 The analysis is bounded and does not prove arbitrary helper implementations or
-runtime-generated text safe. Callers remain responsible for constructing raw SQL
-safely. Use `Spi.Sql` for values and the quoting APIs below for dynamic identifiers.
+runtime-generated text safe. When construction exceeds the bound, including the
+alternatives of a `string.Format` call, ANKUS044 reports the command instead of
+accepting it. Callers remain responsible for constructing raw SQL safely. Use
+`Spi.Sql` for values and the quoting APIs below for dynamic identifiers.
 
 Use explicit `E'...'` syntax for literal backslash escapes. `Spi.Sql` checks
 binding boundaries under both ordinary-string escape settings without a

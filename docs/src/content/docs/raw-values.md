@@ -189,7 +189,11 @@ you still supply valid storage and follow PostgreSQL's ownership rules.
 When an `out` or deconstruction variable is used by a later statement, the fix
 keeps its declaration in that enclosing scope and puts the native assignment
 inside an unsafe block. Fix All applies the same rule independently in nested
-blocks.
+blocks. A `ref struct` local initialized from stack memory, such as a
+`stackalloc` span, keeps that lifetime: the moved declaration is `scoped`.
+The fix is not offered when a pattern variable declared by the native statement,
+such as `is not int value`, is used by a later statement; restructure that code
+manually.
 Checked APIs such as `PgNodes`, `PgFunctions` and `Spi` remain usable in safe code.
 
 The same class includes selected-header helpers for alignment, memory contexts,
