@@ -15,75 +15,81 @@ public sealed partial class ToolCommandTests
     private static readonly SemaphoreSlim s_sampleProjectLock = new(1, 1);
     private static readonly ConcurrentQueue<PostgresTestInstallation> s_caseInstallations = new();
 
+    private readonly ConcurrentQueue<string> _caseDirectories = new();
     private PostgresTestInstallation? _caseInstallation;
     private bool _ownsCaseSlot;
 
     /// <summary>
-    /// Reserves an independent pre-18 installation before executing a test.
-    /// </summary>
-    [TestInitialize]
-    public async Task ReserveCaseAsync()
-    {
-        if (s_installation.Version.Major >= 18)
-        {
-            return;
-        }
-
-        await s_caseSlots.WaitAsync(context.CancellationToken);
-        _ownsCaseSlot = true;
-        if (!s_caseInstallations.TryDequeue(out _caseInstallation))
-        {
-            s_caseSlots.Release();
-            _ownsCaseSlot = false;
-            throw new InvalidOperationException("The reserved package-consumer slot has no PostgreSQL installation.");
-        }
-    }
-
-    /// <summary>
-    /// Returns the installation only after the test's clusters and child processes have stopped.
+    /// Removes completed consumers and returns the installation after their clusters and child processes stop.
     /// </summary>
     [TestCleanup]
     public void ReleaseCase()
     {
-        if (!_ownsCaseSlot)
+        try
         {
-            return;
+            while (_caseDirectories.TryDequeue(out string? directory))
+            {
+                if (Directory.Exists(directory))
+                {
+                    Directory.Delete(directory, recursive: true);
+                }
+            }
         }
-
-        if (_caseInstallation is not null)
+        finally
         {
-            s_caseInstallations.Enqueue(_caseInstallation);
-            _caseInstallation = null;
-        }
+            if (_ownsCaseSlot)
+            {
+                if (_caseInstallation is not null)
+                {
+                    s_caseInstallations.Enqueue(_caseInstallation);
+                    _caseInstallation = null;
+                }
 
-        _ownsCaseSlot = false;
-        s_caseSlots.Release();
+                _ownsCaseSlot = false;
+                s_caseSlots.Release();
+            }
+        }
     }
 
-    private static async Task InitializeCaseInstallationsAsync(CancellationToken token)
+    private async Task<PostgresInstallation> PrepareCaseInstallationAsync(string output, CancellationToken token)
     {
-        if (s_installation.Version.Major >= 18)
-        {
-            return;
-        }
-
-        for (int index = 0; index < s_concurrentCases; index++)
-        {
-            string root = Path.Combine(s_root, "postgres " + Guid.NewGuid().ToString("N"));
-            s_caseInstallations.Enqueue(await PostgresTestInstallation.StageAsync(s_installation, root, token));
-        }
+        PostgresInstallation installation = await ReserveCaseInstallationAsync(token);
+        _caseInstallation?.InstallExtensionFiles(output);
+        return installation;
     }
 
-    private PostgresInstallation PrepareCaseInstallation(string output)
+    /// <summary>
+    /// Reserves a writable installation only for cases that need PostgreSQL's pre-18 control-file layout.
+    /// </summary>
+    private async Task<PostgresInstallation> ReserveCaseInstallationAsync(CancellationToken token)
     {
         if (s_installation.Version.Major >= 18)
         {
             return s_installation;
         }
 
+        if (!_ownsCaseSlot)
+        {
+            await s_caseSlots.WaitAsync(token);
+            try
+            {
+                if (!s_caseInstallations.TryDequeue(out _caseInstallation))
+                {
+                    string root = Path.Combine(s_root, "postgres " + Guid.NewGuid().ToString("N"));
+                    _caseInstallation = await PostgresTestInstallation.StageAsync(s_installation, root, token);
+                }
+
+                _ownsCaseSlot = true;
+            }
+            catch
+            {
+                s_caseSlots.Release();
+                throw;
+            }
+        }
+
         PostgresTestInstallation installation = _caseInstallation
             ?? throw new InvalidOperationException("The package-consumer test has no reserved PostgreSQL installation.");
-        installation.InstallExtensionFiles(output);
         return installation.Installation;
     }
 }

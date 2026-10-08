@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 
 namespace Ankus.Build;
@@ -151,6 +152,20 @@ internal static partial class NativeBindingCache
         return snapshot;
     }
 
+    /// <summary>
+    /// Records directory membership, including absent candidates, so added compiler inputs invalidate reuse.
+    /// </summary>
+    internal static NativeBindingCacheFile SnapshotDirectory(string directory)
+        => new(directory, DirectoryHash(directory), IsDirectory: true);
+
+    private static string DirectoryHash(string directory)
+    {
+        bool exists = Directory.Exists(directory);
+        string[] files = exists ? [.. Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories)
+            .Select(path => Path.GetRelativePath(directory, path)).Order(StringComparer.Ordinal)] : [];
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { Exists = exists, Files = files }))));
+    }
+
     private static async Task<bool> MatchFilesAsync(IEnumerable<NativeBindingCacheFile> files, CancellationToken cancellationToken)
     {
         int changed = 0;
@@ -160,7 +175,10 @@ internal static partial class NativeBindingCache
             CancellationToken = cancellationToken,
         }, async (file, token) =>
         {
-            if (!await MatchesAsync(file.Path, file.Hash, allowSymbolicLink: true, token))
+            bool matches = file.IsDirectory
+                ? DirectoryHash(file.Path) == file.Hash
+                : await MatchesAsync(file.Path, file.Hash, allowSymbolicLink: true, token);
+            if (!matches)
             {
                 Interlocked.Exchange(ref changed, 1);
             }
@@ -218,7 +236,7 @@ internal static partial class NativeBindingCache
         var names = new HashSet<string>(StringComparer.Ordinal);
         foreach (NativeBindingCacheFile artifact in manifest.Artifacts)
         {
-            if (artifact is null || string.IsNullOrEmpty(artifact.Path) || artifact.Path != Path.GetFileName(artifact.Path) ||
+            if (artifact is null || artifact.IsDirectory || string.IsNullOrEmpty(artifact.Path) || artifact.Path != Path.GetFileName(artifact.Path) ||
                 artifact.Path is "." or ".." or ManifestName || !names.Add(artifact.Path) ||
                 !await MatchesAsync(Path.Combine(directory, artifact.Path), artifact.Hash, allowSymbolicLink: false, cancellationToken))
             {
@@ -277,11 +295,12 @@ internal sealed class NativeBindingCacheLease(string directory, FileStream owner
 }
 
 /// <summary>
-/// Pins one artifact or compiler dependency to exact file content.
+/// Pins an artifact or compiler dependency to file content or directory membership.
 /// </summary>
 /// <param name="Path">An artifact filename or absolute compiler input path.</param>
 /// <param name="Hash">The SHA-256 file content identity.</param>
-internal sealed record NativeBindingCacheFile(string Path, string Hash);
+/// <param name="IsDirectory">Whether the hash records recursive directory membership rather than file bytes.</param>
+internal sealed record NativeBindingCacheFile(string Path, string Hash, bool IsDirectory = false);
 
 /// <summary>
 /// Records a completely produced binding cache entry and all additional observed compiler inputs.

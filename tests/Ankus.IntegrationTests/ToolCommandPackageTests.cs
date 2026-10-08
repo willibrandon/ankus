@@ -164,7 +164,7 @@ public sealed partial class ToolCommandTests
     {
         string libraries = libraryDirectory ?? PackageLibraryDirectory(output);
         string shared = sharedDirectory ?? PackageSharedDirectory(output);
-        PostgresInstallation installation = _caseInstallation?.Installation ?? s_installation;
+        PostgresInstallation installation = await ReserveCaseInstallationAsync(token);
         List<string> configuration = ["dynamic_library_path = '" + EscapeSetting(libraries) + "'"];
         if (installation.Version.Major >= 18)
         {

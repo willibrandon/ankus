@@ -31,8 +31,11 @@ public sealed class NativeBindingCompilationTests(TestContext context)
     /// <summary>
     /// Concurrent processes compile once, survive the producer's cleanup and preserve unchanged local timestamps.
     /// </summary>
+    /// <param name="separatePackages">Whether consumers restore into different package directories.</param>
     [TestMethod]
-    public async Task CompiledCompanionsShareAcrossProcessesAndConsumerCleanup()
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task CompiledCompanionsShareAcrossProcessesAndConsumerCleanup(bool separatePackages)
     {
         string root = Directory.CreateTempSubdirectory("ankus-compiled-sharing-").FullName;
         try
@@ -41,7 +44,12 @@ public sealed class NativeBindingCompilationTests(TestContext context)
             string first = await SourceAsync(root, "first consumer");
             string second = await SourceAsync(root, "second consumer");
             string[] firstArguments = Arguments(root, first, settings);
-            string[] secondArguments = Arguments(root, second, settings);
+            string[] secondSettings = separatePackages
+                ? await SettingsAsync(Directory.CreateDirectory(Path.Combine(root, "other restore")).FullName,
+                    ["-property:RestorePackagesPath=" + Path.Combine(root, "other packages")])
+                : settings;
+            string[] secondArguments = Arguments(root, second, secondSettings);
+            secondArguments[3] = "ConsumerSpecificConfiguration";
             string tool = typeof(NativeBindingCompilationCommand).Assembly.Location;
             string program = "dotnet";
             string[] prefix = [];
@@ -59,6 +67,8 @@ public sealed class NativeBindingCompilationTests(TestContext context)
                 NativeBindingLayoutCommand.RunProcessAsync(program, [.. prefix, tool, "binding-compile", .. secondArguments], root, context.CancellationToken));
             Assert.ContainsSingle(results.Where(static result => result.Contains("Managed binding compilation: built ", StringComparison.Ordinal)));
             Assert.ContainsSingle(results.Where(static result => result.Contains("Managed binding compilation: reused ", StringComparison.Ordinal)));
+            Assert.HasCount(separatePackages ? 2 : 1,
+                results.Where(static result => result.Contains("Managed binding compilation: preparing compiler inputs", StringComparison.Ordinal)));
             string artifact = Artifact(second);
             Assert.AreEqual(41, Execute(artifact));
             Assert.AreEqual(await NativeBindingCache.HashAsync(Artifact(first), context.CancellationToken),
@@ -69,9 +79,54 @@ public sealed class NativeBindingCompilationTests(TestContext context)
             timestamp = File.GetLastWriteTimeUtc(artifact);
             string reused = await NativeBindingLayoutCommand.RunProcessAsync(program, [.. prefix, tool, "binding-compile", .. secondArguments], root, context.CancellationToken);
             Assert.Contains("Managed binding compilation: reused ", reused);
+            Assert.DoesNotContain("Managed binding compilation: preparing compiler inputs", reused);
             Assert.AreEqual(timestamp, File.GetLastWriteTimeUtc(artifact));
             Assert.AreEqual(41, Execute(artifact));
-            Assert.HasCount(1, Directory.GetDirectories(Path.Combine(root, "cache")));
+            string cache = Path.Combine(root, "cache");
+            Assert.HasCount(separatePackages ? 2 : 1, RequestEntries(cache));
+            Assert.HasCount(1, RequestEntries(Path.Combine(cache, "compilations")));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// Package targets that change compiler semantics invalidate both cache levels.
+    /// </summary>
+    [TestMethod]
+    public async Task CompiledCompanionsInvalidatePackageCompilerSettings()
+    {
+        string root = Directory.CreateTempSubdirectory("ankus-compiled-options-").FullName;
+        try
+        {
+            string packages = Path.Combine(root, "packages");
+            string[] settings = await SettingsAsync(root, ["-property:RestorePackagesPath=" + packages]);
+            string source = await SourceAsync(root, "consumer");
+            await File.WriteAllTextAsync(Path.Combine(source, "native-binding.g.cs"), Source.Replace(
+                "public static int Read() => 41;", """
+                public static int Read() => Add(int.MaxValue, 1);
+
+                    /// <summary>
+                    /// Preserves runtime arithmetic so overflow policy affects observable behavior.
+                    /// </summary>
+                    private static int Add(int left, int right) => left + right;
+                """, StringComparison.Ordinal), context.CancellationToken);
+            string[] arguments = Arguments(root, source, settings);
+            await NativeBindingCompilationCommand.RunAsync(arguments, context.CancellationToken);
+            Assert.AreEqual(int.MinValue, Execute(Artifact(source)));
+
+            string package = Assert.ContainsSingle(Directory.GetDirectories(Path.Combine(packages, "microsoft.net.illink.tasks")));
+            string target = Path.Combine(package, "build", "Microsoft.NET.ILLink.targets");
+            XDocument project = XDocument.Load(target);
+            XNamespace ns = project.Root!.Name.Namespace;
+            project.Root.Add(new XElement(ns + "PropertyGroup", new XElement(ns + "CheckForOverflowUnderflow", "true")));
+            project.Save(target);
+
+            await NativeBindingCompilationCommand.RunAsync(arguments, context.CancellationToken);
+            TargetInvocationException error = Assert.ThrowsExactly<TargetInvocationException>(() => Execute(Artifact(source)));
+            Assert.IsInstanceOfType<OverflowException>(error.InnerException);
         }
         finally
         {
@@ -110,7 +165,7 @@ public sealed class NativeBindingCompilationTests(TestContext context)
             Dictionary<string, string> expected = await ArtifactHashesAsync(first);
             Assert.HasCount(3, expected);
             string cache = Path.Combine(root, "cache");
-            string entry = Assert.ContainsSingle(Directory.GetDirectories(cache));
+            string entry = Assert.ContainsSingle(RequestEntries(cache));
             string cachedAssembly = Path.Combine(entry, AssemblyName + ".dll");
             File.SetLastWriteTimeUtc(cachedAssembly, DateTime.UtcNow.AddDays(-1));
             DateTime timestamp = File.GetLastWriteTimeUtc(cachedAssembly);
@@ -131,14 +186,14 @@ public sealed class NativeBindingCompilationTests(TestContext context)
 
             File.SetLastWriteTimeUtc(changedHelper, helperTimestamp);
             string changed = await CompileAsync("changed helper", relocatedHelper, relocatedRuntime, reused: false);
-            Assert.HasCount(2, Directory.GetDirectories(cache));
+            Assert.HasCount(2, RequestEntries(cache));
             Assert.AreEqual(timestamp, File.GetLastWriteTimeUtc(cachedAssembly));
             Assert.AreEquivalent(expected, await ArtifactHashesAsync(changed));
 
             async Task AssertReuseAsync(string name, string helper)
             {
                 string source = await CompileAsync(name, helper, relocatedRuntime, reused: true);
-                Assert.AreEqual(entry, Assert.ContainsSingle(Directory.GetDirectories(cache)));
+                Assert.AreEqual(entry, Assert.ContainsSingle(RequestEntries(cache)));
                 Assert.AreEqual(timestamp, File.GetLastWriteTimeUtc(cachedAssembly));
                 Assert.AreEquivalent(expected, await ArtifactHashesAsync(source));
             }
@@ -181,7 +236,8 @@ public sealed class NativeBindingCompilationTests(TestContext context)
             await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => NativeBindingCompilationCommand.RunAsync(arguments, context.CancellationToken));
             Assert.AreEqual(original, await NativeBindingCache.HashAsync(artifact, context.CancellationToken));
             Assert.AreEqual(41, Execute(artifact));
-            Assert.DoesNotContain(static path => Path.GetFileName(path).Contains(".stage-", StringComparison.Ordinal), Directory.GetDirectories(Path.Combine(root, "cache")));
+            Assert.DoesNotContain(static path => Path.GetFileName(path).Contains(".stage-", StringComparison.Ordinal),
+                Directory.GetDirectories(Path.Combine(root, "cache"), "*", SearchOption.AllDirectories));
             await File.WriteAllTextAsync(input, Source.Replace("41", "43", StringComparison.Ordinal), context.CancellationToken);
             await NativeBindingCompilationCommand.RunAsync(arguments, context.CancellationToken);
             Assert.AreEqual(43, Execute(artifact));
@@ -320,6 +376,12 @@ public sealed class NativeBindingCompilationTests(TestContext context)
         => [source, Path.Combine(root, "Ankus.Runtime.dll"), "net10.0", "Release", .. settings, Path.Combine(root, "cache")];
 
     private static string Artifact(string source) => Path.Combine(source, "compiled", AssemblyName + ".dll");
+
+    /// <summary>
+    /// Selects immutable entries without treating the shared compilation store as a request.
+    /// </summary>
+    private static IEnumerable<string> RequestEntries(string cache)
+        => Directory.GetDirectories(cache).Where(static path => Path.GetFileName(path).Length == 64);
 
     /// <summary>
     /// Observes every delivered assembly, symbol and documentation artifact by content.

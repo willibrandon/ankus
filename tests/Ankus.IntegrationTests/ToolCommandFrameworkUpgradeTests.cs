@@ -784,7 +784,7 @@ public sealed partial class ToolCommandTests
     public async Task UpgradePreservesUnixPermissions()
         => await VerifyUpgradeUnixPermissionsAsync(context.CancellationToken);
 
-    private static async Task VerifyUpgradeUnixPermissionsAsync(CancellationToken token)
+    private async Task VerifyUpgradeUnixPermissionsAsync(CancellationToken token)
     {
         if (OperatingSystem.IsWindows())
         {

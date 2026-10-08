@@ -1,3 +1,4 @@
+using System.Globalization;
 using Ankus.Testing;
 
 namespace Ankus.IntegrationTests;
@@ -31,7 +32,7 @@ internal static class PackageProcessRunner
         try
         {
             IReadOnlyDictionary<string, string?> processEnvironment = reserve
-                ? DisableMsBuildNodeReuse(environment)
+                ? CreateBuildEnvironment(environment)
                 : environment;
             return await ProcessRunner.RunAsync(
                 fileName,
@@ -50,16 +51,17 @@ internal static class PackageProcessRunner
         }
     }
 
-    private static Dictionary<string, string?> DisableMsBuildNodeReuse(
+    private static Dictionary<string, string?> CreateBuildEnvironment(
         IReadOnlyDictionary<string, string?> environment)
     {
-        Dictionary<string, string?> result = new(environment.Count + 1, StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, string?> result = new(environment.Count + 2, StringComparer.OrdinalIgnoreCase);
         foreach ((string name, string? value) in environment)
         {
             result[name] = value;
         }
 
         result["MSBUILDDISABLENODEREUSE"] = "1";
+        result["DOTNET_PROCESSOR_COUNT"] = IntegrationEnvironment.BuildProcessorCount.ToString(CultureInfo.InvariantCulture);
         return result;
     }
 

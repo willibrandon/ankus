@@ -100,8 +100,7 @@ public sealed partial class ToolCommandTests
                     => throw new InvalidOperationException("The ignored backend case must never execute.");
             }
             """, token);
-        (await PackageProcessRunner.RunAsync("dotnet", ["tool", "restore"], environment, token,
-            workingDirectory: output)).EnsureSuccess("dotnet", ["tool", "restore"]);
+        await RestoreConsumerToolAsync(output, environment, token);
         ProcessResult tests = await PackageProcessRunner.RunAsync("dotnet", ["test", "--report-trx",
             "-p:AnkusPostgresMajor=" + MajorText()], environment, token, workingDirectory: output);
         tests.EnsureSuccess("dotnet", ["test"]);

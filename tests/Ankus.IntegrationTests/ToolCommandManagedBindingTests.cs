@@ -854,7 +854,7 @@ public sealed partial class ToolCommandTests
         await File.WriteAllTextAsync(manifestPath, manifest.ToJsonString(), token);
     }
 
-    private static string CreateBindingDirectory()
+    private string CreateBindingDirectory()
         => PhysicalBindingDirectory(new DirectoryInfo(CreateDirectory()));
 
     private static string PhysicalBindingDirectory(DirectoryInfo directory)

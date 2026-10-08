@@ -8,21 +8,14 @@ namespace Ankus.IntegrationTests;
 
 public sealed partial class ToolCommandTests
 {
-    /// <summary>
-    /// Allocates short, distinct package-cache names within the class's owned temporary root.
-    /// </summary>
-    private static int s_consumerPackageCache;
+    private static readonly SemaphoreSlim s_consumerToolRestoreLock = new(1, 1);
 
     /// <summary>
-    /// Isolates concurrent consumer restores without nesting native library paths beneath generated solutions.
+    /// Shares restored packages across generated consumers without nesting native library paths beneath their solutions.
     /// </summary>
     /// <returns>The consumer's process-local environment.</returns>
     private static Dictionary<string, string?> CreateConsumerEnvironment()
-        => new(s_environment, StringComparer.Ordinal)
-        {
-            ["NUGET_PACKAGES"] = Path.Combine(s_root,
-                "consumer-packages-" + Interlocked.Increment(ref s_consumerPackageCache).ToString(System.Globalization.CultureInfo.InvariantCulture)),
-        };
+        => new(s_environment, StringComparer.Ordinal);
 
     /// <summary>
     /// Installed templates pin every Ankus component and execute managed and real backend tests without repository policy.
@@ -62,8 +55,7 @@ public sealed partial class ToolCommandTests
         await AssertTemplateRegressionIgnoreAsync(output, name, token);
 
         Dictionary<string, string?> environment = CreateConsumerEnvironment();
-        (await PackageProcessRunner.RunAsync("dotnet", ["tool", "restore"], environment, token, workingDirectory: output))
-            .EnsureSuccess("dotnet", ["tool", "restore"]);
+        await RestoreConsumerToolAsync(output, environment, token);
         ProcessResult help = await PackageProcessRunner.RunAsync("dotnet", ["ankus", "--help"], environment, token, workingDirectory: output);
         help.EnsureSuccess("dotnet", ["ankus", "--help"]);
         Assert.Contains("PostgreSQL", help.StandardOutput);
@@ -181,7 +173,7 @@ public sealed partial class ToolCommandTests
         }
     }
 
-    private static async Task CreateTemplateAsync(string template, string name, string output, CancellationToken token)
+    private async Task CreateTemplateAsync(string template, string name, string output, CancellationToken token)
     {
         string hive = Path.Combine(CreateDirectory(), "isolated template hive");
         string package = Path.Combine(s_root, "feed", "Ankus.Templates." + s_version + ".nupkg");
@@ -193,5 +185,22 @@ public sealed partial class ToolCommandTests
         ProcessResult created = await PackageProcessRunner.RunAsync("dotnet", ["new", template, "--name", name, "--output", output,
             "--debug:custom-hive", hive], s_environment, token, workingDirectory: s_root);
         created.EnsureSuccess("dotnet", ["new", template]);
+    }
+
+    private static async Task RestoreConsumerToolAsync(
+        string workingDirectory,
+        IReadOnlyDictionary<string, string?> environment,
+        CancellationToken token)
+    {
+        await s_consumerToolRestoreLock.WaitAsync(token);
+        try
+        {
+            (await PackageProcessRunner.RunAsync("dotnet", ["tool", "restore"], environment, token, workingDirectory: workingDirectory))
+                .EnsureSuccess("dotnet", ["tool", "restore"]);
+        }
+        finally
+        {
+            s_consumerToolRestoreLock.Release();
+        }
     }
 }

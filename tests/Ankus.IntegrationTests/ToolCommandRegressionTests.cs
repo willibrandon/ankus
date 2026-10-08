@@ -288,7 +288,7 @@ public sealed partial class ToolCommandTests
         Assert.IsFalse(Directory.Exists(Path.Combine(suite, "results")));
     }
 
-    private static string PrepareRegressionProject()
+    private string PrepareRegressionProject()
     {
         string directory = CreateDirectory();
         string project = Path.Combine(directory, "RegressionProbe.csproj");

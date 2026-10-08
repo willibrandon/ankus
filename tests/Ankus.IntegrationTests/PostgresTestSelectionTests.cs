@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Text.Json;
 using System.Xml.Linq;
@@ -7,6 +8,9 @@ namespace Ankus.IntegrationTests;
 
 public sealed partial class ToolCommandTests
 {
+    private static readonly SelectionProjectPool s_plainSelectionProjects = new();
+    private static readonly SelectionProjectPool s_commandSelectionProjects = new();
+
     /// <summary>
     /// Plain dotnet test preserves project defaults and build overrides through publication and actual server execution.
     /// </summary>
@@ -23,7 +27,8 @@ public sealed partial class ToolCommandTests
     public async Task PlainTestHonorsProjectPostgresSelection(string selection)
     {
         CancellationToken token = context.CancellationToken;
-        string output = await CreateSelectionProjectAsync(token);
+        using SelectionProjectLease lease = await AcquireSelectionProjectAsync(s_plainSelectionProjects, token);
+        string output = lease.Directory;
         string properties = selection is "extension-project" or "extension-relative"
             ? Path.Combine(output, "src", "TestCommandProbe", "TestCommandProbe.csproj")
             : Path.Combine(output, "Directory.Build.props");
@@ -96,7 +101,8 @@ public sealed partial class ToolCommandTests
     public async Task CommandSelectionHonorsProjectPostgresVersion(string selection)
     {
         CancellationToken token = context.CancellationToken;
-        string output = await CreateSelectionProjectAsync(token);
+        using SelectionProjectLease lease = await AcquireSelectionProjectAsync(s_commandSelectionProjects, token);
+        string output = lease.Directory;
         string properties = selection == "extension-project"
             ? Path.Combine(output, "src", "TestCommandProbe", "TestCommandProbe.csproj")
             : Path.Combine(output, "Directory.Build.props");
@@ -153,7 +159,8 @@ public sealed partial class ToolCommandTests
     public async Task CommandSelectionAcceptsOrdinaryProjectLayouts(string layout)
     {
         CancellationToken token = context.CancellationToken;
-        string output = await CreateSelectionProjectAsync(token);
+        using SelectionProjectLease lease = await AcquireSelectionProjectAsync(s_commandSelectionProjects, token);
+        string output = lease.Directory;
         string extension = Path.Combine(output, "src", "TestCommandProbe", "TestCommandProbe.csproj");
         XDocument document = XDocument.Load(extension);
         document.Root!.Add(new XElement("PropertyGroup", new XElement("AnkusPostgresMajor", s_installation.Version.Major),
@@ -182,7 +189,8 @@ public sealed partial class ToolCommandTests
         }
 
         ProcessResult result = await PackageProcessRunner.RunAsync(s_tool,
-            ["test", "--home", s_home, "--", .. selection, "--filter", "FullyQualifiedName~SelectedVersionReachesPostgres"],
+            ["test", "--home", s_home, "--", .. selection,
+                "--filter", "FullyQualifiedName~SelectedVersionReachesPostgres"],
             SelectionEnvironment(), token, workingDirectory: layout == "directory" ? output : CreateDirectory());
 
         Assert.AreEqual(0, result.ExitCode, result.StandardOutput + result.StandardError);
@@ -498,13 +506,62 @@ public sealed partial class ToolCommandTests
     }
 
     /// <summary>
+    /// Reserves and restores an incremental packed consumer for one selection case.
+    /// </summary>
+    /// <param name="pool">The reusable project pool for this family of cases.</param>
+    /// <param name="token">Cancels scaffolding and writes.</param>
+    /// <returns>A lease that releases the project for the next case.</returns>
+    private static async Task<SelectionProjectLease> AcquireSelectionProjectAsync(
+        SelectionProjectPool pool,
+        CancellationToken token)
+    {
+        await pool.Gate.WaitAsync(token);
+        SelectionProjectState state = pool.Projects.TryDequeue(out SelectionProjectState? available)
+            ? available
+            : new();
+        try
+        {
+            if (state.Directory is null)
+            {
+                state.Directory = await CreateSelectionProjectAsync(token);
+                state.Properties = await File.ReadAllTextAsync(Path.Combine(state.Directory, "Directory.Build.props"), token);
+                state.Extension = await File.ReadAllTextAsync(
+                    Path.Combine(state.Directory, "src", "TestCommandProbe", "TestCommandProbe.csproj"), token);
+            }
+            else
+            {
+                await File.WriteAllTextAsync(Path.Combine(state.Directory, "Directory.Build.props"), state.Properties, token);
+                await File.WriteAllTextAsync(
+                    Path.Combine(state.Directory, "src", "TestCommandProbe", "TestCommandProbe.csproj"), state.Extension, token);
+                string solution = Path.Combine(state.Directory, "Selection.sln");
+                if (File.Exists(solution))
+                {
+                    File.Delete(solution);
+                }
+
+                foreach (string report in Directory.EnumerateFiles(state.Directory, "*.trx", SearchOption.AllDirectories).ToArray())
+                {
+                    File.Delete(report);
+                }
+            }
+
+            return new SelectionProjectLease(pool, state);
+        }
+        catch
+        {
+            pool.Gate.Release();
+            throw;
+        }
+    }
+
+    /// <summary>
     /// Creates a packed consumer whose fixture and native SQL both observe the selected server major.
     /// </summary>
     /// <param name="token">Cancels scaffolding and writes.</param>
     /// <returns>The generated solution directory with symbolic-link ancestors resolved.</returns>
     private static async Task<string> CreateSelectionProjectAsync(CancellationToken token)
     {
-        string output = Path.Combine(CreateDirectory(), "selection project");
+        string output = Path.Combine(CreateSharedDirectory(), "selection project");
         (await InvokeAsync(["new", "TestCommandProbe", "-o", output], token)).EnsureSuccess(s_tool, ["new"]);
         string hostDirectory = Path.Combine(output, "tests", "TestCommandProbe.Tests");
         await File.WriteAllTextAsync(Path.Combine(hostDirectory, "SelectionTests.cs"), $$"""
@@ -527,6 +584,68 @@ public sealed partial class ToolCommandTests
             }
             """, token);
         return IntegrationEnvironment.PhysicalDirectory(new DirectoryInfo(output));
+    }
+
+    private sealed class SelectionProjectPool
+    {
+        private static readonly int s_capacity = Math.Clamp(IntegrationEnvironment.PackageTestConcurrency / 4, 1, 4);
+
+        /// <summary>
+        /// Limits simultaneous consumers while preserving incremental outputs between cases.
+        /// </summary>
+        internal SemaphoreSlim Gate { get; } = new(s_capacity, s_capacity);
+
+        /// <summary>
+        /// Holds idle projects that have no running compiler or PostgreSQL backend.
+        /// </summary>
+        internal ConcurrentQueue<SelectionProjectState> Projects { get; } = new();
+    }
+
+    private sealed class SelectionProjectState
+    {
+        /// <summary>
+        /// Gets or sets the owned consumer directory.
+        /// </summary>
+        internal string? Directory
+        {
+            get;
+            set;
+        }
+
+        /// <summary>
+        /// Gets or sets the original shared properties restored before reuse.
+        /// </summary>
+        internal string Properties
+        {
+            get;
+            set;
+        } = string.Empty;
+
+        /// <summary>
+        /// Gets or sets the original extension project restored before reuse.
+        /// </summary>
+        internal string Extension
+        {
+            get;
+            set;
+        } = string.Empty;
+    }
+
+    private sealed class SelectionProjectLease(SelectionProjectPool pool, SelectionProjectState state) : IDisposable
+    {
+        /// <summary>
+        /// Gets the project exclusively reserved by this case.
+        /// </summary>
+        internal string Directory => state.Directory!;
+
+        /// <summary>
+        /// Returns the stopped consumer to the pool.
+        /// </summary>
+        public void Dispose()
+        {
+            pool.Projects.Enqueue(state);
+            pool.Gate.Release();
+        }
     }
 
     /// <summary>

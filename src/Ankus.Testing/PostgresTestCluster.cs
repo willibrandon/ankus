@@ -366,7 +366,7 @@ public sealed class PostgresTestCluster : IAsyncDisposable
             IncludeErrorDetail = true,
             Enlist = false,
             ApplicationName = sessionName,
-            Timeout = 10,
+            Timeout = GetConnectionTimeoutSeconds(_options.StartupTimeout),
             CommandTimeout = 30,
             SslMode = SslMode.Disable,
         };
@@ -532,4 +532,7 @@ public sealed class PostgresTestCluster : IAsyncDisposable
 
     private static string GetTimeoutSeconds(TimeSpan timeout)
         => Math.Ceiling(timeout.TotalSeconds).ToString(CultureInfo.InvariantCulture);
+
+    private static int GetConnectionTimeoutSeconds(TimeSpan timeout)
+        => (int)Math.Clamp(Math.Ceiling(timeout.TotalSeconds), 1, int.MaxValue);
 }

@@ -132,6 +132,33 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
 
 ## Active validation and work
 
+- Local test-performance work removes restore and compiler-input discovery from
+  managed-binding cache hits. A second content cache shares compilation only after
+  each consumer's restore and input resolution succeed. Source, runtime, SDK,
+  package contents and directory membership still invalidate reuse; **40/40**
+  focused tests pass in **18.700s**, including changed package compiler options;
+  selected framework-pack resolution metadata is also tracked. Final Release
+  build, API freshness, `pnpm check` and `pnpm build` pass without warnings.
+  Complete Linux x64/PostgreSQL **18.6**, SDK **10.0.401** validation decreased
+  from **14m08s** to **12m53s** including build. Bounding nested compiler workers
+  retained **12m53s** elapsed time while reducing user CPU from **174m27s** to
+  **148m48s**; **13,464** passed, **48** platform skips, zero failures.
+  The complete per-case-cleanup run also passes **13,464 + 48**, in **11m52s**
+  including build, with 16 package slots. Test execution was **11m28s**, versus
+  **11m29s** with 20 slots; the elapsed reduction mostly came before execution,
+  not from increased throughput. Sampled consumer storage stayed below **9 GiB**
+  instead of retaining **29 GiB** until class cleanup. Consumer builds retain
+  stable publication paths and reuse restored dependencies. Completed consumer
+  trees are deleted after each case; CI roots use runner-owned temporary storage.
+  PostgreSQL **17** package, upgrade and benchmark staging checks pass **7/7**,
+  including runner-owned temporary paths. This still does not meet the requested
+  feedback time; fresh primary-platform acceptance remains in progress.
+- Previous primary CI **37680275690** on **70f3fef** passed quality, runtime
+  preparation and Linux/PostgreSQL 18. Windows/PostgreSQL 17 failed two connection
+  bootstrap checks against a fixed ten-second limit; connections now honor the
+  configured startup timeout. macOS ARM64/PostgreSQL 18 exhausted disk space and
+  the runner could not finish its log. Revised consumer ownership and cleanup
+  require fresh primary-platform acceptance; neither failure is recorded as green.
 - Primary-run timing analysis found the fixed package-consumer gate dominated
   elapsed time: 555 tool-command cases accumulated **59,180.7 seconds**, with
   many cases spending about five minutes waiting before their work began.
@@ -149,8 +176,9 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   integration project builds in Release with zero warnings and errors. A following
   run began with **35** retained MSBuild workers consuming **11.4 GiB** before its
   full suite started. Workflows and build-intensive test children now disable node
-  reuse, and the local default uses three quarters of available logical processors.
-  Replacement full-suite timing remains pending.
+  reuse, and the local default uses half of available logical processors.
+  Complete Linux timings for the subsequent composition are recorded above;
+  other platforms still require a refresh.
 - The hosted quality job also forced solution restore and build through one
   MSBuild node. That obsolete serialization is removed; its clean build remains
   complete and warnings remain errors while independent projects build in parallel.

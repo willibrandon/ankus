@@ -107,7 +107,7 @@ public sealed partial class ToolCommandTests
         }
     }
 
-    private static async Task<string> CreateSchemaReuseProjectAsync(bool direct, CancellationToken token)
+    private async Task<string> CreateSchemaReuseProjectAsync(bool direct, CancellationToken token)
     {
         string output = await CreateTestCommandProjectAsync(token);
         string hostRoot = Path.Combine(output, "tests", "TestCommandProbe.Tests");

@@ -225,9 +225,11 @@ Packaged backend tests share a NuGet directory owned by their test run. Each
 consumer still builds outside the repository and publishes its own native
 extension for a real PostgreSQL cluster. The two GUC package-contract tests use
 separate, initially empty package directories to verify cold restore. Reusing
-packages for other backend cases also lets the binding cache reuse the same
-installed tools; a new package location would force repeated binding collection
-and compilation. Class cleanup removes the shared and cold package directories.
+packages for other backend cases avoids repeated package extraction and restore.
+Each case removes its consumer builds and cold package directories when its
+processes stop. Class cleanup removes the shared packages and pooled projects.
+CI places these directories under the runner's owned workspace storage, allowing
+the runner to clean up after a terminated test host as well.
 CI saves each module's TRX report, including individual test durations, in the
 `test-results-<rid>` artifact on successful and failed runs. A cancelled module
 may not finish its report; uploads include only reports that were written.
@@ -238,14 +240,25 @@ runs its own native ABI checks independently. Failed verification preserves the
 consumer's existing outputs; concurrent builds retain the same content and
 header checks as sequential builds.
 
-Managed companion builds record the exact reference, analyzer, source and
-editor-configuration paths selected by MSBuild, including analyzer dependencies.
-The build helper hashes distinct inputs with bounded asynchronous reads before
-cache lookup and rechecks them after compilation. Reuse continues to verify
-content, compiler/runtime files and NuGet settings; timestamps do not establish
-input identity.
+Managed companions use one Release build contract regardless of the consuming
+project's configuration name. Cache lookup happens before restore and compiler
+input discovery, so a hit starts no child MSBuild process. The key covers the
+generated source, runtime reference, helper, selected SDK and restore settings.
+Misses record the exact references, analyzers, source, editor configuration and
+framework-pack resolution metadata selected by MSBuild. Hits verify those
+external files by content and check package directory membership for added or
+removed inputs. Framework-pack
+inventory also participates in the key. Timestamps do not establish identity.
 
-Generated-source and managed-companion cache stores each retain at most **2 GiB**
+Separate restore policies and package directories still perform their own
+restore and compiler-input resolution. After that succeeds, a second cache
+shares compilation when the resolved inputs match by content. Its identity maps
+the private workspace and package roots to stable logical paths, retaining
+package names, versions, reference bytes and analyzer configuration. Concurrent
+consumers compile a matching companion once. Restore failures cannot be bypassed
+by an existing compiled artifact.
+
+Generated-source, managed-request and shared-compilation stores each retain at most **2 GiB**
 of idle entries by default. `ANKUS_BINDING_CACHE_MAX_BYTES` selects a positive
 byte budget for each store. Reuse refreshes an entry's recency; lease disposal
 evicts the least recently used idle entries and removes abandoned staging.
@@ -385,11 +398,16 @@ native error recovery as well as successful calls.
 
 Native AOT sample publication and build-intensive package-consumer child
 processes share one concurrency limit. By default it uses one slot per two
-logical processors, bounded from one to sixteen. Set
+logical processors, with a minimum of one. Set
 `ANKUS_PACKAGE_TEST_CONCURRENCY` to a positive integer to override both phases
 for the machine; malformed values fail initialization. Fast tool commands and
 PostgreSQL assertions do not reserve build capacity. The fixture logs the
-selected limit and logical processor count. MSTest's worker count can impose a
+selected limit, logical processor count and processors per build. Build children
+receive `DOTNET_PROCESSOR_COUNT` equal to the machine's logical processors divided
+by the concurrent-build limit, with a minimum of one. Native AOT compilation,
+managed worker pools and GC consequently share that budget instead of each
+assuming ownership of the whole machine. This applies only to the repository's
+test processes. MSTest's worker count can impose a
 lower limit. PostgreSQL releases before 18 also use a separate staged
 installation for each slot, so consumers with the same extension name cannot
 overwrite another active test's control or SQL files. PostgreSQL 18 and later

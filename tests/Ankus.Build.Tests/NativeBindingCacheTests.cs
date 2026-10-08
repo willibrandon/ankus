@@ -113,21 +113,32 @@ public sealed partial class NativeBindingCacheTests(TestContext context)
     [DataRow("missing-artifact")]
     [DataRow("manifest")]
     [DataRow("extra-file")]
+    [DataRow("added-input")]
+    [DataRow("removed-input")]
+    [DataRow("added-directory")]
     public async Task CacheRebuildsChangedContent(string change)
     {
         string root = Directory.CreateTempSubdirectory("ankus-binding-cache-").FullName;
         try
         {
             string cache = Path.Combine(root, "cache");
-            string input = Path.Combine(root, "input");
+            string inputs = Directory.CreateDirectory(Path.Combine(root, "inputs")).FullName;
+            string input = Path.Combine(inputs, "input");
             await File.WriteAllTextAsync(input, "original", context.CancellationToken);
+            string extraInput = Path.Combine(inputs, "extra");
+            string candidate = Path.Combine(root, "preferred-package");
+            if (change == "removed-input")
+            {
+                await File.WriteAllTextAsync(extraInput, "extra", context.CancellationToken);
+            }
+
             int produced = 0;
             async Task<IReadOnlyList<NativeBindingCacheFile>> Produce(string stage, CancellationToken token)
             {
                 produced++;
                 string hash = await NativeBindingCache.HashAsync(input, token);
                 await File.WriteAllTextAsync(Path.Combine(stage, "binding.dll"), await File.ReadAllTextAsync(input, token), token);
-                return [new(input, hash)];
+                return [new(input, hash), NativeBindingCache.SnapshotDirectory(inputs), NativeBindingCache.SnapshotDirectory(candidate)];
             }
 
             string entry;
@@ -158,6 +169,18 @@ public sealed partial class NativeBindingCacheTests(TestContext context)
             else if (change == "manifest")
             {
                 await File.WriteAllTextAsync(Path.Combine(entry, "manifest.json"), "not json", context.CancellationToken);
+            }
+            else if (change == "added-input")
+            {
+                await File.WriteAllTextAsync(extraInput, "extra", context.CancellationToken);
+            }
+            else if (change == "removed-input")
+            {
+                File.Delete(extraInput);
+            }
+            else if (change == "added-directory")
+            {
+                Directory.CreateDirectory(candidate);
             }
             else
             {

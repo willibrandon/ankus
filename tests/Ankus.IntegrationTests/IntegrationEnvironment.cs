@@ -21,6 +21,11 @@ internal static class IntegrationEnvironment
     internal static int PackageTestConcurrency { get; } = ReadPackageTestConcurrency();
 
     /// <summary>
+    /// Shares the processor budget between concurrent compiler processes instead of multiplying their worker pools.
+    /// </summary>
+    internal static int BuildProcessorCount { get; } = Math.Max(1, Environment.ProcessorCount / PackageTestConcurrency);
+
+    /// <summary>
     /// Gets the repository root from the test binary's build location.
     /// </summary>
     internal static string RepositoryRoot
@@ -245,7 +250,8 @@ internal static class IntegrationEnvironment
         string? value = Environment.GetEnvironmentVariable("ANKUS_PACKAGE_TEST_CONCURRENCY");
         if (string.IsNullOrWhiteSpace(value))
         {
-            return Math.Max(1, (Environment.ProcessorCount * 3 + 3) / 4);
+            // A Native AOT publication fans out into several compiler and linker processes.
+            return Math.Max(1, (Environment.ProcessorCount + 1) / 2);
         }
 
         if (!int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out int concurrency) || concurrency < 1)
@@ -264,6 +270,7 @@ internal static class IntegrationEnvironment
         Directory.CreateDirectory(logs);
         // Parallel.ForEachAsync owns publication concurrency; nested MSBuild nodes would multiply it.
         List<string> arguments = ["publish", project, "--configuration", "Release", "--runtime", RuntimeInformation.RuntimeIdentifier,
+            "--no-restore",
             "--self-contained", "true", "--output", output,
             "-m:1",
             "-nr:false",
@@ -278,6 +285,7 @@ internal static class IntegrationEnvironment
             new Dictionary<string, string?>
             {
                 ["MSBUILDDISABLENODEREUSE"] = "1",
+                ["DOTNET_PROCESSOR_COUNT"] = BuildProcessorCount.ToString(CultureInfo.InvariantCulture),
             },
             cancellationToken);
 

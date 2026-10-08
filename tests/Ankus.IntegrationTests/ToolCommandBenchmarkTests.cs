@@ -24,10 +24,7 @@ public sealed partial class ToolCommandTests
         Assert.DoesNotContain("ankus_bench_", installationSql);
 
         const string Group = "integration-benchmark";
-        PostgresInstallation installation = s_installation.Version.Major >= 18
-            ? s_installation
-            : _caseInstallation?.Installation
-                ?? throw new InvalidOperationException("The benchmark test has no reserved PostgreSQL installation.");
+        PostgresInstallation installation = await ReserveCaseInstallationAsync(token);
         string benchmarkDirectory = CreateDirectory();
         string benchmarkProject = Path.Combine(benchmarkDirectory, "BenchmarkProbe.csproj");
         XDocument definition = XDocument.Load(s_project);

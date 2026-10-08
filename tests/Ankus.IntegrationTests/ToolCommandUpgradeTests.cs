@@ -31,8 +31,8 @@ public sealed partial class ToolCommandTests
         string[] arguments = ["package", "--home", s_home, "--pg", MajorText(), "--project", project, "--output", package];
         (await InvokeAsync(arguments, token)).EnsureSuccess(s_tool, arguments);
         PublishedExtension original = PublishedExtension.Read(publication);
+        PostgresInstallation installation = await ReserveCaseInstallationAsync(token);
         CopyUpgradePackageToCaseInstallation(package, original);
-        PostgresInstallation installation = _caseInstallation?.Installation ?? s_installation;
         List<string> configuration = ["dynamic_library_path = '" + EscapeSetting(PackageLibraryDirectory(package)) + "'"];
         if (installation.Version.Major >= 18)
         {

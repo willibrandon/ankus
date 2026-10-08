@@ -19,6 +19,7 @@ public sealed partial class ToolCommandTests(TestContext context)
     private const string NativeAotRuntimeVersion = "10.0.12-ankus.4";
 
     private static string s_root = null!;
+    private static string s_temporaryRoot = null!;
     private static string s_tool = null!;
     private static string s_home = null!;
     private static string s_published = null!;
@@ -36,10 +37,21 @@ public sealed partial class ToolCommandTests(TestContext context)
     [ClassInitialize]
     public static async Task InitializeAsync(TestContext context)
     {
-        context.WriteLine($"Package-consumer concurrency: {s_concurrentCases}; logical processors: {Environment.ProcessorCount}.");
+        context.WriteLine($"Package-consumer concurrency: {s_concurrentCases}; logical processors: {Environment.ProcessorCount}; processors per build: {IntegrationEnvironment.BuildProcessorCount}.");
         CancellationToken token = context.CancellationToken;
         string repository = IntegrationEnvironment.RepositoryRoot;
-        s_root = IntegrationEnvironment.PhysicalDirectory(Directory.CreateTempSubdirectory("ankus-"));
+        // Actions owns this directory and removes leftovers even when a test host crashes.
+        // Local consumers remain outside the checkout so repository build imports cannot leak in.
+        string? runnerWork = Environment.GetEnvironmentVariable("RUNNER_TEMP");
+        string workRoot = string.IsNullOrWhiteSpace(runnerWork)
+            ? Directory.GetParent(repository)?.FullName
+                ?? throw new InvalidOperationException("The repository checkout must have a parent directory.")
+            : Path.GetFullPath(runnerWork);
+        string identity = Guid.NewGuid().ToString("N")[..12];
+        s_root = IntegrationEnvironment.PhysicalDirectory(Directory.CreateDirectory(
+            Path.Combine(workRoot, ".aw-" + identity)));
+        s_temporaryRoot = IntegrationEnvironment.PhysicalDirectory(Directory.CreateDirectory(
+            Path.Combine(workRoot, ".at-" + identity)));
         // Independent cases own concurrency; each generated consumer build stays on one MSBuild node.
         await File.WriteAllTextAsync(Path.Combine(s_root, "Directory.Build.rsp"), "-m:1\n-nr:false\n", token);
         s_home = Path.Combine(s_root, "Ankus home");
@@ -72,10 +84,12 @@ public sealed partial class ToolCommandTests(TestContext context)
 
         string[] projects = ["src/Ankus.Runtime", "src/Ankus.Generators", "src/Ankus.PgConfig",
             "src/Ankus.Sdk", "src/Ankus.Tool", "src/Ankus.Testing", "src/Ankus.Templates"];
+        // Vary the package identity without invalidating every assembly's informational
+        // version. Keep normal build/restore checks for fresh and Debug-only checkouts.
         foreach (string project in projects)
         {
             await PackageProcessRunner.RunCheckedAsync("dotnet",
-                ["pack", Path.Combine(repository, project), "-c", "Release", "-o", feed, "-p:Version=" + s_version,
+                ["pack", Path.Combine(repository, project), "-c", "Release", "-o", feed, "-p:PackageVersion=" + s_version,
                     "-bl:" + Path.Combine(repository, "artifacts", "package-pack-{}.binlog")],
                 new Dictionary<string, string?>(), token);
         }
@@ -83,6 +97,10 @@ public sealed partial class ToolCommandTests(TestContext context)
         s_environment = new Dictionary<string, string?>
         {
             ["NUGET_PACKAGES"] = Path.Combine(s_root, "NuGet packages"),
+            ["TMP"] = s_temporaryRoot,
+            ["TEMP"] = s_temporaryRoot,
+            ["TMPDIR"] = s_temporaryRoot,
+            ["TESTINGPLATFORM_PIPE_DIRECTORY"] = s_temporaryRoot,
             ["MSBUILDDISABLENODEREUSE"] = "1",
             // Generated projects use the selected installation even when it is outside standard discovery paths.
             ["AnkusPostgresMajor"] = s_installation.Version.Major.ToString(CultureInfo.InvariantCulture),
@@ -196,7 +214,6 @@ public sealed partial class ToolCommandTests(TestContext context)
         (await InvokeAsync(
             ["publish", "--home", s_home, "--pg", MajorText(), "--project", s_project, "--output", s_published], token))
             .EnsureSuccess(s_tool, ["publish"]);
-        await InitializeCaseInstallationsAsync(token);
     }
 
     /// <summary>
@@ -213,6 +230,11 @@ public sealed partial class ToolCommandTests(TestContext context)
         if (s_root is not null && Directory.Exists(s_root))
         {
             Directory.Delete(s_root, recursive: true);
+        }
+
+        if (s_temporaryRoot is not null && Directory.Exists(s_temporaryRoot))
+        {
+            Directory.Delete(s_temporaryRoot, recursive: true);
         }
     }
 
@@ -390,7 +412,7 @@ public sealed partial class ToolCommandTests(TestContext context)
         Assert.AreEqual(await File.ReadAllTextAsync(Path.Combine(s_published, "extension", manifest.Control), token),
             await File.ReadAllTextAsync(Path.Combine(shared, "extension", manifest.Control), token));
         Assert.HasCount(3, Directory.GetFiles(stage, "*", SearchOption.AllDirectories));
-        PostgresInstallation installation = PrepareCaseInstallation(s_published);
+        PostgresInstallation installation = await PrepareCaseInstallationAsync(s_published, token);
         List<string> configuration = ["dynamic_library_path = '" + EscapeSetting(libraries) + "'"];
         if (s_installation.Version.Major >= 18)
         {
@@ -862,7 +884,7 @@ public sealed partial class ToolCommandTests(TestContext context)
     [TestMethod]
     public async Task TestingPackageRunsInIndependentMSTestProject()
     {
-        PostgresInstallation installation = PrepareCaseInstallation(s_published);
+        PostgresInstallation installation = await PrepareCaseInstallationAsync(s_published, context.CancellationToken);
         string projectDirectory = CreateDirectory();
         string project = Path.Combine(projectDirectory, "ConsumerTests.csproj");
         string controlSetting = s_installation.Version.Major >= 18
@@ -1126,7 +1148,7 @@ public sealed partial class ToolCommandTests(TestContext context)
     private async Task<PostgresTestCluster> StartPublishedClusterAsync(string output, CancellationToken token,
         bool sharedPreload = false, string[]? additionalConfiguration = null)
     {
-        PostgresInstallation installation = PrepareCaseInstallation(output);
+        PostgresInstallation installation = await PrepareCaseInstallationAsync(output, token);
         List<string> configuration = ["dynamic_library_path = '" + EscapeSetting(output) + "'"];
         if (sharedPreload)
         {
@@ -1164,7 +1186,20 @@ public sealed partial class ToolCommandTests(TestContext context)
     private static string MajorText()
         => s_installation.Version.Major.ToString(CultureInfo.InvariantCulture);
 
-    private static string CreateDirectory()
+    /// <summary>
+    /// Creates consumer output owned by this test and removed after its processes stop.
+    /// </summary>
+    private string CreateDirectory()
+    {
+        string path = CreateSharedDirectory();
+        _caseDirectories.Enqueue(path);
+        return path;
+    }
+
+    /// <summary>
+    /// Creates reusable fixture output retained until class cleanup.
+    /// </summary>
+    private static string CreateSharedDirectory()
     {
         string path = Path.Combine(s_root, "case-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(path);

@@ -518,7 +518,7 @@ public sealed partial class ToolCommandTests
         }
     }
 
-    private static string CreateCustomDataBase()
+    private string CreateCustomDataBase()
     {
         string root = Path.Combine(CreateDirectory(), OperatingSystem.IsWindows() ? "data" : "custom data with spaces");
         if (!OperatingSystem.IsWindows())
@@ -534,7 +534,7 @@ public sealed partial class ToolCommandTests
     private static string TestCommandHostDirectory(string project, string configuration)
         => Path.Combine(project, "tests", "TestCommandProbe.Tests", "bin", configuration, "net10.0");
 
-    private static async Task<string> CreateTestCommandProjectAsync(CancellationToken token)
+    private async Task<string> CreateTestCommandProjectAsync(CancellationToken token)
     {
         string output = Path.Combine(CreateDirectory(), "test command project");
         (await InvokeAsync(["new", "TestCommandProbe", "-o", output], token)).EnsureSuccess(s_tool, ["new"]);

@@ -1,5 +1,7 @@
 using System.Globalization;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
+using System.Text;
 using Ankus.PgConfig;
 using Npgsql;
 
@@ -220,7 +222,9 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
         // The test host may have loaded this project's ordinary build. Publishing
         // must not replace its assemblies, symbols or incremental-clean inventory.
         // The SDK artifacts layout also separates every referenced project's outputs.
+        string buildKey = PublicationBuildKey(properties);
         string buildArtifacts = Path.Combine(root, "obj", "ankus-test-build");
+        string buildOutput = Path.Combine(buildArtifacts, "publish-cache", buildKey);
         string invocation = Guid.NewGuid().ToString("N");
         string output = session is null
             ? Path.Combine(root, "bin", "ankus-test-publish", invocation)
@@ -236,11 +240,20 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
         try
         {
             Directory.CreateDirectory(dataDirectoryBase);
-            await ProcessRunner.RunCheckedAsync("dotnet",
-                ["publish", projectPath, .. PropertyArguments(properties), "--artifacts-path", buildArtifacts,
-                    "-o", output,
-                    "-bl:" + Path.Combine(logs, invocation + ".binlog")],
-                new Dictionary<string, string?>(), cancellationToken, workingDirectory: root).ConfigureAwait(false);
+            Directory.CreateDirectory(buildArtifacts);
+            await using (FileStream buildLock = await LockBuildAsync(
+                Path.Combine(buildArtifacts, "publish.lock"), cancellationToken).ConfigureAwait(false))
+            {
+                DeleteDirectory(buildOutput);
+                Directory.CreateDirectory(buildOutput);
+                await ProcessRunner.RunCheckedAsync("dotnet",
+                    ["publish", projectPath, .. PropertyArguments(properties), "--artifacts-path", buildArtifacts,
+                        "-o", buildOutput,
+                        "-bl:" + Path.Combine(logs, invocation + ".binlog")],
+                    new Dictionary<string, string?>(), cancellationToken, workingDirectory: root).ConfigureAwait(false);
+                CopyDirectory(buildOutput, output);
+            }
+
             PublishedExtension manifest = PublishedExtension.Read(output);
             ExtensionSchema schema = ExtensionSchema.Read(Path.Combine(output, manifest.Library));
             if (manifest.PostgresMajor != installation.Version.Major || manifest.RuntimeIdentifier != RuntimeInformation.RuntimeIdentifier)
@@ -350,6 +363,47 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
         if (Directory.Exists(path))
         {
             Directory.Delete(path, recursive: true);
+        }
+    }
+
+    private static string PublicationBuildKey(IReadOnlyDictionary<string, string> properties)
+    {
+        string value = string.Join('\n', properties.OrderBy(static pair => pair.Key, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(static pair => pair.Key, StringComparer.Ordinal)
+            .Select(static pair => pair.Key + "=" + pair.Value));
+        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(value));
+        return Convert.ToHexString(hash.AsSpan(0, 16));
+    }
+
+    private static async Task<FileStream> LockBuildAsync(string path, CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                return new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+            }
+            catch (IOException error) when ((error.HResult & 0xffff) is 32 or 33 ||
+                error.HResult == (OperatingSystem.IsMacOS() ? 35 : 11))
+            {
+                await Task.Delay(100, cancellationToken).ConfigureAwait(false);
+            }
+        }
+    }
+
+    private static void CopyDirectory(string source, string destination)
+    {
+        foreach (string directory in Directory.EnumerateDirectories(source, "*", SearchOption.AllDirectories))
+        {
+            Directory.CreateDirectory(Path.Combine(destination, Path.GetRelativePath(source, directory)));
+        }
+
+        foreach (string file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
+        {
+            string destinationFile = Path.Combine(destination, Path.GetRelativePath(source, file));
+            Directory.CreateDirectory(Path.GetDirectoryName(destinationFile)!);
+            File.Copy(file, destinationFile, overwrite: true);
         }
     }
 
