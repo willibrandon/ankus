@@ -35,6 +35,7 @@ internal static class PackagePipeDirectory
     /// Checks the complete socket pathname in bytes, including the controller-generated name.
     /// </summary>
     private static bool Fits(string directory)
-        // MTP appends a 32-byte generated name. macOS permits 103 UTF-8 pathname bytes.
-        => Encoding.UTF8.GetByteCount(Path.Combine(directory, new string('p', 32))) <= 103;
+        // MTP's monitoring controller prefixes its GUID; reserve the complete 46-byte name.
+        // macOS permits 103 UTF-8 pathname bytes, excluding the terminating null byte.
+        => Encoding.UTF8.GetByteCount(Path.Combine(directory, "MONITORTOHOST_" + new string('p', 32))) <= 103;
 }

@@ -421,7 +421,8 @@ fixture's temporary package assemblies before class cleanup.
 Consumer build files use runner-owned temporary storage in CI and are removed
 after each case. On Unix, test-controller sockets use a separate short directory
 when the build path would exceed the 103-byte portable socket-path limit.
-The check includes the generated pipe name and counts UTF-8 bytes. The fixture
+The check includes MTP's monitoring prefix and GUID (46 bytes), and counts UTF-8
+bytes rather than characters. The fixture
 owns and removes the short directory; `TESTINGPLATFORM_PIPE_DIRECTORY` can select
 its parent when the user's home directory is also too long.
 

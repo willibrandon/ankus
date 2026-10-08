@@ -132,18 +132,24 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
 
 ## Active validation and work
 
-- Primary CI **37713205889** on **bd46460** passed Linux/PostgreSQL 18,
-  Windows/PostgreSQL 17, all runtime jobs and quality; Docs **37713205808** passed.
-  macOS ARM64/PostgreSQL 18 failed because the runner-owned consumer directory
-  produced a **105-byte** test-controller socket path, exceeding macOS's
-  **103-byte** limit. Socket storage now checks the complete UTF-8 pathname and
-  uses a separately owned short directory when needed. Build-directory ownership
-  and per-case cleanup remain intact. macOS ARM64/PostgreSQL **18.6**, SDK
-  **10.0.401** passes the four focused checks and complete `dotnet test`:
-  **13,453** passed, **60** platform skips, zero failures in **11m57s** test time
-  (**12m19s** including build). All consumer and socket directories were removed.
-  Release build and site checks pass. Test latency still exceeds the requested
-  feedback time; this fixes the macOS startup regression.
+- Primary CI **37716633362** on **358fd04** passed Linux/PostgreSQL 18,
+  Windows/PostgreSQL 17, runtime jobs and quality; Docs **37716633355** passed.
+  macOS ARM64/PostgreSQL 18 failed **41** consumer cases:
+  the first socket fix reserved a GUID but omitted MTP's monitoring prefix.
+  A directory that fits the GUID still produced a **117-byte** monitoring socket,
+  exceeding macOS's **103-byte** limit. The earlier complete local macOS run
+  (**13,453** passed, **60** skips, **11m57s**) used a deeper directory, selected
+  the short fallback, and missed this boundary. The corrected check reserves the
+  complete **46-byte** monitoring name. Real socket tests now cover the exact
+  boundary, one byte over, the failing directory length and multibyte paths.
+  All **16** focused checks pass on macOS ARM64/PostgreSQL **18.6**, including
+  eight real package-consumer runs using the failed CI directory length.
+  Complete `dotnet test` on the same platform and PostgreSQL version, SDK
+  **10.0.401**, passes **13,458** tests with **60** platform skips and zero
+  failures in **12m00s** (**12m21s** including build). All **41** previously
+  failing cases pass; consumer and socket directories were removed. Release
+  build and site checks pass. CI validation of the correction remains pending.
+  Test latency still exceeds the requested feedback time.
 - Local test-performance work removes restore and compiler-input discovery from
   managed-binding cache hits. A second content cache shares compilation only after
   each consumer's restore and input resolution succeed. Source, runtime, SDK,
