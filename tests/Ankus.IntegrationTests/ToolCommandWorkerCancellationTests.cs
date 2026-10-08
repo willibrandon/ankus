@@ -164,12 +164,14 @@ public sealed partial class ToolCommandTests
         var elapsed = Stopwatch.StartNew();
         while (!Assert.IsInstanceOfType<bool>(await PackageGucScalarAsync(connection, "SELECT " + condition)))
         {
-            Assert.IsLessThan(TimeSpan.FromSeconds(30), elapsed.Elapsed, cluster.ReadServerLog());
+            TimeSpan duration = elapsed.Elapsed;
+            Assert.IsLessThan(TimeSpan.FromSeconds(30), duration,
+                duration >= TimeSpan.FromSeconds(30) ? cluster.ReadServerLog() : null);
             if (requireAlive)
             {
                 Assert.IsTrue(Assert.IsInstanceOfType<bool>(await PackageGucScalarAsync(connection,
                     "SELECT EXISTS(SELECT FROM pg_stat_activity WHERE pid = " + process.ToString(CultureInfo.InvariantCulture) + ")")),
-                    cluster.ReadServerLog());
+                    $"{cluster.ReadServerLog()}");
             }
 
             await Task.Delay(25, context.CancellationToken);

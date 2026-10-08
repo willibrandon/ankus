@@ -92,9 +92,9 @@ incorrect. See [the detailed review](docs/contributing/evidence/port-history.md#
 ## Current complete acceptance evidence
 
 Primary CI runs all six modules against real published Native AOT extensions.
-The latest successful primary CI source is **174ddc6**, with runtime **10.0.12-ankus.4**.
-[CI 37734356955](https://github.com/willibrandon/ankus/actions/runs/37734356955)
-passes; [Docs run 37734356934](https://github.com/willibrandon/ankus/actions/runs/37734356934)
+The latest successful primary CI source is **85be599**, with runtime **10.0.12-ankus.4**.
+[CI 37738335710](https://github.com/willibrandon/ankus/actions/runs/37738335710)
+passes; [Docs run 37738335756](https://github.com/willibrandon/ankus/actions/runs/37738335756)
 also passes. All eighteen module reports were inspected: each platform completed
 all six modules with zero failures. No primary job timed out.
 A complete [Intel refresh](https://github.com/willibrandon/ankus/actions/runs/37460600236)
@@ -102,9 +102,9 @@ also passes on source **e41c687**.
 
 | Source | Platform / PostgreSQL | Result | Duration |
 | --- | --- | --- | --- |
-| Latest primary CI, **174ddc6 / ankus.4** | Linux x64 / 18 | 13,550 total; 13,502 passed; 48 platform skips; zero failures | 11m51s test step; 13m59s job |
-| Same CI / revision / runtime | macOS ARM64 / 18 | 13,550 total; 13,490 passed; 60 platform skips; zero failures | 12m58s test step; 14m42s job |
-| Same CI / revision / runtime | Windows x64 / 17 | 13,550 total; 13,514 passed; 36 platform skips; zero failures | 21m06s test step; 23m25s job |
+| Latest primary CI, **85be599 / ankus.4** | Linux x64 / 18 | 13,550 total; 13,502 passed; 48 platform skips; zero failures | 11m52s test step; 13m57s job |
+| Same CI / revision / runtime | macOS ARM64 / 18 | 13,550 total; 13,490 passed; 60 platform skips; zero failures | 12m52s test step; 14m33s job |
+| Same CI / revision / runtime | Windows x64 / 17 | 13,550 total; 13,514 passed; 36 platform skips; zero failures | 20m41s test step; 22m53s job |
 | SQL/datetime composition, parent **e41c687 / ankus.4** | Linux x64 / 18.6 | 13,337 total; 13,289 passed; 48 platform skips; zero failures | 42m46.885s tests; 43m41.597s command |
 | Function-provider composition, parent **4da0bec / ankus.4** | Linux x64 / 18.6 | 13,365 total; 13,317 passed; 48 platform skips; zero failures | 42m39.165s tests; 43m46.937s command |
 | Type-provider composition, parent **97842d3 / ankus.4** | Linux x64 / 18.6 | 13,411 total; 13,363 passed; 48 platform skips; zero failures | 42m39.033s tests; 43m35.244s command |
@@ -130,6 +130,17 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
 
 ## Active validation and work
 
+- Windows .NET **10.0.12** test-process capture now uses dedicated readers for
+  synchronous redirected pipes. With twenty idle children and 32 logical
+  processors, a 100ms continuation took **3,414.728ms** with thread-pool pipe
+  reads and **124.608ms** with dedicated readers. The updated assembly preserves
+  4,000 exact Unicode lines on each stream, nonzero exit status and cancellation
+  of a live process tree. Worker polls collect failure diagnostics lazily;
+  `install`/`package`/`schema --from` and `schema --skip-build` no longer wait
+  for compiler slots. Windows x64/PostgreSQL **17.11**, SDK **10.0.401** passes
+  all **52** affected scheduling, publication, worker and cancellation cases in
+  **3m18.763s**, including fixture startup. Release has zero warnings/errors and
+  documentation checks pass. Complete-suite timing remains pending.
 - Six worker-cancellation cases and two lock-interrupt cases now share two
   immutable packaged probe publications instead of compiling eight identical
   binaries. Every case retains its own PostgreSQL cluster and all assertions;
@@ -142,7 +153,9 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   published fixture projects through explicit build-only references; the
   missing dependency previously caused `NETSDK1004` before tests started.
   Windows Release has zero warnings/errors; documentation checks pass.
-  Complete-suite validation of this change is pending.
+  All six modules pass on every primary platform in **37738335710**. Windows
+  test time decreased from **21m06s** to **20m41s**; Linux/macOS remained within
+  six seconds of the previous run. This does not resolve full-suite latency.
 - Compiler-cache hits now retain shared read ownership instead of serializing
   every consumer's content validation and artifact copy. Replacement waits for
   all readers and closes admission to new readers; retention remains exclusive.

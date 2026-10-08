@@ -49,7 +49,9 @@ public sealed partial class ToolCommandTests
                         break;
                     }
 
-                    Assert.IsLessThan(TimeSpan.FromSeconds(30), elapsed.Elapsed, cluster.ReadServerLog());
+                    TimeSpan duration = elapsed.Elapsed;
+                    Assert.IsLessThan(TimeSpan.FromSeconds(30), duration,
+                        duration >= TimeSpan.FromSeconds(30) ? cluster.ReadServerLog() : null);
                     await Task.Delay(25, token);
                 }
 

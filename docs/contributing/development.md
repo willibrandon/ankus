@@ -181,6 +181,15 @@ owns the publication until every case finishes; cancellation of one case stops
 that case's wait without interrupting another case's build. Tests of publishing,
 source edits and cold package restore continue to own separate projects.
 
+On Windows, the .NET 10 test harness drains each redirected child-process pipe
+on a dedicated reader thread. Those pipes use synchronous handles; reading them
+through the thread pool can delay test continuations while children are running.
+Cancellation terminates and joins the process tree before joining its readers.
+Compiler slots apply to commands that can build; installation, packaging and
+schema extraction from existing publications do not reserve those slots. Worker
+polling collects diagnostic logs when an assertion fails, preserving the failure
+details without repeatedly collecting Windows events on successful polls.
+
 Memory cleanup checks query `ankus_test_memory.contexts`, installed by the test
 extension. On PostgreSQL 14 and later this view reads the server's memory-context
 catalog. PostgreSQL 13 uses the standalone C allocator fixture to walk the actual

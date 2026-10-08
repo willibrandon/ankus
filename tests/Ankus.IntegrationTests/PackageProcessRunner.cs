@@ -111,12 +111,32 @@ internal static class PackageProcessRunner
         }
 
         if ((command is "bench" or "regress" or "run" && EnabledOption(arguments, "--no-build")) ||
-            (command == "regress" && EnabledOption(arguments, "--dry-run")))
+            (command == "regress" && EnabledOption(arguments, "--dry-run")) ||
+            (command == "schema" && EnabledOption(arguments, "--skip-build")) ||
+            (command is "install" or "package" or "schema" && HasOption(arguments, "--from")))
         {
             return false;
         }
 
         return command is "bench" or "build" or "install" or "package" or "publish" or "regress" or "run" or "schema" or "test";
+    }
+
+    /// <summary>
+    /// Recognizes a supplied publication option before any forwarded command arguments.
+    /// </summary>
+    private static bool HasOption(IReadOnlyList<string> arguments, string name)
+    {
+        for (int index = 1; index < arguments.Count && arguments[index] != "--"; index++)
+        {
+            string argument = arguments[index];
+            if (argument == name || argument.StartsWith(name + "=", StringComparison.Ordinal) ||
+                argument.StartsWith(name + ":", StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>

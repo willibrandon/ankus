@@ -53,16 +53,21 @@ internal static class ProcessRunner
             throw new InvalidOperationException($"Failed to start '{fileName}'.");
         }
 
-        Task<string> standardOutput = captureOutput
-            ? process.StandardOutput.ReadToEndAsync(CancellationToken.None) : Task.FromResult(string.Empty);
-        Task<string> standardError = captureOutput
-            ? process.StandardError.ReadToEndAsync(CancellationToken.None) : Task.FromResult(string.Empty);
+        Task<string> standardOutput = Task.FromResult(string.Empty);
+        Task<string> standardError = Task.FromResult(string.Empty);
 
         try
         {
+            if (captureOutput)
+            {
+                standardOutput = ReadOutputAsync(process.StandardOutput);
+                standardError = ReadOutputAsync(process.StandardError);
+            }
+
             await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+            await Task.WhenAll(standardOutput, standardError).ConfigureAwait(false);
         }
-        catch (OperationCanceledException)
+        catch
         {
             try
             {
@@ -74,7 +79,7 @@ internal static class ProcessRunner
             }
 
             await process.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
-            await Task.WhenAll(standardOutput, standardError).ConfigureAwait(false);
+            await Task.WhenAll((Task)standardOutput, standardError).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
 
             throw;
         }
@@ -84,6 +89,15 @@ internal static class ProcessRunner
             await standardOutput.ConfigureAwait(false),
             await standardError.ConfigureAwait(false));
     }
+
+    /// <summary>
+    /// Drains synchronous Windows process pipes without occupying the test host's thread-pool workers.
+    /// The process owner kills and joins the child before joining these readers on cancellation.
+    /// </summary>
+    private static Task<string> ReadOutputAsync(StreamReader reader)
+        => OperatingSystem.IsWindows()
+            ? Task.Factory.StartNew(reader.ReadToEnd, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default)
+            : reader.ReadToEndAsync(CancellationToken.None);
 
     /// <summary>
     /// Executes a process and throws a detailed exception when it exits
