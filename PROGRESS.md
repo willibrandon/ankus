@@ -569,6 +569,15 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   transaction. Ordinary reports remain exact, and read-only or parallel-worker
   commits keep FATAL instead of PANIC. The crash and hang regressions fail
   without their fixes and pass with them on Linux x64/PostgreSQL **18.6**.
+- ANKUS044 now follows LINQ and stored callbacks, `+` concatenation in its
+  fallback, unassigned parameter paths through branch merges, `StringBuilder`
+  and tuple contents, mixed quoted/raw `string.Format` arguments including the
+  `params ReadOnlySpan<object>` overload, and writes through ref aliases and
+  deconstruction. `string.Format` layout enumeration counts toward the
+  analysis budget. The ANKUS129 code fix keeps `scoped` when hoisting a
+  stack-bound span and is no longer offered for escaping pattern variables.
+  **4,667/4,667** generator cases pass and the Release solution build, including
+  every sample and test extension, has no new diagnostics.
 - Primary CI **37773258253** on **d0df4e7** passes quality, all runtime jobs and
   the complete Linux/PostgreSQL 18 and macOS ARM64/PostgreSQL 18 suites. Windows
   x64/PostgreSQL 17 passes every module except one new case: the backend
