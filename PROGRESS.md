@@ -574,7 +574,11 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   state. Primary CI **37778899670** on **1504d0d** and **37782541757** on
   **d5f27a0** passed Linux and macOS; their Windows-only test defects (CRLF
   template comparison, and reading the decoded log snapshot instead of the raw
-  LATIN1 log) are corrected.
+  LATIN1 log) are corrected. Run **37785972780** on **1ccd719** confirms both
+  corrections: Linux and macOS pass, and Windows passes every module except two
+  rows whose cleanup deleted a case directory while Windows still held a handle
+  after the stopped cluster exited. Case cleanup now retries such a deletion for
+  up to ten seconds before failing.
 - ANKUS044 now follows LINQ and stored callbacks, `+` concatenation in its
   fallback, unassigned parameter paths through branch merges, `StringBuilder`
   and tuple contents, mixed quoted/raw `string.Format` arguments including the

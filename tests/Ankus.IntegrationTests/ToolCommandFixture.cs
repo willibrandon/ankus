@@ -38,9 +38,35 @@ public sealed partial class ToolCommandTests
 
         while (_caseDirectories.TryDequeue(out string? directory))
         {
-            if (Directory.Exists(directory))
+            DeleteCaseDirectory(directory);
+        }
+    }
+
+    /// <summary>
+    /// Deletes a completed case, allowing Windows to release handles that outlive a stopped server's processes.
+    /// </summary>
+    /// <param name="directory">The case directory.</param>
+    /// <remarks>
+    /// The case's clusters have already stopped. A handle still held after ten seconds remains a test failure.
+    /// </remarks>
+    private static void DeleteCaseDirectory(string directory)
+    {
+        var elapsed = System.Diagnostics.Stopwatch.StartNew();
+        while (true)
+        {
+            try
             {
-                Directory.Delete(directory, recursive: true);
+                if (Directory.Exists(directory))
+                {
+                    Directory.Delete(directory, recursive: true);
+                }
+
+                return;
+            }
+            catch (Exception error) when (OperatingSystem.IsWindows() && error is IOException or UnauthorizedAccessException &&
+                elapsed.Elapsed < TimeSpan.FromSeconds(10))
+            {
+                Thread.Sleep(100);
             }
         }
     }
