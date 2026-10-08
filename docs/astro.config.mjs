@@ -134,6 +134,7 @@ export default defineConfig({
             { label: 'Build settings', slug: 'reference/build-settings' },
             { label: '.NET support', slug: 'reference/dotnet-support' },
             { label: 'Running .NET in PostgreSQL', slug: 'reference/execution' },
+            { label: 'pgrx examples', slug: 'reference/pgrx-examples' },
           ],
         },
         {

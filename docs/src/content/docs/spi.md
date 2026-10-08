@@ -220,6 +220,11 @@ underlying base type's value conversion.
 
 Results are managed copies. Rows, text, and binary buffers remain valid after
 another SPI command or after the original SPI connection is released.
+PostgreSQL first materializes the complete result in SPI memory, as with pgrx's
+`Spi::select`, and Ankus then copies it. One result is limited to 2,147,483,647
+rows and to the backend's maximum allocation; a larger result fails with SQLSTATE
+`54000` instead of being truncated. Use a [cursor](#cursors-and-batched-results)
+to stream large results in batches.
 
 `Select` follows pgrx's transaction policy. Before the transaction has a real
 PostgreSQL transaction ID, it uses the caller's read-only SPI snapshot and rejects

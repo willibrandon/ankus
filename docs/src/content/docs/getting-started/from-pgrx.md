@@ -6,7 +6,8 @@ description: Translate pgrx declarations, values, ownership, and extension workf
 Ankus keeps PostgreSQL's extension model and expresses it through C# attributes,
 compiler-checked interfaces and source generation. Publish an extension as a
 Native AOT library with its SQL and control files. The server does not need a
-separate .NET installation.
+separate .NET installation. To start from a familiar example, find the
+counterpart of each pgrx example in [pgrx examples](/reference/pgrx-examples/).
 
 ## Declarations
 
