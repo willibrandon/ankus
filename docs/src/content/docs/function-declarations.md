@@ -352,17 +352,24 @@ PostgreSQL invokes the method during planning.
 [typed SQL dependencies](/custom-sql/#reference-managed-declarations). Injected
 contexts do not count as SQL arguments. The selected function must accept one
 nonvariadic SQL `internal` argument and return scalar SQL `internal`; `PgInternal`
-and explicit raw internal mappings can express this contract. Trigger functions
-and aggregate helpers can also declare a support routine.
+and explicit raw internal mappings can express this contract. Trigger functions,
+operator and cast backing functions, and aggregate helpers can also declare a
+support routine. When one method generates several SQL functions, such as an
+inherited helper used by several aggregates, each of them receives the routine.
 
 The support routine itself must be an ordinary generated function. An aggregate
 helper requires an aggregate invocation, which PostgreSQL does not provide during
 planning, even when its SQL argument and result types are both `internal`.
 
-`ANKUS027` reports missing, ambiguous, incompatible or conflicting support
-references. Dependency cycles remain graph errors. Disabled and replaced SQL
-retain their support prerequisites; authored replacement SQL must include the
-desired `SUPPORT` clause itself.
+Planner-support diagnostics identify the exact failed contract and point at the
+value to correct. `ANKUS470` requires a method name. The shared `ANKUS471`,
+`ANKUS473`–`ANKUS476`, `ANKUS480` and `ANKUS486`–`ANKUS487` diagnostics identify
+invalid or ambiguous targets. `ANKUS482` requires the attributed method to
+generate a function, `ANKUS483` rejects conflicting managed and external
+selectors, `ANKUS484` validates the SQL signature, and `ANKUS485` rejects
+aggregate helpers. Dependency cycles remain graph errors.
+Disabled and replaced SQL retain their support prerequisites; authored
+replacement SQL must include the desired `SUPPORT` clause itself.
 
 Keep `PgFunction.SupportFunction = "pg_catalog.textlike_support"` for an existing
 external SQL routine. PostgreSQL validates its signature at installation. Choose

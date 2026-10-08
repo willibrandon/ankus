@@ -40,8 +40,12 @@ public sealed partial class ToolCommandTests
         definition.Save(benchmarkProject);
         File.Copy(Path.Combine(Path.GetDirectoryName(s_project)!, "BenchmarkProbe.cs"),
             Path.Combine(benchmarkDirectory, "BenchmarkProbe.cs"));
+        // The default development port can fall inside an operating-system exclusion, such as a Windows Hyper-V range.
+        using PortReservation reservation = PortReservation.Create();
+        int port = reservation.Port;
+        reservation.Dispose();
         string[] options = ["--home", s_home, "--project", benchmarkProject, "--configuration", "Release",
-            "--property", "BenchmarkProbe=enabled"];
+            "--property", "BenchmarkProbe=enabled", "--port", port.ToString(CultureInfo.InvariantCulture)];
         var cluster = new PostgresDevelopmentCluster(installation, s_home);
         try
         {

@@ -28957,3 +28957,67 @@ label rather than the pool shared with supported-major jobs. Superseded primary,
 platform-version and supported-major runs using the old limits were cancelled so
 they no longer block current validation. A clean complete-suite timing on the
 unified setting remains required before claiming the improvement.
+
+## Precise managed-reference diagnostics — 2026-10-08
+
+The free-text `ANKUS026` and `ANKUS027` validators combined every typed SQL
+dependency and planner-support failure. `ANKUS470`–`ANKUS489` now identify one
+independently correctable contract and point at the value to correct: the
+declared type, method name, invalid `ParameterTypes` element, complete
+`ParameterTypes` selection or `DeclarationId`. Source-side failures retain the
+attribute location because the attributed declaration itself must change.
+
+The round-3 review of the first draft found five defects, all corrected here:
+
+- Every diagnostic pointed at the whole attribute. Detached argument coordinates
+  are now part of the cached reference model and the composition source map.
+- `ANKUS480`/`ANKUS481` mixed source and target corrections. Target-side
+  failures keep those IDs; `ANKUS488`/`ANKUS489` report a source that emits no
+  SQL or several primary objects. Their advice names the `Id` and
+  `DeclarationId` options that actually select a declaration.
+- A source that emitted no SQL but set `DeclarationId` reported `ANKUS478`.
+  Source emission is now checked before selector matching.
+- Method lookup with and without `ParameterTypes` shared messages. `ANKUS475`
+  and `ANKUS476` cover name lookup; `ANKUS486` and `ANKUS487` cover explicit
+  overload selection, including overloads that differ only by parameter
+  modifiers or generic arity.
+- The untested second `ANKUS482` path could not be reached: operator, cast,
+  trigger and aggregate-helper methods all register a generated function
+  contract, and benchmark wrappers register no declaration. Planner support now
+  has dedicated source and target selection. It applies the routine to every
+  generated function of the attributed method, such as an inherited helper used
+  by several aggregates, instead of rejecting that method with advice that
+  `PgSupportFunction` cannot follow. Target selection ignores aggregate helpers
+  when the same method also has an ordinary function.
+
+The old `ANKUS481` fixture applied `PgSchema` to a struct, which C# rejects;
+the generator test previously ignored the resulting compiler error. The
+replacement uses a class with both `PgSchema` and `PgAggregate`, verifies the
+generated compilation and proves that `DeclarationId` orders only the selected
+aggregate. New cases cover exact spans for all reachable diagnostics, operator
+backing functions, shared helpers, overloads that differ only by `ref`, collection
+expression element locations and recovery after a cached failure.
+
+The **86** affected cases pass, and the complete generator suite passes
+**4,527/4,527** in **1m25s** on Linux x64. The Release solution build has zero
+warnings and errors in **1m47s**. API freshness verifies **244** pages and
+**2,793** members; documentation checks report no errors, warnings or hints,
+and the production site builds all **295** pages.
+
+## Windows development-port exclusion — 2026-10-08
+
+Primary run [37766380749](https://github.com/willibrandon/ankus/actions/runs/37766380749)
+at **a04472b** passed quality, all runtime jobs and the complete
+Linux/PostgreSQL 18 and macOS ARM64/PostgreSQL 18 suites. Windows x64/PostgreSQL
+17 completed **5,068** integration cases with one failure:
+`BenchRunsInBackendAndPersistsResultsOutsideMeasurementTransaction`. PostgreSQL
+logged `could not bind IPv4 address "127.0.0.1": Permission denied`. The
+runner's TCP exclusion table then contained **28760–28859**, which covers every
+default development port from **28813** through **28819**. Hyper-V and WinNAT
+allocate such ranges dynamically, so earlier runs had passed.
+
+The benchmark case was the only cluster-starting tool test that relied on the
+shared home's default port. It now reserves an available port and passes it to
+every `ankus bench` invocation, as the run, connect, regression and cluster
+cases already do. The product's default ports remain pgrx-compatible; an
+explicit port or `ankus init --base-port` selects another range.

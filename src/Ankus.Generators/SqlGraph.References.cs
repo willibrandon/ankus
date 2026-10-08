@@ -4,12 +4,6 @@ namespace Ankus.Generators;
 
 internal sealed partial class SqlGraph
 {
-    private static readonly DiagnosticDescriptor s_invalidReference = new(
-        "ANKUS026", "Invalid managed SQL dependency reference", "{0}", "Ankus", DiagnosticSeverity.Error,
-        isEnabledByDefault: true, helpLinkUri: "https://willibrandon.github.io/ankus/custom-sql/#reference-managed-declarations");
-    private static readonly DiagnosticDescriptor s_invalidSupport = new(
-        "ANKUS027", "Invalid planner support function", "{0}", "Ankus", DiagnosticSeverity.Error,
-        isEnabledByDefault: true, helpLinkUri: "https://willibrandon.github.io/ankus/function-declarations/#planner-support-functions");
     private readonly Dictionary<DeclarationIdentity, List<SqlEntity>> _declarations = [];
     private readonly List<(SqlEntity Source, SqlEntity Target)> _inheritedRequirements = [];
 
@@ -62,38 +56,14 @@ internal sealed partial class SqlGraph
             if (reference.Error is not null)
             {
                 ReferenceError(reference, reference.Error, compilation);
-                continue;
             }
-
-            SqlEntity? source = Source(reference, compilation);
-            if (source is null)
+            else if (reference.Kind == "PgSupportFunctionAttribute")
             {
-                continue;
-            }
-
-            if (reference.TargetError is not null)
-            {
-                ReferenceError(reference, reference.TargetError, compilation);
-                continue;
-            }
-
-            SqlEntity? target = Primary(reference.Target!, reference, compilation);
-            if (target is null)
-            {
-                continue;
-            }
-
-            if (reference.Kind == "PgSupportFunctionAttribute")
-            {
-                BindPlannerSupport(reference, source, target, compilation);
-            }
-            else if (reference.Kind == "PgBeforeAttribute")
-            {
-                target.DeclaredDependencies.Add(source);
+                BindPlannerSupport(reference, compilation);
             }
             else
             {
-                source.RequiredDeclarations.Add(target);
+                BindDependency(reference, compilation);
             }
         }
 
@@ -104,34 +74,93 @@ internal sealed partial class SqlGraph
         }
     }
 
-    private void BindPlannerSupport(SqlReferenceModel reference, SqlEntity source, SqlEntity target, GeneratorSourceResolver compilation)
+    /// <summary>
+    /// Orders one source declaration relative to its compiler-selected target.
+    /// </summary>
+    private void BindDependency(SqlReferenceModel reference, GeneratorSourceResolver compilation)
     {
-        if (source.Function is null)
+        SqlEntity? source = Source(reference, compilation);
+        if (source is null)
         {
-            ReferenceError(reference, "PgSupportFunction must annotate a generated PostgreSQL function.", compilation);
+            return;
+        }
+
+        if (reference.TargetError is not null)
+        {
+            ReferenceError(reference, reference.TargetError, compilation);
+            return;
+        }
+
+        SqlEntity? target = Target(reference, compilation);
+        if (target is null)
+        {
+            return;
+        }
+
+        if (reference.Kind == "PgBeforeAttribute")
+        {
+            target.DeclaredDependencies.Add(source);
+        }
+        else
+        {
+            source.RequiredDeclarations.Add(target);
+        }
+    }
+
+    /// <summary>
+    /// Applies one ordinary support function to every SQL function generated from the attributed method.
+    /// </summary>
+    /// <remarks>
+    /// An inherited aggregate helper can generate one SQL function for each aggregate that uses it; each one calls the same method.
+    /// </remarks>
+    private void BindPlannerSupport(SqlReferenceModel reference, GeneratorSourceResolver compilation)
+    {
+        _declarations.TryGetValue(reference.Source.Identity, out List<SqlEntity>? entities);
+        SqlEntity[] sources = [.. (entities ?? []).Where(static entity => entity.Function is not null)];
+        if (sources.Length == 0)
+        {
+            ReferenceError(reference, new(SqlReferenceProblemKind.SupportSource), compilation);
+            return;
+        }
+
+        if (reference.TargetError is not null)
+        {
+            ReferenceError(reference, reference.TargetError, compilation);
+            return;
+        }
+
+        SqlReferenceModel.Declaration declaration = reference.Target!;
+        if (!_declarations.TryGetValue(declaration.Identity, out List<SqlEntity>? targets))
+        {
+            ReferenceError(reference, new(SqlReferenceProblemKind.MissingSqlObject, declaration.Display, reference.TargetLocation), compilation);
             return;
         }
 
         if (reference.ExternalSupport)
         {
-            ReferenceError(reference, "Choose either PgSupportFunction or the external PgFunction.SupportFunction SQL name, not both.", compilation);
+            ReferenceError(reference, new(SqlReferenceProblemKind.SupportConflict), compilation);
             return;
         }
 
-        if (target.Function is not { IsPlannerSupport: true } support)
+        SqlEntity[] functions = [.. targets.Where(static entity => entity.Function is not null)];
+        SqlEntity[] ordinary = [.. functions.Where(static entity => !entity.Function!.RequiresAggregateContext)];
+        if (ordinary.Length == 0 && functions.Length != 0)
         {
-            ReferenceError(reference, "A planner support function must take exactly one nonvariadic SQL internal argument and return scalar SQL internal.", compilation);
+            ReferenceError(reference, new(SqlReferenceProblemKind.SupportAggregate, Location: reference.TargetLocation), compilation);
             return;
         }
 
-        if (support.RequiresAggregateContext)
+        if (ordinary.Length != 1 || ordinary[0].Function is not { IsPlannerSupport: true } support)
         {
-            ReferenceError(reference, "An aggregate helper requires an aggregate invocation and cannot serve as planner support; select an ordinary PgFunction method.", compilation);
+            ReferenceError(reference, new(SqlReferenceProblemKind.SupportSignature, Location: reference.TargetLocation), compilation);
             return;
         }
 
-        source.RequiredDeclarations.Add(target);
-        source.Function.SetPlannerSupport(support.Declaration.TemplateName);
+        foreach (SqlEntity source in sources)
+        {
+            source.RequiredDeclarations.Add(ordinary[0]);
+            source.Function!.SetPlannerSupport(support.Declaration.TemplateName);
+        }
     }
 
     private SqlEntity? Source(SqlReferenceModel reference, GeneratorSourceResolver compilation)
@@ -139,50 +168,70 @@ internal sealed partial class SqlGraph
         SqlReferenceModel.Declaration declaration = reference.Source;
         string? id = reference.DeclarationId;
         _declarations.TryGetValue(declaration.Identity, out List<SqlEntity>? entities);
+        if (!declaration.Assembly && entities is null)
+        {
+            return ReferenceError(reference, new(SqlReferenceProblemKind.SourceMissingSqlObject, declaration.Display), compilation);
+        }
+
         if (id is not null)
         {
             if (!ValidName(id))
             {
-                return ReferenceError(reference, "DeclarationId must be nonempty text without zero characters or invalid Unicode.", compilation);
+                return ReferenceError(reference, new(SqlReferenceProblemKind.DeclarationId, Location: reference.DeclarationIdLocation), compilation);
             }
 
-            SqlEntity[] matches = [.. (declaration.Assembly ? _entities : entities ?? [])
-                .Where(entity => entity.Names.Contains(id))];
+            SqlEntity[] matches = [.. (declaration.Assembly ? _entities : entities!).Where(entity => entity.Names.Contains(id))];
             return matches.Length == 1 ? matches[0] : ReferenceError(reference,
-                $"DeclarationId '{id}' must identify exactly one SQL declaration belonging to the attributed declaration.", compilation);
+                new(SqlReferenceProblemKind.DeclarationSelection, id, reference.DeclarationIdLocation), compilation);
         }
 
         if (declaration.Assembly)
         {
-            return ReferenceError(reference, "An assembly-level SQL dependency requires DeclarationId to identify the declaration being ordered.", compilation);
+            return ReferenceError(reference, new(SqlReferenceProblemKind.AssemblyDeclaration), compilation);
         }
 
-        return Primary(declaration, reference, compilation);
+        SqlEntity[] primary = Primary(declaration, entities!);
+        return primary.Length == 1 ? primary[0] : ReferenceError(reference,
+            new(SqlReferenceProblemKind.SourceAmbiguousSqlObject, declaration.Display), compilation);
     }
 
-    private SqlEntity? Primary(SqlReferenceModel.Declaration declaration, SqlReferenceModel reference, GeneratorSourceResolver compilation)
+    private SqlEntity? Target(SqlReferenceModel reference, GeneratorSourceResolver compilation)
     {
+        SqlReferenceModel.Declaration declaration = reference.Target!;
         if (!_declarations.TryGetValue(declaration.Identity, out List<SqlEntity>? entities))
         {
-            return ReferenceError(reference, $"'{declaration.Display}' does not declare a generated SQL object in this extension.", compilation);
+            return ReferenceError(reference, new(SqlReferenceProblemKind.MissingSqlObject, declaration.Display, reference.TargetLocation), compilation);
         }
 
-        SqlEntity[] primary = [.. entities.Where(entity => declaration.Method
-            ? entity.Kind == "function" : entity.Kind is "schema" or "type" or "enum" or "aggregate")];
-        if (primary.Length == 0)
-        {
-            primary = [.. entities];
-        }
-
+        SqlEntity[] primary = Primary(declaration, entities);
         return primary.Length == 1 ? primary[0] : ReferenceError(reference,
-            $"'{declaration.Display}' declares multiple SQL objects; use their explicit dependency IDs.", compilation);
+            new(SqlReferenceProblemKind.AmbiguousSqlObject, declaration.Display, reference.TargetLocation), compilation);
     }
 
-    private SqlEntity? ReferenceError(SqlReferenceModel reference, string message, GeneratorSourceResolver compilation)
+    /// <summary>
+    /// Prefers a method's function or a type's schema, type, enum or aggregate over attached declarations.
+    /// </summary>
+    private static SqlEntity[] Primary(SqlReferenceModel.Declaration declaration, List<SqlEntity> entities)
+    {
+        SqlEntity[] primary = [.. entities.Where(entity => declaration.Method
+            ? entity.Kind == "function" : entity.Kind is "schema" or "type" or "enum" or "aggregate")];
+        return primary.Length == 0 ? [.. entities] : primary;
+    }
+
+    private SqlEntity? ReferenceError(SqlReferenceModel reference, SqlReferenceProblem problem, GeneratorSourceResolver compilation)
     {
         _invalid = true;
-        _context.Report(reference.Kind == "PgSupportFunctionAttribute" ? s_invalidSupport : s_invalidReference,
-            reference.Location?.Resolve(compilation), message);
+        DiagnosticDescriptor descriptor = SqlReferenceDiagnostics.Descriptor(problem.Kind);
+        Location? location = (problem.Location ?? reference.Location)?.Resolve(compilation);
+        if (problem.Identity is null)
+        {
+            _context.Report(descriptor, location);
+        }
+        else
+        {
+            _context.Report(descriptor, location, problem.Identity);
+        }
+
         return null;
     }
 }

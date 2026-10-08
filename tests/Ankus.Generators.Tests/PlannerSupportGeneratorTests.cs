@@ -111,29 +111,37 @@ public sealed partial class PgFunctionGeneratorTests
             }
             """);
         Diagnostic diagnostic = Assert.ContainsSingle(diagnostics);
-        Assert.AreEqual("ANKUS027", diagnostic.Id);
+        Assert.AreEqual("ANKUS484", diagnostic.Id);
         Assert.Contains("one nonvariadic SQL internal argument", diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture));
-        Assert.IsNotNull(diagnostic.Location.SourceTree);
-        Assert.Contains("PgSupportFunction", diagnostic.Location.SourceTree.GetText(context.CancellationToken).ToString(diagnostic.Location.SourceSpan));
+        Assert.AreEqual("nameof(Support)", DiagnosticText(diagnostic));
         Assert.IsFalse(compilation.Assembly.GetAttributes().Any(static item => item.ConstructorArguments.Length == 2 &&
             item.ConstructorArguments[0].Value is "Ankus.Sql"));
     }
 
     /// <summary>
-    /// Invalid references and conflicting selectors report their own attribute without emitting partial SQL.
+    /// Invalid references and conflicting selectors report the authored value to correct without emitting partial SQL.
     /// </summary>
     /// <param name="reference">The invalid support reference.</param>
     /// <param name="options">Additional ordinary function options.</param>
     /// <param name="reason">The required diagnostic detail.</param>
+    /// <param name="expected">The fixed diagnostic ID.</param>
+    /// <param name="anchor">The documentation section for the failed contract.</param>
+    /// <param name="span">The exact authored text to correct.</param>
     [TestMethod]
-    [DataRow("typeof(Functions), null!", "", "non-null method name")]
-    [DataRow("null!, \"Support\"", "", "non-null declared type")]
-    [DataRow("typeof(Functions), \"Missing\"", "", "was not found")]
-    [DataRow("typeof(Functions), nameof(Ordinary)", "", "does not declare a generated SQL object")]
-    [DataRow("typeof(Functions), nameof(Support)", "", "is ambiguous")]
-    [DataRow("typeof(Functions), nameof(Support), ParameterTypes = new System.Type[] { }", "", "was not found")]
-    [DataRow("typeof(Functions), nameof(Support), ParameterTypes = new[] { typeof(Ankus.PgInternal) }", "SupportFunction = \"pg_catalog.textlike_support\"", "not both")]
-    public void PlannerSupportRejectsInvalidReferences(string reference, string options, string reason)
+    [DataRow("typeof(Functions), null!", "", "non-null planner-support method name", "ANKUS470", "#planner-support-functions", "null!")]
+    [DataRow("null!, \"Support\"", "", "non-null closed", "ANKUS471", "#reference-managed-declarations", "null!")]
+    [DataRow("typeof(Functions), \"Missing\"", "", "'Functions.Missing' was not found on the referenced type or its base types", "ANKUS475",
+        "#reference-managed-declarations", "\"Missing\"")]
+    [DataRow("typeof(Functions), nameof(Ordinary)", "", "'Functions.Ordinary(Ankus.PgInternal)' does not declare a generated SQL object", "ANKUS480",
+        "#reference-managed-declarations", "nameof(Ordinary)")]
+    [DataRow("typeof(Functions), nameof(Support)", "", "has several overloads; set ParameterTypes", "ANKUS476",
+        "#reference-managed-declarations", "nameof(Support)")]
+    [DataRow("typeof(Functions), nameof(Support), ParameterTypes = new System.Type[] { }", "", "No overload of 'Functions.Support' has exactly",
+        "ANKUS486", "#reference-managed-declarations", "new System.Type[] { }")]
+    [DataRow("typeof(Functions), nameof(Support), ParameterTypes = new[] { typeof(Ankus.PgInternal) }", "SupportFunction = \"pg_catalog.textlike_support\"",
+        "Choose either", "ANKUS483", "#planner-support-functions",
+        "Ankus.PgSupportFunction(typeof(Functions), nameof(Support), ParameterTypes = new[] { typeof(Ankus.PgInternal) })")]
+    public void PlannerSupportRejectsInvalidReferences(string reference, string options, string reason, string expected, string anchor, string span)
     {
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate($$"""
             public static class Functions
@@ -146,11 +154,84 @@ public sealed partial class PgFunctionGeneratorTests
             }
             """);
         Diagnostic diagnostic = Assert.ContainsSingle(diagnostics);
-        Assert.AreEqual("ANKUS027", diagnostic.Id);
+        Assert.AreEqual(expected, diagnostic.Id);
         Assert.Contains(reason, diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture));
-        Assert.EndsWith("#planner-support-functions", diagnostic.Descriptor.HelpLinkUri);
+        Assert.EndsWith(anchor, diagnostic.Descriptor.HelpLinkUri);
+        Assert.AreEqual(span, DiagnosticText(diagnostic));
         Assert.IsFalse(compilation.Assembly.GetAttributes().Any(static item => item.ConstructorArguments.Length == 2 &&
             item.ConstructorArguments[0].Value is "Ankus.Sql"));
+    }
+
+    /// <summary>
+    /// Planner support cannot attach to an ordinary managed method that emits no PostgreSQL function, even with a valid target.
+    /// </summary>
+    /// <param name="reference">A valid target or an independently missing target.</param>
+    [TestMethod]
+    [DataRow("nameof(Support)")]
+    [DataRow("\"Missing\"")]
+    public void PlannerSupportRequiresGeneratedSourceFunction(string reference)
+    {
+        (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate($$"""
+            public static class Functions
+            {
+                [Ankus.PgSupportFunction(typeof(Functions), {{reference}})]
+                public static int Ordinary(int value) => value;
+                [Ankus.PgFunction]
+                public static Ankus.PgInternal? Support(Ankus.PgInternal request) => null;
+            }
+            """);
+        Diagnostic diagnostic = Assert.ContainsSingle(diagnostics);
+        Assert.AreEqual("ANKUS482", diagnostic.Id);
+        Assert.Contains("generated PostgreSQL function", diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture));
+        Assert.AreEqual("Ankus.PgSupportFunction(typeof(Functions), " + reference + ")", DiagnosticText(diagnostic));
+        Assert.IsFalse(compilation.Assembly.GetAttributes().Any(static item => item.ConstructorArguments.Length == 2 &&
+            item.ConstructorArguments[0].Value is "Ankus.Sql"));
+    }
+
+    /// <summary>
+    /// Overloads that differ only by parameter modifiers cannot be distinguished by managed parameter types.
+    /// </summary>
+    [TestMethod]
+    public void PlannerSupportRejectsIndistinguishableOverloads()
+    {
+        (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate("""
+            public static class Functions
+            {
+                [Ankus.PgFunction, Ankus.PgSupportFunction(typeof(Functions), nameof(Support), ParameterTypes = new[] { typeof(Ankus.PgInternal) })]
+                public static int A() => 1;
+                [Ankus.PgFunction] public static Ankus.PgInternal? Support(Ankus.PgInternal request) => null;
+                public static Ankus.PgInternal? Support(ref Ankus.PgInternal request) => null;
+            }
+            """);
+        Diagnostic diagnostic = Assert.ContainsSingle(diagnostics);
+        Assert.AreEqual("ANKUS487", diagnostic.Id);
+        Assert.Contains("Several overloads of 'Functions.Support' have exactly the selected ParameterTypes",
+            diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture));
+        Assert.AreEqual("new[] { typeof(Ankus.PgInternal) }", DiagnosticText(diagnostic));
+        Assert.IsFalse(compilation.Assembly.GetAttributes().Any(static item => item.ConstructorArguments.Length == 2 &&
+            item.ConstructorArguments[0].Value is "Ankus.Sql"));
+    }
+
+    /// <summary>
+    /// An operator's generated backing function receives the support clause without a separate PgFunction attribute.
+    /// </summary>
+    [TestMethod]
+    public void PlannerSupportConfiguresOperatorBackingFunctions()
+    {
+        Compilation compilation = GenerateSqlControl("""
+            public static class Functions
+            {
+                [Ankus.PgOperator("@+"), Ankus.PgSupportFunction(typeof(Functions), nameof(Z))]
+                public static int Add(int left, int right) => left + right;
+                [Ankus.PgFunction] public static Ankus.PgInternal? Z(Ankus.PgInternal request) => null;
+            }
+            """);
+        ExtensionSchemaGraph graph = ExtensionSchemaGraph.Parse(ManifestValue(compilation, "Ankus.SqlGraph"));
+        ExtensionSchemaItem support = Assert.ContainsSingle(graph.Items.Where(static item => item.Kind == "function" && item.Names.Contains("z")));
+        ExtensionSchemaItem backing = Assert.ContainsSingle(graph.Items.Where(static item => item.Kind == "function" && item.Names.Contains("add")));
+        Assert.Contains("SUPPORT \"z\"", backing.Sql);
+        Assert.Contains(support.Id, backing.Dependencies);
+        Assert.ContainsSingle(graph.Items.Where(static item => item.Kind == "operator"));
     }
 
     /// <summary>
@@ -232,6 +313,40 @@ public sealed partial class PgFunctionGeneratorTests
     }
 
     /// <summary>
+    /// One inherited helper generates a function for each aggregate; every function calls the method and receives its support routine.
+    /// </summary>
+    [TestMethod]
+    public void PlannerSupportConfiguresEveryFunctionOfSharedHelpers()
+    {
+        Compilation compilation = GenerateSqlControl("""
+            public abstract class Summing
+            {
+                [Ankus.PgSupportFunction(typeof(SupportFunctions), nameof(SupportFunctions.Z))]
+                public static int Transition(Ankus.PgAggregateContext context, int state, int value) => state + value;
+            }
+            [Ankus.PgAggregate(InitialCondition = "0")]
+            public sealed class First : Summing, Ankus.IPgAggregate<int,int>;
+            [Ankus.PgAggregate(InitialCondition = "0")]
+            public sealed class Second : Summing, Ankus.IPgAggregate<int,int>;
+            public static class SupportFunctions
+            {
+                [Ankus.PgFunction] public static Ankus.PgInternal? Z(Ankus.PgInternal request) => null;
+            }
+            """);
+        ExtensionSchemaGraph graph = ExtensionSchemaGraph.Parse(ManifestValue(compilation, "Ankus.SqlGraph"));
+        ExtensionSchemaItem support = Assert.ContainsSingle(graph.Items.Where(static item => item.Kind == "function" && item.Names.Contains("z")));
+        ExtensionSchemaItem[] helpers = [.. graph.Items.Where(item => item.Kind == "function" && item.Id != support.Id)];
+        Assert.HasCount(2, helpers);
+        foreach (ExtensionSchemaItem helper in helpers)
+        {
+            Assert.Contains("SUPPORT \"z\"", helper.Sql);
+            Assert.AreSequenceEqual<string>([support.Id], helper.Dependencies);
+        }
+
+        Assert.HasCount(2, graph.Items.Where(static item => item.Kind == "aggregate"));
+    }
+
+    /// <summary>
     /// Aggregate helpers with compatible SQL signatures still require an aggregate invocation and cannot service planning requests.
     /// </summary>
     /// <param name="state">The aggregate's internal state representation.</param>
@@ -264,8 +379,9 @@ public sealed partial class PgFunctionGeneratorTests
 
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source);
         Diagnostic diagnostic = Assert.ContainsSingle(diagnostics);
-        Assert.AreEqual("ANKUS027", diagnostic.Id);
+        Assert.AreEqual("ANKUS485", diagnostic.Id);
         Assert.Contains("aggregate invocation", diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture));
+        Assert.AreEqual("nameof(Counter.Transition)", DiagnosticText(diagnostic));
         Assert.IsFalse(compilation.Assembly.GetAttributes().Any(static item => item.ConstructorArguments.Length == 2 &&
             item.ConstructorArguments[0].Value is "Ankus.Sql"));
     }
@@ -290,5 +406,16 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.Contains("RETURNS \"internal\"", graph.Items[0].Sql);
         Assert.Contains("SUPPORT \"z\"", graph.Items[1].Sql);
         Assert.AreSequenceEqual<string>([graph.Items[0].Id], graph.Items[1].Dependencies);
+    }
+
+    /// <summary>
+    /// Reads the exact current source text selected by a diagnostic.
+    /// </summary>
+    /// <param name="diagnostic">The reported diagnostic.</param>
+    /// <returns>The authored text at the diagnostic span.</returns>
+    private string DiagnosticText(Diagnostic diagnostic)
+    {
+        Assert.IsNotNull(diagnostic.Location.SourceTree);
+        return diagnostic.Location.SourceTree.GetText(context.CancellationToken).ToString(diagnostic.Location.SourceSpan);
     }
 }

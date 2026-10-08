@@ -161,7 +161,7 @@ public sealed partial class PgFunctionGeneratorTests
         GeneratorDriver driver = ModuleDriver().RunGeneratorsAndUpdateCompilation(initial, out Compilation failed,
             out ImmutableArray<Diagnostic> errors, context.CancellationToken);
         Diagnostic error = Assert.ContainsSingle(errors);
-        Assert.AreEqual("ANKUS026", error.Id);
+        Assert.AreEqual("ANKUS480", error.Id);
         Assert.Contains("does not declare a generated SQL object in this extension", error.GetMessage(System.Globalization.CultureInfo.InvariantCulture));
         Assert.IsFalse(failed.Assembly.GetAttributes().Any(static attribute => attribute.ConstructorArguments.Length == 2 &&
             attribute.ConstructorArguments[0].Value is "Ankus.Sql"));

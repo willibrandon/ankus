@@ -72,7 +72,7 @@ defines the full scope; family-level implementation is not API-by-API completion
 | Errors and cancellation | Sticky query cancellation/FATAL, retained raw/memory errors, fail-fast backend access and explicit rollback recovery. Transaction-completion callback failures use a fixed-buffer emergency log path without PostgreSQL diagnostic allocation; it preserves the primary error and durable outcome. Abort-time FATAL remains FATAL while irreversible FATAL is promoted to PANIC. Primary-platform full CI passes. | Retain recovery guarantees and complete the version/platform matrix. |
 | Workers and shared memory | Native signal globals, lifecycle/transaction boundaries and shared memory. Idle Wait recovers repeated real cancellation; transaction waits still abort and terminal reports remain sticky. Complete primary-platform CI passes. | Full source-contract and complete version/platform acceptance remain required. |
 | Functions and callbacks | Scalar/array/SETOF/TABLE, triggers/events, lifecycle, native callbacks, operators/conversions and installation-schema search paths. | Full upstream declaration/option audit and complete version/platform evidence. |
-| Aggregates and SQL graph | Static abstract aggregate capabilities, typed Requires/Before/SupportFunction references, deterministic SQL provenance and extended module magic. Empty SQL dependency anchors and exact authored CR/CRLF values pass complete native acceptance. | Remaining precise provider/graph diagnostics, inventoried contracts and complete version/platform acceptance. |
+| Aggregates and SQL graph | Static abstract aggregate capabilities, typed Requires/Before/SupportFunction references with per-contract diagnostics at the authored value, deterministic SQL provenance and extended module magic. Empty SQL dependency anchors and exact authored CR/CRLF values pass complete native acceptance. | Remaining free-text graph diagnostics (`ANKUS005`, `ANKUS149`), inventoried contracts and complete version/platform acceptance. |
 | Generator caching | Detached equatable declaration/provider/reference models, stable declaration-header locations and cached dispatcher/C/SQL artifacts across multi-declaration body edits, unrelated member insertion and unrelated file insertion. Only selected SQL files are read, with the complete path catalog retained. | Broader precise diagnostics, useful semantic code fixes and final inventory audit remain required. |
 | Values and ownership | Documented scalar, array, composite, temporal, JSON, network, geometry, custom codec and raw datum contracts. Interval equality, hashing and ordering agree with PostgreSQL while retaining exact components; complete primary-platform CI passes. | Remaining mapped/container contracts, parsing/formatting ergonomics and complete source-case mapping remain required. |
 | Runtime performance | Owned binary PgNumeric, direct decimal coefficient encoding, constant-time fixed-width array indexing, and a measured native guard for allowlisted pure built-ins. Catalog-miss errors require actual rollback; real-resource regressions and complete primary-platform CI pass. Persistent in-backend benchmarks provide batching, transaction modes and statistical baseline comparisons. | Complete current guard supported-version acceptance. Extend that tier only where ownership proofs and measurements justify it. Never weaken error recovery to reduce overhead. |
@@ -158,8 +158,8 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   case and outcome, plus eight scheduling cases, on all three primary platforms.
   Windows tests take **20m04s**, versus **20m41s** before this change; macOS takes
   **12m11s**, versus **12m52s**, and Linux **12m27s**, versus **11m52s**.
-  These results do not resolve the full-suite runtime gap. Round-3 product review
-  findings remain pending verification; port work is paused for test performance.
+  These results do not resolve the full-suite runtime gap. Port work has resumed
+  with the round-3 product review findings; see the entries at the end of this list.
 - Six worker-cancellation cases and two lock-interrupt cases now share two
   immutable packaged probe publications instead of compiling eight identical
   binaries. Every case retains its own PostgreSQL cluster and all assertions;
@@ -551,6 +551,18 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   precise diagnostic coordinates instead of failing during composition. The
   complete generator suite passes **4,517/4,517**. The Release solution build,
   API freshness and both documentation gates pass.
+- Free-text `ANKUS026`/`ANKUS027` are retired. `ANKUS470`–`ANKUS489` identify
+  each typed dependency and planner-support contract and point at the type,
+  method name, `ParameterTypes` element or `DeclarationId` to correct. All five
+  round-3 review defects in the first draft are corrected: argument locations,
+  separate source/target IDs, source emission before selector matching, distinct
+  name and overload diagnostics, and an unreachable support path. Planner support
+  now applies to every function generated from one method. The complete generator
+  suite passes **4,527/4,527**; Release, API freshness and both site gates pass.
+- Primary CI **37766380749** on **a04472b** passed Linux and macOS but failed one
+  Windows/PostgreSQL 17 benchmark case: Hyper-V excluded TCP **28760–28859**,
+  covering all default development ports. The case now reserves its port like
+  every other cluster-starting tool test. Replacement Windows evidence is required.
 
 Remaining diagnostics/code fixes, source-case mapping, samples, API and CLI
 contracts, supported PostgreSQL/platform combinations, .NET servicing and release

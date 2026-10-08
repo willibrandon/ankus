@@ -191,6 +191,10 @@ internal sealed record ExtensionCompositionInput(FunctionPipeline.MethodInputs M
         foreach (SqlReferenceModel reference in References)
         {
             yield return reference.Location;
+            yield return reference.TargetLocation;
+            yield return reference.DeclarationIdLocation;
+            yield return reference.Error?.Location;
+            yield return reference.TargetError?.Location;
         }
 
         yield return Module.NameError?.Location;

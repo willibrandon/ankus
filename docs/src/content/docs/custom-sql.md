@@ -523,10 +523,20 @@ or setting it to `null`, requires an unambiguous method name. `int` and `int?`
 are different signatures. Lookup follows the C# declaration, including inherited
 methods; SQL names and aliases do not select an overload.
 
-`ANKUS026` identifies missing, ambiguous or invalid managed references at the
-attribute. Targets must declare SQL objects in the current extension. Disabled
-and replaced declarations keep their identities and dependencies. These edges
-also participate in shell-type ordering, dependency selection and the existing
+Managed-reference diagnostics identify the exact failed contract and point at
+the authored type, method name, `ParameterTypes` element or `DeclarationId`
+to correct:
+
+| Diagnostic | Required correction |
+| --- | --- |
+| `ANKUS471` | Supply a non-null closed declared type. |
+| `ANKUS472`–`ANKUS476`, `ANKUS486`–`ANKUS487` | Correct the method name or `ParameterTypes` overload selection. Overloads that differ only by generic arity or `ref`, `in` or `out` modifiers need distinct names. |
+| `ANKUS477`–`ANKUS479` | Correct the source `DeclarationId` selector. |
+| `ANKUS480`–`ANKUS481` | Reference a declaration that emits one primary SQL object in this extension. For a type with several, give one an `Id` and list that ID in `Requires` or `Before`. |
+| `ANKUS488`–`ANKUS489` | Apply the attribute to a declaration that emits SQL. For a type with several objects, give the one being ordered an `Id` and set `DeclarationId` to it. |
+
+Disabled and replaced declarations keep their identities and dependencies.
+These edges also participate in shell-type ordering, dependency selection and
 cycle checks; no installation script is emitted for an invalid graph.
 
 ## Relocation

@@ -35,8 +35,10 @@ public sealed partial class PgFunctionGeneratorTests
         SqlReferenceModel current = Assert.ContainsSingle(SqlReferences(driver));
 
         Assert.AreEqual(move ? IncrementalStepRunReason.Modified : IncrementalStepRunReason.Unchanged, ModuleStep(driver, "SqlReferenceAnalysis"));
-        Assert.AreEqual(previous with { Location = null }, current with { Location = null });
-        Assert.AreEqual((previous with { Location = null }).GetHashCode(), (current with { Location = null }).GetHashCode());
+        SqlReferenceModel previousContract = previous with { Location = null, TargetLocation = null, DeclarationIdLocation = null };
+        SqlReferenceModel currentContract = current with { Location = null, TargetLocation = null, DeclarationIdLocation = null };
+        Assert.AreEqual(previousContract, currentContract);
+        Assert.AreEqual(previousContract.GetHashCode(), currentContract.GetHashCode());
         Assert.AreEqual(InstallationBody(first), InstallationBody(second));
         Assert.AreEqual(ManifestValue(first, "Ankus.NativeSource"), ManifestValue(second, "Ankus.NativeSource"));
         Assert.AreEqual(42, InvokeSqlReferenceAnswer(first));
@@ -73,7 +75,7 @@ public sealed partial class PgFunctionGeneratorTests
     /// <summary>
     /// Cached missing-target diagnostics attach to the current tree and a repaired target restores a complete graph.
     /// </summary>
-    /// <param name="support">Whether the invalid reference uses the planner support diagnostic.</param>
+    /// <param name="support">Whether the missing method is selected through planner support instead of a prerequisite.</param>
     [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
@@ -83,7 +85,7 @@ public sealed partial class PgFunctionGeneratorTests
         CSharpCompilation initial = ModuleCompilation(source);
         GeneratorDriver driver = ModuleDriver().RunGeneratorsAndUpdateCompilation(initial, out _,
             out ImmutableArray<Diagnostic> previous, context.CancellationToken);
-        string id = support ? "ANKUS027" : "ANKUS026";
+        const string id = "ANKUS475";
         Assert.AreEqual(id, Assert.ContainsSingle(previous).Id);
         SyntaxTree tree = CSharpSyntaxTree.ParseText(source + "\n// independent edit", path: "Module.cs", cancellationToken: context.CancellationToken);
         CSharpCompilation edited = initial.ReplaceSyntaxTree(initial.SyntaxTrees.Single(), tree);

@@ -32,8 +32,6 @@ ANKUS002 | Ankus | Error | Invalid PostgreSQL function name
 ANKUS003 | Ankus | Error | Invalid numeric precision or scale constraint
 ANKUS005 | Ankus | Error | Invalid installation dependency graph or SQL replacement
 ANKUS024 | Ankus | Error | Ambiguous reference nullability in a SQL parameter or result
-ANKUS026 | Ankus | Error | Invalid managed SQL dependency reference
-ANKUS027 | Ankus | Error | Invalid generated planner support function
 ANKUS028 | Ankus | Error | Incompatible typed aggregate implementation nullability
 ANKUS029 | Ankus | Error | Missing PostgreSQL aggregate capability contract
 ANKUS030 | Ankus | Error | Asynchronous PostgreSQL function
@@ -450,3 +448,23 @@ ANKUS466 | Ankus | Error | Polymorphic contract has no variants
 ANKUS467 | Ankus | Error | Hidden serialized member requires an explicit codec
 ANKUS468 | Ankus | Error | Unsupported serialization attribute
 ANKUS469 | Ankus | Error | Abstract PostgreSQL type cannot use an explicit codec
+ANKUS470 | Ankus | Error | Planner support requires a method name
+ANKUS471 | Ankus | Error | SQL dependency requires a declared type
+ANKUS472 | Ankus | Error | SQL dependency parameter types require a method
+ANKUS473 | Ankus | Error | Invalid SQL dependency method name
+ANKUS474 | Ankus | Error | Invalid SQL dependency parameter type
+ANKUS475 | Ankus | Error | SQL dependency method was not found
+ANKUS476 | Ankus | Error | SQL dependency method is ambiguous
+ANKUS477 | Ankus | Error | Invalid SQL declaration selector
+ANKUS478 | Ankus | Error | SQL declaration selector is not unique
+ANKUS479 | Ankus | Error | Assembly SQL dependency requires a declaration selector
+ANKUS480 | Ankus | Error | Referenced declaration emits no SQL object
+ANKUS481 | Ankus | Error | Referenced declaration emits several SQL objects
+ANKUS482 | Ankus | Error | Planner support requires a generated function
+ANKUS483 | Ankus | Error | Planner support selectors conflict
+ANKUS484 | Ankus | Error | Invalid planner-support signature
+ANKUS485 | Ankus | Error | Aggregate helper cannot provide planner support
+ANKUS486 | Ankus | Error | No SQL dependency overload has the selected parameter types
+ANKUS487 | Ankus | Error | SQL dependency parameter types match several overloads
+ANKUS488 | Ankus | Error | Dependency source emits no SQL object
+ANKUS489 | Ankus | Error | Dependency source emits several SQL objects

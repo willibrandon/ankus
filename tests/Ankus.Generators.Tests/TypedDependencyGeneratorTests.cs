@@ -122,26 +122,39 @@ public sealed partial class PgFunctionGeneratorTests
     }
 
     /// <summary>
-    /// Invalid source and destination references report the attribute and emit no installation manifest.
+    /// Invalid source and destination references report the authored value to correct and emit no installation manifest.
     /// </summary>
     /// <param name="attribute">The invalid dependency.</param>
     /// <param name="reason">The independent diagnostic reason.</param>
+    /// <param name="expected">The fixed diagnostic ID.</param>
+    /// <param name="span">The exact authored text to correct.</param>
     [TestMethod]
-    [DataRow("[assembly: Ankus.PgRequires(typeof(Functions))]", "requires DeclarationId")]
-    [DataRow("[assembly: Ankus.PgRequires(typeof(Functions), DeclarationId = \"missing\")]", "identify exactly one")]
-    [DataRow("[assembly: Ankus.PgRequires(typeof(Functions), DeclarationId = \" \" )]", "DeclarationId must be nonempty")]
-    [DataRow("[assembly: Ankus.PgRequires(null!, DeclarationId = \"sql\")]", "non-null declared type")]
-    [DataRow("[assembly: Ankus.PgRequires(typeof(int[]), DeclarationId = \"sql\")]", "non-null declared type")]
-    [DataRow("[assembly: Ankus.PgRequires(typeof(System.Collections.Generic.List<>), DeclarationId = \"sql\")]", "non-null declared type")]
-    [DataRow("[assembly: Ankus.PgRequires(typeof(Functions), DeclarationId = \"sql\")]", "does not declare a generated SQL object")]
-    [DataRow("[assembly: Ankus.PgRequires(typeof(Functions), \"missing\", DeclarationId = \"sql\")]", "was not found")]
-    [DataRow("[assembly: Ankus.PgRequires(typeof(Functions), \"\", DeclarationId = \"sql\")]", "method name must be nonempty")]
-    [DataRow("[assembly: Ankus.PgRequires(typeof(Functions), nameof(Functions.F), DeclarationId = \"sql\")]", "is ambiguous")]
-    [DataRow("[assembly: Ankus.PgRequires(typeof(Functions), nameof(Functions.F), ParameterTypes = new[] { typeof(string) }, DeclarationId = \"sql\")]", "was not found")]
-    [DataRow("[assembly: Ankus.PgRequires(typeof(Functions), nameof(Functions.F), ParameterTypes = new System.Type[] { null! }, DeclarationId = \"sql\")]", "must contain non-null")]
-    [DataRow("[assembly: Ankus.PgRequires(typeof(Functions), ParameterTypes = new System.Type[] { }, DeclarationId = \"sql\")]", "requires a method name")]
-    [DataRow("[assembly: Ankus.PgRequires(typeof(Functions), nameof(Functions.Ordinary), DeclarationId = \"sql\")]", "does not declare a generated SQL object")]
-    public void TypedDependenciesRejectInvalidReferences(string attribute, string reason)
+    [DataRow("[assembly: Ankus.PgRequires(typeof(Functions))]", "Set DeclarationId", "ANKUS479", "Ankus.PgRequires(typeof(Functions))")]
+    [DataRow("[assembly: Ankus.PgRequires(typeof(Functions), DeclarationId = \"missing\")]", "'missing' must identify exactly one", "ANKUS478", "\"missing\"")]
+    [DataRow("[assembly: Ankus.PgRequires(typeof(Functions), DeclarationId = \" \" )]", "DeclarationId must be nonblank", "ANKUS477", "\" \"")]
+    [DataRow("[assembly: Ankus.PgRequires(null!, DeclarationId = \"sql\")]", "non-null closed", "ANKUS471", "null!")]
+    [DataRow("[assembly: Ankus.PgRequires(typeof(int[]), DeclarationId = \"sql\")]", "non-null closed", "ANKUS471", "typeof(int[])")]
+    [DataRow("[assembly: Ankus.PgRequires(typeof(System.Collections.Generic.List<>), DeclarationId = \"sql\")]", "non-null closed", "ANKUS471",
+        "typeof(System.Collections.Generic.List<>)")]
+    [DataRow("[assembly: Ankus.PgRequires(typeof(Functions), DeclarationId = \"sql\")]", "'Functions' does not declare a generated SQL object", "ANKUS480",
+        "typeof(Functions)")]
+    [DataRow("[assembly: Ankus.PgRequires(typeof(Functions), \"missing\", DeclarationId = \"sql\")]", "'Functions.missing' was not found", "ANKUS475", "\"missing\"")]
+    [DataRow("[assembly: Ankus.PgRequires(typeof(Functions), \"\", DeclarationId = \"sql\")]", "nonblank method name", "ANKUS473", "\"\"")]
+    [DataRow("[assembly: Ankus.PgRequires(typeof(Functions), nameof(Functions.F), DeclarationId = \"sql\")]", "has several overloads; set ParameterTypes",
+        "ANKUS476", "nameof(Functions.F)")]
+    [DataRow("[assembly: Ankus.PgRequires(typeof(Functions), nameof(Functions.F), ParameterTypes = new[] { typeof(string) }, DeclarationId = \"sql\")]",
+        "No overload of 'Functions.F' has exactly the selected ParameterTypes", "ANKUS486", "new[] { typeof(string) }")]
+    [DataRow("[assembly: Ankus.PgRequires(typeof(Functions), nameof(Functions.G), ParameterTypes = new[] { typeof(int) }, DeclarationId = \"sql\")]",
+        "Several overloads of 'Functions.G' have exactly the selected ParameterTypes", "ANKUS487", "new[] { typeof(int) }")]
+    [DataRow("[assembly: Ankus.PgRequires(typeof(Functions), nameof(Functions.F), ParameterTypes = new System.Type[] { null! }, DeclarationId = \"sql\")]",
+        "only non-null", "ANKUS474", "null!")]
+    [DataRow("[assembly: Ankus.PgRequires(typeof(Functions), nameof(Functions.F), ParameterTypes = [typeof(int), typeof(System.Collections.Generic.List<>)], DeclarationId = \"sql\")]",
+        "closed managed types", "ANKUS474", "typeof(System.Collections.Generic.List<>)")]
+    [DataRow("[assembly: Ankus.PgRequires(typeof(Functions), ParameterTypes = new System.Type[] { }, DeclarationId = \"sql\")]", "method name", "ANKUS472",
+        "new System.Type[] { }")]
+    [DataRow("[assembly: Ankus.PgRequires(typeof(Functions), nameof(Functions.Ordinary), DeclarationId = \"sql\")]",
+        "'Functions.Ordinary()' does not declare a generated SQL object", "ANKUS480", "nameof(Functions.Ordinary)")]
+    public void TypedDependenciesRejectInvalidReferences(string attribute, string reason, string expected, string span)
     {
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(attribute + """
             [assembly: Ankus.PgSql("sql", "SELECT 1;")]
@@ -149,14 +162,15 @@ public sealed partial class PgFunctionGeneratorTests
             {
                 [Ankus.PgFunction] public static int F() => 1;
                 [Ankus.PgFunction] public static int F(int value) => value;
+                [Ankus.PgFunction] public static int G(int value) => value;
+                public static int G(ref int value) => value;
                 public static int Ordinary() => 2;
             }
             """);
         Diagnostic diagnostic = Assert.ContainsSingle(diagnostics);
-        Assert.AreEqual("ANKUS026", diagnostic.Id);
+        Assert.AreEqual(expected, diagnostic.Id);
         Assert.Contains(reason, diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture));
-        Assert.IsNotNull(diagnostic.Location.SourceTree);
-        Assert.Contains("PgRequires", diagnostic.Location.SourceTree.GetText(context.CancellationToken).ToString(diagnostic.Location.SourceSpan));
+        Assert.AreEqual(span, DiagnosticText(diagnostic));
         Assert.EndsWith("#reference-managed-declarations", diagnostic.Descriptor.HelpLinkUri);
         Assert.IsFalse(compilation.Assembly.GetAttributes().Any(static item => item.ConstructorArguments.Length == 2 &&
             item.ConstructorArguments[0].Value is "Ankus.Sql"));
@@ -288,18 +302,26 @@ public sealed partial class PgFunctionGeneratorTests
     }
 
     /// <summary>
-    /// A dependency on an ordinary declaration is diagnosed even when the assembly has no other Ankus attributes.
+    /// A dependency on an ordinary declaration is diagnosed at the source even when it supplies a valid selector or target.
     /// </summary>
+    /// <param name="attribute">The dependency attached to a declaration that emits no SQL.</param>
     [TestMethod]
-    public void TypedDependenciesRejectUnmappedSource()
+    [DataRow("Ankus.PgRequires(typeof(int))")]
+    [DataRow("Ankus.PgRequires(typeof(Functions), nameof(Functions.F), DeclarationId = \"f\")")]
+    [DataRow("Ankus.PgBefore(typeof(Functions), nameof(Functions.F))")]
+    public void TypedDependenciesRejectUnmappedSource(string attribute)
     {
-        (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate("""
-            [Ankus.PgRequires(typeof(int))] public static class Ordinary;
+        (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate($$"""
+            [{{attribute}}] public static class Ordinary;
+            public static class Functions { [Ankus.PgFunction] public static int F() => 1; }
             """);
         Diagnostic diagnostic = Assert.ContainsSingle(diagnostics);
-        Assert.AreEqual("ANKUS026", diagnostic.Id);
-        Assert.Contains("Ordinary", diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture));
-        Assert.IsEmpty(compilation.Assembly.GetAttributes());
+        Assert.AreEqual("ANKUS488", diagnostic.Id);
+        Assert.Contains("Attributed declaration 'Ordinary' does not declare a generated SQL object",
+            diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture));
+        Assert.AreEqual(attribute, DiagnosticText(diagnostic));
+        Assert.IsFalse(compilation.Assembly.GetAttributes().Any(static item => item.ConstructorArguments.Length == 2 &&
+            item.ConstructorArguments[0].Value is "Ankus.Sql"));
     }
 
     /// <summary>
@@ -357,28 +379,72 @@ public sealed partial class PgFunctionGeneratorTests
             }
             """);
         Diagnostic diagnostic = Assert.ContainsSingle(diagnostics);
-        Assert.AreEqual("ANKUS026", diagnostic.Id);
+        Assert.AreEqual("ANKUS478", diagnostic.Id);
         Assert.Contains("belonging to the attributed declaration", diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture));
+        Assert.AreEqual("\"foreign\"", DiagnosticText(diagnostic));
         Assert.IsFalse(compilation.Assembly.GetAttributes().Any(static item => item.ConstructorArguments.Length == 2 &&
             item.ConstructorArguments[0].Value is "Ankus.Sql"));
     }
 
     /// <summary>
-    /// A type with multiple primary SQL declarations requires explicit IDs instead of an arbitrary first match.
+    /// A target type with multiple primary SQL declarations requires a string identifier instead of an arbitrary first match.
     /// </summary>
     [TestMethod]
     public void TypedDependenciesRejectAmbiguousTypes()
     {
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate("""
             [assembly: Ankus.PgSql("after", "SELECT 1;")]
-            [assembly: Ankus.PgRequires(typeof(Value), DeclarationId = "after")]
-            [Ankus.PgSchema("declared"), Ankus.PgType]
-            public readonly record struct Value(int Number);
+            [assembly: Ankus.PgRequires(typeof(Total), DeclarationId = "after")]
+            [Ankus.PgSchema("declared"), Ankus.PgAggregate(InitialCondition = "0")]
+            public sealed class Total : Ankus.IPgAggregate<int,int>
+            {
+                public static int Transition(Ankus.PgAggregateContext context, int state, int value) => state + value;
+            }
             """);
         Diagnostic diagnostic = Assert.ContainsSingle(diagnostics);
-        Assert.AreEqual("ANKUS026", diagnostic.Id);
-        Assert.Contains("multiple SQL objects", diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture));
+        Assert.AreEqual("ANKUS481", diagnostic.Id);
+        Assert.Contains("'Total' emits several SQL objects; give one an Id and list that Id in Requires or Before",
+            diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture));
+        Assert.AreEqual("typeof(Total)", DiagnosticText(diagnostic));
+        Assert.IsEmpty(compilation.GetDiagnostics(context.CancellationToken).Where(static item => item.Severity == DiagnosticSeverity.Error));
         Assert.IsFalse(compilation.Assembly.GetAttributes().Any(static item => item.ConstructorArguments.Length == 2 &&
             item.ConstructorArguments[0].Value is "Ankus.Sql"));
+    }
+
+    /// <summary>
+    /// A source type with multiple primary SQL declarations requires DeclarationId, which then orders only the selected declaration.
+    /// </summary>
+    [TestMethod]
+    public void TypedDependenciesRequireSelectorsForAmbiguousSources()
+    {
+        const string Source = """
+            [Ankus.PgRequires(typeof(Prerequisite), nameof(Prerequisite.Before))]
+            [Ankus.PgSchema("declared"), Ankus.PgAggregate(Id = "total", InitialCondition = "0")]
+            public sealed class Total : Ankus.IPgAggregate<int,int>
+            {
+                public static int Transition(Ankus.PgAggregateContext context, int state, int value) => state + value;
+            }
+            public static class Prerequisite
+            {
+                [Ankus.PgFunction(Sql = "SELECT 'prerequisite';")] public static int Before() => 1;
+            }
+            """;
+        (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(Source);
+        Diagnostic diagnostic = Assert.ContainsSingle(diagnostics);
+        Assert.AreEqual("ANKUS489", diagnostic.Id);
+        Assert.Contains("'Total' emits several SQL objects; give the one being ordered an Id and set DeclarationId",
+            diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture));
+        Assert.AreEqual("Ankus.PgRequires(typeof(Prerequisite), nameof(Prerequisite.Before))", DiagnosticText(diagnostic));
+        Assert.IsFalse(compilation.Assembly.GetAttributes().Any(static item => item.ConstructorArguments.Length == 2 &&
+            item.ConstructorArguments[0].Value is "Ankus.Sql"));
+
+        Compilation repaired = GenerateSqlControl(Source.Replace("nameof(Prerequisite.Before))", "nameof(Prerequisite.Before), DeclarationId = \"total\")",
+            StringComparison.Ordinal));
+        ExtensionSchemaGraph graph = ExtensionSchemaGraph.Parse(ManifestValue(repaired, "Ankus.SqlGraph"));
+        ExtensionSchemaItem prerequisite = Assert.ContainsSingle(graph.Items.Where(static item => item.Sql.Contains("'prerequisite'", StringComparison.Ordinal)));
+        ExtensionSchemaItem aggregate = Assert.ContainsSingle(graph.Items.Where(static item => item.Kind == "aggregate"));
+        ExtensionSchemaItem schema = Assert.ContainsSingle(graph.Items.Where(static item => item.Kind == "schema"));
+        Assert.Contains(prerequisite.Id, aggregate.Dependencies);
+        Assert.DoesNotContain(prerequisite.Id, schema.Dependencies);
     }
 }

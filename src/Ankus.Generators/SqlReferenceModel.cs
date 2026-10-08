@@ -10,11 +10,14 @@ namespace Ankus.Generators;
 /// <param name="DeclarationId">The optional source SQL declaration selector.</param>
 /// <param name="ExternalSupport">Whether the source already declares external planner support.</param>
 /// <param name="Target">The compiler-selected target declaration, absent after semantic failure.</param>
-/// <param name="Error">A constructor error that precedes source selection.</param>
-/// <param name="TargetError">A semantic target error deferred until source selection succeeds.</param>
+/// <param name="Error">A constructor problem that precedes source selection.</param>
+/// <param name="TargetError">A semantic target problem deferred until source selection succeeds.</param>
 /// <param name="Location">The current attribute diagnostic coordinates.</param>
+/// <param name="TargetLocation">The authored method name, or the type when no method is named.</param>
+/// <param name="DeclarationIdLocation">The authored source declaration selector, when present.</param>
 internal sealed record SqlReferenceModel(SqlReferenceModel.Declaration Source, string Kind, string? DeclarationId,
-    bool ExternalSupport, SqlReferenceModel.Declaration? Target, string? Error, string? TargetError, GeneratorLocation? Location)
+    bool ExternalSupport, SqlReferenceModel.Declaration? Target, SqlReferenceProblem? Error, SqlReferenceProblem? TargetError,
+    GeneratorLocation? Location, GeneratorLocation? TargetLocation, GeneratorLocation? DeclarationIdLocation)
 {
     /// <summary>
     /// Selects overloads and inherited members using the compiler's exact type comparer without retaining symbols.
@@ -28,44 +31,70 @@ internal sealed record SqlReferenceModel(SqlReferenceModel.Declaration Source, s
     {
         cancellationToken.ThrowIfCancellationRequested();
         string kind = attribute.AttributeClass!.Name;
-        string? error = kind == "PgSupportFunctionAttribute" &&
+        string? declarationId = AttributeValues.Get<string?>(attribute, "DeclarationId", null);
+        GeneratorLocation? member = Detach(DatumMappingDiagnostics.Argument(attribute, 1, cancellationToken), compilation);
+        SqlReferenceProblem? error = kind == "PgSupportFunctionAttribute" &&
             (attribute.ConstructorArguments.Length != 2 || attribute.ConstructorArguments[1].Value is not string)
-            ? "A planner support reference requires a non-null method name." : null;
+            ? new(SqlReferenceProblemKind.SupportMethodName, Location: member) : null;
         AttributeData? function = source.GetAttributes().FirstOrDefault(static candidate =>
             candidate.AttributeClass?.ToDisplayString() == "Ankus.PgFunctionAttribute");
-        (Declaration? target, string? targetError) = SelectTarget(attribute);
-        return new(Declaration.Create(source), kind, AttributeValues.Get<string?>(attribute, "DeclarationId", null),
+        GeneratorLocation? type = Detach(DatumMappingDiagnostics.Argument(attribute, 0, cancellationToken), compilation);
+        GeneratorLocation? target = attribute.ConstructorArguments.Length == 2 && attribute.ConstructorArguments[1].Value is string ? member : type;
+        (Declaration? selected, SqlReferenceProblem? targetError) = SelectTarget(attribute, type, target, compilation, cancellationToken);
+        return new(Declaration.Create(source), kind, declarationId,
             function is not null && AttributeValues.Get<string?>(function, "SupportFunction", null) is not null,
-            target, error, targetError, GeneratorLocation.Create(attribute.ApplicationSyntaxReference?.GetSyntax(cancellationToken).GetLocation(), compilation));
+            selected, error, targetError, Detach(attribute.ApplicationSyntaxReference?.GetSyntax(cancellationToken).GetLocation(), compilation),
+            target, declarationId is null ? null
+                : Detach(FunctionDeclarationDiagnostics.Option(attribute, "DeclarationId", cancellationToken), compilation));
     }
 
     /// <summary>
     /// Preserves constructor validation, exact parameter selection and first declaring base-type lookup.
     /// </summary>
-    private static (Declaration? Target, string? Error) SelectTarget(AttributeData attribute)
+    /// <param name="attribute">The original dependency or support attribute.</param>
+    /// <param name="typeLocation">The authored type coordinates.</param>
+    /// <param name="target">The authored method-name coordinates, or the type when no method is named.</param>
+    /// <param name="compilation">The compiler state owning source coordinates.</param>
+    /// <param name="cancellationToken">The current analysis cancellation token.</param>
+    /// <returns>The selected declaration, or the failed contract and its authored value.</returns>
+    private static (Declaration? Target, SqlReferenceProblem? Error) SelectTarget(AttributeData attribute, GeneratorLocation? typeLocation,
+        GeneratorLocation? target, Compilation compilation, CancellationToken cancellationToken)
     {
         if (attribute.ConstructorArguments.Length != 2 ||
             attribute.ConstructorArguments[0].Value is not INamedTypeSymbol { TypeKind: not TypeKind.Error, IsUnboundGenericType: false } type)
         {
-            return (null, "A SQL dependency requires a non-null declared type.");
+            return (null, new(SqlReferenceProblemKind.TargetType, Location: typeLocation));
         }
 
         string? member = attribute.ConstructorArguments[1].Value as string;
         TypedConstant parameters = attribute.NamedArguments.FirstOrDefault(static argument => argument.Key == "ParameterTypes").Value;
         bool selectedParameters = parameters.Kind == TypedConstantKind.Array && !parameters.IsNull;
+        GeneratorLocation? ParameterTypes() => Detach(FunctionDeclarationDiagnostics.Option(attribute, "ParameterTypes", cancellationToken), compilation);
         if (member is null)
         {
-            return selectedParameters ? (null, "ParameterTypes requires a method name.") : (Declaration.Create(type), null);
+            return selectedParameters ? (null, new(SqlReferenceProblemKind.ParameterTypesMethod, Location: ParameterTypes()))
+                : (Declaration.Create(type), null);
         }
 
         if (string.IsNullOrWhiteSpace(member) || !SqlText.IsText(member))
         {
-            return (null, "A SQL dependency method name must be nonempty valid text.");
+            return (null, new(SqlReferenceProblemKind.MethodName, Location: target));
         }
 
-        if (selectedParameters && parameters.Values.Any(static parameter => parameter.Value is not ITypeSymbol { TypeKind: not TypeKind.Error }))
+        int invalid = -1;
+        for (int index = 0; selectedParameters && invalid < 0 && index < parameters.Values.Length; index++)
         {
-            return (null, "ParameterTypes must contain non-null managed types.");
+            if (parameters.Values[index].Value is not ITypeSymbol { TypeKind: not TypeKind.Error } parameter ||
+                parameter is INamedTypeSymbol { IsUnboundGenericType: true })
+            {
+                invalid = index;
+            }
+        }
+
+        if (invalid >= 0)
+        {
+            return (null, new(SqlReferenceProblemKind.ParameterTypes, Location: Detach(FunctionDeclarationDiagnostics.OptionElement(attribute,
+                "ParameterTypes", invalid, cancellationToken), compilation)));
         }
 
         ISymbol[] members = [];
@@ -77,10 +106,25 @@ internal sealed record SqlReferenceModel(SqlReferenceModel.Declaration Source, s
         IMethodSymbol[] methods = [.. members.OfType<IMethodSymbol>().Where(method => !selectedParameters ||
             method.Parameters.Length == parameters.Values.Length && method.Parameters.Select(static parameter => parameter.Type)
                 .SequenceEqual(parameters.Values.Select(static parameter => (ITypeSymbol)parameter.Value!), SymbolEqualityComparer.Default))];
-        return methods.Length == 1 ? (Declaration.Create(methods[0]), null) : (null, methods.Length == 0
-            ? $"SQL dependency method '{type.ToDisplayString()}.{member}' was not found with the selected parameter types."
-            : $"SQL dependency method '{type.ToDisplayString()}.{member}' is ambiguous; set ParameterTypes to select one overload.");
+        if (methods.Length == 1)
+        {
+            return (Declaration.Create(methods[0]), null);
+        }
+
+        string identity = type.ToDisplayString() + "." + member;
+        return (null, (methods.Length == 0, selectedParameters) switch
+        {
+            (true, false) => new(SqlReferenceProblemKind.MethodMissing, identity, target),
+            (false, false) => new(SqlReferenceProblemKind.MethodAmbiguous, identity, target),
+            (true, true) => new(SqlReferenceProblemKind.OverloadMissing, identity, ParameterTypes()),
+            (false, true) => new(SqlReferenceProblemKind.OverloadAmbiguous, identity, ParameterTypes()),
+        });
     }
+
+    /// <summary>
+    /// Detaches an authored value from the current syntax tree.
+    /// </summary>
+    private static GeneratorLocation? Detach(Location? location, Compilation compilation) => GeneratorLocation.Create(location, compilation);
 
     /// <summary>
     /// Retains only declaration identity and graph-selection category after compiler validation.
