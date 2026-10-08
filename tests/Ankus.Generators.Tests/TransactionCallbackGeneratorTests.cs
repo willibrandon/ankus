@@ -102,7 +102,7 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.Contains("ankus_is_builtin_range(request->parameters[0].type_oid)", native);
         Assert.Contains("bool lightweight = !input_recovery && (numeric || temporal || network || geometry ||", native);
         Assert.Contains("(datum && request->scalar_operation == 6));", native);
-        Assert.Contains("bool recovery_subtransaction = !direct_spi && !lightweight;", native);
+        Assert.Contains("bool recovery_subtransaction = (!direct_spi || (subtransaction && !ankus_parallel_without_subtransactions())) && !lightweight;", native);
         Assert.Contains("bool recovered = false;", native);
         Assert.Contains("if (lightweight && operation_context != NULL)", native);
         Assert.Contains("MemoryContextDelete((MemoryContext) operation_context);", native);

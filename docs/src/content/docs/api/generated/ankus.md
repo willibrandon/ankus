@@ -191,6 +191,7 @@ Assembly: `Ankus.Runtime.dll`
 - [PgSetMode](/api/ankus.pgsetmode/)
 - [PgSqlOrder](/api/ankus.pgsqlorder/)
 - [PgSubtransactionEvent](/api/ankus.pgsubtransactionevent/)
+- [PgSubtransactionMode](/api/ankus.pgsubtransactionmode/)
 - [PgTableRewriteReason](/api/ankus.pgtablerewritereason/)
 - [PgTransactionEvent](/api/ankus.pgtransactionevent/)
 - [PgTriggerLevel](/api/ankus.pgtriggerlevel/)

@@ -130,6 +130,21 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
 
 ## Active validation and work
 
+- Explicit scopes can now opt out of per-statement recovery, the remaining SPI
+  cost difference from pgrx. `PgTransaction.RunInSubtransaction(action,
+  PgSubtransactionMode.Atomic)` runs its statements directly in the scope's single
+  subtransaction, as pgrx runs SPI in the current transaction. The first
+  PostgreSQL error makes later backend calls in the scope rethrow it; the whole
+  scope then rolls back before `PgException` reaches the caller. The native
+  bridge reuses the direct-SPI frame of transaction callbacks and pre-17 parallel
+  execution. Every explicit scope now shadows the enclosing frame, so a nested
+  recoverable scope restores per-statement recovery inside an atomic one, and a
+  failure its own rollback recovered no longer poisons the enclosing frame. In a
+  private PostgreSQL 18.6 cluster, 200 writes assign exactly **1** subtransaction
+  ID atomically, against **201** with per-statement recovery. Recovery,
+  whole-scope rollback, nested recovery and session continuity pass, along with
+  all transaction-callback, cleanup and try/catch sample cases (**63** total).
+  **2,372** runtime, **4,707** generator and **1,259** build cases (9 skips) pass.
 - Configuration parameters can now be defined at run time, closing the review's
   "GUC names are compile-time only" difference from pgrx. `PgGucRegistry.DefineBool`,
   `DefineInt`, `DefineReal`, `DefineString` and `DefineEnum`, called from

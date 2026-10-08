@@ -45,6 +45,49 @@ public static class PgTransaction
     public static TResult RunInSubtransaction<TResult>(Func<TResult> action) => NativeSubtransaction.Run(action);
 
     /// <summary>
+    /// Runs synchronous work in an internal subtransaction with the selected statement recovery.
+    /// </summary>
+    /// <param name="action">The work to run on the active backend thread.</param>
+    /// <param name="mode">Whether statements recover individually or share the scope's subtransaction.</param>
+    /// <remarks>
+    /// <see cref="PgSubtransactionMode.Atomic"/> runs every statement in the scope's own subtransaction, as SPI does in
+    /// pgrx, so a bulk write consumes one subtransaction ID. The first PostgreSQL error makes later backend calls in the
+    /// scope rethrow it, then rolls back the whole scope before propagating; catch it outside the callback. A nested
+    /// recoverable scope restores per-statement recovery for its own statements. The other rules of
+    /// <see cref="RunInSubtransaction(Action)"/> apply.
+    /// </remarks>
+    /// <exception cref="ArgumentException"><paramref name="mode"/> is not defined.</exception>
+    public static void RunInSubtransaction(Action action, PgSubtransactionMode mode)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        _ = RunInSubtransaction(() =>
+        {
+            action();
+            return 0;
+        }, mode);
+    }
+
+    /// <summary>
+    /// Runs synchronous work in an internal subtransaction with the selected statement recovery and returns its result.
+    /// </summary>
+    /// <typeparam name="TResult">The callback result type.</typeparam>
+    /// <param name="action">The synchronous work to run on the active backend thread.</param>
+    /// <param name="mode">Whether statements recover individually or share the scope's subtransaction.</param>
+    /// <returns>The result after the subtransaction succeeds.</returns>
+    /// <remarks>See <see cref="RunInSubtransaction(Action, PgSubtransactionMode)"/>.</remarks>
+    /// <exception cref="ArgumentException"><paramref name="mode"/> is not defined.</exception>
+    public static TResult RunInSubtransaction<TResult>(Func<TResult> action, PgSubtransactionMode mode)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        if (!Enum.IsDefined(mode))
+        {
+            throw new ArgumentException("The subtransaction mode is not defined.", nameof(mode));
+        }
+
+        return NativeSubtransaction.Run(action, mode == PgSubtransactionMode.Atomic);
+    }
+
+    /// <summary>
     /// Registers a one-shot callback for an outer-transaction phase.
     /// </summary>
     /// <param name="event">The phase that runs the callback.</param>

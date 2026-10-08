@@ -108,6 +108,14 @@ overload for PostgreSQL's read-only snapshot and write restrictions. The
 `Execute` and `ExecuteScalar` methods have no `readOnly` overload. A query
 beginning with `SELECT` does not select read-only snapshot behavior.
 
+pgrx runs SPI statements directly in the current transaction, so an error
+aborts the statement. Ankus runs each call in an internal subtransaction instead,
+so managed code can catch `PgException` and continue. For pgrx's cost profile in
+loops of writes, wrap them in
+`PgTransaction.RunInSubtransaction(action, PgSubtransactionMode.Atomic)`: the
+statements share one subtransaction, and an error rolls back the whole scope.
+See [errors and transactions](/spi/#errors-and-transactions).
+
 Throw `PgException` to report a PostgreSQL SQLSTATE and owned diagnostic fields.
 `PgLog` supplies PostgreSQL message levels. Native errors unwind managed cleanup
 before PostgreSQL reports them at the outer boundary.

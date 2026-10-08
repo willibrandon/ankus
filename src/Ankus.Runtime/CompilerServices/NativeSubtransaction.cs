@@ -17,8 +17,9 @@ internal static unsafe class NativeSubtransaction
     /// </summary>
     /// <typeparam name="TResult">The managed result type.</typeparam>
     /// <param name="action">The synchronous callback.</param>
+    /// <param name="atomic">Whether statements in the scope share its subtransaction instead of recovering individually.</param>
     /// <returns>The result after native release succeeds.</returns>
-    internal static TResult Run<TResult>(Func<TResult> action)
+    internal static TResult Run<TResult>(Func<TResult> action, bool atomic = false)
     {
         ArgumentNullException.ThrowIfNull(action);
         NativeBackend.CheckAccess();
@@ -28,7 +29,7 @@ internal static unsafe class NativeSubtransaction
         try
         {
             NativeBackend.RunSubtransaction((nint)(delegate* unmanaged[Cdecl]<nint, int>)&Dispatch,
-                GCHandle.ToIntPtr(handle));
+                GCHandle.ToIntPtr(handle), atomic);
         }
         catch (Exception exception) when (invocation.Failure is not null && exception is not PgQueryCanceledException)
         {

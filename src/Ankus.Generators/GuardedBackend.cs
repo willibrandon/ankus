@@ -126,7 +126,9 @@ internal static class GuardedBackend
                 (range && ankus_uses_builtin_range(request)) || (datum && request->scalar_operation == 6));
             bool direct = quote || reporting || temporal || numeric || network || geometry || range || enumeration || tuple ||
                 transaction_callbacks || transaction_id || datum || function_context || function_call || custom_type || datum_type || array || lookup || relation || subtransaction;
-            bool recovery_subtransaction = !direct_spi && !lightweight;
+            /* An explicit scope always owns a subtransaction, even inside an atomic scope whose
+             * statements share their enclosing subtransaction. */
+            bool recovery_subtransaction = (!direct_spi || (subtransaction && !ankus_parallel_without_subtransactions())) && !lightweight;
             volatile MemoryContext operation_context = NULL;
             result->release = ankus_release_result;
 
@@ -186,7 +188,7 @@ internal static class GuardedBackend
                     /* Cache diagnostic conversions while catalog access is available, so later
                      * reports and captured errors outside a transaction can still convert text. */
                     ankus_prepare_diagnostic_conversion();
-                    if (subtransaction && transaction_frame != NULL)
+                    if (subtransaction && transaction_frame != NULL && !transaction_frame->scope)
                         ereport(ERROR, (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
                             errmsg("Explicit recovery scopes are unavailable during transaction callbacks")));
 
@@ -303,8 +305,24 @@ internal static class GuardedBackend
                                  * rollback. Raw call guards remain inside the managed callback. */
                                 AnkusError callback_error = {0};
                                 int callback_status;
+                                /* Every explicit scope shadows the enclosing frame. An atomic scope runs its
+                                 * statements directly in this subtransaction and retains their first failure;
+                                 * a recoverable scope restores per-statement recovery inside an atomic one. */
+                                AnkusTransactionFrame scope_frame = {0};
+                                scope_frame.previous = ankus_transaction_frame;
+                                scope_frame.direct_spi = request->scalar_operation == 1;
+                                scope_frame.scope = true;
+                                ankus_transaction_frame = &scope_frame;
                                 ANKUS_MANAGED_INVOKE(callback_status, &callback_error,
                                     ((AnkusSubtransactionManaged) request->callback)(request->callback_state));
+                                ankus_transaction_frame = scope_frame.previous;
+                                if (scope_frame.failed)
+                                {
+                                    ankus_release_error(&callback_error);
+                                    callback_error = scope_frame.failure;
+                                    memset(&scope_frame.failure, 0, sizeof(scope_frame.failure));
+                                }
+
                                 if (callback_error.sqlstate != 0)
                                     ankus_transaction_report(&callback_error, ERROR);
                                 if (callback_status != 0)
@@ -526,7 +544,9 @@ internal static class GuardedBackend
 
                     ankus_capture_error(data, error);
                     ankus_recovery_record(error, recovered);
-                    if (transaction_direct_spi)
+                    /* A failure rolled back by this operation's own subtransaction, such as a
+                     * nested recoverable scope, does not fail the enclosing direct frame. */
+                    if (transaction_direct_spi && !recovered)
                     {
                         ankus_release_error(&transaction_frame->failure);
                         memset(&transaction_frame->failure, 0, sizeof(transaction_frame->failure));

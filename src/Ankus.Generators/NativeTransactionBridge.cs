@@ -175,6 +175,8 @@ internal static class NativeTransactionBridge
             AnkusError failure;
             bool direct_spi;
             bool failed;
+            /* Set for explicit subtransaction scopes, which permit nested scopes; clear for callbacks. */
+            bool scope;
         } AnkusTransactionFrame;
 
         static AnkusTransactionFrame *ankus_transaction_frame;

@@ -576,6 +576,26 @@ not consume IDs. For bulk changes, prefer one set-based statement, such as
 `INSERT ... SELECT` or a statement over an array parameter, instead of one call
 per row.
 
+When per-row statements are unavoidable, run them in an atomic scope. Its
+statements share the scope's single subtransaction, as SPI statements do in
+pgrx, so 200 writes consume one subtransaction ID instead of 200:
+
+```csharp
+PgTransaction.RunInSubtransaction(() =>
+{
+    foreach (int value in values)
+    {
+        Spi.Execute("INSERT INTO items (value) VALUES ($1)", SpiParameter.Create(value));
+    }
+}, PgSubtransactionMode.Atomic);
+```
+
+Inside an atomic scope, a PostgreSQL error cannot be recovered: a later backend
+call in the scope rethrows it, and the whole scope rolls back before the
+`PgException` reaches the caller. Catch it outside the callback. A
+`PgSubtransactionMode.Recoverable` scope nested inside restores per-statement
+recovery for its own statements.
+
 PostgreSQL 13–16 prohibit subtransactions during parallel execution, including
 in parallel workers. Successful SPI queries, scoped sessions, prepared statements
 and cursors remain available subject to PostgreSQL's parallel restrictions.

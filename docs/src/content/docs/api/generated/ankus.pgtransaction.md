@@ -96,6 +96,36 @@ The callback must not perform transaction control or asynchronous work. This ope
 is unavailable during transaction callbacks and abort cleanup. Internal guard
 subtransactions do not invoke consumer subtransaction callbacks.
 
+<a id="member-15c3008636fcf063"></a>
+
+### RunInSubtransaction(Action, PgSubtransactionMode)
+
+Runs synchronous work in an internal subtransaction with the selected statement recovery.
+
+```csharp
+public static void RunInSubtransaction(Action action, PgSubtransactionMode mode)
+```
+
+Parameters:
+
+`action` — [Action](https://learn.microsoft.com/dotnet/api/system.action)
+
+The work to run on the active backend thread.
+
+`mode` — [PgSubtransactionMode](/api/ankus.pgsubtransactionmode/)
+
+Whether statements recover individually or share the scope's subtransaction.
+
+Exceptions:
+
+- [ArgumentException](https://learn.microsoft.com/dotnet/api/system.argumentexception): <code class="paramref">mode</code> is not defined.
+
+[Atomic](/api/ankus.pgsubtransactionmode/#member-dafda28ff736d602) runs every statement in the scope's own subtransaction, as SPI does in
+pgrx, so a bulk write consumes one subtransaction ID. The first PostgreSQL error makes later backend calls in the
+scope rethrow it, then rolls back the whole scope before propagating; catch it outside the callback. A nested
+recoverable scope restores per-statement recovery for its own statements. The other rules of
+[RunInSubtransaction(Action)](/api/ankus.pgtransaction/#member-341f2ab35f47ed4e) apply.
+
 <a id="member-b0815c0e9702d8ee"></a>
 
 ### RunInSubtransaction&lt;TResult&gt;(Func&lt;TResult&gt;)
@@ -129,3 +159,39 @@ lifetimes; rollback invalidates allocations and resources owned by the aborted s
 Cleanup aggregates that contain the original native failure retain all their causes after rollback.
 Do not perform transaction control or asynchronous work in the callback. This operation
 is unavailable during transaction callbacks and abort cleanup.
+
+<a id="member-0010659913097d06"></a>
+
+### RunInSubtransaction&lt;TResult&gt;(Func&lt;TResult&gt;, PgSubtransactionMode)
+
+Runs synchronous work in an internal subtransaction with the selected statement recovery and returns its result.
+
+```csharp
+public static TResult RunInSubtransaction<TResult>(Func<TResult> action, PgSubtransactionMode mode)
+```
+
+Type parameters:
+
+`TResult`
+
+The callback result type.
+
+Parameters:
+
+`action` — [Func&lt;TResult&gt;](https://learn.microsoft.com/dotnet/api/system.func-1)
+
+The synchronous work to run on the active backend thread.
+
+`mode` — [PgSubtransactionMode](/api/ankus.pgsubtransactionmode/)
+
+Whether statements recover individually or share the scope's subtransaction.
+
+Returns: <code>TResult</code>
+
+The result after the subtransaction succeeds.
+
+Exceptions:
+
+- [ArgumentException](https://learn.microsoft.com/dotnet/api/system.argumentexception): <code class="paramref">mode</code> is not defined.
+
+See [RunInSubtransaction(Action, PgSubtransactionMode)](/api/ankus.pgtransaction/#member-15c3008636fcf063).
