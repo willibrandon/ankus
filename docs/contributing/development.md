@@ -270,6 +270,12 @@ package names, versions, reference bytes and analyzer configuration. Concurrent
 consumers compile a matching companion once. Restore failures cannot be bypassed
 by an existing compiled artifact.
 
+Verified cache hits retain shared reader leases, so independent builds can
+validate and copy the same entry concurrently. Replacement and retention require
+exclusive ownership. A writer closes admission to new readers before waiting for
+existing readers, allowing changed inputs to rebuild without repeated competing
+validation. Every reader still checks artifact and dependency contents.
+
 Generated-source, managed-request and shared-compilation stores each retain at most **2 GiB**
 of idle entries by default. `ANKUS_BINDING_CACHE_MAX_BYTES` selects a positive
 byte budget for each store. Reuse refreshes an entry's recency; lease disposal
@@ -414,8 +420,11 @@ logical processors, with a minimum of one. Set
 `ANKUS_PACKAGE_TEST_CONCURRENCY` to a positive integer to override both phases
 for the machine; malformed values fail initialization. Fast tool commands and
 PostgreSQL assertions do not reserve build capacity. The fixture logs the
-selected limit, logical processor count and processors per build. Build children
-receive `DOTNET_PROCESSOR_COUNT` equal to the machine's logical processors divided
+selected limit, logical processor count and processors per build. Regression
+dry runs, `run`/`regress`/`bench` commands using `--no-build`, and manifest
+upgrades do not wait for compiler slots. `dotnet test --no-build` still reserves
+one because test fixture initialization can publish a Native AOT extension.
+Build children receive `DOTNET_PROCESSOR_COUNT` equal to the machine's logical processors divided
 by the concurrent-build limit, with a minimum of one. Native AOT compilation,
 managed worker pools and GC consequently share that budget instead of each
 assuming ownership of the whole machine. This applies only to the repository's

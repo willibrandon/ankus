@@ -92,9 +92,9 @@ incorrect. See [the detailed review](docs/contributing/evidence/port-history.md#
 ## Current complete acceptance evidence
 
 Primary CI runs all six modules against real published Native AOT extensions.
-The latest successful primary CI source is **7317ca1**, with runtime **10.0.12-ankus.4**.
-[CI 37719535843](https://github.com/willibrandon/ankus/actions/runs/37719535843)
-passes; [Docs run 37719535780](https://github.com/willibrandon/ankus/actions/runs/37719535780)
+The latest successful primary CI source is **821bd8e**, with runtime **10.0.12-ankus.4**.
+[CI 37730340878](https://github.com/willibrandon/ankus/actions/runs/37730340878)
+passes; [Docs run 37730340963](https://github.com/willibrandon/ankus/actions/runs/37730340963)
 also passes. All eighteen module reports were inspected: each platform completed
 all six modules with zero failures. No primary job timed out.
 A complete [Intel refresh](https://github.com/willibrandon/ankus/actions/runs/37460600236)
@@ -102,9 +102,9 @@ also passes on source **e41c687**.
 
 | Source | Platform / PostgreSQL | Result | Duration |
 | --- | --- | --- | --- |
-| Latest primary CI, **7317ca1 / ankus.4** | Linux x64 / 18 | 13,518 total; 13,470 passed; 48 platform skips; zero failures | 11m58s test step; 14m02s job |
-| Same CI / revision / runtime | macOS ARM64 / 18 | 13,518 total; 13,458 passed; 60 platform skips; zero failures | 13m01s test step; 14m39s job |
-| Same CI / revision / runtime | Windows x64 / 17 | 13,518 total; 13,482 passed; 36 platform skips; zero failures | 22m43s test step; 24m58s job |
+| Latest primary CI, **821bd8e / ankus.4** | Linux x64 / 18 | 13,530 total; 13,482 passed; 48 platform skips; zero failures | 11m55s test step; 14m01s job |
+| Same CI / revision / runtime | macOS ARM64 / 18 | 13,530 total; 13,470 passed; 60 platform skips; zero failures | 12m19s test step; 14m00s job |
+| Same CI / revision / runtime | Windows x64 / 17 | 13,530 total; 13,494 passed; 36 platform skips; zero failures | 21m17s test step; 23m35s job |
 | SQL/datetime composition, parent **e41c687 / ankus.4** | Linux x64 / 18.6 | 13,337 total; 13,289 passed; 48 platform skips; zero failures | 42m46.885s tests; 43m41.597s command |
 | Function-provider composition, parent **4da0bec / ankus.4** | Linux x64 / 18.6 | 13,365 total; 13,317 passed; 48 platform skips; zero failures | 42m39.165s tests; 43m46.937s command |
 | Type-provider composition, parent **97842d3 / ankus.4** | Linux x64 / 18.6 | 13,411 total; 13,363 passed; 48 platform skips; zero failures | 42m39.033s tests; 43m35.244s command |
@@ -130,6 +130,23 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
 
 ## Active validation and work
 
+- Compiler-cache hits now retain shared read ownership instead of serializing
+  every consumer's content validation and artifact copy. Replacement waits for
+  all readers and closes admission to new readers; retention remains exclusive.
+  Focused cache checks pass **37/37** on macOS x64 and **33** with **4** platform
+  skips on Windows x64. They cover overlapping leases, blocked replacement,
+  cancellation, cold and stale concurrent misses, corruption and retention.
+  With SDK **10.0.401**, eight concurrent warm validations of all installed SDK
+  file contents take **0.800–0.858s**, versus **1.662–1.685s**, on Windows;
+  macOS x64 takes **1.811–2.144s**, versus **2.512–2.682s**. These isolated
+  measurements establish a cache improvement, not a complete-suite speedup.
+  The packaged-helper relocation, reuse, changed-content and cleanup test also
+  passes on Windows/PostgreSQL **17.11**. Release and documentation checks pass.
+  Package commands that only inspect or reuse an existing publication no longer
+  wait for compiler slots; actual compilation and test-host publication retain
+  the existing bound. All **19** scheduling and real regression-command cases
+  pass on Windows/PostgreSQL **17.11**, including native diffs, failed clients
+  and read-only dry runs. Complete-suite validation of these changes remains pending.
 - Windows native-tool helpers with a one-processor build budget spent time
   waiting for thread-pool workers blocked on synchronous redirected pipes.
   Dedicated readers for non-cancellable Windows pipes reduce a measured warm
@@ -147,7 +164,8 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   **13,494** passed, **36** platform skips and zero failures in **19m41.590s**.
   All **5,037** integration case identities and outcomes match the baseline.
   Repository outputs were warm and generated consumers fresh in these local
-  comparisons; replacement CI remains required. The subsequent reader-start
+  comparisons; the final composition subsequently passed primary CI **37730340878**
+  in the times recorded above. The subsequent reader-start
   failure cleanup and evaluation-only packaged-tool lookup pass focused checks.
   The lookup no longer executes native binding compilation just to read a tool path.
   Final native-process checks pass **393** cases with **2** platform skips on

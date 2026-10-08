@@ -35,16 +35,47 @@ internal static partial class NativeBindingCache
         long maximumBytes = ReadMaximumBytes(Environment.GetEnvironmentVariable("ANKUS_BINDING_CACHE_MAX_BYTES"));
         Directory.CreateDirectory(root);
         // Never remove lock files: deleting an unlocked name races another process opening it.
-        FileStream ownership = await LockAsync(Path.Combine(root, key + ".lock"), cancellationToken);
+        string ownershipPath = Path.Combine(root, key + ".lock");
+        string admissionPath = Path.Combine(root, key + ".admission.lock");
+        string entry = Path.Combine(root, key);
+        FileStream reader;
+        await using (FileStream admission = await LockAsync(admissionPath, exclusive: false, cancellationToken))
+        {
+            reader = await LockAsync(ownershipPath, exclusive: false, cancellationToken);
+        }
+
         try
         {
-            string entry = await PopulateAsync(root, key, produce, cancellationToken);
-            Directory.SetLastWriteTimeUtc(entry, DateTime.UtcNow);
-            return new(entry, ownership, copyBeforeRelease ? root : null, maximumBytes);
+            if (await ValidAsync(entry, key, cancellationToken))
+            {
+                Directory.SetLastWriteTimeUtc(entry, DateTime.UtcNow);
+                return new(entry, reader, copyBeforeRelease ? root : null, maximumBytes);
+            }
         }
         catch
         {
-            await ownership.DisposeAsync();
+            await reader.DisposeAsync();
+            throw;
+        }
+
+        await reader.DisposeAsync();
+        FileStream writer;
+        // Announce the writer before waiting for existing readers. Re-entering
+        // shared validation here could keep stale readers blocking one another forever.
+        await using (FileStream admission = await LockAsync(admissionPath, exclusive: true, cancellationToken))
+        {
+            writer = await LockAsync(ownershipPath, exclusive: true, cancellationToken);
+        }
+
+        try
+        {
+            await PopulateAsync(root, key, produce, cancellationToken);
+            Directory.SetLastWriteTimeUtc(entry, DateTime.UtcNow);
+            return new(entry, writer, copyBeforeRelease ? root : null, maximumBytes);
+        }
+        catch
+        {
+            await writer.DisposeAsync();
             throw;
         }
     }
@@ -189,14 +220,18 @@ internal static partial class NativeBindingCache
         return changed == 0;
     }
 
-    private static async Task<FileStream> LockAsync(string path, CancellationToken cancellationToken)
+    /// <summary>
+    /// Acquires shared reader or exclusive writer ownership without removing the lock file.
+    /// </summary>
+    private static async Task<FileStream> LockAsync(string path, bool exclusive, CancellationToken cancellationToken)
     {
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
             try
             {
-                return new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+                return new FileStream(path, FileMode.OpenOrCreate, exclusive ? FileAccess.ReadWrite : FileAccess.Read,
+                    exclusive ? FileShare.None : FileShare.Read);
             }
             catch (IOException error) when ((error.HResult & 0xffff) is 32 or 33 ||
                 error.HResult == (OperatingSystem.IsMacOS() ? 35 : 11))
@@ -269,7 +304,7 @@ internal static partial class NativeBindingCache
 /// Keeps a verified cache entry stable until its consumer has copied the required artifacts.
 /// </summary>
 /// <param name="directory">The verified artifact directory.</param>
-/// <param name="ownership">Exclusive cross-process ownership retained until disposal.</param>
+/// <param name="ownership">Cross-process read or write ownership retained until disposal.</param>
 /// <param name="cacheRoot">The copied-artifact store to trim after release, or null for retained linker inputs.</param>
 /// <param name="maximumBytes">The maximum idle artifact bytes retained in this store.</param>
 internal sealed class NativeBindingCacheLease(string directory, FileStream ownership, string? cacheRoot, long maximumBytes) : IAsyncDisposable

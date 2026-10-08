@@ -87,7 +87,10 @@ internal static class PackageProcessRunner
         return result;
     }
 
-    private static bool RequiresSlot(string fileName, IReadOnlyList<string> arguments)
+    /// <summary>
+    /// Reserves compiler capacity for commands that can build, preserving capacity for actual compilation.
+    /// </summary>
+    internal static bool RequiresSlot(string fileName, IReadOnlyList<string> arguments)
     {
         if (arguments.Count == 0)
         {
@@ -96,9 +99,49 @@ internal static class PackageProcessRunner
 
         string executable = Path.GetFileNameWithoutExtension(fileName);
         string command = arguments[0];
-        return string.Equals(executable, "dotnet", StringComparison.OrdinalIgnoreCase)
-            ? command is "build" or "msbuild" or "pack" or "publish" or "restore" or "run" or "test" or "tool"
-            : string.Equals(executable, "ankus", StringComparison.OrdinalIgnoreCase) &&
-                command is "bench" or "build" or "install" or "package" or "publish" or "regress" or "run" or "schema" or "test" or "upgrade";
+        if (string.Equals(executable, "dotnet", StringComparison.OrdinalIgnoreCase))
+        {
+            // A test host can publish its extension from fixture initialization, even with --no-build.
+            return command is "build" or "msbuild" or "pack" or "publish" or "restore" or "run" or "test" or "tool";
+        }
+
+        if (!string.Equals(executable, "ankus", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if ((command is "bench" or "regress" or "run" && EnabledOption(arguments, "--no-build")) ||
+            (command == "regress" && EnabledOption(arguments, "--dry-run")))
+        {
+            return false;
+        }
+
+        return command is "bench" or "build" or "install" or "package" or "publish" or "regress" or "run" or "schema" or "test";
+    }
+
+    /// <summary>
+    /// Reads a boolean tool option without treating forwarded client arguments as tool options.
+    /// </summary>
+    private static bool EnabledOption(IReadOnlyList<string> arguments, string name)
+    {
+        bool enabled = false;
+        for (int index = 1; index < arguments.Count && arguments[index] != "--"; index++)
+        {
+            string argument = arguments[index];
+            if (argument == name)
+            {
+                enabled = index + 1 >= arguments.Count || !bool.TryParse(arguments[index + 1], out bool value) || value;
+            }
+            else if (argument.StartsWith(name + "=", StringComparison.Ordinal) ||
+                argument.StartsWith(name + ":", StringComparison.Ordinal))
+            {
+                if (!bool.TryParse(argument[(name.Length + 1)..], out enabled))
+                {
+                    return false;
+                }
+            }
+        }
+
+        return enabled;
     }
 }
