@@ -177,7 +177,7 @@ An inferred type dependency is deferred only when an explicit `Requires` or
 `Before` path already orders the consumer before the provider. The early consumer
 must be valid with the objects created by those prerequisites. Bootstrap/final
 positioning alone cannot authorize this deferral. Explicit dependency cycles
-and unresolved cycles still produce `ANKUS005` with no installation manifest.
+and unresolved cycles still produce `ANKUS499` with no installation manifest.
 
 Alternatively, declare the shell block as the provider. Consumers needing the
 completed type must then explicitly require the completion block. Declaring a
@@ -251,8 +251,8 @@ result and NULL contracts. Existing managed-signature validation still applies.
 
 `Sql = null` preserves ordinary generation. Empty, whitespace-only and
 comment-only strings are valid replacements and do not restore the default SQL.
-NUL characters and invalid Unicode are rejected with `ANKUS005`; PostgreSQL
-checks SQL syntax and database object definitions during installation.
+NUL characters and invalid Unicode are rejected with `ANKUS503` and `ANKUS504`;
+PostgreSQL checks SQL syntax and database object definitions during installation.
 
 These options also apply to SETOF/TABLE, `[PgTrigger]`, `[PgEventTrigger]`, and
 aggregate support methods carrying `[PgFunction]`. A trigger replacement defines
@@ -296,8 +296,8 @@ through explicitly ordered custom SQL. The generated `exports.txt` records nativ
 entry points when a wrapper needs manual SQL registration.
 
 `GenerateSql = false` cannot be combined with a non-null `Sql`, including empty
-text. `SqlRelocatable` is consulted only for replacement strings; disabling SQL
-does not by itself prevent relocation.
+text (`ANKUS502`). `SqlRelocatable` is consulted only for replacement strings;
+disabling SQL does not by itself prevent relocation.
 
 ## Replace other declarations
 
@@ -356,7 +356,7 @@ public readonly record struct StoredValue(int Number);
 ```
 
 When binary protocol is disabled, omit the receive/send declarations and clauses.
-Using either binary token then produces `ANKUS005`, including occurrences in
+Using either binary token then produces `ANKUS505`, including occurrences in
 comments. Enabling binary callbacks still emits both native exports even if the
 replacement does not register them in SQL.
 
@@ -385,6 +385,18 @@ stored_value)` in a B-tree class or `FUNCTION 1 @HASH_FUNCTION_SQL@(stored_value
 in a hash class. Replacement SQL chooses the family/class names and whether a
 class is `DEFAULT`. The original group ID still orders consumers after the
 complete family/class replacement. See [operators and casts](/operators-and-casts/).
+
+## SQL replacement diagnostics
+
+Replacement errors point at the authored option value to change and reject the
+whole installation manifest, including unrelated valid declarations:
+
+| Diagnostic | Reported value | Required correction |
+| --- | --- | --- |
+| `ANKUS502` | `GenerateSql = false` | Remove `GenerateSql = false` or `Sql`. Disabled SQL cannot also have replacement text, including empty text. |
+| `ANKUS503` | `Sql` | Remove embedded zero characters from the replacement. |
+| `ANKUS504` | `Sql` | Replace unpaired UTF-16 surrogate characters in the replacement. |
+| `ANKUS505` | `BinaryProtocol = false`, or `Sql` when the option is omitted | Set `BinaryProtocol = true` or remove the named `@RECEIVE_FUNCTION_NAME@` or `@SEND_FUNCTION_NAME@` token. |
 
 ## Include a file
 
@@ -446,9 +458,32 @@ There can be one bootstrap block and one final block, including file-based
 blocks. Bootstrap precedes generated schemas; final SQL follows all generated
 and custom declarations.
 
-`ANKUS005` reports graph, provider and replacement errors, including duplicate
-or missing identifiers and dependency cycles. PostgreSQL checks SQL syntax,
-object names and privileges during installation.
+PostgreSQL checks SQL syntax, object names and privileges during installation.
+
+### Dependency graph diagnostics
+
+Graph errors point at the authored value to change and reject the whole
+installation manifest. A cycle error lists one complete cycle using dependency
+IDs, or managed declaration names for declarations without an `Id`. It points at
+the first `Requires`, `Before`, `PgRequires`, `PgBefore` or `PgSupportFunction`
+value in that cycle; a cycle formed only by automatic schema, type or boundary
+edges points at its first declaration.
+
+| Diagnostic | Reported value | Required correction |
+| --- | --- | --- |
+| `ANKUS490` | `Id` | Give `Id` a non-whitespace value, or omit it. |
+| `ANKUS491`, `ANKUS492` | `Id` | Remove zero characters or unpaired UTF-16 surrogates from the identifier. |
+| `ANKUS493` | `Requires` or `Before` | Omit the option or supply an array instead of `null`. |
+| `ANKUS494` | `Requires` or `Before` entry | Supply a non-null, non-whitespace dependency ID. |
+| `ANKUS495`, `ANKUS496` | `Requires` or `Before` entry | Remove zero characters or unpaired UTF-16 surrogates from the entry. |
+| `ANKUS497` | Later `Id` or SQL block name | Give each declaration a distinct ID; SQL block names and `Id` values share one namespace. |
+| `ANKUS498` | `Requires` or `Before` entry | Declare the named ID or correct the entry. IDs are case-sensitive. |
+| `ANKUS499` | First explicit edge in the cycle | Remove or reverse one dependency in the reported cycle. |
+| `ANKUS500`, `ANKUS501` | Later block's `Order` | Keep one `Bootstrap` block and one `Finalize` block. |
+| `ANKUS512`–`ANKUS514` | None | Split the extension or reduce its SQL; the embedded graph allows 100,000 declarations, 100,000 entries per declaration list and 32 MiB. |
+
+A dependency inherited by aggregate support functions reports its authored
+entry once.
 
 ### Custom SQL input diagnostics
 

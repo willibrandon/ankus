@@ -108,7 +108,8 @@ internal static class OperatorCastDeclaration
             Location? location = analysis.Location?.Resolve(compilation);
             if (!names.Add(analysis.Kind + ":" + analysis.Signature))
             {
-                graph.Error(location, "Duplicate PostgreSQL " + analysis.Kind + " signature " + analysis.Signature + ".");
+                graph.Error(graph.Resolve(analysis.Options.Locations.Attribute) ?? location,
+                    analysis.Kind == "operator" ? SqlGraphDiagnostics.s_duplicateOperator : SqlGraphDiagnostics.s_duplicateCast, analysis.Signature);
             }
 
             (string sql, string attachment) = output.Emission.Compose(providers);
@@ -177,7 +178,7 @@ internal static class OperatorCastDeclaration
         }
 
         return new(function.Identity, method.ToDisplayString(), kind, signature, new(names),
-            kind == "operator" && conversion.Result?.Sql == "boolean", model, SqlDeclarationOptions.Read(attribute)!,
+            kind == "operator" && conversion.Result?.Sql == "boolean", model, SqlDeclarationOptions.Read(attribute, compilation, cancellationToken)!,
             new(problems), GeneratorLocation.Create(method.Locations.FirstOrDefault(), compilation));
     }
 

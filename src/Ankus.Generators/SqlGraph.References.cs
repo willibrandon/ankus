@@ -69,7 +69,7 @@ internal sealed partial class SqlGraph
 
         foreach ((SqlEntity source, SqlEntity target) in _inheritedRequirements)
         {
-            target.Requires.UnionWith(source.Requires.Where(required => !target.Names.Contains(required)));
+            target.Inherit(source.Requires);
             target.RequiredDeclarations.UnionWith(source.RequiredDeclarations.Where(required => required != target));
         }
     }
@@ -100,10 +100,12 @@ internal sealed partial class SqlGraph
         if (reference.Kind == "PgBeforeAttribute")
         {
             target.DeclaredDependencies.Add(source);
+            RecordEdge(target, source, Resolve(reference.Location));
         }
         else
         {
             source.RequiredDeclarations.Add(target);
+            RecordEdge(source, target, Resolve(reference.Location));
         }
     }
 
@@ -159,6 +161,7 @@ internal sealed partial class SqlGraph
         foreach (SqlEntity source in sources)
         {
             source.RequiredDeclarations.Add(ordinary[0]);
+            RecordEdge(source, ordinary[0], Resolve(reference.Location));
             source.Function!.SetPlannerSupport(support.Declaration.TemplateName);
         }
     }

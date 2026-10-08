@@ -40,9 +40,10 @@ internal static class CustomSql
             var entity = new SqlEntity("2:sql:" + resolution.Name, resolution.Sql!, location)
             {
                 Order = analysis.Order,
+                OrderLocation = analysis.OrderLocation?.Resolve(compilation),
                 SourceFile = analysis.Input.File ? analysis.Input.Content : null,
             };
-            graph.ConfigureOptions(entity, analysis.Options, resolution.Name);
+            graph.ConfigureOptions(entity, analysis.Options, resolution.Name, analysis.NameLocation?.Resolve(compilation));
             graph.Add(entity);
             if (!blocks.ContainsKey(resolution.Name!))
             {

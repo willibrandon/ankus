@@ -663,7 +663,7 @@ public sealed partial class PgFunctionGeneratorTests
     [DataRow("(int Id, Ankus.PgArray<Mood?> States)")]
     public void SetReturnEnumDependencyCyclesAreDiagnosed(string element)
     {
-        (_, ImmutableArray<Diagnostic> diagnostics) = Generate($$"""
+        (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate($$"""
             [Ankus.PgEnum(Requires = new[] { "rows" })] public enum Mood { First }
             public static class Functions
             {
@@ -671,9 +671,8 @@ public sealed partial class PgFunctionGeneratorTests
                 public static System.Collections.Generic.IEnumerable<{{element}}> Rows() => System.Array.Empty<{{element}}>();
             }
             """);
-        Diagnostic diagnostic = Assert.ContainsSingle(diagnostics);
-        Assert.AreEqual("ANKUS005", diagnostic.Id);
-        Assert.Contains("cycle", diagnostic.GetMessage(CultureInfo.InvariantCulture));
+        AssertSqlControlGraphError(compilation, diagnostics, "ANKUS499", "\"rows\"", "rows -> Mood -> rows");
+        AssertDiagnosticOccurrence(diagnostics[0], "\"rows\"", 0);
     }
 
     /// <summary>

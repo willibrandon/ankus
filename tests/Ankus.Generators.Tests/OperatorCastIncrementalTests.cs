@@ -311,9 +311,9 @@ public sealed partial class PgFunctionGeneratorTests
         driver = driver.RunGeneratorsAndUpdateCompilation(edited, out _, out ImmutableArray<Diagnostic> errors, context.CancellationToken);
         Diagnostic error = Assert.ContainsSingle(errors);
 
-        Assert.AreEqual("ANKUS005", error.Id);
-        Assert.Contains(cast ? "Duplicate PostgreSQL cast signature integer AS bigint" : "Duplicate PostgreSQL operator signature @+(NONE,integer)",
-            error.GetMessage(System.Globalization.CultureInfo.InvariantCulture));
+        AssertGraphDiagnostic(before, cast ? "ANKUS509" : "ANKUS508", marker[1..^1], cast ? "integer AS bigint" : "@+(NONE,integer)");
+        AssertGraphDiagnostic(error, cast ? "ANKUS509" : "ANKUS508", marker[1..^1], cast ? "integer AS bigint" : "@+(NONE,integer)");
+        AssertDiagnosticOccurrence(error, marker[1..^1], 1);
         Assert.AreEqual(IncrementalStepRunReason.Cached, TrackedOperatorCast(driver, "first").Reason);
         Assert.AreEqual(IncrementalStepRunReason.Cached, TrackedOperatorCast(driver, "second").Reason);
         Assert.AreSame(moved, error.Location.SourceTree);

@@ -59,14 +59,14 @@ internal static class AggregatePipeline
             new HelperAnalysis(helper.Freeze(), DeclarationIdentity.Create(helper.Method), helper.Method.ToDisplayString(),
                 helper.Method.Name, helper.Method.ContainingType.ToDisplayString(),
                 SqlDeclarationOptions.Read(helper.Method.GetAttributes().FirstOrDefault(static attribute =>
-                    attribute.AttributeClass?.ToDisplayString() == "Ankus.PgFunctionAttribute")),
+                    attribute.AttributeClass?.ToDisplayString() == "Ankus.PgFunctionAttribute"), compilation, cancellationToken),
                 GeneratorLocation.Create(helper.Method.Locations.FirstOrDefault(), compilation),
                 PgFunctionGenerator.GetCallbackName(type.ContainingAssembly.Identity + ":" + helper.Invocation.Identity,
                     "aggregate_" + SqlText.SnakeCase(helper.Role)))));
         return new(DeclarationIdentity.Create(type), MetadataName(type), type.ToDisplayString(), type.Name,
             declaration?.Freeze(), helpers, new(AggregateDeclaration.SelectedMethods(type).SelectMany(static method =>
                 new[] { DeclarationIdentity.Create(method), DeclarationIdentity.Create(method.OriginalDefinition) }).Distinct()),
-            SqlDeclarationOptions.Read(context.Attributes[0])!, GeneratorLocation.Create(type.Locations.FirstOrDefault(), compilation), new(problems));
+            SqlDeclarationOptions.Read(context.Attributes[0], compilation, cancellationToken)!, GeneratorLocation.Create(type.Locations.FirstOrDefault(), compilation), new(problems));
     }
 
     /// <summary>

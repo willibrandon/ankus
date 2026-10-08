@@ -311,10 +311,10 @@ public sealed partial class PgFunctionGeneratorTests
     [DataRow("[return: Ankus.PgCompositeType(\"dog\", Schema = \"pets\")] public static System.Collections.Generic.IEnumerable<Ankus.PgHeapTuple> Echo() => System.Array.Empty<Ankus.PgHeapTuple>();")]
     public void CompositeSchemaBindingsParticipateInGraphCycles(string method)
     {
-        (_, ImmutableArray<Diagnostic> diagnostics) = Generate("[Ankus.PgSchema(\"pets\", Requires = new[] { \"function\" })] public static class Types; public static class Functions { [Ankus.PgFunction(Id = \"function\")] " + method + " }");
-        Diagnostic diagnostic = Assert.ContainsSingle(diagnostics);
-        Assert.AreEqual("ANKUS005", diagnostic.Id);
-        Assert.Contains("cycle", diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture));
+        (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate("[Ankus.PgSchema(\"pets\", Requires = new[] { \"function\" })] public static class Types; " +
+            "public static class Functions { [Ankus.PgFunction(Id = \"function\")] " + method + " }");
+        AssertSqlControlGraphError(compilation, diagnostics, "ANKUS499", "\"function\"", "Types -> function -> Types");
+        AssertDiagnosticOccurrence(diagnostics[0], "\"function\"", 0);
     }
 
     /// <summary>

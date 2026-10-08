@@ -252,7 +252,9 @@ public sealed partial class PgFunctionGeneratorTests
                 public static Ankus.PgInternal Z(Ankus.PgInternal request) => request;
             }
             """);
-        AssertSqlControlGraphError(compilation, diagnostics, "cycle");
+        AssertSqlControlGraphError(compilation, diagnostics, "ANKUS499", "Ankus.PgSupportFunction(typeof(Functions), nameof(" + (self ? "A" : "Z") + "))",
+            self ? "Functions.A(Ankus.PgInternal) -> Functions.A(Ankus.PgInternal)"
+                : "Functions.A(Ankus.PgInternal) -> Functions.Z(Ankus.PgInternal) -> Functions.A(Ankus.PgInternal)");
     }
 
     /// <summary>

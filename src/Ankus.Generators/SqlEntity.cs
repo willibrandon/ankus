@@ -87,14 +87,19 @@ internal sealed class SqlEntity
     internal HashSet<string> Names { get; } = new(StringComparer.Ordinal);
 
     /// <summary>
-    /// Gets explicit identifiers that must precede this node.
+    /// Gets the authored value that declared each dependency alias, for duplicate-identifier diagnostics.
     /// </summary>
-    internal HashSet<string> Requires { get; } = new(StringComparer.Ordinal);
+    internal Dictionary<string, Location?> NameLocations { get; } = new(StringComparer.Ordinal);
 
     /// <summary>
-    /// Gets explicit identifiers that must follow this node.
+    /// Gets explicit identifiers that must precede this node and the authored entry that first named each one.
     /// </summary>
-    internal HashSet<string> Before { get; } = new(StringComparer.Ordinal);
+    internal Dictionary<string, Location?> Requires { get; } = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Gets explicit identifiers that must follow this node and the authored entry that first named each one.
+    /// </summary>
+    internal Dictionary<string, Location?> Before { get; } = new(StringComparer.Ordinal);
 
     /// <summary>
     /// Gets additional SQL and managed names for selecting this declaration without declaring dependency aliases.
@@ -154,7 +159,40 @@ internal sealed class SqlEntity
     }
 
     /// <summary>
+    /// Gets or sets the authored positioning value, for boundary diagnostics.
+    /// </summary>
+    internal Location? OrderLocation
+    {
+        get;
+        set;
+    }
+
+    /// <summary>
     /// Gets a human-readable name for diagnostics.
     /// </summary>
     internal string DisplayName => Names.OrderBy(static name => name, StringComparer.Ordinal).FirstOrDefault() ?? Key;
+
+    /// <summary>
+    /// Gets an authored dependency identifier or managed declaration name for fixed diagnostic substitutions.
+    /// </summary>
+    /// <remarks>
+    /// Generated members of a declaration family, such as index-family support functions, use their family's name.
+    /// </remarks>
+    internal string DiagnosticName => (Names.Count != 0 ? Names : ManagedSources).OrderBy(static name => name, StringComparer.Ordinal)
+        .FirstOrDefault() ?? Owner?.DiagnosticName ?? Key;
+
+    /// <summary>
+    /// Adds inherited prerequisites that this node does not itself declare, retaining their authored entries.
+    /// </summary>
+    /// <param name="requirements">The source node's explicit prerequisites.</param>
+    internal void Inherit(Dictionary<string, Location?> requirements)
+    {
+        foreach (KeyValuePair<string, Location?> requirement in requirements)
+        {
+            if (!Names.Contains(requirement.Key) && !Requires.ContainsKey(requirement.Key))
+            {
+                Requires.Add(requirement.Key, requirement.Value);
+            }
+        }
+    }
 }

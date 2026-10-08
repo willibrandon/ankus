@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using System.Globalization;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 
@@ -100,7 +99,7 @@ public sealed partial class PgFunctionGeneratorTests
     }
 
     /// <summary>
-    /// An inferred constraint failure points at the converter expression and retains the compiler's exact reason.
+    /// An inferred constraint failure points at the converter expression and names the inferred converter and violated compiler rule.
     /// </summary>
     [TestMethod]
     public void DatumConverterConstraintDiagnosticsIdentifyTheAuthoredConverter()
@@ -115,8 +114,39 @@ public sealed partial class PgFunctionGeneratorTests
             """);
         Diagnostic error = Assert.ContainsSingle(errors);
         AssertDatumDiagnosticLocation(error, "ANKUS149", "typeof(Converter<>)");
-        Assert.Contains("CS0453", error.GetMessage(CultureInfo.InvariantCulture));
+        AssertConverterConstraintDiagnostic(error, "typeof(Converter<>)", "Converter<string>", "CS0453");
         Assert.IsEmpty(output.GetDiagnostics(context.CancellationToken).Where(static item => item.Severity == DiagnosticSeverity.Error));
+    }
+
+    /// <summary>
+    /// A cached inferred-constraint failure follows its converter after an unrelated earlier edit and file insertion.
+    /// </summary>
+    [TestMethod]
+    public void DatumConverterConstraintDiagnosticsRemainCachedAcrossSourceMovement()
+    {
+        string source = "public static class Earlier { public static int Body() => 1; }\n" + """
+            [Ankus.PgDatumType(typeof(Box<string>), "int4", typeof(Converter<>), Origin = Ankus.PgTypeOrigin.External, Schema = "pg_catalog")]
+            public readonly record struct Box<T>(T Value);
+            public sealed class Converter<T> : Ankus.IPgDatumReader<Box<T>> where T : struct
+            {
+                public Box<T> Read(Ankus.PgDatum value) => default;
+            }
+            """;
+        CSharpCompilation input = ModuleCompilation(source);
+        GeneratorDriver driver = ModuleDriver().RunGeneratorsAndUpdateCompilation(input, out _,
+            out ImmutableArray<Diagnostic> initial, context.CancellationToken);
+        Diagnostic previous = Assert.ContainsSingle(initial);
+        SyntaxTree current = CSharpSyntaxTree.ParseText(source.Replace("=> 1;", "=> 10000;", StringComparison.Ordinal), path: "Module.cs",
+            cancellationToken: context.CancellationToken);
+        SyntaxTree unrelated = CSharpSyntaxTree.ParseText("internal static class Unrelated;", path: "Unrelated.cs", cancellationToken: context.CancellationToken);
+        driver = driver.RunGeneratorsAndUpdateCompilation(input.RemoveAllSyntaxTrees().AddSyntaxTrees(unrelated, current), out _,
+            out ImmutableArray<Diagnostic> errors, context.CancellationToken);
+        Diagnostic error = Assert.ContainsSingle(errors);
+
+        AssertConverterConstraintDiagnostic(error, "typeof(Converter<>)", "Converter<string>", "CS0453");
+        Assert.AreEqual(IncrementalStepRunReason.Cached, ModuleStep(driver, "DatumOutputs"));
+        Assert.AreSame(current, error.Location.SourceTree);
+        Assert.AreEqual(previous.Location.SourceSpan.Start + 4, error.Location.SourceSpan.Start);
     }
 
     /// <summary>

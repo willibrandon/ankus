@@ -35,11 +35,20 @@ internal sealed record ExtensionCompositionInput(FunctionPipeline.MethodInputs M
         foreach (MethodInventoryModel method in Methods.Methods)
         {
             yield return method.Location;
+            foreach (GeneratorLocation? location in Options(method.Options))
+            {
+                yield return location;
+            }
         }
 
         foreach (FunctionPipeline.FunctionOutput output in Methods.Functions)
         {
             yield return output.Analysis.Location;
+            foreach (GeneratorLocation? location in Options(output.Analysis.Options))
+            {
+                yield return location;
+            }
+
             foreach (GeneratorProblem problem in output.Analysis.Problems)
             {
                 yield return problem.Location;
@@ -49,6 +58,11 @@ internal sealed record ExtensionCompositionInput(FunctionPipeline.MethodInputs M
         foreach (TriggerPipeline.TriggerOutput output in Methods.Triggers)
         {
             yield return output.Analysis.Location;
+            foreach (GeneratorLocation? location in Options(output.Analysis.Options))
+            {
+                yield return location;
+            }
+
             foreach (GeneratorProblem problem in output.Analysis.Problems)
             {
                 yield return problem.Location;
@@ -76,6 +90,11 @@ internal sealed record ExtensionCompositionInput(FunctionPipeline.MethodInputs M
         foreach (OperatorCastPipeline.Output output in Methods.OperatorCasts)
         {
             yield return output.Analysis.Location;
+            foreach (GeneratorLocation? location in Options(output.Analysis.Options))
+            {
+                yield return location;
+            }
+
             foreach (GeneratorProblem problem in output.Analysis.Problems)
             {
                 yield return problem.Location;
@@ -104,6 +123,10 @@ internal sealed record ExtensionCompositionInput(FunctionPipeline.MethodInputs M
         {
             yield return output.Analysis.Location;
             yield return output.Analysis.Problem?.Location;
+            foreach (GeneratorLocation? location in Options(output.Analysis.Options))
+            {
+                yield return location;
+            }
         }
 
         foreach (SqlProviderModel provider in Providers)
@@ -120,11 +143,20 @@ internal sealed record ExtensionCompositionInput(FunctionPipeline.MethodInputs M
             yield return output.Analysis.NameLocation;
             yield return output.Analysis.ContentLocation;
             yield return output.Analysis.OrderLocation;
+            foreach (GeneratorLocation? location in Options(output.Analysis.Options))
+            {
+                yield return location;
+            }
         }
 
         foreach (EnumPipeline.EnumOutput output in Enums)
         {
             yield return output.Analysis.Location;
+            foreach (GeneratorLocation? location in Options(output.Analysis.Options))
+            {
+                yield return location;
+            }
+
             foreach (GeneratorProblem problem in output.Analysis.Problems)
             {
                 yield return problem.Location;
@@ -134,9 +166,18 @@ internal sealed record ExtensionCompositionInput(FunctionPipeline.MethodInputs M
         foreach (AggregatePipeline.Output output in Aggregates)
         {
             yield return output.Analysis.Location;
+            foreach (GeneratorLocation? location in Options(output.Analysis.Options))
+            {
+                yield return location;
+            }
+
             foreach (AggregatePipeline.HelperAnalysis helper in output.Analysis.Helpers)
             {
                 yield return helper.Location;
+                foreach (GeneratorLocation? location in Options(helper.Options))
+                {
+                    yield return location;
+                }
             }
 
             foreach (GeneratorProblem problem in output.Analysis.Problems)
@@ -171,6 +212,10 @@ internal sealed record ExtensionCompositionInput(FunctionPipeline.MethodInputs M
         {
             yield return output.Analysis.Location;
             yield return output.Analysis.Problem?.Location;
+            foreach (GeneratorLocation? location in Options(output.Analysis.Options))
+            {
+                yield return location;
+            }
         }
 
         foreach (DatumTypeModel mapping in Mappings.Analysis.Models)
@@ -181,6 +226,10 @@ internal sealed record ExtensionCompositionInput(FunctionPipeline.MethodInputs M
         foreach (DerivedOperatorModel model in Mappings.Analysis.Derived)
         {
             yield return model.Location;
+            foreach (GeneratorLocation? location in Options(model.Equality).Concat(Options(model.Ordering)).Concat(Options(model.Hashing)))
+            {
+                yield return location;
+            }
         }
 
         foreach (GeneratorProblem problem in Mappings.Analysis.Problems)
@@ -200,4 +249,11 @@ internal sealed record ExtensionCompositionInput(FunctionPipeline.MethodInputs M
         yield return Module.NameError?.Location;
         yield return Module.VersionError?.Location;
     }
+
+    /// <summary>
+    /// Enumerates the authored option values that graph composition can report for one declaration.
+    /// </summary>
+    /// <param name="options">The optional detached SQL graph options.</param>
+    /// <returns>The attribute, option and dependency-entry coordinates.</returns>
+    private static IEnumerable<GeneratorLocation?> Options(SqlDeclarationOptions? options) => options?.SourceLocations() ?? [];
 }

@@ -146,7 +146,7 @@ internal static class DatumMappingDiagnostics
     internal static DiagnosticDescriptor AmbiguousInference => s_ambiguousInference;
 
     private static readonly DiagnosticDescriptor s_constraint = new("ANKUS149", "Invalid inferred datum converter constraint",
-        "The inferred datum converter is not a valid C# constructed type ({0}): {1}",
+        "Inferred datum converter '{0}' is not a valid C# constructed type (compiler diagnostic {1}); satisfy its type-parameter constraints or specify a closed converter",
         "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpLink);
 
     /// <summary>

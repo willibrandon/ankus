@@ -84,6 +84,7 @@ internal static class DerivedOperatorDeclaration
 
         Dictionary<string, DerivedSqlEmission.Function> sqlFunctions = sql.Functions.ToDictionary(static function => function.Role, StringComparer.Ordinal);
         Dictionary<string, DerivedSqlEmission.Comparison> sqlOperators = sql.Operators.ToDictionary(static comparison => comparison.Role, StringComparer.Ordinal);
+        var attributes = new Dictionary<SqlEntity, Location?>();
 
         if (equality is not null)
         {
@@ -140,6 +141,7 @@ internal static class DerivedOperatorDeclaration
         SqlEntity Group(string role, SqlDeclarationOptions options)
         {
             var entity = new SqlEntity("3:derived-" + role + ":" + managedType, string.Empty, model.Location?.Resolve(compilation)) { Kind = role };
+            attributes.Add(entity, graph.Resolve(options.Locations.Attribute) ?? entity.Location);
             entity.SelectionNames.Add(model.Display + "." + role);
             RequireType(entity);
             graph.ConfigureOptions(entity, options);
@@ -158,7 +160,7 @@ internal static class DerivedOperatorDeclaration
             string signature = definition.Signature.Compose(providers);
             if (!functions.Add(signature.Replace("\0", string.Empty)))
             {
-                graph.Error(model.Location?.Resolve(compilation), "Duplicate PostgreSQL function signature " + signature + ".");
+                graph.Error(attributes[group], SqlGraphDiagnostics.s_duplicateGeneratedFunction, signature.Replace("\0", string.Empty), model.DiagnosticName);
             }
 
             var entity = new SqlEntity("1:derived-function:" + managedType + ":" + role, definition.Definition.Compose(providers),
@@ -171,7 +173,7 @@ internal static class DerivedOperatorDeclaration
             }
 
             RequireType(entity);
-            entity.Requires.UnionWith(group.Requires);
+            entity.Inherit(group.Requires);
             graph.Add(entity);
             return entity;
         }
@@ -196,7 +198,7 @@ internal static class DerivedOperatorDeclaration
             string signature = definition.Signature.Compose(providers);
             if (!relatedNames.Add("operator:" + signature.Replace("\0", string.Empty)))
             {
-                graph.Error(model.Location?.Resolve(compilation), "Duplicate PostgreSQL operator signature " + signature + ".");
+                graph.Error(attributes[function.Owner!], SqlGraphDiagnostics.s_duplicateGeneratedOperator, signature.Replace("\0", string.Empty), model.DiagnosticName);
             }
 
             var entity = new SqlEntity("2:derived-operator:" + managedType + ":" + role, definition.Definition.Compose(providers),

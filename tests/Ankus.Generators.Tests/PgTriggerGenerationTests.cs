@@ -311,14 +311,24 @@ public sealed partial class PgFunctionGeneratorTests
     /// </summary>
     /// <param name="declarations">The additional schema or SQL declaration.</param>
     /// <param name="options">The callback's dependency metadata.</param>
+    /// <param name="expected">The fixed graph diagnostic.</param>
+    /// <param name="span">The exact authored value to correct.</param>
+    /// <param name="occurrence">The zero-based occurrence of that text in the source.</param>
+    /// <param name="argument">The authored identity in the fixed message.</param>
     [TestMethod]
-    [DataRow("", "Requires = new[] { \"missing\" }")]
-    [DataRow("[assembly: Ankus.PgSql(\"other\", \"SELECT 1;\", Requires = new[] { \"callback\" })]", "Id = \"callback\", Requires = new[] { \"other\" }")]
-    [DataRow("[assembly: Ankus.PgSql(\"callback\", \"SELECT 1;\")]", "Id = \"callback\"")]
-    [DataRow("[Ankus.PgSchema(\"audit\", Requires = new[] { \"callback\" })] public static class Schema;", "Id = \"callback\", Schema = \"audit\"")]
-    public void InvalidTriggerDependencyGraphsAreDiagnosed(string declarations, string options)
-        => AssertInvalidTrigger(declarations + " public static class Functions { [Ankus.PgTrigger, Ankus.PgFunction(" + options + ")] " +
-            "public static Ankus.PgHeapTuple? Audit(Ankus.PgTriggerContext context) => null; }", "ANKUS005");
+    [DataRow("", "Requires = new[] { \"missing\" }", "ANKUS498", "\"missing\"", 0, "missing")]
+    [DataRow("[assembly: Ankus.PgSql(\"other\", \"SELECT 1;\", Requires = new[] { \"callback\" })]", "Id = \"callback\", Requires = new[] { \"other\" }",
+        "ANKUS499", "\"other\"", 1, "callback -> other -> callback")]
+    [DataRow("[assembly: Ankus.PgSql(\"callback\", \"SELECT 1;\")]", "Id = \"callback\"", "ANKUS497", "\"callback\"", 1, "callback")]
+    [DataRow("[Ankus.PgSchema(\"audit\", Requires = new[] { \"callback\" })] public static class Schema;", "Id = \"callback\", Schema = \"audit\"",
+        "ANKUS499", "\"callback\"", 0, "Schema -> callback -> Schema")]
+    public void InvalidTriggerDependencyGraphsAreDiagnosed(string declarations, string options, string expected, string span, int occurrence, string argument)
+    {
+        AssertInvalidTrigger(declarations + " public static class Functions { [Ankus.PgTrigger, Ankus.PgFunction(" + options + ")] " +
+            "public static Ankus.PgHeapTuple? Audit(Ankus.PgTriggerContext context) => null; }", expected, out Diagnostic diagnostic);
+        AssertGraphDiagnostic(diagnostic, expected, span, argument);
+        AssertDiagnosticOccurrence(diagnostic, span, occurrence);
+    }
 
     /// <summary>
     /// A trigger context has no ordinary SQL datum conversion when the trigger marker is absent.
@@ -342,10 +352,15 @@ public sealed partial class PgFunctionGeneratorTests
     /// <summary>
     /// Checks one expected generator error without mistaking malformed consumer C# for a generator validation witness.
     /// </summary>
-    private void AssertInvalidTrigger(string source, string expected)
+    private void AssertInvalidTrigger(string source, string expected) => AssertInvalidTrigger(source, expected, out _);
+
+    /// <summary>
+    /// Checks one expected generator error and returns it for exact message and location assertions.
+    /// </summary>
+    private void AssertInvalidTrigger(string source, string expected, out Diagnostic diagnostic)
     {
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source);
-        Diagnostic diagnostic = Assert.ContainsSingle(diagnostics);
+        diagnostic = Assert.ContainsSingle(diagnostics);
         Assert.AreEqual(expected, diagnostic.Id);
         Assert.AreEqual(DiagnosticSeverity.Error, diagnostic.Severity);
         Assert.IsEmpty(compilation.GetDiagnostics(context.CancellationToken).Where(static item => item.Severity == DiagnosticSeverity.Error));

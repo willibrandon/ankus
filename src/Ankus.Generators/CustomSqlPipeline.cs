@@ -54,7 +54,7 @@ internal static class CustomSqlPipeline
                 new(attribute.ConstructorArguments.Length == 2, attribute.ConstructorArguments.ElementAtOrDefault(0).Value as string,
                     attribute.ConstructorArguments.ElementAtOrDefault(1).Value as string, attribute.AttributeClass?.Name == "PgSqlFileAttribute"),
                 AttributeValues.Get(attribute, "Order", 0), AttributeValues.Get(attribute, "Relocatable", false),
-                SqlDeclarationOptions.Read(attribute)!,
+                SqlDeclarationOptions.Read(attribute, compilation, cancellationToken)!,
                 GeneratorLocation.Create(attribute.ApplicationSyntaxReference?.GetSyntax(cancellationToken).GetLocation(), compilation),
                 ArgumentLocation(attribute, 0, compilation, cancellationToken), ArgumentLocation(attribute, 1, compilation, cancellationToken),
                 GeneratorLocation.Create(FunctionDeclarationDiagnostics.Option(attribute, "Order", cancellationToken), compilation))));

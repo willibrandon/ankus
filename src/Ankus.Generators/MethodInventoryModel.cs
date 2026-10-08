@@ -40,7 +40,7 @@ internal sealed record MethodInventoryModel(DeclarationIdentity Identity, string
             InitializeDeclaration.IsInitializer(method), BackgroundWorkerDeclaration.IsWorker(method), SetResult.IsSequence(method.ReturnType),
             FunctionParameter.Create(method).Any(static parameter => parameter.Type?.UsesRawTransport == true),
             SqlDeclarationOptions.Read(method.GetAttributes().FirstOrDefault(static attribute =>
-                attribute.AttributeClass?.ToDisplayString() == "Ankus.PgFunctionAttribute")),
+                attribute.AttributeClass?.ToDisplayString() == "Ankus.PgFunctionAttribute"), compilation, cancellationToken),
             GeneratorLocation.Create(method.Locations.FirstOrDefault(), compilation));
     }
 }

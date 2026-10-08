@@ -68,7 +68,7 @@ internal static class TriggerPipeline
         AttributeData? function = method.GetAttributes().FirstOrDefault(static value => value.AttributeClass?.ToDisplayString() == "Ankus.PgFunctionAttribute");
         return new(DeclarationIdentity.Create(method), declaration is null ? null :
             new(eventTrigger, MethodInvocation.Create(method).Target, PgFunctionGenerator.GetCallbackName(method, name)), declaration,
-            SqlDeclarationOptions.Read(function), new(problems), GeneratorLocation.Create(method.Locations.FirstOrDefault(), attribute.SemanticModel.Compilation));
+            SqlDeclarationOptions.Read(function, attribute.SemanticModel.Compilation, cancellationToken), new(problems), GeneratorLocation.Create(method.Locations.FirstOrDefault(), attribute.SemanticModel.Compilation));
     }
 
     /// <summary>

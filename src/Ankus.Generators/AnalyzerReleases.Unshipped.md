@@ -30,7 +30,6 @@ ANKUS376 | Ankus | Error | invalid Unicode in SQL function signature
 ANKUS377 | Ankus | Error | duplicate SQL function signature
 ANKUS002 | Ankus | Error | Invalid PostgreSQL function name
 ANKUS003 | Ankus | Error | Invalid numeric precision or scale constraint
-ANKUS005 | Ankus | Error | Invalid installation dependency graph or SQL replacement
 ANKUS024 | Ankus | Error | Ambiguous reference nullability in a SQL parameter or result
 ANKUS028 | Ankus | Error | Incompatible typed aggregate implementation nullability
 ANKUS029 | Ankus | Error | Missing PostgreSQL aggregate capability contract
@@ -468,3 +467,28 @@ ANKUS486 | Ankus | Error | No SQL dependency overload has the selected parameter
 ANKUS487 | Ankus | Error | SQL dependency parameter types match several overloads
 ANKUS488 | Ankus | Error | Dependency source emits no SQL object
 ANKUS489 | Ankus | Error | Dependency source emits several SQL objects
+ANKUS490 | Ankus | Error | Blank SQL dependency identifier
+ANKUS491 | Ankus | Error | Zero character in SQL dependency identifier
+ANKUS492 | Ankus | Error | Invalid Unicode in SQL dependency identifier
+ANKUS493 | Ankus | Error | Null SQL dependency list
+ANKUS494 | Ankus | Error | Blank SQL dependency reference
+ANKUS495 | Ankus | Error | Zero character in SQL dependency reference
+ANKUS496 | Ankus | Error | Invalid Unicode in SQL dependency reference
+ANKUS497 | Ankus | Error | Duplicate SQL dependency identifier
+ANKUS498 | Ankus | Error | Undeclared SQL dependency identifier
+ANKUS499 | Ankus | Error | Installation SQL dependency cycle
+ANKUS500 | Ankus | Error | Multiple bootstrap SQL blocks
+ANKUS501 | Ankus | Error | Multiple final SQL blocks
+ANKUS502 | Ankus | Error | Disabled SQL with replacement text
+ANKUS503 | Ankus | Error | Zero character in SQL replacement
+ANKUS504 | Ankus | Error | Invalid Unicode in SQL replacement
+ANKUS505 | Ankus | Error | Binary SQL replacement token without the binary protocol
+ANKUS506 | Ankus | Error | Duplicate PostgreSQL enum type name
+ANKUS507 | Ankus | Error | Duplicate PostgreSQL base type name
+ANKUS508 | Ankus | Error | Duplicate PostgreSQL operator signature
+ANKUS509 | Ankus | Error | Duplicate PostgreSQL cast signature
+ANKUS510 | Ankus | Error | Duplicate generated operator function signature
+ANKUS511 | Ankus | Error | Duplicate generated operator signature
+ANKUS512 | Ankus | Error | Installation graph exceeds 100,000 declarations
+ANKUS513 | Ankus | Error | Installation declaration exceeds 100,000 graph entries
+ANKUS514 | Ankus | Error | Installation graph exceeds 32 MiB

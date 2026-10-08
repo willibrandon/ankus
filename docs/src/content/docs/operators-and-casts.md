@@ -283,9 +283,16 @@ Generated-operator diagnostics distinguish the required correction:
 | ANKUS416 | Implement `IComparable<T>` for the exact managed type. |
 | ANKUS417 | Implement `IPgHashable` with an equality-compatible hash. |
 | ANKUS418 | Add `PgEquality` or an exact same-schema boolean `=` operator. |
+| ANKUS510 | A generated support function's signature is already declared. Rename or remove the conflicting function, or remove the reported `PgEquality`, `PgOrdering` or `PgHashing` attribute. |
+| ANKUS511 | A generated comparison operator's signature is already declared. Remove the conflicting operator or the reported generated-operator attribute. |
 
-Graph diagnostics report duplicate signatures or invalid installation
-dependencies. Arbitrary custom SQL is validated by PostgreSQL during
+Each `ANKUS510` and `ANKUS511` error names the duplicated signature and points
+at the attribute that generates it. Invalid `Id`, `Requires` and `Before`
+values and dependency cycles report the
+[dependency graph diagnostics](/custom-sql/#dependency-graph-diagnostics);
+`Sql` and `GenerateSql` errors report the
+[SQL replacement diagnostics](/custom-sql/#sql-replacement-diagnostics).
+Arbitrary custom SQL is validated by PostgreSQL during
 installation. Generated objects are extension members and move with a
 relocatable extension.
 
@@ -366,8 +373,9 @@ complete replacement. See [function SQL controls](/custom-sql/#replace-function-
 for placeholders, relocation and ordering constraints.
 
 The generator reports [specific declaration diagnostics](#declaration-diagnostics)
-for invalid operators and casts, and `ANKUS005` for duplicate SQL signatures or
-invalid dependencies. PostgreSQL
+for invalid or duplicate operators and casts, and
+[dependency graph diagnostics](/custom-sql/#dependency-graph-diagnostics) for
+invalid `Id`, `Requires` or `Before` values and cycles. PostgreSQL
 validates database-dependent contracts during installation. An existing cast for
 the same source/target pair or an existing fully defined operator is an installation
 error, even when the backing function uses `CreateOrReplace`.
@@ -402,3 +410,8 @@ conversion declarations. They replace the former general `ANKUS007` code.
 | ANKUS077 | Use non-nullable `bool` for the cast's optional explicit-conversion flag. |
 | ANKUS078 | Give composite endpoints concrete SQL identities with `PgCompositeType`. |
 | ANKUS079 | Convert between distinct SQL types in a one-argument cast. |
+| ANKUS508 | Change the reported operator's name, schema or operand types; another operator already has that signature. CLR aliases, nullability and `!=` versus `<>` do not create distinct PostgreSQL operators. |
+| ANKUS509 | Keep one cast for each source and target type. Cast context, type-modifier parameters and the backing function's schema do not create distinct PostgreSQL casts. |
+
+`ANKUS508` and `ANKUS509` point at the later `PgOperator` or `PgCast` attribute
+and name the duplicated catalog signature.

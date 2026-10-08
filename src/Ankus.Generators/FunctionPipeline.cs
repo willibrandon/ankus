@@ -85,7 +85,7 @@ internal static class FunctionPipeline
         if (!SynchronousDeclaration.Validate(method, attribute.SemanticModel.Compilation, diagnostics))
         {
             return new(DeclarationIdentity.Create(method), null, null, SqlDeclarationOptions.Read(method.GetAttributes().FirstOrDefault(static value =>
-                    value.AttributeClass?.ToDisplayString() == "Ankus.PgFunctionAttribute")), new(problems),
+                    value.AttributeClass?.ToDisplayString() == "Ankus.PgFunctionAttribute"), attribute.SemanticModel.Compilation, cancellationToken), new(problems),
                 GeneratorLocation.Create(method.Locations.FirstOrDefault(), attribute.SemanticModel.Compilation));
         }
 
@@ -102,7 +102,7 @@ internal static class FunctionPipeline
         valid = valid && declaration is not null;
         return new(DeclarationIdentity.Create(method), valid ? new(new(parameters), result, set, MethodInvocation.Create(method),
             PgFunctionGenerator.GetCallbackName(method, name)) : null, declaration, SqlDeclarationOptions.Read(method.GetAttributes().FirstOrDefault(static value =>
-                value.AttributeClass?.ToDisplayString() == "Ankus.PgFunctionAttribute")),
+                value.AttributeClass?.ToDisplayString() == "Ankus.PgFunctionAttribute"), attribute.SemanticModel.Compilation, cancellationToken),
             new(problems), GeneratorLocation.Create(method.Locations.FirstOrDefault(), attribute.SemanticModel.Compilation));
     }
 

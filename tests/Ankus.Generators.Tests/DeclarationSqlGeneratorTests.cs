@@ -104,18 +104,25 @@ public sealed partial class PgFunctionGeneratorTests
 
     /// <summary>
     /// Unavailable binary substitutions cannot create empty or nonexistent exports, including occurrences inside comments.
+    /// The diagnostic identifies an explicit BinaryProtocol = false, or otherwise the replacement containing the token.
     /// </summary>
     /// <param name="literal">The replacement containing an unavailable token.</param>
+    /// <param name="token">The unavailable binary token.</param>
+    /// <param name="explicitProtocol">Whether the type explicitly disables its binary protocol.</param>
     [TestMethod]
-    [DataRow("SELECT '@RECEIVE_FUNCTION_NAME@';")]
-    [DataRow("SELECT '@SEND_FUNCTION_NAME@';")]
-    [DataRow("-- @RECEIVE_FUNCTION_NAME@")]
-    [DataRow("/* @SEND_FUNCTION_NAME@ */")]
-    public void DeclarationSqlUnavailableBinaryTokensAreDiagnosed(string literal)
+    [DataRow("SELECT '@RECEIVE_FUNCTION_NAME@';", "@RECEIVE_FUNCTION_NAME@", false)]
+    [DataRow("SELECT '@SEND_FUNCTION_NAME@';", "@SEND_FUNCTION_NAME@", false)]
+    [DataRow("-- @RECEIVE_FUNCTION_NAME@", "@RECEIVE_FUNCTION_NAME@", false)]
+    [DataRow("/* @SEND_FUNCTION_NAME@ */", "@SEND_FUNCTION_NAME@", false)]
+    [DataRow("SELECT '@SEND_FUNCTION_NAME@';", "@SEND_FUNCTION_NAME@", true)]
+    [DataRow("-- @RECEIVE_FUNCTION_NAME@", "@RECEIVE_FUNCTION_NAME@", true)]
+    public void DeclarationSqlUnavailableBinaryTokensAreDiagnosed(string literal, string token, bool explicitProtocol)
     {
-        (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate("[Ankus.PgType(Sql = " + SymbolDisplay.FormatLiteral(literal, true) +
+        string sql = SymbolDisplay.FormatLiteral(literal, true);
+        (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate("[Ankus.PgType(Sql = " + sql +
+            (explicitProtocol ? ", BinaryProtocol = false" : string.Empty) +
             ")] public readonly record struct Value(int Number); public static class Other { [Ankus.PgFunction] public static int Good() => 7; }");
-        AssertSqlControlGraphError(compilation, diagnostics, "BinaryProtocol");
+        AssertSqlControlGraphError(compilation, diagnostics, "ANKUS505", explicitProtocol ? "false" : sql, token);
     }
 
     /// <summary>
@@ -294,19 +301,25 @@ public sealed partial class PgFunctionGeneratorTests
     [DataRow("hashing")]
     public void DeclarationSqlControlsRetainGraphDiagnostics(string kind)
     {
-        (string Prefix, string Options, string Reason)[] invalid =
+        // An aggregate's prerequisites also precede its transition helper, which therefore closes the cycle.
+        string cycle = kind == "aggregate"
+            ? "Value.Transition(Ankus.PgAggregateContext, int, int) -> before -> parent -> Value.Transition(Ankus.PgAggregateContext, int, int)"
+            : "parent -> before -> parent";
+        (string Prefix, string Options, string Id, string Span, string Argument)[] invalid =
         [
-            (string.Empty, "Id = \"parent\", Requires = new[] { \"missing\" }", "missing dependency"),
-            ("[assembly: Ankus.PgSql(\"parent\", \"SELECT 1;\")]", "Id = \"parent\"", "declared more than once"),
-            ("[assembly: Ankus.PgSql(\"before\", \"SELECT 1;\", Requires = new[] { \"parent\" })]", "Id = \"parent\", Requires = new[] { \"before\" }", "cycle"),
+            (string.Empty, "Id = \"parent\", Requires = new[] { \"missing\" }", "ANKUS498", "\"missing\"", "missing"),
+            ("[assembly: Ankus.PgSql(\"parent\", \"SELECT 1;\")]", "Id = \"parent\"", "ANKUS497", "\"parent\"", "parent"),
+            ("[assembly: Ankus.PgSql(\"before\", \"SELECT 1;\", Requires = new[] { \"parent\" })]", "Id = \"parent\", Requires = new[] { \"before\" }",
+                "ANKUS499", "\"before\"", cycle),
         ];
         string[] policies = ["GenerateSql = false", "Sql = \"SELECT 'replacement';\""];
-        foreach ((string prefix, string options, string reason) in invalid)
+        foreach ((string prefix, string options, string id, string span, string argument) in invalid)
         {
             foreach (string policy in policies)
             {
                 (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(prefix + DeclarationSource(kind, options + ", " + policy));
-                AssertSqlControlGraphError(compilation, diagnostics, reason);
+                AssertSqlControlGraphError(compilation, diagnostics, id, span, argument);
+                Assert.DoesNotStartWith("Ankus.PgSql", DiagnosticAttribute(Assert.ContainsSingle(diagnostics)));
             }
         }
     }
@@ -315,14 +328,16 @@ public sealed partial class PgFunctionGeneratorTests
     /// SQL suppression does not discard declared type, aggregate or retained helper signature collision checks.
     /// </summary>
     /// <param name="kind">The declaration policy kind.</param>
-    /// <param name="expected">The existing collision diagnostic.</param>
+    /// <param name="expected">The fixed collision diagnostic.</param>
+    /// <param name="span">The authored declaration to correct, or null when the policy attribute is reported.</param>
+    /// <param name="argument">The colliding SQL identity.</param>
     [TestMethod]
-    [DataRow("type", "ANKUS005")]
-    [DataRow("enum", "ANKUS005")]
-    [DataRow("aggregate", "ANKUS207")]
-    [DataRow("ordering", "ANKUS005")]
-    [DataRow("hashing", "ANKUS005")]
-    public void DeclarationSqlControlsRetainNameCollisions(string kind, string expected)
+    [DataRow("type", "ANKUS507", "Second", "\"same\"")]
+    [DataRow("enum", "ANKUS506", "Second", "\"same\"")]
+    [DataRow("aggregate", "ANKUS207", null, null)]
+    [DataRow("ordering", "ANKUS510", null, "\"value_cmp\"(\"value\",\"value\")")]
+    [DataRow("hashing", "ANKUS510", null, "\"value_hash\"(\"value\")")]
+    public void DeclarationSqlControlsRetainNameCollisions(string kind, string expected, string? span, string? argument)
     {
         string[] policies = ["GenerateSql = false", "Sql = \"SELECT 1;\""];
         foreach (string policy in policies)
@@ -344,9 +359,11 @@ public sealed partial class PgFunctionGeneratorTests
             (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source);
             Assert.IsNotEmpty(diagnostics);
             Assert.IsEmpty(diagnostics.Where(diagnostic => diagnostic.Id != expected || diagnostic.Severity != DiagnosticSeverity.Error));
-            if (expected == "ANKUS005")
+            if (argument is not null)
             {
-                AssertSqlControlGraphError(compilation, diagnostics, string.Empty);
+                string attribute = (kind == "ordering" ? "Ankus.PgOrdering(" : "Ankus.PgHashing(") + policy + ")";
+                AssertSqlControlGraphError(compilation, diagnostics, expected, span ?? attribute,
+                    expected == "ANKUS510" ? [argument, "Value"] : [argument]);
             }
         }
     }
@@ -445,19 +462,19 @@ public sealed partial class PgFunctionGeneratorTests
     [DataRow("hashing")]
     public void InvalidDeclarationSqlOptionsAreDiagnosed(string kind)
     {
-        string[] options =
+        (string Option, string Id, string Span)[] options =
         [
-            "GenerateSql = false, Sql = \"SELECT 1;\"",
-            "GenerateSql = false, Sql = \"\"",
-            "Sql = \"SELECT '\\0';\"",
-            "Sql = \"SELECT '\\ud800';\"",
-            "Sql = \"SELECT '\\udfff';\"",
+            ("GenerateSql = false, Sql = \"SELECT 1;\"", "ANKUS502", "false"),
+            ("GenerateSql = false, Sql = \"\"", "ANKUS502", "false"),
+            ("Sql = \"SELECT '\\0';\"", "ANKUS503", "\"SELECT '\\0';\""),
+            ("Sql = \"SELECT '\\ud800';\"", "ANKUS504", "\"SELECT '\\ud800';\""),
+            ("Sql = \"SELECT '\\udfff';\"", "ANKUS504", "\"SELECT '\\udfff';\""),
         ];
-        foreach (string option in options)
+        foreach ((string option, string id, string span) in options)
         {
             (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(DeclarationSource(kind, option) +
                 "public static class Other { [Ankus.PgFunction] public static int Good() => 7; }");
-            AssertSqlControlGraphError(compilation, diagnostics, string.Empty);
+            AssertSqlControlGraphError(compilation, diagnostics, id, span);
         }
     }
 

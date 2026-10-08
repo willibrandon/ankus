@@ -46,7 +46,7 @@ internal static class SchemaPipeline
                 new([]))
             : null;
         return new(DeclarationIdentity.Create(type), type.ToDisplayString(), type.Name, declaration,
-            SqlDeclarationOptions.Read(attribute)!, GeneratorLocation.Create(type.Locations.FirstOrDefault(), context.SemanticModel.Compilation), problem);
+            SqlDeclarationOptions.Read(attribute, context.SemanticModel.Compilation, cancellationToken)!, GeneratorLocation.Create(type.Locations.FirstOrDefault(), context.SemanticModel.Compilation), problem);
     }
 
     /// <summary>

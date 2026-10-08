@@ -62,7 +62,7 @@ internal static class CustomTypePipeline
             metadataFailure: value => metadata = value, diagnostic: (descriptor, location, arguments) =>
                 problem = new(descriptor, GeneratorLocation.Create(location, compilation) ?? typeLocation, new(arguments)));
         return new(DeclarationIdentity.Create(type), type.ToDisplayString(), declaration?.Freeze(),
-            SqlDeclarationOptions.Read(context.Attributes[0])!,
+            SqlDeclarationOptions.Read(context.Attributes[0], compilation, cancellationToken)!,
             typeLocation, problem, metadata);
     }
 

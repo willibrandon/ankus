@@ -364,35 +364,38 @@ public sealed partial class PgFunctionGeneratorTests
     [DataRow("public static Mood[] Echo() => new[] { Mood.Happy };")]
     public void EnumFunctionDependenciesParticipateInCycleDetection(string method)
     {
-        (_, ImmutableArray<Diagnostic> diagnostics) = Generate($$"""
+        (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate($$"""
             [assembly: Ankus.PgSql("reverse", "SELECT 1;", Requires = new[] { "function" }, Before = new[] { "mood" })]
             [Ankus.PgEnum(Id = "mood")] public enum Mood { Happy }
             public static class Functions { [Ankus.PgFunction(Id = "function")] {{method}} }
             """);
-        Diagnostic diagnostic = Assert.ContainsSingle(diagnostics);
-        Assert.AreEqual("ANKUS005", diagnostic.Id);
-        Assert.Contains("cycle", diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture));
+        AssertSqlControlGraphError(compilation, diagnostics, "ANKUS499", "\"mood\"", "function -> mood -> reverse -> function");
+        AssertDiagnosticOccurrence(diagnostics[0], "\"mood\"", 0);
     }
 
     /// <summary>
-    /// Duplicate type names, missing graph references, and cycles fail as SQL entity graph diagnostics.
+    /// Duplicate type names, invalid or missing graph references, and cycles report the authored value to change.
     /// </summary>
     /// <param name="source">The invalid enum graph.</param>
-    /// <param name="message">The expected diagnostic reason.</param>
+    /// <param name="expected">The fixed diagnostic.</param>
+    /// <param name="span">The exact authored value or declaration to correct.</param>
+    /// <param name="occurrence">The zero-based occurrence of that text in the source.</param>
+    /// <param name="argument">The authored identity in the fixed message, or null when the message has none.</param>
     [TestMethod]
-    [DataRow("[Ankus.PgEnum(Name = \"same\")] public enum One { A } [Ankus.PgEnum(Name = \"same\")] public enum Two { B }", "Duplicate PostgreSQL enum type name")]
-    [DataRow("[Ankus.PgEnum(Id = \"same\")] public enum One { A } [Ankus.PgEnum(Id = \"same\")] public enum Two { B }", "declared more than once")]
-    [DataRow("[Ankus.PgEnum(Requires = new[] { \"missing\" })] public enum Mood { Happy }", "missing dependency 'missing'")]
-    [DataRow("[Ankus.PgEnum(Id = \"mood\", Requires = new[] { \"mood\" })] public enum Mood { Happy }", "cycle")]
-    [DataRow("[Ankus.PgSchema(\"s\", Requires = new[] { \"mood\" })] public static class Values { [Ankus.PgEnum(Id = \"mood\")] public enum Mood { Happy } }", "cycle")]
-    [DataRow("[Ankus.PgEnum(Id = \"\")] public enum Mood { Happy }", "nonempty text")]
-    [DataRow("[Ankus.PgEnum(Requires = null!)] public enum Mood { Happy }", "invalid Requires")]
-    public void InvalidEnumSqlGraphsAreDiagnosed(string source, string message)
+    [DataRow("[Ankus.PgEnum(Name = \"same\")] public enum One { A } [Ankus.PgEnum(Name = \"same\")] public enum Two { B }", "ANKUS506", "Two", 0, "\"same\"")]
+    [DataRow("[Ankus.PgEnum(Name = \"same\")] public enum One { A } [Ankus.PgType(Name = \"same\")] public enum Two { B }", "ANKUS507", "Two", 0, "\"same\"")]
+    [DataRow("[Ankus.PgEnum(Id = \"same\")] public enum One { A } [Ankus.PgEnum(Id = \"same\")] public enum Two { B }", "ANKUS497", "\"same\"", 1, "same")]
+    [DataRow("[Ankus.PgEnum(Requires = new[] { \"missing\" })] public enum Mood { Happy }", "ANKUS498", "\"missing\"", 0, "missing")]
+    [DataRow("[Ankus.PgEnum(Id = \"mood\", Requires = new[] { \"mood\" })] public enum Mood { Happy }", "ANKUS499", "\"mood\"", 1, "mood -> mood")]
+    [DataRow("[Ankus.PgSchema(\"s\", Requires = new[] { \"mood\" })] public static class Values { [Ankus.PgEnum(Id = \"mood\")] public enum Mood { Happy } }",
+        "ANKUS499", "\"mood\"", 0, "Values -> mood -> Values")]
+    [DataRow("[Ankus.PgEnum(Id = \"\")] public enum Mood { Happy }", "ANKUS490", "\"\"", 0, null)]
+    [DataRow("[Ankus.PgEnum(Requires = null!)] public enum Mood { Happy }", "ANKUS493", "null!", 0, null)]
+    public void InvalidEnumSqlGraphsAreDiagnosed(string source, string expected, string span, int occurrence, string? argument)
     {
-        (_, ImmutableArray<Diagnostic> diagnostics) = Generate(source);
-        Diagnostic diagnostic = Assert.ContainsSingle(diagnostics);
-        Assert.AreEqual("ANKUS005", diagnostic.Id);
-        Assert.Contains(message, diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture));
+        (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source);
+        AssertSqlControlGraphError(compilation, diagnostics, expected, span, argument is null ? [] : [argument]);
+        AssertDiagnosticOccurrence(diagnostics[0], span, occurrence);
     }
 
     /// <summary>

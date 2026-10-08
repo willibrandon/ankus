@@ -577,7 +577,17 @@ public sealed partial class PgFunctionGeneratorTests
         string source = kind == "generated" ? block + declarations : prefix + block +
             (kind == "schema" ? string.Empty : extra) + declarations + (kind == "schema" ? extra : string.Empty);
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source);
-        AssertDeclaredProviderError(compilation, diagnostics, "cycle", "ANKUS005");
+        (string span, string cycle) = kind switch
+        {
+            "hard" => ("\"types\"", "consumer -> types -> consumer"),
+            "unrelated-hard" => ("\"b\"", "a -> b -> a"),
+            "operator" or "replacement" => ("\"operator\"", "consumer -> types -> operator -> consumer"),
+            "schema" => ("\"consumer\"", "Placed -> consumer -> types -> placed -> Placed"),
+            "final" => ("Read", "consumer -> types -> consumer"),
+            _ => ("\"consumer\"", "consumer -> declared -> consumer"),
+        };
+        AssertSqlControlGraphError(compilation, diagnostics, "ANKUS499", span, cycle);
+        AssertDeclaredProviderError(compilation, diagnostics, "ANKUS499");
     }
 
     /// <summary>
@@ -694,10 +704,17 @@ public sealed partial class PgFunctionGeneratorTests
     /// <summary>
     /// Requires graph diagnostics and complete suppression of both managed dispatch and every manifest artifact.
     /// </summary>
-    private void AssertDeclaredProviderError(Compilation compilation, ImmutableArray<Diagnostic> diagnostics, string reason = "",
-        string diagnosticId = "ANKUS394")
+    private void AssertDeclaredProviderError(Compilation compilation, ImmutableArray<Diagnostic> diagnostics, string diagnosticId = "ANKUS394")
     {
-        AssertSqlControlGraphError(compilation, diagnostics, reason, diagnosticId);
+        Assert.IsNotEmpty(diagnostics);
+        foreach (Diagnostic diagnostic in diagnostics)
+        {
+            Assert.AreEqual(diagnosticId, diagnostic.Id);
+            Assert.AreEqual(DiagnosticSeverity.Error, diagnostic.Severity);
+            Assert.IsTrue(diagnostic.Location.IsInSource);
+        }
+
+        AssertNoSqlManifest(compilation);
         Assert.IsEmpty(compilation.GetDiagnostics(context.CancellationToken).Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error));
         Assert.IsNull(compilation.GetTypeByMetadataName("Ankus.Generated.ExtensionDispatchers"));
         Assert.IsEmpty(compilation.Assembly.GetAttributes().Where(static attribute =>

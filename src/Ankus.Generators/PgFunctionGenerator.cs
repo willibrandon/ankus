@@ -171,7 +171,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             .Select(static (value, _) => InstallationGraphEncoding.Encode(value)).WithTrackingName("ExtensionGraphEmission");
         IncrementalValuesProvider<GeneratorCompositionContext.Artifact> artifacts = composition
             .SelectMany(static (value, _) => value.Artifacts).WithTrackingName("ExtensionArtifactPlan");
-        context.RegisterSourceOutput(artifacts.Combine(graph).Where(static value => !value.Left.RequiresGraph || value.Right.Error is null)
+        context.RegisterSourceOutput(artifacts.Combine(graph).Where(static value => !value.Left.RequiresGraph || value.Right.Limit is null)
             .Select(static (value, _) => value.Left).Select(static (value, _) => (value.Name, Source: value.Plan.Render()))
             .WithTrackingName("ExtensionArtifactEmission"), static (output, artifact) => output.AddSource(artifact.Name, artifact.Source));
         IncrementalValueProvider<GeneratorSourcePlan?> native = composition.Select(static (value, _) => value.Manifest?.Native)
@@ -195,9 +195,9 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             });
         context.RegisterSourceOutput(graph, static (output, value) =>
         {
-            if (value.Error is not null)
+            if (value.Limit is { } limit)
             {
-                output.ReportDiagnostic(Diagnostic.Create(SqlGraph.InvalidDiagnostic, null, value.Error));
+                output.ReportDiagnostic(Diagnostic.Create(SqlGraphDiagnostics.Descriptor(limit), null));
             }
         });
         context.RegisterSourceOutput(composition.Select(static (value, _) => value.Problems).WithTrackingName("ExtensionProblems")
@@ -474,7 +474,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             }
         }
 
-        var graph = new SqlGraph(context, settings.Directory);
+        var graph = new SqlGraph(context, settings.Directory, compilation);
         var schemas = new Dictionary<string, SqlEntity>(StringComparer.Ordinal);
         bool fixedSchema = !schemaTypes.IsEmpty;
         foreach (SchemaPipeline.SchemaOutput output in schemaTypes.OrderBy(static value => value.Analysis.Display, StringComparer.Ordinal))
@@ -558,7 +558,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             graph.Register(analysis.Identity, analysis.Display, entity);
             if (!enumNames.Add(enumeration.Sql))
             {
-                graph.Error(entity.Location, "Duplicate PostgreSQL enum type name " + enumeration.Sql + ".");
+                graph.Error(entity.Location, SqlGraphDiagnostics.s_duplicateEnumType, enumeration.Sql);
             }
 
             enumEntities.Add(enumeration.Managed, entity);
@@ -682,7 +682,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             graph.Register(output.Analysis.Identity, output.Analysis.Display, entity);
             if (!enumNames.Add(custom.Sql))
             {
-                graph.Error(entity.Location, "Duplicate PostgreSQL type name " + custom.Sql + ".");
+                graph.Error(entity.Location, SqlGraphDiagnostics.s_duplicateBaseType, custom.Sql);
             }
 
             enumEntities.Add(custom.Managed, entity);
@@ -1082,7 +1082,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
 
         managed.AppendLine("}");
         graph.ResolveReferences(references, compilation);
-        InstallationGraphModel? installation = graph.Freeze(compilation);
+        InstallationGraphModel? installation = graph.Freeze();
         if (installation is null)
         {
             return;
@@ -1215,7 +1215,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
     private static string? RenderManifest(GeneratorCompositionContext.ManifestMetadata? metadata, string? nativeSource, string? exportManifest,
         string installation, InstallationGraphEncoding.Output graph)
     {
-        if (metadata is null || graph.Error is not null)
+        if (metadata is null || graph.Limit is not null)
         {
             return null;
         }

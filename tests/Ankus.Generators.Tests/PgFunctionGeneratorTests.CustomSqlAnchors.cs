@@ -57,14 +57,17 @@ public sealed partial class PgFunctionGeneratorTests
     /// </summary>
     /// <param name="options">The authored cycle-producing dependency options.</param>
     /// <param name="file">Whether the anchor comes from a tracked file.</param>
+    /// <param name="span">The authored dependency entry that participates in the cycle.</param>
+    /// <param name="occurrence">The zero-based occurrence of that text in the source.</param>
+    /// <param name="cycle">The reported cycle.</param>
     [TestMethod]
-    [DataRow("Requires = new[] { \"anchor\" }", false)]
-    [DataRow("Requires = new[] { \"anchor\" }", true)]
-    [DataRow("Requires = new[] { \"consumer\" }, Order = Ankus.PgSqlOrder.Bootstrap", false)]
-    [DataRow("Requires = new[] { \"consumer\" }, Order = Ankus.PgSqlOrder.Bootstrap", true)]
-    [DataRow("Before = new[] { \"consumer\" }, Order = Ankus.PgSqlOrder.Finalize", false)]
-    [DataRow("Before = new[] { \"consumer\" }, Order = Ankus.PgSqlOrder.Finalize", true)]
-    public void EmptyCustomSqlStillRejectsCycles(string options, bool file)
+    [DataRow("Requires = new[] { \"anchor\" }", false, "\"anchor\"", 1, "anchor -> anchor")]
+    [DataRow("Requires = new[] { \"anchor\" }", true, "\"anchor\"", 1, "anchor -> anchor")]
+    [DataRow("Requires = new[] { \"consumer\" }, Order = Ankus.PgSqlOrder.Bootstrap", false, "\"consumer\"", 0, "anchor -> consumer -> anchor")]
+    [DataRow("Requires = new[] { \"consumer\" }, Order = Ankus.PgSqlOrder.Bootstrap", true, "\"consumer\"", 0, "anchor -> consumer -> anchor")]
+    [DataRow("Before = new[] { \"consumer\" }, Order = Ankus.PgSqlOrder.Finalize", false, "\"consumer\"", 0, "anchor -> consumer -> anchor")]
+    [DataRow("Before = new[] { \"consumer\" }, Order = Ankus.PgSqlOrder.Finalize", true, "\"consumer\"", 0, "anchor -> consumer -> anchor")]
+    public void EmptyCustomSqlStillRejectsCycles(string options, bool file, string span, int occurrence, string cycle)
     {
         string project = Path.Combine(AppContext.BaseDirectory, "sql-anchor-contracts");
         string source = "[assembly: Ankus." + (file ? "PgSqlFile" : "PgSql") + "(\"anchor\", " +
@@ -72,10 +75,7 @@ public sealed partial class PgFunctionGeneratorTests
             "[assembly: Ankus.PgSql(\"consumer\", \"SELECT 1;\")]";
         (Compilation output, ImmutableArray<Diagnostic> errors) = Generate(source,
             file ? [new SqlInput(Path.Combine(project, "anchor.sql"), string.Empty)] : [], new SqlOptions(project));
-        Diagnostic error = Assert.ContainsSingle(errors);
-        Assert.AreEqual("ANKUS005", error.Id);
-        Assert.Contains("cycle", error.GetMessage(System.Globalization.CultureInfo.InvariantCulture));
-        Assert.DoesNotContain(static attribute => attribute.AttributeClass?.ToDisplayString() == "System.Reflection.AssemblyMetadataAttribute" &&
-            attribute.ConstructorArguments[0].Value as string == "Ankus.Sql", output.Assembly.GetAttributes());
+        AssertSqlControlGraphError(output, errors, "ANKUS499", span, cycle);
+        AssertDiagnosticOccurrence(errors[0], span, occurrence);
     }
 }

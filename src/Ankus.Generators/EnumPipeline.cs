@@ -41,7 +41,7 @@ internal static class EnumPipeline
         AttributeMetadataFailure? metadata = null;
         EnumDeclaration? declaration = EnumDeclaration.Create(type, diagnostics, value => metadata = value, cancellationToken);
         return new(DeclarationIdentity.Create(type), type.ToDisplayString(), type.Name, declaration,
-            SqlDeclarationOptions.Read(context.Attributes[0])!, GeneratorLocation.Create(type.Locations.FirstOrDefault(), context.SemanticModel.Compilation), new(problems), metadata);
+            SqlDeclarationOptions.Read(context.Attributes[0], context.SemanticModel.Compilation, cancellationToken)!, GeneratorLocation.Create(type.Locations.FirstOrDefault(), context.SemanticModel.Compilation), new(problems), metadata);
     }
 
     /// <summary>

@@ -314,8 +314,10 @@ public sealed partial class PgFunctionGeneratorTests
                 public static int Apply(Ankus.PgMemoryContext first, {{parameter}}, Ankus.PgMemoryContext last) => 42;
             }
             """);
-        AssertVirtualContextDiagnostic(diagnostics, "ANKUS005");
-        Assert.Contains("cycle", diagnostics[0].GetMessage(CultureInfo.InvariantCulture));
+        AssertVirtualContextDiagnostic(diagnostics, "ANKUS499");
+        AssertGraphDiagnostic(diagnostics[0], "ANKUS499", "\"consumer\"",
+            declaration.Contains("PgEnum", StringComparison.Ordinal) ? "consumer -> Mood -> consumer" : "Types -> consumer -> Types");
+        AssertDiagnosticOccurrence(diagnostics[0], "\"consumer\"", 0);
     }
 
     /// <summary>

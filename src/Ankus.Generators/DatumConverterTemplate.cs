@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -158,8 +157,7 @@ internal static class DatumConverterTemplate
 
             int index = Array.FindIndex(aliases, alias => alias.Span.Contains(diagnostic.Location.SourceSpan));
             DatumTypeDeclaration declaration = inferred[Math.Max(0, index)];
-            context.Report(DatumMappingDiagnostics.Constraint, declaration.ConverterLocation,
-                diagnostic.Id, diagnostic.GetMessage(CultureInfo.InvariantCulture));
+            context.Report(DatumMappingDiagnostics.Constraint, declaration.ConverterLocation, declaration.Converter.ToDisplayString(), diagnostic.Id);
             valid = false;
         }
 

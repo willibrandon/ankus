@@ -7,87 +7,89 @@ namespace Ankus.Generators;
 /// </summary>
 internal static class InstallationGraphEncoding
 {
+    private const int MaximumEntries = 100_000;
+    private const int MaximumBytes = 32 * 1024 * 1024;
+
     /// <summary>
     /// Encodes the resolved installation graph independently of runtime serializers or analyzer-side dependencies.
     /// </summary>
     /// <param name="nodes">The ordered graph fields and independently rendered SQL.</param>
-    /// <returns>The versioned base64 graph or its original validation error.</returns>
+    /// <returns>The versioned base64 graph or the exceeded encoding bound.</returns>
     internal static Output Encode(EquatableArray<InstallationGraphModel.EncodedNode> nodes)
     {
-        if (nodes.Count > 100_000)
+        if (nodes.Count > MaximumEntries)
         {
-            return new(null, "An embedded installation graph cannot exceed 100,000 declarations.");
+            return new(null, InstallationGraphLimit.Declarations);
         }
 
-        try
-        {
-            return new(EncodeCore(nodes), null);
-        }
-        catch (FormatException error)
-        {
-            return new(null, error.Message);
-        }
-    }
-
-    /// <summary>
-    /// Writes length-delimited graph fields while enforcing the consumer's allocation limits.
-    /// </summary>
-    /// <returns>The bounded graph in base64 format.</returns>
-    private static string EncodeCore(EquatableArray<InstallationGraphModel.EncodedNode> nodes)
-    {
         var utf8 = new UTF8Encoding(false, true);
         using var stream = new MemoryStream();
+        InstallationGraphLimit? limit;
         using (var writer = new BinaryWriter(stream, utf8, leaveOpen: true))
         {
             writer.Write(Encoding.ASCII.GetBytes("ANKUSG2\0"));
-            WriteText(SqlProvenance.Preamble);
-            writer.Write(nodes.Count);
-            foreach (InstallationGraphModel.EncodedNode entity in nodes)
+            limit = WriteText(SqlProvenance.Preamble);
+            if (limit is null)
             {
-                WriteText(entity.Key);
-                WriteText(entity.Kind);
-                WriteText(entity.Sql);
-                WriteText(entity.Owner);
-                WriteTexts(entity.Names);
-                WriteTexts(entity.Dependencies);
-                WriteTexts(entity.Attachments);
+                writer.Write(nodes.Count);
             }
 
-            void WriteText(string value)
+            foreach (InstallationGraphModel.EncodedNode entity in nodes)
             {
-                if (utf8.GetByteCount(value) > 32 * 1024 * 1024 - stream.Length - 4)
+                limit ??= WriteText(entity.Key) ?? WriteText(entity.Kind) ?? WriteText(entity.Sql) ?? WriteText(entity.Owner)
+                    ?? WriteTexts(entity.Names) ?? WriteTexts(entity.Dependencies) ?? WriteTexts(entity.Attachments);
+                if (limit is not null)
                 {
-                    throw new FormatException("An embedded installation graph cannot exceed 32 MiB.");
+                    break;
+                }
+            }
+
+            InstallationGraphLimit? WriteText(string value)
+            {
+                if (utf8.GetByteCount(value) > MaximumBytes - stream.Length - 4)
+                {
+                    return InstallationGraphLimit.Size;
                 }
 
                 byte[] text = utf8.GetBytes(value);
                 writer.Write(text.Length);
                 writer.Write(text);
+                return null;
             }
 
-            void WriteTexts(IEnumerable<string> values)
+            InstallationGraphLimit? WriteTexts(IEnumerable<string> values)
             {
                 string[] sorted = [.. values.Distinct(StringComparer.Ordinal).OrderBy(static value => value, StringComparer.Ordinal)];
-                if (sorted.Length > 100_000 || stream.Length + 4 > 32 * 1024 * 1024)
+                if (sorted.Length > MaximumEntries)
                 {
-                    throw new FormatException("An embedded installation graph exceeds its field count or 32 MiB size limit.");
+                    return InstallationGraphLimit.Entries;
+                }
+
+                if (stream.Length + 4 > MaximumBytes)
+                {
+                    return InstallationGraphLimit.Size;
                 }
 
                 writer.Write(sorted.Length);
                 foreach (string value in sorted)
                 {
-                    WriteText(value);
+                    if (WriteText(value) is { } exceeded)
+                    {
+                        return exceeded;
+                    }
                 }
+
+                return null;
             }
         }
 
-        return Convert.ToBase64String(stream.ToArray());
+        return limit is null ? new(Convert.ToBase64String(stream.ToArray()), null) : new(null, limit);
     }
 
     /// <summary>
-    /// Contains graph bytes or a deterministic bounds error for the current diagnostic boundary.
+    /// Contains graph bytes or a deterministic bound for the current diagnostic boundary.
     /// </summary>
-    /// <param name="Graph">The encoded graph, or none when a size limit is exceeded.</param>
-    /// <param name="Error">The original validation error, or none after successful encoding.</param>
-    internal sealed record Output(string? Graph, string? Error);
+    /// <param name="Graph">The encoded graph, or none when a limit is exceeded.</param>
+    /// <param name="Limit">The exceeded encoding bound, or none after successful encoding.</param>
+    internal sealed record Output(string? Graph, InstallationGraphLimit? Limit);
 }

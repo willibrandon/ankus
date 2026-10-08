@@ -559,19 +559,32 @@ public sealed partial class PgFunctionGeneratorTests
     /// </summary>
     /// <param name="first">The first attributed method.</param>
     /// <param name="second">The second attributed method with the same PostgreSQL entity identity.</param>
+    /// <param name="expected">The fixed operator or cast duplicate diagnostic.</param>
+    /// <param name="span">The second declaration's attribute.</param>
+    /// <param name="occurrence">The zero-based occurrence of that attribute text in the source.</param>
+    /// <param name="signature">The duplicated catalog signature.</param>
     [TestMethod]
-    [DataRow("[Ankus.PgOperator(\"+\")] public static int First(int value) => value;", "[Ankus.PgOperator(\"+\")] public static int? Second(int? value) => value;")]
-    [DataRow("[Ankus.PgOperator(\"+\")] public static decimal First(decimal a, decimal b) => a;", "[Ankus.PgOperator(\"+\")] public static Ankus.PgNumeric Second(Ankus.PgNumeric a, Ankus.PgNumeric b) => a;")]
-    [DataRow("[Ankus.PgOperator(\"+\")] public static int[] First(int[] a) => a;", "[Ankus.PgOperator(\"+\")] public static Ankus.PgArray<int?> Second(Ankus.PgArray<int?> a) => a;")]
-    [DataRow("[Ankus.PgOperator(\"!=\")] public static bool First(int a, int b) => a != b;", "[Ankus.PgOperator(\"<>\")] public static bool Second(int a, int b) => a != b;")]
-    [DataRow("[Ankus.PgCast] public static string First(int value) => \"\";", "[Ankus.PgCast(Ankus.PgCastContext.Implicit)] public static string? Second(int? value) => null;")]
-    [DataRow("[Ankus.PgCast] public static string First(decimal value) => \"\";", "[Ankus.PgCast] public static string Second(Ankus.PgNumeric value) => \"\";")]
-    [DataRow("[Ankus.PgCast] public static string First(int value) => \"\";", "[Ankus.PgCast] public static string Second(int value, int modifier, bool explicitly) => \"\";")]
-    [DataRow("[Ankus.PgCast][Ankus.PgFunction(Schema = \"one\")] public static string First(int value) => \"\";", "[Ankus.PgCast][Ankus.PgFunction(Schema = \"two\")] public static string Second(int value) => \"\";")]
-    public void DuplicateOperatorCastSqlIdentitiesAreDiagnosed(string first, string second)
+    [DataRow("[Ankus.PgOperator(\"+\")] public static int First(int value) => value;", "[Ankus.PgOperator(\"+\")] public static int? Second(int? value) => value;",
+        "ANKUS508", "Ankus.PgOperator(\"+\")", 1, "+(NONE,integer)")]
+    [DataRow("[Ankus.PgOperator(\"+\")] public static decimal First(decimal a, decimal b) => a;", "[Ankus.PgOperator(\"+\")] public static Ankus.PgNumeric Second(Ankus.PgNumeric a, Ankus.PgNumeric b) => a;",
+        "ANKUS508", "Ankus.PgOperator(\"+\")", 1, "+(numeric,numeric)")]
+    [DataRow("[Ankus.PgOperator(\"+\")] public static int[] First(int[] a) => a;", "[Ankus.PgOperator(\"+\")] public static Ankus.PgArray<int?> Second(Ankus.PgArray<int?> a) => a;",
+        "ANKUS508", "Ankus.PgOperator(\"+\")", 1, "+(NONE,integer[])")]
+    [DataRow("[Ankus.PgOperator(\"!=\")] public static bool First(int a, int b) => a != b;", "[Ankus.PgOperator(\"<>\")] public static bool Second(int a, int b) => a != b;",
+        "ANKUS508", "Ankus.PgOperator(\"<>\")", 0, "<>(integer,integer)")]
+    [DataRow("[Ankus.PgCast] public static string First(int value) => \"\";", "[Ankus.PgCast(Ankus.PgCastContext.Implicit)] public static string? Second(int? value) => null;",
+        "ANKUS509", "Ankus.PgCast(Ankus.PgCastContext.Implicit)", 0, "integer AS text")]
+    [DataRow("[Ankus.PgCast] public static string First(decimal value) => \"\";", "[Ankus.PgCast] public static string Second(Ankus.PgNumeric value) => \"\";",
+        "ANKUS509", "Ankus.PgCast", 1, "numeric AS text")]
+    [DataRow("[Ankus.PgCast] public static string First(int value) => \"\";", "[Ankus.PgCast] public static string Second(int value, int modifier, bool explicitly) => \"\";",
+        "ANKUS509", "Ankus.PgCast", 1, "integer AS text")]
+    [DataRow("[Ankus.PgCast][Ankus.PgFunction(Schema = \"one\")] public static string First(int value) => \"\";", "[Ankus.PgCast][Ankus.PgFunction(Schema = \"two\")] public static string Second(int value) => \"\";",
+        "ANKUS509", "Ankus.PgCast", 1, "integer AS text")]
+    public void DuplicateOperatorCastSqlIdentitiesAreDiagnosed(string first, string second, string expected, string span, int occurrence, string signature)
     {
-        (_, ImmutableArray<Diagnostic> diagnostics) = Generate("public static class Functions { " + first + second + " }");
-        Assert.AreEqual("ANKUS005", Assert.ContainsSingle(diagnostics).Id);
+        (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate("public static class Functions { " + first + second + " }");
+        AssertSqlControlGraphError(compilation, diagnostics, expected, span, signature);
+        AssertDiagnosticOccurrence(diagnostics[0], span, occurrence);
     }
 
     /// <summary>
@@ -637,26 +650,34 @@ public sealed partial class PgFunctionGeneratorTests
     /// Missing dependencies, invalid identifiers, duplicate aliases, and cycles through the implicit backing-function edge are rejected.
     /// </summary>
     /// <param name="source">The invalid dependency graph source.</param>
-    /// <param name="message">The diagnostic detail that identifies the violated graph contract.</param>
+    /// <param name="expected">The fixed graph diagnostic.</param>
+    /// <param name="span">The exact authored value to correct.</param>
+    /// <param name="occurrence">The zero-based occurrence of that text in the source.</param>
+    /// <param name="argument">The authored identity in the fixed message, or null when the message has none.</param>
     [TestMethod]
-    [DataRow("public static class C { [Ankus.PgOperator(\"@\", Requires = new[] { \"missing\" })] public static int F(int a) => a; }", "missing dependency 'missing'")]
-    [DataRow("public static class C { [Ankus.PgCast(Requires = new[] { \"missing\" })] public static string F(int a) => \"\"; }", "missing dependency 'missing'")]
-    [DataRow("public static class C { [Ankus.PgOperator(\"@\", Id = \"\")] public static int F(int a) => a; }", "nonempty text")]
-    [DataRow("public static class C { [Ankus.PgCast(Id = \"\")] public static string F(int a) => \"\"; }", "nonempty text")]
-    [DataRow("public static class C { [Ankus.PgOperator(\"@\", Requires = null!)] public static int F(int a) => a; }", "invalid Requires")]
-    [DataRow("public static class C { [Ankus.PgCast(Requires = new[] { \"\" })] public static string F(int a) => \"\"; }", "invalid Requires")]
-    [DataRow("public static class C { [Ankus.PgFunction(Id = \"same\")][Ankus.PgOperator(\"@\", Id = \"same\")] public static int F(int a) => a; }", "declared more than once")]
-    [DataRow("public static class C { [Ankus.PgOperator(\"@\", Id = \"same\")][Ankus.PgCast(Id = \"same\")] public static string F(int a) => \"\"; }", "declared more than once")]
-    [DataRow("public static class C { [Ankus.PgFunction(Requires = new[] { \"operator\" })][Ankus.PgOperator(\"@\", Id = \"operator\")] public static int F(int a) => a; }", "cycle")]
-    [DataRow("public static class C { [Ankus.PgFunction(Requires = new[] { \"cast\" })][Ankus.PgCast(Id = \"cast\")] public static string F(int a) => \"\"; }", "cycle")]
-    [DataRow("[assembly: Ankus.PgSql(\"after\", \"SELECT 1;\", Requires = new[] { \"op\" })] public static class C { [Ankus.PgOperator(\"@\", Id = \"op\", Requires = new[] { \"after\" })] public static int F(int a) => a; }", "cycle")]
-    [DataRow("public static class C { [Ankus.PgOperator(\"@\", Id = \"op\", Requires = new[] { \"cast\" })][Ankus.PgCast(Id = \"cast\", Requires = new[] { \"op\" })] public static string F(int a) => \"\"; }", "cycle")]
-    public void InvalidOperatorCastGraphsAreDiagnosed(string source, string message)
+    [DataRow("public static class C { [Ankus.PgOperator(\"@\", Requires = new[] { \"missing\" })] public static int F(int a) => a; }", "ANKUS498", "\"missing\"", 0, "missing")]
+    [DataRow("public static class C { [Ankus.PgCast(Requires = new[] { \"missing\" })] public static string F(int a) => \"\"; }", "ANKUS498", "\"missing\"", 0, "missing")]
+    [DataRow("public static class C { [Ankus.PgOperator(\"@\", Id = \"\")] public static int F(int a) => a; }", "ANKUS490", "\"\"", 0, null)]
+    [DataRow("public static class C { [Ankus.PgCast(Id = \"\")] public static string F(int a) => \"\"; }", "ANKUS490", "\"\"", 0, null)]
+    [DataRow("public static class C { [Ankus.PgOperator(\"@\", Requires = null!)] public static int F(int a) => a; }", "ANKUS493", "null!", 0, null)]
+    [DataRow("public static class C { [Ankus.PgCast(Requires = new[] { \"\" })] public static string F(int a) => \"\"; }", "ANKUS494", "\"\"", 0, null)]
+    [DataRow("public static class C { [Ankus.PgFunction(Id = \"same\")][Ankus.PgOperator(\"@\", Id = \"same\")] public static int F(int a) => a; }",
+        "ANKUS497", "\"same\"", 1, "same")]
+    [DataRow("public static class C { [Ankus.PgOperator(\"@\", Id = \"same\")][Ankus.PgCast(Id = \"same\")] public static string F(int a) => \"\"; }",
+        "ANKUS497", "\"same\"", 1, "same")]
+    [DataRow("public static class C { [Ankus.PgFunction(Requires = new[] { \"operator\" })][Ankus.PgOperator(\"@\", Id = \"operator\")] public static int F(int a) => a; }",
+        "ANKUS499", "\"operator\"", 0, "C.F(int) -> operator -> C.F(int)")]
+    [DataRow("public static class C { [Ankus.PgFunction(Requires = new[] { \"cast\" })][Ankus.PgCast(Id = \"cast\")] public static string F(int a) => \"\"; }",
+        "ANKUS499", "\"cast\"", 0, "C.F(int) -> cast -> C.F(int)")]
+    [DataRow("[assembly: Ankus.PgSql(\"after\", \"SELECT 1;\", Requires = new[] { \"op\" })] public static class C { [Ankus.PgOperator(\"@\", Id = \"op\", Requires = new[] { \"after\" })] public static int F(int a) => a; }",
+        "ANKUS499", "\"after\"", 1, "op -> after -> op")]
+    [DataRow("public static class C { [Ankus.PgOperator(\"@\", Id = \"op\", Requires = new[] { \"cast\" })][Ankus.PgCast(Id = \"cast\", Requires = new[] { \"op\" })] public static string F(int a) => \"\"; }",
+        "ANKUS499", "\"op\"", 1, "cast -> op -> cast")]
+    public void InvalidOperatorCastGraphsAreDiagnosed(string source, string expected, string span, int occurrence, string? argument)
     {
-        (_, ImmutableArray<Diagnostic> diagnostics) = Generate(source);
-        Diagnostic diagnostic = Assert.ContainsSingle(diagnostics);
-        Assert.AreEqual("ANKUS005", diagnostic.Id);
-        Assert.Contains(message, diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture));
+        (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source);
+        AssertSqlControlGraphError(compilation, diagnostics, expected, span, argument is null ? [] : [argument]);
+        AssertDiagnosticOccurrence(diagnostics[0], span, occurrence);
     }
 
     /// <summary>

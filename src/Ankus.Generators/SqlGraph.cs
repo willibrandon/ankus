@@ -7,19 +7,16 @@ namespace Ankus.Generators;
 /// </summary>
 internal sealed partial class SqlGraph
 {
-    private static readonly DiagnosticDescriptor s_invalid = new(
-        "ANKUS005", "Invalid installation SQL dependency", "{0}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true,
-        helpLinkUri: "https://willibrandon.github.io/ankus/custom-sql/#order-declarations");
-
-    /// <summary>
-    /// Gets the original diagnostic used for detached graph encoding bounds.
-    /// </summary>
-    internal static DiagnosticDescriptor InvalidDiagnostic => s_invalid;
-
     private readonly List<SqlEntity> _entities = [];
     private readonly List<SqlEntity> _ordered = [];
     private readonly List<(SqlEntity Entry, HashSet<SqlEntity> Members)> _replacements = [];
+
+    /// <summary>
+    /// Retains the authored value that declared each explicit edge, for cycle diagnostics.
+    /// </summary>
+    private readonly Dictionary<(SqlEntity Dependent, SqlEntity Prerequisite), Location> _edges = [];
     private readonly GeneratorDiagnostics _context;
+    private readonly GeneratorSourceResolver _sources;
 
     /// <summary>
     /// Retains the compiler-visible root for portable source attribution.
@@ -32,10 +29,12 @@ internal sealed partial class SqlGraph
     /// </summary>
     /// <param name="context">The diagnostic sink and cancellation token.</param>
     /// <param name="projectDirectory">The compiler-visible root for portable source comments.</param>
-    internal SqlGraph(GeneratorDiagnostics context, string projectDirectory)
+    /// <param name="sources">The detached source attribution for authored values and SQL provenance.</param>
+    internal SqlGraph(GeneratorDiagnostics context, string projectDirectory, GeneratorSourceResolver sources)
     {
         _context = context;
         _projectDirectory = projectDirectory;
+        _sources = sources;
     }
 
     /// <summary>
@@ -72,64 +71,58 @@ internal sealed partial class SqlGraph
     }
 
     /// <summary>
-    /// Reads explicit identifiers and dependencies shared by function, schema and SQL attributes.
-    /// </summary>
-    /// <param name="entity">The destination node.</param>
-    /// <param name="attribute">The semantic attribute.</param>
-    /// <param name="name">An explicit SQL name, or null to read the optional Id property.</param>
-    internal void Configure(SqlEntity entity, AttributeData attribute, string? name = null)
-        => ConfigureOptions(entity, SqlDeclarationOptions.Read(attribute)!, name);
-
-    /// <summary>
     /// Applies immutable dependency options after semantic declaration analysis.
     /// </summary>
     /// <param name="entity">The destination node.</param>
     /// <param name="options">The detached authored options.</param>
-    /// <param name="name">An explicit SQL name, or null to use the optional Id.</param>
-    internal void ConfigureOptions(SqlEntity entity, SqlDeclarationOptions options, string? name = null)
+    /// <param name="name">An explicit, already validated SQL name, or null to use the optional Id.</param>
+    /// <param name="nameLocation">The authored explicit SQL name.</param>
+    internal void ConfigureOptions(SqlEntity entity, SqlDeclarationOptions options, string? name = null, Location? nameLocation = null)
     {
-        name ??= options.Id;
-        if (name is not null)
+        if (name is null && options.Id is not null)
         {
-            if (ValidName(name))
+            name = options.Id;
+            nameLocation = Resolve(options.Locations.Id);
+            if (TextError(name, SqlGraphDiagnostics.s_blankId, SqlGraphDiagnostics.s_idZero, SqlGraphDiagnostics.s_idUnicode) is { } error)
             {
-                entity.Names.Add(name);
-            }
-            else
-            {
-                Error(entity.Location, "Dependency identifiers must be nonempty text without zero characters or invalid Unicode.");
+                Error(nameLocation ?? entity.Location, error);
+                name = null;
             }
         }
 
-        ReadNames("Requires", options.Requires, entity.Requires);
-        ReadNames("Before", options.Before, entity.Before);
-
-        void ReadNames(string property, EquatableArray<string?> values, HashSet<string> destination)
+        if (name is not null && entity.Names.Add(name))
         {
-            foreach (string? value in values)
+            entity.NameLocations.Add(name, nameLocation ?? entity.Location);
+        }
+
+        ReadNames(options.Requires, entity.Requires);
+        ReadNames(options.Before, entity.Before);
+
+        void ReadNames(EquatableArray<SqlDependencyName> values, Dictionary<string, Location?> destination)
+        {
+            foreach (SqlDependencyName value in values)
             {
-                if (!ValidName(value))
+                Location? location = Resolve(value.Location) ?? entity.Location;
+                DiagnosticDescriptor? error = value.NullList ? SqlGraphDiagnostics.s_nullList : TextError(value.Value,
+                    SqlGraphDiagnostics.s_blankReference, SqlGraphDiagnostics.s_referenceZero, SqlGraphDiagnostics.s_referenceUnicode);
+                if (error is not null)
                 {
-                    Error(entity.Location, $"'{entity.DisplayName}' has an invalid {property} identifier.");
+                    Error(location, error);
                 }
-                else
+                else if (!destination.ContainsKey(value.Value!))
                 {
-                    destination.Add(value!);
+                    destination.Add(value.Value!, location);
                 }
             }
         }
     }
 
     /// <summary>
-    /// Reports a declaration error and prevents emission of a partial installation script.
+    /// Reattaches an authored value to the current composition's source attribution.
     /// </summary>
-    /// <param name="location">The offending declaration.</param>
-    /// <param name="message">The diagnostic detail.</param>
-    internal void Error(Location? location, string message)
-    {
-        _invalid = true;
-        _context.Report(s_invalid, location, message);
-    }
+    /// <param name="location">The detached coordinates, when the value was authored in source.</param>
+    /// <returns>The transient diagnostic location, or null when the value has no source coordinates.</returns>
+    internal Location? Resolve(GeneratorLocation? location) => location?.Resolve(_sources);
 
     /// <summary>
     /// Reports a fixed independently correctable declaration contract and prevents partial installation output.
@@ -144,11 +137,28 @@ internal sealed partial class SqlGraph
     }
 
     /// <summary>
+    /// Selects the first failed text contract for an authored identifier or SQL replacement.
+    /// </summary>
+    /// <param name="value">The authored text.</param>
+    /// <param name="blank">The null or whitespace contract, or null when blank text is valid.</param>
+    /// <param name="zero">The zero-character contract.</param>
+    /// <param name="unicode">The well-formed Unicode contract.</param>
+    /// <returns>The failed contract, or null for valid text.</returns>
+    internal static DiagnosticDescriptor? TextError(string? value, DiagnosticDescriptor? blank, DiagnosticDescriptor zero, DiagnosticDescriptor unicode)
+    {
+        if (value is null || string.IsNullOrWhiteSpace(value))
+        {
+            return blank;
+        }
+
+        return value.Contains('\0') ? zero : !SqlText.IsText(value) ? unicode : null;
+    }
+
+    /// <summary>
     /// Resolves references and freezes deterministic installation order without rendering sources.
     /// </summary>
-    /// <param name="sources">The optional detached source resolver for later SQL attribution.</param>
     /// <returns>The detached rendering contract, or null when the graph is invalid.</returns>
-    internal InstallationGraphModel? Freeze(GeneratorSourceResolver? sources = null)
+    internal InstallationGraphModel? Freeze()
     {
         _ordered.Clear();
         var names = new Dictionary<string, SqlEntity>(StringComparer.Ordinal);
@@ -158,7 +168,7 @@ internal sealed partial class SqlGraph
             {
                 if (names.ContainsKey(name))
                 {
-                    Error(entity.Location, $"Dependency identifier '{name}' is declared more than once.");
+                    Error(entity.NameLocations[name], SqlGraphDiagnostics.s_duplicateId, name);
                 }
                 else
                 {
@@ -167,6 +177,7 @@ internal sealed partial class SqlGraph
             }
         }
 
+        var missing = new HashSet<(string Name, Location? Location)>();
         Dictionary<SqlEntity, HashSet<SqlEntity>> explicitDependencies = _entities.ToDictionary(
             static entity => entity, static entity => new HashSet<SqlEntity>(entity.DeclaredDependencies.Concat(entity.RequiredDeclarations)));
         foreach (SqlEntity entity in _entities)
@@ -174,26 +185,32 @@ internal sealed partial class SqlGraph
             _context.CancellationToken.ThrowIfCancellationRequested();
             entity.Dependencies.UnionWith(entity.DeclaredDependencies);
             entity.Dependencies.UnionWith(entity.RequiredDeclarations);
-            Resolve(entity.Requires, before: false);
-            Resolve(entity.Before, before: true);
+            Link(entity.Requires, before: false);
+            Link(entity.Before, before: true);
 
-            void Resolve(HashSet<string> references, bool before)
+            void Link(Dictionary<string, Location?> references, bool before)
             {
-                foreach (string name in references.OrderBy(static value => value, StringComparer.Ordinal))
+                foreach (KeyValuePair<string, Location?> reference in references.OrderBy(static value => value.Key, StringComparer.Ordinal))
                 {
+                    string name = reference.Key;
                     if (!names.TryGetValue(name, out SqlEntity? dependency))
                     {
-                        Error(entity.Location, $"'{entity.DisplayName}' refers to missing dependency '{name}'.");
+                        if (missing.Add((name, reference.Value)))
+                        {
+                            Error(reference.Value, SqlGraphDiagnostics.s_missingDependency, name);
+                        }
                     }
                     else if (before)
                     {
                         dependency.Dependencies.Add(entity);
                         explicitDependencies[dependency].Add(entity);
+                        RecordEdge(dependency, entity, reference.Value);
                     }
                     else
                     {
                         entity.Dependencies.Add(dependency);
                         explicitDependencies[entity].Add(dependency);
+                        RecordEdge(entity, dependency, reference.Value);
                     }
                 }
             }
@@ -272,12 +289,11 @@ internal sealed partial class SqlGraph
 
         if (emitted != _entities.Count)
         {
-            SqlEntity[] blocked = [.. _entities.Where(entity => remaining[entity] != 0).OrderBy(static entity => entity.Key, StringComparer.Ordinal)];
-            Error(blocked[0].Location, "Installation dependency cycle blocks: " + string.Join(", ", blocked.Select(static entity => entity.DisplayName)) + ".");
+            ReportCycle(remaining);
             return null;
         }
 
-        return new(new EquatableArray<InstallationGraphModel.Node>(_ordered.Select(entity => InstallationGraphModel.Node.Create(entity, _projectDirectory, sources))));
+        return new(new EquatableArray<InstallationGraphModel.Node>(_ordered.Select(entity => InstallationGraphModel.Node.Create(entity, _projectDirectory, _sources))));
 
         bool ExplicitlyFollows(SqlEntity provider, SqlEntity consumer)
         {
@@ -310,9 +326,9 @@ internal sealed partial class SqlGraph
         void AddBoundary(int order)
         {
             SqlEntity[] boundaries = [.. _entities.Where(entity => entity.Order == order)];
-            if (boundaries.Length > 1)
+            foreach (SqlEntity extra in boundaries.Skip(1))
             {
-                Error(boundaries[1].Location, order == 1 ? "Only one bootstrap SQL block is allowed." : "Only one final SQL block is allowed.");
+                Error(extra.OrderLocation ?? extra.Location, order == 1 ? SqlGraphDiagnostics.s_bootstrap : SqlGraphDiagnostics.s_finalize);
             }
 
             foreach (SqlEntity boundary in boundaries)
@@ -335,6 +351,70 @@ internal sealed partial class SqlGraph
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Records the authored value that ordered one node after another, for cycle diagnostics.
+    /// </summary>
+    /// <param name="dependent">The node that must follow.</param>
+    /// <param name="prerequisite">The node that must precede.</param>
+    /// <param name="location">The authored dependency value, when present.</param>
+    private void RecordEdge(SqlEntity dependent, SqlEntity prerequisite, Location? location)
+    {
+        if (location is not null && !_edges.ContainsKey((dependent, prerequisite)))
+        {
+            _edges.Add((dependent, prerequisite), location);
+        }
+    }
+
+    /// <summary>
+    /// Reports one deterministic cycle among blocked nodes, at an authored edge when one participates.
+    /// </summary>
+    /// <remarks>
+    /// Every blocked node has a blocked prerequisite, so following the smallest blocked prerequisite must revisit a node.
+    /// The reported cycle starts at its smallest internal key; its first explicit edge identifies the authored value to change.
+    /// Consecutive nodes with the same authored name, such as a family and its generated members, are named once.
+    /// </remarks>
+    /// <param name="remaining">The unsatisfied prerequisite count of every node after ordering stopped.</param>
+    private void ReportCycle(Dictionary<SqlEntity, int> remaining)
+    {
+        var path = new List<SqlEntity>();
+        var positions = new Dictionary<SqlEntity, int>();
+        SqlEntity current = _entities.Where(entity => remaining[entity] != 0).OrderBy(static entity => entity.Key, StringComparer.Ordinal).First();
+        while (!positions.ContainsKey(current))
+        {
+            positions.Add(current, path.Count);
+            path.Add(current);
+            current = current.Dependencies.Where(dependency => remaining[dependency] != 0)
+                .OrderBy(static dependency => dependency.Key, StringComparer.Ordinal).First();
+        }
+
+        SqlEntity[] members = [.. path.Skip(positions[current])];
+        SqlEntity first = members.OrderBy(static entity => entity.Key, StringComparer.Ordinal).First();
+        int start = Array.IndexOf(members, first);
+        SqlEntity[] cycle = [.. members.Skip(start), .. members.Take(start), first];
+        Location? location = null;
+        for (int index = 0; index < cycle.Length - 1 && location is null; index++)
+        {
+            _edges.TryGetValue((cycle[index], cycle[index + 1]), out location);
+        }
+
+        var names = new List<string>();
+        foreach (SqlEntity member in cycle.Take(cycle.Length - 1))
+        {
+            if (names.Count == 0 || names[names.Count - 1] != member.DiagnosticName)
+            {
+                names.Add(member.DiagnosticName);
+            }
+        }
+
+        if (names.Count > 1 && names[names.Count - 1] == names[0])
+        {
+            names.RemoveAt(names.Count - 1);
+        }
+
+        names.Add(names[0]);
+        Error(location ?? first.Location, SqlGraphDiagnostics.s_cycle, string.Join(" -> ", names));
     }
 
     private static bool ValidName(string? name) => !string.IsNullOrWhiteSpace(name) && SqlText.IsText(name!);

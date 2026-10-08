@@ -86,7 +86,7 @@ internal static class DatumPipeline
                 type.GetAttributes().Any(DerivedOperatorDeclaration.IsAttribute)))
             .Distinct<INamedTypeSymbol>(SymbolEqualityComparer.Default).OrderBy(static type => type.ToDisplayString(), StringComparer.Ordinal);
         return new(declared, true, new(declarations.Select(declaration => declaration.Freeze(compilation))),
-            new(derived.Select(type => DerivedOperatorModel.Create(type, compilation))), new(problems));
+            new(derived.Select(type => DerivedOperatorModel.Create(type, compilation, cancellationToken))), new(problems));
     }
 
     /// <summary>

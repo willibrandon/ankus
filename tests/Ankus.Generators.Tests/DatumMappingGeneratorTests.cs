@@ -365,7 +365,7 @@ public sealed partial class PgFunctionGeneratorTests
             """;
         if (cycle)
         {
-            AssertDatumMappingError(source, "ANKUS005", "cycle");
+            AssertDatumGraphError(source, "ANKUS499", "\"shell\"", 1, "input -> shell -> complete -> input");
         }
         else
         {
@@ -861,6 +861,25 @@ public sealed partial class PgFunctionGeneratorTests
     /// </summary>
     private static string DatumMappingManaged(Compilation compilation)
         => compilation.GetTypeByMetadataName("Ankus.Generated.ExtensionDispatchers")!.DeclaringSyntaxReferences.Single().GetSyntax().ToString();
+
+    /// <summary>
+    /// Requires one fixed graph diagnostic at an exact authored occurrence and the absence of all generated artifacts.
+    /// </summary>
+    /// <param name="source">The invalid mapping graph.</param>
+    /// <param name="id">The fixed graph diagnostic.</param>
+    /// <param name="span">The exact authored value to correct.</param>
+    /// <param name="occurrence">The zero-based occurrence of that text in the source.</param>
+    /// <param name="arguments">The authored identities in the fixed message.</param>
+    private void AssertDatumGraphError(string source, string id, string span, int occurrence, params string[] arguments)
+    {
+        (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source);
+        AssertSqlControlGraphError(compilation, diagnostics, id, span, arguments);
+        AssertDiagnosticOccurrence(diagnostics[0], span, occurrence);
+        Assert.IsNull(compilation.GetTypeByMetadataName("Ankus.Generated.ExtensionDispatchers"));
+        Assert.IsEmpty(compilation.Assembly.GetAttributes().Where(static attribute =>
+            attribute.AttributeClass?.ToDisplayString() == "System.Reflection.AssemblyMetadataAttribute"));
+        Assert.IsEmpty(compilation.GetDiagnostics(context.CancellationToken).Where(static error => error.Severity == DiagnosticSeverity.Error));
+    }
 
     /// <summary>
     /// Requires a matching precise diagnostic and the absence of all generated artifacts.

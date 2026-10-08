@@ -1,6 +1,8 @@
 using System.Collections.Immutable;
+using System.Globalization;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Ankus.Generators.Tests;
 
@@ -243,7 +245,8 @@ public sealed partial class PgFunctionGeneratorTests
         Compilation disabled = GenerateSqlControl(graph.Replace("CONTROL", "GenerateSql = false", StringComparison.Ordinal));
         Assert.AreEqual("SELECT 'middle';\nSELECT 'after';\n", InstallationBody(disabled));
         (Compilation replacement, ImmutableArray<Diagnostic> diagnostics) = Generate(graph.Replace("CONTROL", "Sql = \"SELECT 'replacement';\"", StringComparison.Ordinal));
-        AssertSqlControlGraphError(replacement, diagnostics, "cycle");
+        AssertSqlControlGraphError(replacement, diagnostics, "ANKUS499", "\"function\"", "function -> middle -> function");
+        Assert.StartsWith("Ankus.PgSql(\"middle\"", DiagnosticAttribute(Assert.ContainsSingle(diagnostics)));
     }
 
     /// <summary>
@@ -252,15 +255,19 @@ public sealed partial class PgFunctionGeneratorTests
     /// <param name="options">The function SQL policy.</param>
     /// <param name="operatorOptions">The attached operator graph options.</param>
     /// <param name="castOptions">The attached cast graph options.</param>
-    /// <param name="reason">The independently expected graph failure.</param>
+    /// <param name="expected">The fixed graph diagnostic.</param>
+    /// <param name="span">The exact authored value to correct.</param>
+    /// <param name="argument">The authored identity in the fixed message.</param>
     [TestMethod]
-    [DataRow("GenerateSql = false", "Id = \"operator\", Requires = new[] { \"missing\" }", "Id = \"cast\"", "missing dependency")]
-    [DataRow("Sql = \"SELECT 1;\"", "Id = \"operator\", Requires = new[] { \"missing\" }", "Id = \"cast\"", "missing dependency")]
-    [DataRow("GenerateSql = false", "Id = \"same\"", "Id = \"same\"", "declared more than once")]
-    [DataRow("Sql = \"SELECT 1;\"", "Id = \"same\"", "Id = \"same\"", "declared more than once")]
-    [DataRow("GenerateSql = false", "Id = \"operator\", Requires = new[] { \"cast\" }", "Id = \"cast\", Requires = new[] { \"operator\" }", "cycle")]
-    [DataRow("Sql = \"SELECT 1;\"", "Id = \"operator\", Requires = new[] { \"cast\" }", "Id = \"cast\", Requires = new[] { \"operator\" }", "cycle")]
-    public void SqlGenerationRetainsInvalidRelatedGraphs(string options, string operatorOptions, string castOptions, string reason)
+    [DataRow("GenerateSql = false", "Id = \"operator\", Requires = new[] { \"missing\" }", "Id = \"cast\"", "ANKUS498", "\"missing\"", "missing")]
+    [DataRow("Sql = \"SELECT 1;\"", "Id = \"operator\", Requires = new[] { \"missing\" }", "Id = \"cast\"", "ANKUS498", "\"missing\"", "missing")]
+    [DataRow("GenerateSql = false", "Id = \"same\"", "Id = \"same\"", "ANKUS497", "\"same\"", "same")]
+    [DataRow("Sql = \"SELECT 1;\"", "Id = \"same\"", "Id = \"same\"", "ANKUS497", "\"same\"", "same")]
+    [DataRow("GenerateSql = false", "Id = \"operator\", Requires = new[] { \"cast\" }", "Id = \"cast\", Requires = new[] { \"operator\" }",
+        "ANKUS499", "\"operator\"", "cast -> operator -> cast")]
+    [DataRow("Sql = \"SELECT 1;\"", "Id = \"operator\", Requires = new[] { \"cast\" }", "Id = \"cast\", Requires = new[] { \"operator\" }",
+        "ANKUS499", "\"operator\"", "cast -> operator -> cast")]
+    public void SqlGenerationRetainsInvalidRelatedGraphs(string options, string operatorOptions, string castOptions, string expected, string span, string argument)
     {
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate($$"""
             public static class Functions
@@ -271,7 +278,7 @@ public sealed partial class PgFunctionGeneratorTests
                 public static string Render(int value, int modifier) => value.ToString();
             }
             """);
-        AssertSqlControlGraphError(compilation, diagnostics, reason);
+        AssertSqlControlGraphError(compilation, diagnostics, expected, span, argument);
     }
 
     /// <summary>
@@ -371,17 +378,20 @@ public sealed partial class PgFunctionGeneratorTests
     /// Contradictory controls and malformed text reject the whole installation, even when another valid function exists.
     /// </summary>
     /// <param name="options">The invalid function attribute options.</param>
+    /// <param name="expected">The fixed replacement diagnostic.</param>
+    /// <param name="span">The exact authored option value to correct.</param>
     [TestMethod]
-    [DataRow("GenerateSql = false, Sql = \"SELECT 1;\"")]
-    [DataRow("GenerateSql = false, Sql = \"\"")]
-    [DataRow("Sql = \"SELECT '\\0';\"")]
-    [DataRow("Sql = \"SELECT '\\ud800';\"")]
-    [DataRow("Sql = \"SELECT '\\udfff';\"")]
-    public void InvalidSqlGenerationOptionsAreDiagnosed(string options)
+    [DataRow("GenerateSql = false, Sql = \"SELECT 1;\"", "ANKUS502", "false")]
+    [DataRow("Sql = \"\", GenerateSql = false", "ANKUS502", "false")]
+    [DataRow("Sql = \"SELECT '\\0';\"", "ANKUS503", "\"SELECT '\\0';\"")]
+    [DataRow("Sql = \"SELECT '\\ud800';\"", "ANKUS504", "\"SELECT '\\ud800';\"")]
+    [DataRow("Sql = \"SELECT '\\udfff';\"", "ANKUS504", "\"SELECT '\\udfff';\"")]
+    [DataRow("Sql = \"SELECT '\\0\\ud800';\"", "ANKUS503", "\"SELECT '\\0\\ud800';\"")]
+    public void InvalidSqlGenerationOptionsAreDiagnosed(string options, string expected, string span)
     {
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(SqlControlSource("scalar", options) +
             "public static class Other { [Ankus.PgFunction] public static int Good() => 7; }");
-        AssertSqlControlGraphError(compilation, diagnostics, string.Empty);
+        AssertSqlControlGraphError(compilation, diagnostics, expected, span);
     }
 
     /// <summary>
@@ -397,7 +407,7 @@ public sealed partial class PgFunctionGeneratorTests
     public void SqlGenerationSpecializedCallbacksRejectContradictoryOptions(string kind)
     {
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(SqlControlSource(kind, "GenerateSql = false, Sql = \"\""));
-        AssertSqlControlGraphError(compilation, diagnostics, string.Empty);
+        AssertSqlControlGraphError(compilation, diagnostics, "ANKUS502", "false");
     }
 
     /// <summary>
@@ -492,25 +502,125 @@ public sealed partial class PgFunctionGeneratorTests
     }
 
     /// <summary>
-    /// Requires a source graph error and the absence of any partial installation manifest.
+    /// Requires one fixed graph error at the exact authored value and the absence of any partial installation manifest.
     /// </summary>
-    private static void AssertSqlControlGraphError(Compilation compilation, ImmutableArray<Diagnostic> diagnostics, string reason,
-        string diagnosticId = "ANKUS005")
+    /// <param name="compilation">The generated compilation.</param>
+    /// <param name="diagnostics">The generator diagnostics.</param>
+    /// <param name="diagnosticId">The fixed diagnostic ID.</param>
+    /// <param name="span">The exact authored source text to correct.</param>
+    /// <param name="arguments">The authored identities substituted into the fixed message.</param>
+    private void AssertSqlControlGraphError(Compilation compilation, ImmutableArray<Diagnostic> diagnostics, string diagnosticId, string span,
+        params string[] arguments)
     {
-        Assert.IsNotEmpty(diagnostics);
-        foreach (Diagnostic diagnostic in diagnostics)
+        AssertGraphDiagnostic(Assert.ContainsSingle(diagnostics, string.Join(Environment.NewLine, diagnostics)), diagnosticId, span, arguments);
+        AssertNoSqlManifest(compilation);
+    }
+
+    /// <summary>
+    /// Verifies one graph diagnostic's identity, severity, fixed message, guide section and exact authored span.
+    /// </summary>
+    /// <param name="diagnostic">The reported diagnostic.</param>
+    /// <param name="diagnosticId">The fixed diagnostic ID.</param>
+    /// <param name="span">The exact authored source text to correct.</param>
+    /// <param name="arguments">The authored identities substituted into the fixed message.</param>
+    private void AssertGraphDiagnostic(Diagnostic diagnostic, string diagnosticId, string span, params string[] arguments)
+    {
+        Assert.AreEqual(diagnosticId, diagnostic.Id, diagnostic.ToString());
+        Assert.AreEqual(DiagnosticSeverity.Error, diagnostic.Severity);
+        Assert.AreEqual(GraphMessage(diagnosticId, arguments), diagnostic.GetMessage(CultureInfo.InvariantCulture));
+        Assert.AreEqual(GraphHelp(diagnosticId), diagnostic.Descriptor.HelpLinkUri);
+        Assert.AreEqual(span, DiagnosticText(diagnostic));
+    }
+
+    /// <summary>
+    /// Requires a diagnostic to select one exact occurrence of repeated authored text.
+    /// </summary>
+    /// <param name="diagnostic">The reported diagnostic.</param>
+    /// <param name="span">The exact authored text.</param>
+    /// <param name="occurrence">The zero-based occurrence of that text in the diagnostic's source.</param>
+    private void AssertDiagnosticOccurrence(Diagnostic diagnostic, string span, int occurrence)
+    {
+        Assert.IsNotNull(diagnostic.Location.SourceTree);
+        string text = diagnostic.Location.SourceTree.GetText(context.CancellationToken).ToString();
+        int index = -1;
+        for (int count = 0; count <= occurrence; count++)
         {
-            Assert.AreEqual(diagnosticId, diagnostic.Id);
-            Assert.AreEqual(DiagnosticSeverity.Error, diagnostic.Severity);
-            Assert.IsTrue(diagnostic.Location.IsInSource);
-            if (reason.Length != 0)
-            {
-                Assert.Contains(reason, diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture));
-            }
+            index = text.IndexOf(span, index + 1, StringComparison.Ordinal);
+            Assert.IsGreaterThanOrEqualTo(0, index, span);
         }
 
-        Assert.IsEmpty(compilation.Assembly.GetAttributes().Where(static attribute =>
+        Assert.AreEqual(index, diagnostic.Location.SourceSpan.Start);
+    }
+
+    /// <summary>
+    /// Reads the complete attribute application enclosing a diagnostic's authored value.
+    /// </summary>
+    /// <param name="diagnostic">The reported diagnostic.</param>
+    /// <returns>The enclosing attribute text, distinguishing equal values in different declarations.</returns>
+    private string DiagnosticAttribute(Diagnostic diagnostic)
+    {
+        Assert.IsNotNull(diagnostic.Location.SourceTree);
+        return diagnostic.Location.SourceTree.GetRoot(context.CancellationToken).FindNode(diagnostic.Location.SourceSpan)
+            .AncestorsAndSelf().OfType<AttributeSyntax>().First().ToString();
+    }
+
+    /// <summary>
+    /// Requires that a rejected graph publishes no installation manifest.
+    /// </summary>
+    /// <param name="compilation">The generated compilation.</param>
+    private static void AssertNoSqlManifest(Compilation compilation)
+        => Assert.IsEmpty(compilation.Assembly.GetAttributes().Where(static attribute =>
             attribute.AttributeClass?.ToDisplayString() == "System.Reflection.AssemblyMetadataAttribute" &&
             (string?)attribute.ConstructorArguments[0].Value == "Ankus.Sql"));
-    }
+
+    /// <summary>
+    /// Formats the public fixed message contract of one installation graph, replacement or generated identity diagnostic.
+    /// </summary>
+    /// <param name="diagnosticId">The fixed diagnostic ID.</param>
+    /// <param name="arguments">The authored identities substituted into the message.</param>
+    /// <returns>The complete expected message.</returns>
+    private static string GraphMessage(string diagnosticId, params string[] arguments) => string.Format(CultureInfo.InvariantCulture, diagnosticId switch
+    {
+        "ANKUS490" => "Give Id at least one non-whitespace character, or omit Id when no explicit dependency identifier is needed",
+        "ANKUS491" => "Remove embedded zero characters from the dependency identifier",
+        "ANKUS492" => "Replace unpaired UTF-16 surrogate characters in the dependency identifier",
+        "ANKUS493" => "Omit Requires or Before, or supply an array of dependency identifiers instead of null",
+        "ANKUS494" => "Give each Requires and Before entry a nonnull dependency identifier containing at least one non-whitespace character",
+        "ANKUS495" => "Remove embedded zero characters from the Requires or Before entry",
+        "ANKUS496" => "Replace unpaired UTF-16 surrogate characters in the Requires or Before entry",
+        "ANKUS497" => "Dependency identifier '{0}' is already declared in this extension; give each SQL declaration a distinct Id or PgSql name",
+        "ANKUS498" => "No SQL declaration in this extension has dependency identifier '{0}'; declare it with Id, PgSql or PgSqlFile, or correct this entry",
+        "ANKUS499" => "Installation SQL dependencies form the cycle {0}; remove or reverse one explicit dependency in it",
+        "ANKUS500" => "Another PgSql or PgSqlFile block already uses PgSqlOrder.Bootstrap; give this block a different Order",
+        "ANKUS501" => "Another PgSql or PgSqlFile block already uses PgSqlOrder.Finalize; give this block a different Order",
+        "ANKUS502" => "GenerateSql cannot be false when Sql supplies replacement text, including empty text; remove GenerateSql = false or Sql",
+        "ANKUS503" => "Remove embedded zero characters from the Sql replacement",
+        "ANKUS504" => "Replace unpaired UTF-16 surrogate characters in the Sql replacement",
+        "ANKUS505" => "The Sql replacement token {0} requires BinaryProtocol = true; enable the binary protocol or remove the token",
+        "ANKUS506" => "PostgreSQL type {0} is already generated in this extension; give this enum a distinct PgEnum Name or Schema",
+        "ANKUS507" => "PostgreSQL type {0} is already generated in this extension; give this type a distinct PgType Name or Schema",
+        "ANKUS508" => "PostgreSQL operator {0} is already declared in this extension; change this operator's name, schema or operand types",
+        "ANKUS509" => "PostgreSQL cast {0} is already declared in this extension; keep one cast for each source and target type",
+        "ANKUS510" => "Function {0} generated for '{1}' is already declared in this extension; remove the conflicting declaration or this generated-operator attribute",
+        "ANKUS511" => "Operator {0} generated for '{1}' is already declared in this extension; remove the conflicting operator or this generated-operator attribute",
+        "ANKUS512" => "The embedded installation graph cannot exceed 100,000 SQL declarations; split the extension",
+        "ANKUS513" => "An embedded installation declaration cannot have more than 100,000 names, dependencies or attachments; split the declaration",
+        "ANKUS514" => "The embedded installation graph cannot exceed 32 MiB; reduce or split its installation SQL",
+        _ => throw new ArgumentOutOfRangeException(nameof(diagnosticId)),
+    }, arguments);
+
+    /// <summary>
+    /// Selects the public guide section documenting one installation graph, replacement or generated identity diagnostic.
+    /// </summary>
+    /// <param name="diagnosticId">The fixed diagnostic ID.</param>
+    /// <returns>The help link carried by the diagnostic.</returns>
+    private static string GraphHelp(string diagnosticId) => "https://willibrandon.github.io/ankus/" + diagnosticId switch
+    {
+        "ANKUS502" or "ANKUS503" or "ANKUS504" or "ANKUS505" => "custom-sql/#sql-replacement-diagnostics",
+        "ANKUS506" => "enums/#declaration-diagnostics",
+        "ANKUS507" => "custom-types/#declaration-diagnostics",
+        "ANKUS508" or "ANKUS509" => "operators-and-casts/#declaration-diagnostics",
+        "ANKUS510" or "ANKUS511" => "operators-and-casts/#generated-type-operators",
+        _ => "custom-sql/#dependency-graph-diagnostics",
+    };
 }

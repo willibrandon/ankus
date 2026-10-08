@@ -186,8 +186,16 @@ public sealed partial class PgFunctionGeneratorTests
             "operator" => CustomOperatorValueSource + "public static class Functions { [Ankus.PgOperator(\"=\")] public static bool Equal(Value a,Value b)=>true; }",
             _ => CustomOperatorValueSource + "public static class Functions { [Ankus.PgFunction(Name=\"value_cmp\")] public static int Compare(Value a,Value b)=>0; }",
         };
-        (_, ImmutableArray<Diagnostic> diagnostics) = Generate(source);
-        Assert.IsNotEmpty(diagnostics.Where(static diagnostic => diagnostic.Id == "ANKUS005" && diagnostic.Severity == DiagnosticSeverity.Error));
+        (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source);
+        (string Id, string Span, int Occurrence, string[] Arguments) expected = change switch
+        {
+            "missing" => ("ANKUS498", "\"absent\"", 0, ["absent"]),
+            "cycle" => ("ANKUS499", "\"after\"", 1, ["order -> after -> order"]),
+            "operator" => ("ANKUS511", "Ankus.PgEquality", 0, ["=(\"value\",\"value\")", "Value"]),
+            _ => ("ANKUS510", "Ankus.PgOrdering", 0, ["\"value_cmp\"(\"value\",\"value\")", "Value"]),
+        };
+        AssertSqlControlGraphError(compilation, diagnostics, expected.Id, expected.Span, expected.Arguments);
+        AssertDiagnosticOccurrence(diagnostics[0], expected.Span, expected.Occurrence);
     }
 
     /// <summary>

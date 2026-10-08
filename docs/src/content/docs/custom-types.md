@@ -494,6 +494,7 @@ constructor parameter, or serialization attribute that must change.
 | `ANKUS433`–`ANKUS435` | Inherited schema, PostgreSQL type name, and schema name |
 | `ANKUS436`–`ANKUS442` | Packed native root, fields, struct layout, recursion, buffers, size, and empty payloads |
 | `ANKUS443`–`ANKUS468` | Generated serialization shape, members, constructors, tagged variants, and JSON attributes |
+| `ANKUS507` | A `Name` or `Schema` that no other `[PgType]` or `[PgEnum]` in the extension generates; the error points at the later type's name |
 
 Unreadable referenced attribute metadata remains `ANKUS206` because the
 defining assembly must be rebuilt before its exact declaration can be validated.

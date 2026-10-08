@@ -8,25 +8,12 @@ namespace Ankus.Generators;
 internal static class SqlGeneration
 {
     /// <summary>
-    /// Applies a declaration's SQL policy while retaining compiled contracts and dependency nodes.
-    /// </summary>
-    /// <param name="attribute">The optional declaration attribute.</param>
-    /// <param name="entity">The declaration's graph node.</param>
-    /// <param name="related">Additional declarations owned by this replacement.</param>
-    /// <param name="substitutions">Context-specific tokens and their values; null marks an unavailable token.</param>
-    /// <param name="graph">The installation graph and diagnostic sink.</param>
-    /// <returns>Whether this policy permits schema relocation.</returns>
-    internal static bool Apply(AttributeData? attribute, SqlEntity entity, IReadOnlyList<SqlEntity> related,
-        IReadOnlyList<(string Token, string? Value)> substitutions, SqlGraph graph)
-        => ApplyOptions(SqlDeclarationOptions.Read(attribute), entity, related, substitutions, graph);
-
-    /// <summary>
     /// Applies detached SQL policy while retaining compiled contracts and dependency nodes.
     /// </summary>
     /// <param name="options">The optional immutable declaration options.</param>
     /// <param name="entity">The declaration's graph node.</param>
     /// <param name="related">Additional declarations owned by this replacement.</param>
-    /// <param name="substitutions">Context-specific tokens and their values; null marks an unavailable token.</param>
+    /// <param name="substitutions">Context-specific tokens and their values; null marks a token that requires the binary protocol.</param>
     /// <param name="graph">The installation graph and diagnostic sink.</param>
     /// <returns>Whether this policy permits schema relocation.</returns>
     internal static bool ApplyOptions(SqlDeclarationOptions? options, SqlEntity entity, IReadOnlyList<SqlEntity> related,
@@ -44,15 +31,16 @@ internal static class SqlGeneration
 
         bool enabled = options.GenerateSql;
         string? sql = options.Sql;
+        Location? sqlLocation = graph.Resolve(options.Locations.Sql) ?? entity.Location;
         if (!enabled && sql is not null)
         {
-            graph.Error(entity.Location, "GenerateSql cannot be false when Sql supplies a replacement, including empty text.");
+            graph.Error(graph.Resolve(options.Locations.GenerateSql) ?? entity.Location, SqlGraphDiagnostics.s_disabledReplacement);
             return false;
         }
 
-        if (sql is not null && !SqlText.IsText(sql))
+        if (sql is not null && SqlGraph.TextError(sql, null, SqlGraphDiagnostics.s_replacementZero, SqlGraphDiagnostics.s_replacementUnicode) is { } error)
         {
-            graph.Error(entity.Location, "A Sql replacement must contain valid Unicode without zero characters.");
+            graph.Error(sqlLocation, error);
             return false;
         }
 
@@ -75,7 +63,7 @@ internal static class SqlGeneration
                 }
                 else if (sql.IndexOf(token, StringComparison.Ordinal) >= 0)
                 {
-                    graph.Error(entity.Location, "The Sql replacement token " + token + " requires BinaryProtocol = true.");
+                    graph.Error(graph.Resolve(options.Locations.BinaryProtocol) ?? sqlLocation, SqlGraphDiagnostics.s_binaryToken, token);
                     return false;
                 }
             }

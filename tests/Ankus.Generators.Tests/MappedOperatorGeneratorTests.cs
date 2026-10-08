@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+using System.Globalization;
 using System.Text;
 using Microsoft.CodeAnalysis;
 
@@ -201,7 +203,7 @@ public sealed partial class PgFunctionGeneratorTests
             [assembly: Ankus.PgSqlTypeProvider("complete", typeof(Value))]
             """ + MappedOperatorSource(external: false, schema: null).Replace("[Ankus.PgOrdering]",
                 "[Ankus.PgOrdering(Id=\"ordering\", GenerateSql=" + (disabled ? "false" : "true") + ")]", StringComparison.Ordinal);
-        AssertDatumMappingError(source, "ANKUS005", "cycle");
+        AssertDatumGraphError(source, "ANKUS499", "\"ordering\"", 0, "ordering -> complete -> ordering");
     }
 
     /// <summary>
@@ -286,7 +288,62 @@ public sealed partial class PgFunctionGeneratorTests
             "function" => "public static class Functions { [Ankus.PgFunction(Name=\"key_cmp\", Schema=\"mapped\")] public static int Compare(Value left, Value right) => 0; }",
             _ => "public static class Functions { [Ankus.PgOperator(\"=\")][Ankus.PgFunction(Schema=\"mapped\")] public static bool Equal(Value left, Value right) => true; }",
         };
-        AssertDatumMappingError(source, "ANKUS005", "Duplicate PostgreSQL");
+        string[] expected = collision switch
+        {
+            "alias" =>
+            [
+                "ANKUS510 Ankus.PgEquality " + Key("\"key_eq\"(", "key", "key"),
+                "ANKUS510 Ankus.PgEquality " + Key("\"key_ne\"(", "key", "key"),
+                "ANKUS511 Ankus.PgEquality " + Key("=(", "key", "key"),
+                "ANKUS511 Ankus.PgEquality " + Key("<>(", "key", "key"),
+                "ANKUS510 Ankus.PgOrdering " + Key("\"key_cmp\"(", "key", "key"),
+                "ANKUS510 Ankus.PgOrdering " + Key("\"key_lt\"(", "key", "key"),
+                "ANKUS511 Ankus.PgOrdering " + Key("<(", "key", "key"),
+                "ANKUS510 Ankus.PgOrdering " + Key("\"key_gt\"(", "key", "key"),
+                "ANKUS511 Ankus.PgOrdering " + Key(">(", "key", "key"),
+                "ANKUS510 Ankus.PgOrdering " + Key("\"key_le\"(", "key", "key"),
+                "ANKUS511 Ankus.PgOrdering " + Key("<=(", "key", "key"),
+                "ANKUS510 Ankus.PgOrdering " + Key("\"key_ge\"(", "key", "key"),
+                "ANKUS511 Ankus.PgOrdering " + Key(">=(", "key", "key"),
+                "ANKUS510 Ankus.PgHashing " + Key("\"key_hash\"(", "key"),
+            ],
+            "function" => ["ANKUS510 Ankus.PgOrdering \"mapped\".\"key_cmp\"(\"mapped\".\"key\",\"mapped\".\"key\")"],
+            _ => ["ANKUS511 Ankus.PgEquality \"mapped\".=(\"mapped\".\"key\",\"mapped\".\"key\")"],
+        };
+        AssertDerivedCollisions(source, "Value", expected);
+
+        static string Key(string name, params string[] operands)
+            => "\"mapped\"." + name + string.Join(",", operands.Select(static operand => "\"mapped\".\"" + operand + "\"")) + ")";
+    }
+
+    /// <summary>
+    /// Requires each generated SQL identity collision at its generating attribute with the fixed message, and the absence of all artifacts.
+    /// </summary>
+    /// <param name="source">The colliding declarations.</param>
+    /// <param name="type">The managed type whose generated operator SQL collides.</param>
+    /// <param name="expected">Each diagnostic ID, reported attribute text and duplicated signature, in report order.</param>
+    private void AssertDerivedCollisions(string source, string type, params string[] expected)
+    {
+        (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source);
+        var actual = new List<string>();
+        foreach (Diagnostic diagnostic in diagnostics)
+        {
+            Assert.IsTrue(diagnostic.Id is "ANKUS510" or "ANKUS511", diagnostic.ToString());
+            string message = diagnostic.GetMessage(CultureInfo.InvariantCulture);
+            string prefix = diagnostic.Id == "ANKUS510" ? "Function " : "Operator ";
+            int end = message.IndexOf(" generated for '", StringComparison.Ordinal);
+            Assert.StartsWith(prefix, message);
+            Assert.IsGreaterThan(prefix.Length, end);
+            string signature = message[prefix.Length..end];
+            AssertGraphDiagnostic(diagnostic, diagnostic.Id, DiagnosticText(diagnostic), signature, type);
+            actual.Add(diagnostic.Id + " " + DiagnosticText(diagnostic) + " " + signature);
+        }
+
+        Assert.AreSequenceEqual(expected, actual, string.Join(Environment.NewLine, actual));
+        Assert.IsNull(compilation.GetTypeByMetadataName("Ankus.Generated.ExtensionDispatchers"));
+        Assert.IsEmpty(compilation.Assembly.GetAttributes().Where(static attribute =>
+            attribute.AttributeClass?.ToDisplayString() == "System.Reflection.AssemblyMetadataAttribute"));
+        Assert.IsEmpty(compilation.GetDiagnostics(context.CancellationToken).Where(static error => error.Severity == DiagnosticSeverity.Error));
     }
 
     /// <summary>

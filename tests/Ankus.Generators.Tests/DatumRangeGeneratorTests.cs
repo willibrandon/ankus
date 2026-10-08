@@ -115,12 +115,12 @@ public sealed partial class PgFunctionGeneratorTests
     /// </summary>
     [TestMethod]
     public void DatumRangesRejectProviderCompletionCycles()
-        => AssertDatumMappingError("""
+        => AssertDatumGraphError("""
             [assembly: Ankus.PgSql("ranges", "SELECT 'range';", Relocatable=true)]
             [assembly: Ankus.PgSql("bounds", "SELECT 'bound';", Requires=new[] { "ranges" }, Relocatable=true)]
             [assembly: Ankus.PgSqlTypeProvider("ranges", typeof(Ankus.PgRange<Value>))]
             [assembly: Ankus.PgSqlTypeProvider("bounds", typeof(Value))]
-            """ + DatumRangeSource("\"bounds\"", scalarOwned: true), "ANKUS005", "cycle");
+            """ + DatumRangeSource("\"bounds\"", scalarOwned: true), "ANKUS499", "\"ranges\"", 1, "bounds -> ranges -> bounds");
 
     /// <summary>
     /// Each range consumes only the scalar conversion direction required by its generated slot.

@@ -173,28 +173,28 @@ public sealed partial class PgFunctionGeneratorTests
     /// </summary>
     /// <param name="argument">The selected concrete managed argument.</param>
     /// <param name="constraint">The converter's independent generic constraint.</param>
-    /// <param name="valid">Whether C# permits the inferred construction.</param>
+    /// <param name="rule">The violated compiler diagnostic, or null when C# permits the inferred construction.</param>
     [TestMethod]
-    [DataRow("int", "struct", true)]
-    [DataRow("string", "struct", false)]
-    [DataRow("int", "class", false)]
-    [DataRow("string", "class", true)]
-    [DataRow("string?", "class", false)]
-    [DataRow("string?", "class?", true)]
-    [DataRow("int", "unmanaged", true)]
-    [DataRow("Managed", "unmanaged", false)]
-    [DataRow("string", "notnull", true)]
-    [DataRow("string?", "notnull", false)]
-    [DataRow("int?", "notnull", false)]
-    [DataRow("Derived", "new()", true)]
-    [DataRow("string", "new()", false)]
-    [DataRow("Required", "new()", false)]
-    [DataRow("RequiredFixed", "new()", true)]
-    [DataRow("Derived", "Base", true)]
-    [DataRow("object", "Base", false)]
-    [DataRow("int", "System.IComparable<T>", true)]
-    [DataRow("object", "System.IComparable<T>", false)]
-    public void DatumConverterTemplatesValidateCompilerConstraints(string argument, string constraint, bool valid)
+    [DataRow("int", "struct", null)]
+    [DataRow("string", "struct", "CS0453")]
+    [DataRow("int", "class", "CS0452")]
+    [DataRow("string", "class", null)]
+    [DataRow("string?", "class", "CS8634")]
+    [DataRow("string?", "class?", null)]
+    [DataRow("int", "unmanaged", null)]
+    [DataRow("Managed", "unmanaged", "CS8377")]
+    [DataRow("string", "notnull", null)]
+    [DataRow("string?", "notnull", "CS8714")]
+    [DataRow("int?", "notnull", "CS8714")]
+    [DataRow("Derived", "new()", null)]
+    [DataRow("string", "new()", "CS0310")]
+    [DataRow("Required", "new()", "CS9040")]
+    [DataRow("RequiredFixed", "new()", null)]
+    [DataRow("Derived", "Base", null)]
+    [DataRow("object", "Base", "CS0311")]
+    [DataRow("int", "System.IComparable<T>", null)]
+    [DataRow("object", "System.IComparable<T>", "CS0311")]
+    public void DatumConverterTemplatesValidateCompilerConstraints(string argument, string constraint, string? rule)
     {
         string source = """
             [Ankus.PgDatumType("int4", typeof(Converter<>), Origin=Ankus.PgTypeOrigin.External, Schema="pg_catalog")]
@@ -211,7 +211,7 @@ public sealed partial class PgFunctionGeneratorTests
                 [System.Diagnostics.CodeAnalysis.SetsRequiredMembers] public RequiredFixed() { Value = 7; }
             }
             """ + "public static class Functions { [Ankus.PgFunction] public static int Read(Box<" + argument + "> value) => value.Number; }";
-        if (valid)
+        if (rule is null)
         {
             Compilation compilation = GenerateSqlControl(source);
             Assert.Contains("ReadMapped<global::Box<", DatumMappingManaged(compilation));
@@ -222,7 +222,7 @@ public sealed partial class PgFunctionGeneratorTests
         }
         else
         {
-            AssertDatumMappingError(source, "ANKUS149", "not a valid C# constructed type");
+            AssertConverterConstraintError(source, "typeof(Converter<>)", "Converter<" + argument + ">", rule);
         }
     }
 
@@ -251,7 +251,7 @@ public sealed partial class PgFunctionGeneratorTests
         }
         else
         {
-            AssertDatumMappingError(source, "ANKUS149", "not a valid C# constructed type");
+            AssertConverterConstraintError(source, "typeof(Converter<,>)", "Converter<Derived, Base>", "CS0311");
         }
     }
 
@@ -316,7 +316,7 @@ public sealed partial class PgFunctionGeneratorTests
         }
         else
         {
-            AssertDatumMappingError(source, "ANKUS149", "not a valid C# constructed type");
+            AssertConverterConstraintError(source, "typeof(Family<>.Converter)", "Family<string>.Converter", "CS0453");
         }
     }
 
@@ -361,8 +361,7 @@ public sealed partial class PgFunctionGeneratorTests
         CSharpCompilation changed = original.ReplaceSyntaxTree(original.SyntaxTrees.Single(), CSharpSyntaxTree.ParseText(
             source.Replace("where T : struct", "where T : class", StringComparison.Ordinal), cancellationToken: context.CancellationToken));
         driver = driver.RunGeneratorsAndUpdateCompilation(changed, out Compilation invalid, out ImmutableArray<Diagnostic> invalidDiagnostics, context.CancellationToken);
-        Assert.Contains(diagnostic => diagnostic.Id == "ANKUS149" && diagnostic.GetMessage(CultureInfo.InvariantCulture)
-            .Contains("not a valid C# constructed type", StringComparison.Ordinal), invalidDiagnostics);
+        AssertConverterConstraintDiagnostic(Assert.ContainsSingle(invalidDiagnostics), "typeof(Converter<>)", "Converter<int>", "CS0452");
         Assert.IsNull(invalid.GetTypeByMetadataName("Ankus.Generated.ExtensionDispatchers"));
         Assert.IsEmpty(invalid.Assembly.GetAttributes().Where(static attribute =>
             attribute.AttributeClass?.ToDisplayString() == "System.Reflection.AssemblyMetadataAttribute"));
@@ -449,8 +448,42 @@ public sealed partial class PgFunctionGeneratorTests
         }
         else
         {
-            AssertDatumMappingError(source, "ANKUS149", "not a valid C# constructed type");
+            AssertConverterConstraintError(source, "typeof(Converter<>)", "Converter<string?>", "CS8714");
         }
+    }
+
+    /// <summary>
+    /// Requires one inferred-converter constraint error at the authored converter and the absence of all generated artifacts.
+    /// </summary>
+    /// <param name="source">The invalid mapping declaration.</param>
+    /// <param name="span">The authored converter expression.</param>
+    /// <param name="converter">The inferred closed converter.</param>
+    /// <param name="rule">The violated compiler diagnostic.</param>
+    private void AssertConverterConstraintError(string source, string span, string converter, string rule)
+    {
+        (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source);
+        AssertConverterConstraintDiagnostic(Assert.ContainsSingle(diagnostics, string.Join(Environment.NewLine, diagnostics)), span, converter, rule);
+        Assert.IsNull(compilation.GetTypeByMetadataName("Ankus.Generated.ExtensionDispatchers"));
+        Assert.IsEmpty(compilation.Assembly.GetAttributes().Where(static attribute =>
+            attribute.AttributeClass?.ToDisplayString() == "System.Reflection.AssemblyMetadataAttribute"));
+        Assert.IsEmpty(compilation.GetDiagnostics(context.CancellationToken).Where(static error => error.Severity == DiagnosticSeverity.Error));
+    }
+
+    /// <summary>
+    /// Verifies the fixed inferred-converter constraint contract, its compiler rule and the authored converter span.
+    /// </summary>
+    /// <param name="diagnostic">The reported diagnostic.</param>
+    /// <param name="span">The authored converter expression.</param>
+    /// <param name="converter">The inferred closed converter.</param>
+    /// <param name="rule">The violated compiler diagnostic.</param>
+    private void AssertConverterConstraintDiagnostic(Diagnostic diagnostic, string span, string converter, string rule)
+    {
+        Assert.AreEqual("ANKUS149", diagnostic.Id);
+        Assert.AreEqual(DiagnosticSeverity.Error, diagnostic.Severity);
+        Assert.AreEqual("Inferred datum converter '" + converter + "' is not a valid C# constructed type (compiler diagnostic " + rule +
+            "); satisfy its type-parameter constraints or specify a closed converter", diagnostic.GetMessage(CultureInfo.InvariantCulture));
+        Assert.AreEqual("https://willibrandon.github.io/ankus/raw-values/#mapping-diagnostics", diagnostic.Descriptor.HelpLinkUri);
+        Assert.AreEqual(span, DiagnosticText(diagnostic));
     }
 
     /// <summary>

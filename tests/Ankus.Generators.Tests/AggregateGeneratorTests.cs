@@ -700,22 +700,23 @@ public sealed partial class PgFunctionGeneratorTests
     /// </summary>
     /// <param name="attributes">The aggregate dependency configuration.</param>
     /// <param name="prefix">Additional SQL declarations establishing a conflict.</param>
-    /// <param name="reason">A stable identifying fragment of the graph error.</param>
+    /// <param name="expected">The fixed graph diagnostic.</param>
+    /// <param name="span">The exact authored value to correct.</param>
+    /// <param name="occurrence">The zero-based occurrence of that text in the source.</param>
+    /// <param name="argument">The authored identity in the fixed message, or null when the message has none.</param>
     [TestMethod]
-    [DataRow("Requires=new[] { \"missing\" }", "", "missing dependency 'missing'")]
-    [DataRow("Id=\"duplicate\"", "[assembly: Ankus.PgSql(\"duplicate\", \"SELECT 1;\")]", "declared more than once")]
-    [DataRow("Id=\"aggregate\", Requires=new[] { \"after\" }", "[assembly: Ankus.PgSql(\"after\", \"SELECT 1;\", Requires=new[] { \"aggregate\" })]", "cycle")]
-    [DataRow("Id=\"\"", "", "Dependency identifiers")]
-    public void AggregateDependencyFailuresPreventManifest(string attributes, string prefix, string reason)
+    [DataRow("Requires=new[] { \"missing\" }", "", "ANKUS498", "\"missing\"", 0, "missing")]
+    [DataRow("Id=\"duplicate\"", "[assembly: Ankus.PgSql(\"duplicate\", \"SELECT 1;\")]", "ANKUS497", "\"duplicate\"", 1, "duplicate")]
+    [DataRow("Id=\"aggregate\", Requires=new[] { \"after\" }", "[assembly: Ankus.PgSql(\"after\", \"SELECT 1;\", Requires=new[] { \"aggregate\" })]", "ANKUS499",
+        "\"after\"", 1, "Invalid.Transition(Ankus.PgAggregateContext, int, int) -> after -> aggregate -> Invalid.Transition(Ankus.PgAggregateContext, int, int)")]
+    [DataRow("Id=\"\"", "", "ANKUS490", "\"\"", 0, null)]
+    public void AggregateDependencyFailuresPreventManifest(string attributes, string prefix, string expected, string span, int occurrence, string? argument)
     {
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(prefix + " [Ankus.PgAggregate(" + attributes +
             ")] public sealed class Invalid : Ankus.IPgAggregate<int,int> { " +
             "public static int Transition(Ankus.PgAggregateContext context,int state,int value)=>state; }");
-        Assert.IsNotEmpty(diagnostics);
-        Assert.IsTrue(diagnostics.All(static diagnostic => diagnostic.Id == "ANKUS005" && diagnostic.Severity == DiagnosticSeverity.Error));
-        Assert.IsTrue(diagnostics.Any(diagnostic => diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture).Contains(reason, StringComparison.OrdinalIgnoreCase)));
-        Assert.IsFalse(compilation.Assembly.GetAttributes().Any(static attribute => attribute.AttributeClass?.ToDisplayString() == "System.Reflection.AssemblyMetadataAttribute" &&
-            attribute.ConstructorArguments[0].Value as string == "Ankus.Sql"));
+        AssertSqlControlGraphError(compilation, diagnostics, expected, span, argument is null ? [] : [argument]);
+        AssertDiagnosticOccurrence(diagnostics[0], span, occurrence);
         Assert.IsEmpty(compilation.GetDiagnostics(context.CancellationToken).Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error));
     }
 

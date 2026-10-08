@@ -194,7 +194,8 @@ public sealed partial class PgFunctionGeneratorTests
                 public static int Z() => 2;
             }
             """);
-        AssertSqlControlGraphError(compilation, diagnostics, "cycle");
+        AssertSqlControlGraphError(compilation, diagnostics, "ANKUS499", "Ankus.PgRequires(typeof(Functions), nameof(" + (self ? "A" : "Z") + "))",
+            self ? "Functions.A() -> Functions.A()" : "Functions.A() -> Functions.Z() -> Functions.A()");
     }
 
     /// <summary>
@@ -360,7 +361,8 @@ public sealed partial class PgFunctionGeneratorTests
             [assembly: Ankus.{{edge}}(typeof(Functions), nameof(Functions.F), DeclarationId = "boundary")]
             public static class Functions { [Ankus.PgFunction] public static int F() => 1; }
             """);
-        AssertSqlControlGraphError(compilation, diagnostics, "cycle");
+        AssertSqlControlGraphError(compilation, diagnostics, "ANKUS499", "Ankus." + edge + "(typeof(Functions), nameof(Functions.F), DeclarationId = \"boundary\")",
+            "Functions.F() -> boundary -> Functions.F()");
     }
 
     /// <summary>

@@ -828,9 +828,10 @@ rejected. A type cannot combine
 ### Mapping diagnostics
 
 Mapping errors identify the failed contract and the authored value or signature
-that needs correction. Converter constraint errors retain the C# diagnostic ID
-and reason. A mapping supplied by another project or assembly reports errors at
-its consuming source declaration. Referenced names and schemas retain their
+that needs correction. Converter constraint errors name the inferred closed
+converter and the C# compiler diagnostic ID of the violated constraint, such as
+`CS0453`, at the authored converter. A mapping supplied by another project or
+assembly reports errors at its consuming source declaration. Referenced names and schemas retain their
 exact text; zero characters and malformed UTF-8 are rejected before registration.
 C# namespaces with escaped identifiers, such as `@class`, work normally.
 The selected mapping is read from its actual defining assembly and module;
@@ -854,7 +855,7 @@ an attribute with the same metadata name in another assembly cannot replace it.
 | `ANKUS146` | Initialize required members in a constructor marked `SetsRequiredMembers`. |
 | `ANKUS147` | Specify a closed converter when its interface patterns cannot infer every argument. |
 | `ANKUS148` | Specify a closed converter when several constructions match. |
-| `ANKUS149` | Satisfy the reported C# constraint on the inferred converter. |
+| `ANKUS149` | Change the mapped type arguments or converter constraints so the named inferred converter satisfies the C# rule identified by the compiler diagnostic ID, or specify a closed converter. |
 | `ANKUS150` | Give the carrier and converter unambiguous global type identities. |
 | `ANKUS151` | Remove a slot's `PgSqlType` or `PgCompositeType` override. |
 | `ANKUS152` | Implement `IPgDatumReader<T>` for a SQL input. |

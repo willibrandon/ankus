@@ -262,7 +262,7 @@ public sealed partial class PgFunctionGeneratorTests
     /// </summary>
     [TestMethod]
     public void GenericDatumMappingsRejectDerivedSqlIdentityCollisions()
-        => AssertDatumMappingError("""
+        => AssertDerivedCollisions("""
             using Ankus;
             [PgDatumType("int4", typeof(Converter), Origin=PgTypeOrigin.External, Schema="pg_catalog")]
             [PgEquality]
@@ -277,7 +277,10 @@ public sealed partial class PgFunctionGeneratorTests
                 [PgFunction] public static int ReadInt(Box<int> value) => value.Word;
                 [PgFunction] public static int ReadLong(Box<long> value) => value.Word;
             }
-            """, "ANKUS005", "Duplicate PostgreSQL");
+            """, "Box", "ANKUS510 PgEquality \"pg_catalog\".\"int4_eq\"(\"pg_catalog\".\"int4\",\"pg_catalog\".\"int4\")",
+            "ANKUS510 PgEquality \"pg_catalog\".\"int4_ne\"(\"pg_catalog\".\"int4\",\"pg_catalog\".\"int4\")",
+            "ANKUS511 PgEquality \"pg_catalog\".=(\"pg_catalog\".\"int4\",\"pg_catalog\".\"int4\")",
+            "ANKUS511 PgEquality \"pg_catalog\".<>(\"pg_catalog\".\"int4\",\"pg_catalog\".\"int4\")");
 
     /// <summary>
     /// Provides two independent closed managed identities over one external SQL type.

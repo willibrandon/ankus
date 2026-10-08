@@ -28,8 +28,8 @@ public sealed partial class PgFunctionGeneratorTests
             path: move ? "Changed.cs" : "Module.cs", cancellationToken: context.CancellationToken)), out Compilation second);
         MethodInventoryModel after = Assert.ContainsSingle(MethodInventory(driver));
 
-        Assert.AreEqual(before with { Location = null }, after with { Location = null });
-        Assert.AreEqual((before with { Location = null }).GetHashCode(), (after with { Location = null }).GetHashCode());
+        Assert.AreEqual(Contract(before), Contract(after));
+        Assert.AreEqual(Contract(before).GetHashCode(), Contract(after).GetHashCode());
         Assert.AreEqual(move ? IncrementalStepRunReason.Modified : IncrementalStepRunReason.Unchanged, ModuleStep(driver, "MethodInventoryAnalysis"));
         Assert.AreEqual(IncrementalStepRunReason.Cached, TrackedFunctionEmission(driver, "answer").Reason);
         Assert.AreEqual(InstallationBody(first), InstallationBody(second));
@@ -37,6 +37,13 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.AreEqual(42, InvokeSqlReferenceAnswer(first));
         Assert.AreEqual(move ? 42 : 43, InvokeSqlReferenceAnswer(second));
         Assert.Contains("Functions.Answer()", Assert.ContainsSingle(ExtensionSchemaGraph.Parse(ManifestValue(second, "Ankus.SqlGraph")).Items).Names);
+
+        // Detached coordinates, including the authored option values used by graph diagnostics, follow the moved file.
+        static MethodInventoryModel Contract(MethodInventoryModel model) => model with
+        {
+            Location = null,
+            Options = model.Options is null ? null : model.Options with { Locations = new(null, null, null, null, null) },
+        };
     }
 
     /// <summary>
