@@ -24,28 +24,23 @@ public sealed partial class ToolCommandTests
     [TestCleanup]
     public void ReleaseCase()
     {
-        try
+        if (_ownsCaseSlot)
         {
-            while (_caseDirectories.TryDequeue(out string? directory))
+            if (_caseInstallation is not null)
             {
-                if (Directory.Exists(directory))
-                {
-                    Directory.Delete(directory, recursive: true);
-                }
+                s_caseInstallations.Enqueue(_caseInstallation);
+                _caseInstallation = null;
             }
-        }
-        finally
-        {
-            if (_ownsCaseSlot)
-            {
-                if (_caseInstallation is not null)
-                {
-                    s_caseInstallations.Enqueue(_caseInstallation);
-                    _caseInstallation = null;
-                }
 
-                _ownsCaseSlot = false;
-                s_caseSlots.Release();
+            _ownsCaseSlot = false;
+            s_caseSlots.Release();
+        }
+
+        while (_caseDirectories.TryDequeue(out string? directory))
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
             }
         }
     }

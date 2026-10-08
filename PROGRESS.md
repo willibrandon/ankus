@@ -92,9 +92,9 @@ incorrect. See [the detailed review](docs/contributing/evidence/port-history.md#
 ## Current complete acceptance evidence
 
 Primary CI runs all six modules against real published Native AOT extensions.
-The latest successful primary CI source is **85be599**, with runtime **10.0.12-ankus.4**.
-[CI 37738335710](https://github.com/willibrandon/ankus/actions/runs/37738335710)
-passes; [Docs run 37738335756](https://github.com/willibrandon/ankus/actions/runs/37738335756)
+The latest successful primary CI source is **67c9cb5**, with runtime **10.0.12-ankus.4**.
+[CI 37741393964](https://github.com/willibrandon/ankus/actions/runs/37741393964)
+passes; [Docs run 37741394110](https://github.com/willibrandon/ankus/actions/runs/37741394110)
 also passes. All eighteen module reports were inspected: each platform completed
 all six modules with zero failures. No primary job timed out.
 A complete [Intel refresh](https://github.com/willibrandon/ankus/actions/runs/37460600236)
@@ -102,9 +102,9 @@ also passes on source **e41c687**.
 
 | Source | Platform / PostgreSQL | Result | Duration |
 | --- | --- | --- | --- |
-| Latest primary CI, **85be599 / ankus.4** | Linux x64 / 18 | 13,550 total; 13,502 passed; 48 platform skips; zero failures | 11m52s test step; 13m57s job |
-| Same CI / revision / runtime | macOS ARM64 / 18 | 13,550 total; 13,490 passed; 60 platform skips; zero failures | 12m52s test step; 14m33s job |
-| Same CI / revision / runtime | Windows x64 / 17 | 13,550 total; 13,514 passed; 36 platform skips; zero failures | 20m41s test step; 22m53s job |
+| Latest primary CI, **67c9cb5 / ankus.4** | Linux x64 / 18 | 13,558 total; 13,510 passed; 48 platform skips; zero failures | 12m27s test step; 14m37s job |
+| Same CI / revision / runtime | macOS ARM64 / 18 | 13,558 total; 13,498 passed; 60 platform skips; zero failures | 12m11s test step; 13m55s job |
+| Same CI / revision / runtime | Windows x64 / 17 | 13,558 total; 13,522 passed; 36 platform skips; zero failures | 20m04s test step; 22m22s job |
 | SQL/datetime composition, parent **e41c687 / ankus.4** | Linux x64 / 18.6 | 13,337 total; 13,289 passed; 48 platform skips; zero failures | 42m46.885s tests; 43m41.597s command |
 | Function-provider composition, parent **4da0bec / ankus.4** | Linux x64 / 18.6 | 13,365 total; 13,317 passed; 48 platform skips; zero failures | 42m39.165s tests; 43m46.937s command |
 | Type-provider composition, parent **97842d3 / ankus.4** | Linux x64 / 18.6 | 13,411 total; 13,363 passed; 48 platform skips; zero failures | 42m39.033s tests; 43m35.244s command |
@@ -130,6 +130,20 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
 
 ## Active validation and work
 
+- Test scheduling now reserves crash recovery rather than excluding the whole
+  integration suite. Isolated SDK rejection projects run alongside read-only
+  checks; completed cases return installation leases before deleting build files.
+  Shared managed dependencies precede parallel publication of every fixture,
+  and package assertions read resolved properties from the publish itself.
+  Compiler slots now retain the complete processor budget: 32 processors and
+  twenty slots allocate twelve budgets of two and eight of one. Windows
+  x64/PostgreSQL **17.11**, SDK **10.0.401** passes **109/109** affected cases in
+  **3m46.965s**, including fixture startup, cold package consumers, all terminal
+  recovery paths and seven processor-allocation regressions. Release has zero
+  warnings/errors; API freshness verifies **244** pages and **2,793** members;
+  site checks pass and all **295** pages build. Before this milestone's commit,
+  primary CI **37741393964** and Docs **37741394110** are completed and green.
+  Replacement complete-suite platform timings remain required.
 - Windows .NET **10.0.12** test-process capture now uses dedicated readers for
   synchronous redirected pipes. With twenty idle children and 32 logical
   processors, a 100ms continuation took **3,414.728ms** with thread-pool pipe
@@ -140,7 +154,12 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   for compiler slots. Windows x64/PostgreSQL **17.11**, SDK **10.0.401** passes
   all **52** affected scheduling, publication, worker and cancellation cases in
   **3m18.763s**, including fixture startup. Release has zero warnings/errors and
-  documentation checks pass. Complete-suite timing remains pending.
+  documentation checks pass. Complete CI **37741393964** retains every previous
+  case and outcome, plus eight scheduling cases, on all three primary platforms.
+  Windows tests take **20m04s**, versus **20m41s** before this change; macOS takes
+  **12m11s**, versus **12m52s**, and Linux **12m27s**, versus **11m52s**.
+  These results do not resolve the full-suite runtime gap. Round-3 product review
+  findings remain pending verification; port work is paused for test performance.
 - Six worker-cancellation cases and two lock-interrupt cases now share two
   immutable packaged probe publications instead of compiling eight identical
   binaries. Every case retains its own PostgreSQL cluster and all assertions;

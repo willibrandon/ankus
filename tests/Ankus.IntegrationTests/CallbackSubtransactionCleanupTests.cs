@@ -262,7 +262,6 @@ public sealed partial class CallbackSubtransactionCleanupTests(TestContext conte
     /// </summary>
     /// <param name="preparedTransaction">Whether PostgreSQL prepares the transaction instead of committing it.</param>
     [TestMethod]
-    [DoNotParallelize] // Isolated clusters share native fixture output paths.
     [DataRow(false)]
     [DataRow(true)]
     public Task CleanupEmergencyLogBypassesFailingHookAndPreservesCommit(bool preparedTransaction)
@@ -274,7 +273,6 @@ public sealed partial class CallbackSubtransactionCleanupTests(TestContext conte
     /// <param name="stage">One for context creation or two for diagnostic copying.</param>
     /// <param name="preparedTransaction">Whether PostgreSQL prepares instead of committing the transaction.</param>
     [TestMethod]
-    [DoNotParallelize]
     [DataRow(1, false)]
     [DataRow(1, true)]
     [DataRow(2, false)]
@@ -289,7 +287,6 @@ public sealed partial class CallbackSubtransactionCleanupTests(TestContext conte
     /// <param name="level">The terminal logging level requested by the callback.</param>
     /// <param name="preparedTransaction">Whether PostgreSQL prepares the transaction instead of committing it.</param>
     [TestMethod]
-    [DoNotParallelize]
     [DataRow((int)PgLogLevel.Fatal, false)]
     [DataRow((int)PgLogLevel.Fatal, true)]
     [DataRow((int)PgLogLevel.Panic, false)]
@@ -304,7 +301,6 @@ public sealed partial class CallbackSubtransactionCleanupTests(TestContext conte
     /// <param name="aggregate">Whether an aggregate owns cleanup rather than an iterator.</param>
     /// <param name="level">The callback's requested FATAL or PANIC severity.</param>
     [TestMethod]
-    [DoNotParallelize]
     [DataRow(false, (int)PgLogLevel.Fatal)]
     [DataRow(false, (int)PgLogLevel.Panic)]
     [DataRow(true, (int)PgLogLevel.Fatal)]
@@ -410,6 +406,7 @@ public sealed partial class CallbackSubtransactionCleanupTests(TestContext conte
         string? setupStatement = null, bool preparedTransaction = false)
     {
         CancellationToken token = context.CancellationToken;
+        using IDisposable recoverySlot = await CrashRecovery.ReserveAsync(token);
         PostgresTestClusterOptions options = await IntegrationEnvironment.CreateOptionsAsync(token);
         if (preparedTransaction)
         {

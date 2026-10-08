@@ -38,7 +38,7 @@ public sealed partial class ToolCommandTests(TestContext context)
     [ClassInitialize]
     public static async Task InitializeAsync(TestContext context)
     {
-        context.WriteLine($"Package-consumer concurrency: {s_concurrentCases}; logical processors: {Environment.ProcessorCount}; processors per build: {IntegrationEnvironment.BuildProcessorCount}.");
+        context.WriteLine($"Package-consumer concurrency: {s_concurrentCases}; logical processors: {Environment.ProcessorCount}; processors per build: {IntegrationEnvironment.BuildProcessorCount}–{IntegrationEnvironment.MaximumBuildProcessorCount}.");
         CancellationToken token = context.CancellationToken;
         string repository = IntegrationEnvironment.RepositoryRoot;
         // Actions owns this directory and removes leftovers even when a test host crashes.
@@ -541,7 +541,6 @@ public sealed partial class ToolCommandTests(TestContext context)
     /// Verifies a cold SDK restore supplies only package dependencies, with Native AOT and the analyzer active.
     /// </summary>
     [TestMethod]
-    [DoNotParallelize]
     public async Task SdkRestoresWithoutRepositoryReferences()
     {
         Assert.IsFalse(s_project.StartsWith(IntegrationEnvironment.RepositoryRoot, StringComparison.Ordinal));
@@ -872,7 +871,6 @@ public sealed partial class ToolCommandTests(TestContext context)
     /// <param name="property">The invalid publish property.</param>
     /// <param name="message">The SDK diagnostic.</param>
     [TestMethod]
-    [DoNotParallelize]
     [DataRow("PublishAot=false", "Ankus extensions require PublishAot=true.")]
     [DataRow("NativeLib=Static", "Ankus extensions require OutputType=Library and NativeLib=Shared.")]
     [DataRow("TargetFramework=net9.0", "Ankus extensions require TargetFramework=net10.0.")]
@@ -882,8 +880,16 @@ public sealed partial class ToolCommandTests(TestContext context)
     [DataRow("IlcToolsPath=foreign-compiler", "Ankus.Sdk selects its matching Native AOT compiler automatically.")]
     public async Task SdkRejectsNonExtensionPublishSettings(string property, string message)
     {
-        string output = CreateDirectory();
-        ProcessResult result = await RunDotnetAsync(["publish", s_project, "-c", "Release", "-r", RuntimeInformation.RuntimeIdentifier,
+        string directory = CreateDirectory();
+        string project = Path.Combine(directory, "ToolProbe.csproj");
+        File.Copy(s_project, project);
+        foreach (string source in Directory.EnumerateFiles(Path.GetDirectoryName(s_project)!, "*.cs"))
+        {
+            File.Copy(source, Path.Combine(directory, Path.GetFileName(source)));
+        }
+
+        string output = Path.Combine(directory, "published");
+        ProcessResult result = await RunDotnetAsync(["publish", project, "-c", "Release", "-r", RuntimeInformation.RuntimeIdentifier,
             "-o", output, "-p:" + property, "-bl:" + Path.Combine(output, "rejected-{}.binlog")], context.CancellationToken);
         Assert.AreNotEqual(0, result.ExitCode);
         Assert.Contains(message, result.StandardOutput);

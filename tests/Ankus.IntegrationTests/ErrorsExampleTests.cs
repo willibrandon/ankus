@@ -73,12 +73,12 @@ public sealed class ErrorsExampleTests(TestContext context)
     /// <param name="severity">The expected server severity.</param>
     /// <param name="crashRecovery">Whether PostgreSQL must recover the whole cluster.</param>
     [TestMethod]
-    [DoNotParallelize] // Intentional crashes must not contend with other clusters' recovery fsync.
     [DataRow("throw_pg_fatal", "FATAL", false)]
     [DataRow("throw_pg_panic", "PANIC", true)]
     public async Task ErrorsSamplePreservesTerminalBehavior(string function, string severity, bool crashRecovery)
     {
         CancellationToken token = context.CancellationToken;
+        using IDisposable recoverySlot = await CrashRecovery.ReserveAsync(token);
         PostgresTestClusterOptions options = await IntegrationEnvironment.CreateOptionsAsync(token);
         await using PostgresTestCluster cluster = await PostgresTestCluster.StartAsync(options, token);
         await using (NpgsqlConnection setup = await cluster.OpenConnectionAsync(token))

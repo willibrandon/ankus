@@ -7,6 +7,19 @@ namespace Ankus.IntegrationTests;
 /// </summary>
 internal static class CrashRecovery
 {
+    private static readonly SemaphoreSlim s_crashSlot = new(1, 1);
+
+    /// <summary>
+    /// Reserves the host's crash-recovery resource without excluding unrelated integration tests.
+    /// </summary>
+    /// <param name="cancellationToken">Cancels waiting before an isolated cluster is started.</param>
+    /// <returns>A lease released after the cluster and its recovery checks have completed.</returns>
+    internal static async Task<IDisposable> ReserveAsync(CancellationToken cancellationToken)
+    {
+        await s_crashSlot.WaitAsync(cancellationToken);
+        return new RecoveryLease();
+    }
+
     /// <summary>
     /// Waits for readiness after the most recent reinitialization, without repeatedly spawning rejected backends.
     /// </summary>
@@ -28,6 +41,25 @@ internal static class CrashRecovery
             }
 
             await Task.Delay(500, cancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// Releases an owned crash slot exactly once, including when a test fails or is cancelled.
+    /// </summary>
+    private sealed class RecoveryLease : IDisposable
+    {
+        private int _released;
+
+        /// <summary>
+        /// Returns capacity after the owning test has disposed its isolated cluster.
+        /// </summary>
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _released, 1) == 0)
+            {
+                s_crashSlot.Release();
+            }
         }
     }
 }

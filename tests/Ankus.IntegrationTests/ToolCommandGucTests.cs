@@ -209,15 +209,12 @@ public sealed partial class ToolCommandTests
         ProcessResult published = await PackageProcessRunner.RunAsync("dotnet",
             ["publish", project, "-c", "Release", "-r", RuntimeInformation.RuntimeIdentifier, "-o", output,
                 "-p:AnkusPostgresMajor=" + MajorText(), "-p:AnkusPgConfigPath=" + s_installation.PgConfigPath,
+                "-getProperty:MSBuildAllProjects,EnforceCodeStyleInBuild,GenerateDocumentationFile,_AnkusBuildTool",
+                "-getItem:ProjectReference,Analyzer",
                 "-bl:" + Path.Combine(directory, "guc-publish-{}.binlog")],
             environment, token, workingDirectory: directory);
         published.EnsureSuccess("dotnet", ["publish"]);
-        ProcessResult evaluated = await PackageProcessRunner.RunAsync("dotnet",
-            ["msbuild", project, "-target:ResolveReferences", "-verbosity:quiet", "-property:Configuration=Release",
-                "-getProperty:MSBuildAllProjects,EnforceCodeStyleInBuild,GenerateDocumentationFile,_AnkusBuildTool",
-                "-getItem:ProjectReference,Analyzer"], environment, token, workingDirectory: directory);
-        evaluated.EnsureSuccess("dotnet", ["msbuild"]);
-        using JsonDocument evaluation = JsonDocument.Parse(evaluated.StandardOutput);
+        using JsonDocument evaluation = JsonDocument.Parse(published.StandardOutput);
         JsonElement properties = evaluation.RootElement.GetProperty("Properties");
         Assert.DoesNotContain(IntegrationEnvironment.RepositoryRoot, properties.GetProperty("MSBuildAllProjects").GetString()!);
         Assert.AreNotEqual("true", properties.GetProperty("EnforceCodeStyleInBuild").GetString());

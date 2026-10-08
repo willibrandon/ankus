@@ -287,12 +287,12 @@ public sealed class TransactionCallbackTests(TestContext context)
     /// </summary>
     /// <param name="write">Whether the transaction assigns an XID and durably commits a row.</param>
     [TestMethod]
-    [DoNotParallelize] // Crash recovery and fsync must not contend with other isolated crash clusters.
     [DataRow(false)]
     [DataRow(true)]
     public async Task CommitFailurePreservesTransactionOutcomeThroughRecovery(bool write)
     {
         CancellationToken token = context.CancellationToken;
+        using IDisposable recoverySlot = await CrashRecovery.ReserveAsync(token);
         PostgresTestClusterOptions options = await IntegrationEnvironment.CreateOptionsAsync(token);
         await using PostgresTestCluster cluster = await PostgresTestCluster.StartAsync(options, token);
         await using NpgsqlConnection observer = await cluster.OpenConnectionAsync(token);

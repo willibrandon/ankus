@@ -21,9 +21,15 @@ internal static class IntegrationEnvironment
     internal static int PackageTestConcurrency { get; } = ReadPackageTestConcurrency();
 
     /// <summary>
-    /// Shares the processor budget between concurrent compiler processes instead of multiplying their worker pools.
+    /// Gets the smallest processor budget among the concurrent compiler slots.
     /// </summary>
     internal static int BuildProcessorCount { get; } = Math.Max(1, Environment.ProcessorCount / PackageTestConcurrency);
+
+    /// <summary>
+    /// Gets the largest processor budget, including slots assigned a remainder processor.
+    /// </summary>
+    internal static int MaximumBuildProcessorCount { get; } = Math.Max(1,
+        (Environment.ProcessorCount - 1) / PackageTestConcurrency + 1);
 
     /// <summary>
     /// Gets the repository root from the test binary's build location.
@@ -210,17 +216,24 @@ internal static class IntegrationEnvironment
 
         Directory.CreateDirectory(publishRoot);
         (string Directory, string Name) first = extensions[0];
-        await PublishExtensionAsync(first.Directory, first.Name, Path.Combine(publishRoot, first.Name),
-            installation, buildProjectReferences: true, cancellationToken);
+        string firstProject = Path.Combine(RepositoryRoot, first.Directory, first.Name, first.Name + ".csproj");
+        await ProcessRunner.RunCheckedAsync("dotnet",
+            ["msbuild", firstProject, "-target:ResolveProjectReferences", "-property:Configuration=Release",
+                "-property:RuntimeIdentifier=" + RuntimeInformation.RuntimeIdentifier, "-property:SelfContained=true",
+                "-property:BuildProjectReferences=true",
+                "-property:AnkusPostgresMajor=" + installation.Version.Major.ToString(CultureInfo.InvariantCulture),
+                "-property:AnkusPgConfigPath=" + installation.PgConfigPath, "-m", "-nr:false",
+                "-bl:" + Path.Combine(publishRoot, "references-{}.binlog")],
+            new Dictionary<string, string?> { ["MSBUILDDISABLENODEREUSE"] = "1" }, cancellationToken);
         ParallelOptions options = new()
         {
             CancellationToken = cancellationToken,
             MaxDegreeOfParallelism = PackageTestConcurrency,
         };
-        await Parallel.ForEachAsync(extensions.AsMemory(1).ToArray(), options, async (extension, token) =>
+        await Parallel.ForEachAsync(extensions, options, async (extension, token) =>
         {
             await PublishExtensionAsync(extension.Directory, extension.Name, Path.Combine(publishRoot, extension.Name),
-                installation, buildProjectReferences: false, token);
+                installation, token);
         });
 
         if (Directory.Exists(NativeOutputDirectory))
@@ -263,7 +276,7 @@ internal static class IntegrationEnvironment
     }
 
     private static async Task PublishExtensionAsync(string directory, string name, string output,
-        PostgresInstallation installation, bool buildProjectReferences, CancellationToken cancellationToken)
+        PostgresInstallation installation, CancellationToken cancellationToken)
     {
         string project = Path.Combine(RepositoryRoot, directory, name, name + ".csproj");
         string logs = Path.Combine(RepositoryRoot, "artifacts", "test-logs", "publish");
@@ -274,18 +287,17 @@ internal static class IntegrationEnvironment
             "--self-contained", "true", "--output", output,
             "-m:1",
             "-nr:false",
-            "-p:BuildProjectReferences=" + buildProjectReferences.ToString(CultureInfo.InvariantCulture).ToLowerInvariant(),
+            "-p:BuildProjectReferences=false",
             "-p:AnkusPostgresMajor=" + installation.Version.Major.ToString(CultureInfo.InvariantCulture),
             "-p:AnkusPgConfigPath=" + installation.PgConfigPath,
             "-bl:" + Path.Combine(logs, name + "-{}.binlog")];
 
-        await ProcessRunner.RunCheckedAsync(
+        await PackageProcessRunner.RunCheckedAsync(
             "dotnet",
             arguments,
             new Dictionary<string, string?>
             {
                 ["MSBUILDDISABLENODEREUSE"] = "1",
-                ["DOTNET_PROCESSOR_COUNT"] = BuildProcessorCount.ToString(CultureInfo.InvariantCulture),
             },
             cancellationToken);
 

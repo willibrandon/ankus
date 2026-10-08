@@ -233,7 +233,6 @@ public sealed partial class PgLogTests(TestContext context)
     /// <param name="mode">The managed propagation or swallowing path.</param>
     /// <param name="helper">Whether to use the structured terminal helper.</param>
     [TestMethod]
-    [DoNotParallelize] // Intentional crashes must not contend with other clusters' recovery fsync.
     [DataRow(11, "FATAL", 0, false)]
     [DataRow(12, "PANIC", 0, false)]
     [DataRow(11, "FATAL", 1, false)]
@@ -249,6 +248,7 @@ public sealed partial class PgLogTests(TestContext context)
     public async Task TerminalLevelsUnwindBeforeNativeTermination(int level, string severity, int mode, bool helper)
     {
         CancellationToken token = context.CancellationToken;
+        using IDisposable recoverySlot = await CrashRecovery.ReserveAsync(token);
         PostgresTestClusterOptions options = await IntegrationEnvironment.CreateOptionsAsync(token);
         await using PostgresTestCluster cluster = await PostgresTestCluster.StartAsync(options, token);
         await using NpgsqlConnection observer = await cluster.OpenConnectionAsync(token);

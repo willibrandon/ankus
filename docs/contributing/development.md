@@ -152,11 +152,12 @@ publishes the extensions, starts an isolated cluster, installs the extensions,
 and invokes their functions through SQL. Test transactions roll back before their
 connections close. The cluster shuts down after the run.
 
-Tests that intentionally crash PostgreSQL run without parallel integration cases.
-Independent data directories still share the host's disk and crash-reporting
-resources; simultaneous restarts can exhaust the recovery deadline. These tests
-retain their thirty-second deadline, real fsync, diagnostic and durability checks.
-Other integration cases continue to use the assembly's parallel execution policy.
+Tests that intentionally crash PostgreSQL reserve one crash-recovery lease before
+starting their isolated cluster and release it after the cluster stops. This keeps
+restarts from competing for the host's disk and crash-reporting resources while
+ordinary integration cases continue in parallel. Crash cases retain their
+thirty-second deadline, real fsync, diagnostic and durability checks. Shared-database
+tests that change global schema state retain their separate MSTest exclusion.
 
 The optional xUnit and NUnit consumer templates use their selected framework's
 own test packages. Those consumer test dependencies and their template
@@ -189,6 +190,15 @@ Compiler slots apply to commands that can build; installation, packaging and
 schema extraction from existing publications do not reserve those slots. Worker
 polling collects diagnostic logs when an assertion fails, preserving the failure
 details without repeatedly collecting Windows events on successful polls.
+
+SDK rejection cases own separate projects and restore outputs, so they can run
+alongside read-only package checks. A finished package case returns its PostgreSQL
+installation lease after its clusters stop, before removing its consumer build
+files. Fixture initialization builds shared managed dependencies first and then
+publishes every extension in parallel, without waiting for one extension's Native
+AOT compilation before starting the others. Package-consumer checks read resolved
+properties and analyzer items from the completed publish invocation, avoiding a
+second MSBuild process while retaining their package and style-isolation assertions.
 
 Memory cleanup checks query `ankus_test_memory.contexts`, installed by the test
 extension. On PostgreSQL 14 and later this view reads the server's memory-context
@@ -441,8 +451,10 @@ selected limit, logical processor count and processors per build. Regression
 dry runs, `run`/`regress`/`bench` commands using `--no-build`, and manifest
 upgrades do not wait for compiler slots. `dotnet test --no-build` still reserves
 one because test fixture initialization can publish a Native AOT extension.
-Build children receive `DOTNET_PROCESSOR_COUNT` equal to the machine's logical processors divided
-by the concurrent-build limit, with a minimum of one. Native AOT compilation,
+Build slots divide the machine's logical processors evenly and distribute any
+remainder across the slots. Each child receives its slot's `DOTNET_PROCESSOR_COUNT`,
+with a minimum of one. For example, 32 processors with 20 slots allocate twelve
+two-processor slots and eight one-processor slots. Native AOT compilation,
 managed worker pools and GC consequently share that budget instead of each
 assuming ownership of the whole machine. This applies only to the repository's
 test processes. Version-selection cases share one reusable project pool with
@@ -452,8 +464,8 @@ installation for each slot, so consumers with the same extension name cannot
 overwrite another active test's control or SQL files. PostgreSQL 18 and later
 select each consumer's own extension directory.
 The fixture releases a slot after its test finishes and removes the staged
-installations during class cleanup. Cases that change the shared sample's build
-settings remain serial. Every platform job still runs the complete suite.
+installations during class cleanup. Cases that change build settings own independent
+projects. Every platform job still runs the complete suite.
 Consumer builds disable MSBuild node reuse so worker processes release the
 fixture's temporary package assemblies before class cleanup.
 

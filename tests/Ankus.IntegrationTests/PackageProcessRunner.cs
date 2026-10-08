@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 using Ankus.Testing;
 
@@ -11,6 +12,8 @@ internal static class PackageProcessRunner
     private static readonly SemaphoreSlim s_slots = new(
         IntegrationEnvironment.PackageTestConcurrency,
         IntegrationEnvironment.PackageTestConcurrency);
+    private static readonly ConcurrentQueue<int> s_processorCounts = new(
+        CreateProcessorBudgets(Environment.ProcessorCount, IntegrationEnvironment.PackageTestConcurrency));
 
     /// <summary>
     /// Runs a child process while reserving capacity only for build-intensive commands.
@@ -24,15 +27,21 @@ internal static class PackageProcessRunner
         string? workingDirectory = null)
     {
         bool reserve = RequiresSlot(fileName, arguments);
+        int processorCount = 0;
         if (reserve)
         {
             await s_slots.WaitAsync(cancellationToken);
+            if (!s_processorCounts.TryDequeue(out processorCount))
+            {
+                s_slots.Release();
+                throw new InvalidOperationException("An acquired compiler slot has no processor budget.");
+            }
         }
 
         try
         {
             IReadOnlyDictionary<string, string?> processEnvironment = reserve
-                ? CreateBuildEnvironment(environment)
+                ? CreateBuildEnvironment(environment, processorCount)
                 : environment;
             return await ProcessRunner.RunAsync(
                 fileName,
@@ -46,13 +55,14 @@ internal static class PackageProcessRunner
         {
             if (reserve)
             {
+                s_processorCounts.Enqueue(processorCount);
                 s_slots.Release();
             }
         }
     }
 
     private static Dictionary<string, string?> CreateBuildEnvironment(
-        IReadOnlyDictionary<string, string?> environment)
+        IReadOnlyDictionary<string, string?> environment, int processorCount)
     {
         Dictionary<string, string?> result = new(environment.Count + 2, StringComparer.OrdinalIgnoreCase);
         foreach ((string name, string? value) in environment)
@@ -61,7 +71,28 @@ internal static class PackageProcessRunner
         }
 
         result["MSBUILDDISABLENODEREUSE"] = "1";
-        result["DOTNET_PROCESSOR_COUNT"] = IntegrationEnvironment.BuildProcessorCount.ToString(CultureInfo.InvariantCulture);
+        result["DOTNET_PROCESSOR_COUNT"] = processorCount.ToString(CultureInfo.InvariantCulture);
+        return result;
+    }
+
+    /// <summary>
+    /// Divides the full logical-processor budget across build slots without discarding the remainder.
+    /// </summary>
+    /// <param name="logicalProcessors">The host's effective processor count.</param>
+    /// <param name="concurrency">The configured number of simultaneous compiler processes.</param>
+    /// <returns>One positive processor budget for each build slot, differing by at most one.</returns>
+    internal static int[] CreateProcessorBudgets(int logicalProcessors, int concurrency)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(logicalProcessors, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(concurrency, 1);
+        int processors = Math.Max(1, logicalProcessors / concurrency);
+        int remainder = logicalProcessors >= concurrency ? logicalProcessors % concurrency : 0;
+        int[] result = new int[concurrency];
+        for (int index = 0; index < result.Length; index++)
+        {
+            result[index] = processors + (index < remainder ? 1 : 0);
+        }
+
         return result;
     }
 

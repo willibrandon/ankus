@@ -7,6 +7,38 @@ namespace Ankus.IntegrationTests;
 public sealed class PackageProcessSchedulingTests
 {
     /// <summary>
+    /// Every processor remains budgeted even when the configured concurrency does not divide the host count.
+    /// </summary>
+    /// <param name="processors">The host's logical processors.</param>
+    /// <param name="concurrency">The concurrent-build limit.</param>
+    /// <param name="expected">The exact allocation across the slots.</param>
+    [TestMethod]
+    [DataRow(8, 3, new[] { 3, 3, 2 })]
+    [DataRow(8, 4, new[] { 2, 2, 2, 2 })]
+    [DataRow(4, 8, new[] { 1, 1, 1, 1, 1, 1, 1, 1 })]
+    [DataRow(1, 1, new[] { 1 })]
+    [DataRow(32, 20, new[] { 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1 })]
+    public void BuildSlotsRetainCompleteProcessorBudget(int processors, int concurrency, int[] expected)
+    {
+        int[] budgets = PackageProcessRunner.CreateProcessorBudgets(processors, concurrency);
+        Assert.AreSequenceEqual(expected, budgets);
+        Assert.AreEqual(Math.Max(processors, concurrency), budgets.Sum());
+    }
+
+    /// <summary>
+    /// Invalid capacity cannot produce zero-sized or unbounded compiler allocations.
+    /// </summary>
+    /// <param name="processors">The host's logical processors.</param>
+    /// <param name="concurrency">The concurrent-build limit.</param>
+    /// <param name="parameter">The invalid argument.</param>
+    [TestMethod]
+    [DataRow(0, 1, "logicalProcessors")]
+    [DataRow(1, 0, "concurrency")]
+    public void BuildSlotsRejectInvalidCapacity(int processors, int concurrency, string parameter)
+        => Assert.AreEqual(parameter, Assert.ThrowsExactly<ArgumentOutOfRangeException>(() =>
+            PackageProcessRunner.CreateProcessorBudgets(processors, concurrency)).ParamName);
+
+    /// <summary>
     /// Existing-publication and dry-run modes bypass compiler capacity while real builds remain bounded.
     /// </summary>
     /// <param name="executable">The child process filename.</param>
