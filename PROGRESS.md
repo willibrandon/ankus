@@ -176,6 +176,32 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   x64/PostgreSQL **18.6** passes the complete suite: **13,879** total,
   **13,831** passed, **48** platform skips, zero failures in **12m29.807s**.
   Release has zero warnings/errors; API freshness and site checks pass.
+  CI **37810465744** on **e05d946** passes quality, runtime, Linux and macOS,
+  and every previously failing Windows case. One new intermittent Windows failure
+  remains: after deliberately abandoning a cluster, `ankus test` exited **1**
+  instead of preserving the runner's **-1**. The tool returns 130 for
+  cancellation and 1 for any other exception, so its 30-second cleanup timeout
+  is excluded. Sixteen concurrent isolated repetitions on the same host pass.
+  The test now reports the tool's stderr. Stopped-server storage is now deleted
+  through `PostgresServerStorage.Delete`, which on Windows retries access and
+  sharing failures every 100ms for up to 10 seconds, as PostgreSQL's `pgunlink`
+  does. Both `ankus test` sessions and `PostgresTestCluster` use it.
+  Two concurrent complete PostgreSQL 17.11 suites, each with sixteen extra
+  repetitions of that case, did not reproduce the failure, with or without the
+  deletion change (**13,893** cases, zero failures without it). With it, the
+  other suite exposed a separate load failure: `ankus stop`'s hard-coded
+  `pg_ctl -t 60` expired during a development cluster's shutdown checkpoint after
+  ten database creations. The same case failed on Linux when three complete
+  suites shared one host. `cargo pgrx stop` passes no `-t`, so `pg_ctl` honors
+  `PGCTLTIMEOUT`; Ankus stop now does the same, keeping pg_ctl's 60-second
+  default. The integration suite sets `PGCTLTIMEOUT` to its 180-second startup
+  budget unless the caller chose one, as PostgreSQL's harness allows on slow hosts.
+  With these changes, complete Windows x64 suites for PostgreSQL **17.11** and
+  **13.23** ran concurrently on the CI host at package concurrency 20. Each
+  passed **13,883** total, **13,847** passed and **36** platform skips with zero
+  failures, in **29m54.715s** and **29m57.561s**.
+  Linux x64/PostgreSQL **18.6** passes **13,883** total, **13,833** passed and
+  **50** platform skips with zero failures in **12m52.442s**.
   Local sessions cannot run under the runners' service account, so the
   event-log branch was checked against the CI artifact, not executed locally.
 

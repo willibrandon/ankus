@@ -430,8 +430,11 @@ public sealed partial class PostgresDevelopmentCluster
         };
     }
 
+    /// <summary>
+    /// Requests a fast shutdown and waits for pg_ctl's default limit, which honors PGCTLTIMEOUT as cargo pgrx stop does.
+    /// </summary>
     private Task StopRunningAsync(CancellationToken cancellationToken)
-        => RunCheckedAsync(_installation.PgCtlPath, ["stop", "-D", DataDirectory, "-m", "fast", "-w", "-t", "60"], cancellationToken);
+        => RunCheckedAsync(_installation.PgCtlPath, ["stop", "-D", DataDirectory, "-m", "fast", "-w"], cancellationToken);
 
     private async Task RunCheckedAsync(string executable, string[] arguments, CancellationToken token, bool allowDescendants = false,
         IReadOnlyDictionary<string, string?>? environment = null)

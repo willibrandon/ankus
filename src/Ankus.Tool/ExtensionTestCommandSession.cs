@@ -58,10 +58,10 @@ internal sealed class ExtensionTestCommandSession(PostgresInstallation installat
                 }
             }
 
-            Directory.Delete(dataRoot, recursive: true);
+            PostgresServerStorage.Delete(dataRoot);
         }
 
-        Directory.Delete(DirectoryPath, recursive: true);
+        PostgresServerStorage.Delete(DirectoryPath);
     }
 
     private static (string Session, string Data) CreateDirectories(string? dataDirectoryBase)

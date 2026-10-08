@@ -1,3 +1,4 @@
+using System.Globalization;
 using Ankus.PgConfig;
 using Npgsql;
 
@@ -15,7 +16,18 @@ public sealed class NativeAotExtensionTests(TestContext context)
     /// </summary>
     /// <param name="context">The assembly context.</param>
     [AssemblyInitialize]
-    public static Task InitializeAssemblyAsync(TestContext context) => PostgresFixture.InitializeAsync(context);
+    public static Task InitializeAssemblyAsync(TestContext context)
+    {
+        // As PostgreSQL's own harness does on slow machines, give pg_ctl waits without an explicit limit the suite's
+        // startup budget, unless the caller chose one.
+        if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("PGCTLTIMEOUT")))
+        {
+            Environment.SetEnvironmentVariable("PGCTLTIMEOUT",
+                ((int)IntegrationEnvironment.StartupTimeout.TotalSeconds).ToString(CultureInfo.InvariantCulture));
+        }
+
+        return PostgresFixture.InitializeAsync(context);
+    }
 
     /// <summary>
     /// Stops the shared PostgreSQL cluster after all integration tests finish.

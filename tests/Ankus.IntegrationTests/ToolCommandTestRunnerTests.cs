@@ -345,7 +345,8 @@ public sealed partial class ToolCommandTests
             ["test", "--home", s_home, "--all", .. dataArguments, "--results-directory", reports, "--", "--filter", "FullyQualifiedName~AbandonsCluster"],
             s_environment, token, workingDirectory: output);
         Assert.AreNotEqual(0, result.ExitCode, result.StandardOutput + result.StandardError);
-        Assert.Contains(s_postgresKey + ": dotnet test exited " + result.ExitCode.ToString(CultureInfo.InvariantCulture) + ".", result.StandardOutput);
+        Assert.Contains(s_postgresKey + ": dotnet test exited " + result.ExitCode.ToString(CultureInfo.InvariantCulture) + ".", result.StandardOutput,
+            result.StandardError);
         string executionDirectory = TestCommandHostDirectory(output, "Debug");
         string dataDirectory = await File.ReadAllTextAsync(Path.Combine(executionDirectory, "abandoned-data.txt"), token);
         string session = await File.ReadAllTextAsync(Path.Combine(executionDirectory, "abandoned-session.txt"), token);

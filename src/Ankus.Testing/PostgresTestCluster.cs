@@ -481,10 +481,7 @@ public sealed class PostgresTestCluster : IAsyncDisposable
     {
         try
         {
-            if (Directory.Exists(path))
-            {
-                Directory.Delete(path, recursive: true);
-            }
+            PostgresServerStorage.Delete(path);
         }
         catch (Exception error)
         {

@@ -391,7 +391,8 @@ ankus stop --pg 18
 
 The first `start` initializes a persistent cluster under `~/.ankus/clusters/pg18`.
 Later starts reuse its databases. `stop` performs a fast shutdown and keeps the
-data. Repeating `start` or `stop` is harmless. `status` reports `running` or
+data. Like `pg_ctl`, it waits 60 seconds for the shutdown checkpoint unless
+`PGCTLTIMEOUT` sets another limit. Repeating `start` or `stop` is harmless. `status` reports `running` or
 `stopped`; it does not create a missing cluster. All three commands accept
 `--all` to select every registered major, or `--pg-config` with `--pg` to select
 an installation explicitly.
