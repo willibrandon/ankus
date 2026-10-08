@@ -205,7 +205,9 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: test-results-${{ matrix.rid }}
-          path: artifacts/ci-reports/test-results/*.trx
+          path: |
+            artifacts/ci-reports/test-results/*.trx
+            artifacts/ci-reports/test-results/process-timings.log
           if-no-files-found: ignore
           retention-days: 7
 

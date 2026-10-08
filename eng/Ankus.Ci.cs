@@ -1019,7 +1019,7 @@ static void PrepareReports(string repositoryRoot)
         SaveBuildTimings(repositoryRoot);
     }
 
-    foreach ((string directory, string pattern) in new[] { ("test-results", "*.trx"), ("test-logs", "*.log") })
+    foreach ((string directory, string pattern) in new[] { ("test-results", "*.trx"), ("test-results", "*.log"), ("test-logs", "*.log") })
     {
         string source = Path.Combine(repositoryRoot, "artifacts", directory);
         if (!Directory.Exists(source))
@@ -1044,6 +1044,14 @@ static void PrepareReports(string repositoryRoot)
 
             File.WriteAllText(Path.Combine(target, Path.GetFileName(file)), contents);
         }
+    }
+
+    // Show where the suite spent its time directly in the job log.
+    string timings = Path.Combine(destination, "test-results", "process-timings.log");
+    if (File.Exists(timings))
+    {
+        Console.WriteLine("Integration test process timings:");
+        Console.WriteLine(File.ReadAllText(timings));
     }
 }
 
