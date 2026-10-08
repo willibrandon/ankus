@@ -1,0 +1,2 @@
+comment = 'Manual and generated operators for JSON-text and packed native types, and an enum cast'
+superuser = false

@@ -53,7 +53,7 @@ public sealed class AssemblyAccessibilityTests(TestContext context)
                 [
                     "{\"Number\":-2147483648,\"Label\":null}",
                     "{\"Number\":0,\"Label\":\"\"}",
-                    "{\"Number\":2147483647,\"Label\":\"caf\\u00E9\"}",
+                    "{\"Number\":2147483647,\"Label\":\"café\"}",
                 ];
                 foreach (string expected in expectedValues)
                 {

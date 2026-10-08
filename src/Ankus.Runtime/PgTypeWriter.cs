@@ -35,7 +35,7 @@ public sealed class PgTypeWriter : IDisposable
         _destination = destination;
         if (json)
         {
-            _json = new Utf8JsonWriter(destination, new JsonWriterOptions { MaxDepth = 64 });
+            _json = new Utf8JsonWriter(destination, new JsonWriterOptions { MaxDepth = 64, Encoder = PgJsonTextEncoder.Instance });
         }
         else
         {

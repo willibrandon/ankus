@@ -1,8 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <Description>PostgreSQL operators and casts over a generated enum with Native AOT.</Description>
+    <Description>Manual and generated PostgreSQL operators for JSON-text and packed native types, and an enum cast.</Description>
     <AnkusExtensionName>ankus_operators</AnkusExtensionName>
+    <AnkusExtensionControlFile>$(MSBuildProjectDirectory)/ankus_operators.control</AnkusExtensionControlFile>
   </PropertyGroup>
 
   <Import Project="../../src/Ankus.Sdk/Ankus.Sdk.targets" />

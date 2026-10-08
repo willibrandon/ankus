@@ -36,6 +36,9 @@
     <ProjectReference Include="../../samples/Ankus.Examples.Triggers/Ankus.Examples.Triggers.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../../samples/Ankus.Examples.EventTriggers/Ankus.Examples.EventTriggers.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../../samples/Ankus.Examples.Aggregates/Ankus.Examples.Aggregates.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../samples/Ankus.Examples.GenericAggregates/Ankus.Examples.GenericAggregates.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../samples/Ankus.Examples.Schemas/Ankus.Examples.Schemas.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../samples/Ankus.Examples.CustomSql/Ankus.Examples.CustomSql.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../../samples/Ankus.Examples.Initialization/Ankus.Examples.Initialization.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../../samples/Ankus.Examples.Configuration/Ankus.Examples.Configuration.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>

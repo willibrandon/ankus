@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>Ordered custom installation SQL from strings and files around generated schemas and types.</Description>
+    <AnkusExtensionName>ankus_custom_sql</AnkusExtensionName>
+    <AnkusExtensionControlFile>$(MSBuildProjectDirectory)/ankus_custom_sql.control</AnkusExtensionControlFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AdditionalFiles Include="sql/single.sql" />
+    <AdditionalFiles Include="sql/multiple.sql" />
+    <AdditionalFiles Include="sql/finalizer.sql" />
+  </ItemGroup>
+
+  <Import Project="../../src/Ankus.Sdk/Ankus.Sdk.targets" />
+
+</Project>

@@ -1,0 +1,3 @@
+comment = 'Polymorphic aggregate demonstrating utils/datum.h'
+relocatable = false
+superuser = false

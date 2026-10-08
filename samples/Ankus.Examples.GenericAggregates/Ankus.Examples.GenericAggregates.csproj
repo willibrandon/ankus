@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>A polymorphic change-counting aggregate using PostgreSQL's datum copy and comparison bindings.</Description>
+    <AnkusExtensionName>ankus_generic_aggregates</AnkusExtensionName>
+    <AnkusExtensionControlFile>$(MSBuildProjectDirectory)/ankus_generic_aggregates.control</AnkusExtensionControlFile>
+  </PropertyGroup>
+
+  <Import Project="../../src/Ankus.Sdk/Ankus.Sdk.targets" />
+
+</Project>

@@ -57,6 +57,23 @@ arithmetic, PostgreSQL precision and scale, string parsing and exact signed
 The [datetime sample](samples/Ankus.Examples.DateTime/) demonstrates full-range
 calendar arithmetic, timezone conversion, ISO formatting and PostgreSQL clocks.
 
+The [schemas sample](samples/Ankus.Examples.Schemas/) places functions and
+types in the installation schema, an extension-owned schema, `public` and
+`pg_catalog`.
+
+The [custom SQL sample](samples/Ankus.Examples.CustomSql/) orders bootstrap,
+inline, file and final SQL blocks around generated schemas and types.
+
+The [operators sample](samples/Ankus.Examples.Operators/) declares a manual
+operator and generated equality, B-tree and hash operators for JSON-text and
+packed native types.
+
+The [composites sample](samples/Ankus.Examples.Composites/) creates, nests and
+aggregates named composite types defined by custom SQL.
+
+The [generic aggregate sample](samples/Ankus.Examples.GenericAggregates/) counts
+changes in any input type with PostgreSQL's datum copy and comparison bindings.
+
 PostgreSQL 18 and later can report the library's name and version through
 `pg_get_loaded_modules()`. See [native module identity](docs/src/content/docs/reference/build-settings.md#native-module-identity)
 for project defaults and attribute overrides.

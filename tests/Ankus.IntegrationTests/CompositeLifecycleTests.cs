@@ -20,9 +20,11 @@ public sealed class CompositeLifecycleTests(TestContext context)
                 CREATE SCHEMA composites_first;
                 CREATE SCHEMA composites_second;
                 CREATE EXTENSION ankus_composites WITH SCHEMA composites_first;
-                SELECT (composites_first.birthday(ROW('Ada',3)::composites_first.dog)).age
+                SELECT (ROW('Ada',3)::composites_first.dog OPERATOR(composites_first.+) 1).scritches
                 """, connection, transaction);
             Assert.AreEqual(4, await command.ExecuteScalarAsync(token));
+            command.CommandText = "SELECT (composites_first.create_dog('Ada',3)).scritches";
+            Assert.AreEqual(3, await command.ExecuteScalarAsync(token));
             command.CommandText = "SELECT 'composites_first.dog'::regtype::oid";
             uint originalOid = Assert.IsInstanceOfType<uint>(await command.ExecuteScalarAsync(token));
             command.CommandText = """
@@ -33,8 +35,8 @@ public sealed class CompositeLifecycleTests(TestContext context)
             Assert.AreEqual(1L, await command.ExecuteScalarAsync(token));
             command.CommandText = """
                 ALTER EXTENSION ankus_composites SET SCHEMA composites_second;
-                SELECT string_agg(name || ':' || age, ',' ORDER BY age)
-                FROM composites_second.birthdays(ROW('Ada',3)::composites_second.dog,3)
+                SELECT string_agg(name || ':' || scritches, ',' ORDER BY scritches)
+                FROM composites_second.scritch_repeatedly(ROW('Ada',3)::composites_second.dog,3)
                 """;
             Assert.AreEqual("Ada:4,Ada:5,Ada:6", await command.ExecuteScalarAsync(token));
             command.CommandText = """
@@ -42,8 +44,14 @@ public sealed class CompositeLifecycleTests(TestContext context)
                     = array_send(ARRAY[NULL,ROW('Bo',4)::composites_second.dog])
                 """;
             Assert.IsTrue(Assert.IsInstanceOfType<bool>(await command.ExecuteScalarAsync(token)));
-            command.CommandText = "SELECT name || ':' || age FROM composites_second.make_record('record',7) AS r(name text,age integer)";
+            command.CommandText =
+                "SELECT name || ':' || scritches FROM composites_second.make_record('record',7) AS r(name text,scritches integer)";
             Assert.AreEqual("record:7", await command.ExecuteScalarAsync(token));
+            command.CommandText = """
+                SELECT ((composites_second.make_friendship(composites_second.create_dog('Nami',1),
+                    ROW('Sally',2)::composites_second.cat)).dog).name
+                """;
+            Assert.AreEqual("Nami", await command.ExecuteScalarAsync(token));
             command.CommandText = """
                 DROP EXTENSION ankus_composites;
                 SELECT to_regtype('composites_second.dog') IS NULL
@@ -56,7 +64,7 @@ public sealed class CompositeLifecycleTests(TestContext context)
                 """;
             uint newOid = Assert.IsInstanceOfType<uint>(await command.ExecuteScalarAsync(token));
             Assert.AreNotEqual(originalOid, newOid);
-            command.CommandText = "SELECT (composites_first.birthday(ROW('new',11)::composites_first.dog)).age";
+            command.CommandText = "SELECT (ROW('new',11)::composites_first.dog OPERATOR(composites_first.+) 1).scritches";
             Assert.AreEqual(12, await command.ExecuteScalarAsync(token));
         }, context.CancellationToken);
 }

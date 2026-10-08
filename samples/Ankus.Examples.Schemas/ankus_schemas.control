@@ -1,0 +1,3 @@
+comment = 'Objects in the installation schema, an extension-owned schema, public and pg_catalog'
+relocatable = false
+superuser = true    # this extension creates objects in pg_catalog

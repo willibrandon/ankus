@@ -1,8 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <Description>Owned PostgreSQL composite values, arrays, and sets using dynamic heap tuples.</Description>
+    <Description>Named PostgreSQL composite types in functions, operators, aggregates, arrays and sets.</Description>
     <AnkusExtensionName>ankus_composites</AnkusExtensionName>
+    <AnkusExtensionControlFile>$(MSBuildProjectDirectory)/ankus_composites.control</AnkusExtensionControlFile>
   </PropertyGroup>
 
   <Import Project="../../src/Ankus.Sdk/Ankus.Sdk.targets" />

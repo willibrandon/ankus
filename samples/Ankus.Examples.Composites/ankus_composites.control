@@ -1,0 +1,2 @@
+comment = 'Composite types created by custom SQL, with functions, an operator and an aggregate'
+superuser = false

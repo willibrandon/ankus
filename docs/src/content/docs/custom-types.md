@@ -71,6 +71,13 @@ Member names keep their C# spelling. `[JsonPropertyName]` changes a member's key
 in both formats. `[JsonIgnore]` excludes a member; `Condition = Never` includes
 it. `[JsonStringEnumMemberName]` changes an enum's stored name.
 
+JSON text output is compact, like pgrx's `serde_json` output. It has no
+whitespace, and strings and member names escape only quotation marks,
+reverse solidus and control characters below U+0020. Those controls use `\b`,
+`\t`, `\n`, `\f` and `\r` where available, and otherwise lowercase `\u00xx`.
+Other characters, including non-ASCII text and HTML punctuation, are written
+unescaped. Input accepts any valid JSON escape.
+
 Serialized keys, enum names and string discriminators preserve their exact
 Unicode text in JSON and CBOR, including empty strings and zero characters.
 This also applies to attributes imported from another assembly and attributes
