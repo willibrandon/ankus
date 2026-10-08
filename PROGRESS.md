@@ -177,6 +177,16 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   versus **1.48s** for `initdb`, and `fsync = off` cuts a shutdown after five
   database creations from **3.10s** to **1.01s**. PostgreSQL's own TAP clusters
   use both techniques; adopting them in Ankus.Testing remains to be evaluated.
+  After the exclusions, CI **37839931438** on **038d063** completes the Windows
+  test job in **19m10s** (integration module **16m22s**), down from **24m04s**,
+  despite 94 more cases and eleven more samples. Single local Windows suites
+  finish the integration module in **15m48.712s** at package concurrency 12 and
+  **14m46.222s** at 20. At 12, a Native AOT consumer publish averages **20.4s**,
+  matching Linux's **21.0s**, so per-operation parity is reached and 20 remains
+  the Windows setting. Two overlapping Windows suites still take about 30 minutes
+  each, because they divide the same processors; the remaining lever is less
+  total compilation. CI now uploads and prints the timing summary for passing
+  runs too.
   The integration suite now writes `process-timings.log`, summarizing time per
   child-process command and cluster startup on each platform. The target is a
   Windows test job of 15–20 minutes or less.
