@@ -130,6 +130,25 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
 
 ## Active validation and work
 
+- Configuration parameters can now be defined at run time, closing the review's
+  "GUC names are compile-time only" difference from pgrx. `PgGucRegistry.DefineBool`,
+  `DefineInt`, `DefineReal`, `DefineString` and `DefineEnum`, called from
+  `[PgModuleLoad]` as pgrx calls `GucRegistry` from `_PG_init`, return a
+  `PgGucSetting<T>` reader. Definitions are persistent native records registered
+  through the same path as attribute settings, so placeholder adoption, ownership
+  checks and reload handling are shared. An identical redefinition is
+  idempotent, which keeps a retried module load harmless. A conflicting one, or
+  one reusing an attribute's name, fails with `42710`. Names follow the
+  attributes' PostgreSQL custom-name rules on every major; PostgreSQL itself
+  validates none inside `DefineCustom*Variable`. Like pgrx's plain
+  `define_*_guc`, run-time definitions have no managed hooks. The generator emits
+  the registry only when source calls `PgGucRegistry`, so other extensions'
+  native source is unchanged. Linux x64/PostgreSQL **18.6**: **4,707** generator
+  cases, **24** runtime validation cases, **1,259** build cases (9 skips) and
+  **78** configuration, module-load and runtime-definition integration cases pass.
+  Integration covers `pg_settings` metadata, SET/SET LOCAL/RESET and rollback,
+  placeholder adoption, conflicts and postmaster context. Windows and other
+  majors remain to be verified with the next complete runs.
 - Integrated three parallel milestones. Graph diagnostics: `ANKUS005` is retired.
   Its free-text cases are fixed contracts `ANKUS490`–`ANKUS514`, each reported at
   the authored value, and `ANKUS149` has a fixed message; 4,699 generator cases

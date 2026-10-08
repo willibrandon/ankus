@@ -60,7 +60,8 @@ internal static class NativeSpiBridge
             ANKUS_SPI_ARRAY,
             ANKUS_SPI_LOOKUP,
             ANKUS_SPI_RELATION,
-            ANKUS_SPI_SUBTRANSACTION
+            ANKUS_SPI_SUBTRANSACTION,
+            ANKUS_SPI_GUC_DEFINE
         };
 
         typedef struct AnkusRequest

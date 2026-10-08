@@ -275,6 +275,49 @@ and can be caught without aborting a transaction. Reads and other permitted
 backend calls remain available afterwards. Actual PostgreSQL errors during a
 read still require rollback and cannot be swallowed by an ordinary `catch`.
 
+## Run-time definitions
+
+When a name or its metadata is known only at run time, define the setting with
+`PgGucRegistry`, as a pgrx extension calls `GucRegistry` from `_PG_init`.
+Call it from a `[PgModuleLoad]` method and keep the returned reader:
+
+```csharp
+public static class Settings
+{
+    private static PgGucSetting<int>? s_limit;
+
+    [PgModuleLoad]
+    public static void Load()
+    {
+        string prefix = "my_extension";
+        s_limit = PgGucRegistry.DefineInt(prefix + ".limit", 100, "Maximum items",
+            minimum: 1, maximum: 10000, unit: PgGucUnit.Kilobytes);
+    }
+
+    [PgFunction]
+    public static int CurrentLimit() => s_limit!.Value;
+}
+```
+
+`DefineBool`, `DefineInt`, `DefineReal`, `DefineString` and `DefineEnum` accept
+the same contexts, flags and units as the attributes. `DefineEnum` takes its
+labels as `PgGucEnumOption` values, including aliases and hidden labels.
+`Value` reads PostgreSQL's current native value, with the same thread and
+callback rules as generated getters. PostgreSQL owns parsing, permissions,
+source priority, `SET`, `RESET`, transaction restoration and placeholder
+adoption, exactly as for attribute-declared settings.
+
+Names follow the same dotted rules as the attributes; an invalid name or
+metadata throws an `ArgumentException` before PostgreSQL is called. Defining a
+setting again with identical metadata returns another reader, so a retried
+`PgModuleLoad` is harmless. A different definition with the same name, or a name
+declared by an attribute, fails with SQLSTATE `42710`. A `Postmaster` setting
+can be defined only while `shared_preload_libraries` is processed.
+
+Run-time definitions have no managed hooks, like pgrx's plain `define_*_guc`
+functions. Prefer the attributes for names known at compile time: they add
+compile-time validation, typed C# enums and check, assign and show hooks.
+
 ## Parallel queries
 
 PostgreSQL restores configuration in each parallel worker. Managed state starts

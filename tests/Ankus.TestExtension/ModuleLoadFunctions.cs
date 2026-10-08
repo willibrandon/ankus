@@ -14,11 +14,13 @@ public static partial class ModuleLoadFunctions
     public static partial string Mode { get; }
 
     /// <summary>
-    /// In <c>unguarded-hook</c> mode, installs the utility hook without an installation check and fails the first attempt.
+    /// Defines the run-time configuration probes, then in <c>unguarded-hook</c> mode installs the utility hook without
+    /// an installation check and fails the first attempt, so a retry also repeats the run-time definitions.
     /// </summary>
     [PgModuleLoad]
     public static void Register()
     {
+        RuntimeGucFunctions.DefineAtLoad();
         if (Mode != "unguarded-hook")
         {
             return;

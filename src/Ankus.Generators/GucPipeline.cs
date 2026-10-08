@@ -31,6 +31,33 @@ internal static class GucPipeline
     }
 
     /// <summary>
+    /// Detects calls that define configuration parameters at run time, which require the native registry.
+    /// </summary>
+    /// <param name="context">The generator registration context.</param>
+    /// <returns>Whether any source calls a <c>PgGucRegistry.Define</c> method.</returns>
+    internal static IncrementalValueProvider<bool> RegisterRuntimeUse(IncrementalGeneratorInitializationContext context)
+        => context.SyntaxProvider.CreateSyntaxProvider(
+                static (node, _) => node is InvocationExpressionSyntax invocation && IsRuntimeDefinitionName(invocation.Expression),
+                static (syntax, cancellationToken) => syntax.SemanticModel.GetSymbolInfo(syntax.Node, cancellationToken).Symbol is IMethodSymbol
+                {
+                    ContainingType: { Name: "PgGucRegistry", ContainingNamespace: { Name: "Ankus", ContainingNamespace.IsGlobalNamespace: true } },
+                })
+            .Where(static used => used)
+            .Collect()
+            .Select(static (uses, _) => !uses.IsEmpty)
+            .WithTrackingName("GucRuntimeUse");
+
+    /// <summary>
+    /// Accepts qualified, aliased and statically imported definition calls before semantic confirmation.
+    /// </summary>
+    private static bool IsRuntimeDefinitionName(ExpressionSyntax expression) => expression switch
+    {
+        MemberAccessExpressionSyntax access => access.Name.Identifier.ValueText.StartsWith("Define", StringComparison.Ordinal),
+        SimpleNameSyntax name => name.Identifier.ValueText.StartsWith("Define", StringComparison.Ordinal),
+        _ => false,
+    };
+
+    /// <summary>
     /// Validates one setting while compiler objects remain confined to this transient operation.
     /// </summary>
     private static Analysis? Analyze(GeneratorAttributeSyntaxContext syntax, CancellationToken cancellationToken)
@@ -129,5 +156,7 @@ internal static class GucPipeline
     /// </summary>
     /// <param name="Callbacks">The detached native callback declarations and cached fragments.</param>
     /// <param name="Settings">The detached configuration declarations.</param>
-    internal sealed record PropertyInputs(EquatableArray<NativeCallbackPipeline.Output> Callbacks, EquatableArray<Output> Settings);
+    /// <param name="RuntimeSettings">Whether source code defines configuration parameters at run time.</param>
+    internal sealed record PropertyInputs(EquatableArray<NativeCallbackPipeline.Output> Callbacks, EquatableArray<Output> Settings,
+        bool RuntimeSettings);
 }

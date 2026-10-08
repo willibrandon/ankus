@@ -143,8 +143,11 @@ public static partial class Settings
 ```
 
 Check, assign and show hooks are ordinary named methods selected by the
-attribute. Their phase and SQL-access restrictions still apply. See
-[configuration settings](/configuration/).
+attribute. Their phase and SQL-access restrictions still apply. When a name is
+computed at run time, as with `GucRegistry::define_int_guc` in `_PG_init`, call
+`PgGucRegistry.DefineInt` and its siblings from a `[PgModuleLoad]` method and read
+the returned `PgGucSetting<T>`. See
+[configuration settings](/configuration/#run-time-definitions).
 
 ## Extension workflow
 

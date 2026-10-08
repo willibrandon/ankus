@@ -188,4 +188,9 @@ internal enum SpiOperation : byte
     /// Runs a synchronous managed callback inside an explicitly requested recovery boundary.
     /// </summary>
     Subtransaction,
+
+    /// <summary>
+    /// Defines a configuration parameter whose name and metadata are supplied at run time.
+    /// </summary>
+    GucDefine,
 }

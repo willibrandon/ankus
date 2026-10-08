@@ -410,11 +410,253 @@ internal static class NativeGucBridge
         """;
 
     /// <summary>
+    /// Gets persistent storage and registration for configuration parameters defined at run time.
+    /// </summary>
+    /// <remarks>
+    /// Emitted after <see cref="Registration"/> and before the read source, which searches these definitions
+    /// after the generated ones. Definitions live for the process, like PostgreSQL's own configuration records.
+    /// </remarks>
+    internal const string RuntimeDefinitions = """
+        #define ANKUS_GUC_RUNTIME 1
+
+        static bool ankus_guc_name_equal(const char *, const char *);
+        static int ankus_guc_define_runtime(const char *, intptr_t, AnkusError *);
+
+        typedef struct AnkusGucDefinitionRequest
+        {
+            const char *short_utf8;
+            const char *long_utf8;
+            const char *boot_string;
+            const char *const *option_names;
+            const int *option_values;
+            const uint8 *option_hidden;
+            double boot_real;
+            double minimum_real;
+            double maximum_real;
+            int boot_integer;
+            int minimum_integer;
+            int maximum_integer;
+            int option_count;
+            int kind;
+            int context;
+            int unit;
+            unsigned int flags;
+            uint8 boot_boolean;
+            uint8 boot_null;
+        } AnkusGucDefinitionRequest;
+
+        typedef struct AnkusRuntimeGuc
+        {
+            AnkusGuc definition;
+            struct AnkusRuntimeGuc *next;
+        } AnkusRuntimeGuc;
+
+        static AnkusRuntimeGuc *ankus_guc_runtime = NULL;
+
+        static char *
+        ankus_guc_runtime_text(const char *utf8)
+        {
+            if (utf8 == NULL)
+                return NULL;
+            Size length = strlen(utf8) + 1;
+            char *copy = ankus_guc_allocate(length);
+            memcpy(copy, utf8, length);
+            return copy;
+        }
+
+        static bool
+        ankus_guc_runtime_text_equal(const char *left, const char *right)
+        {
+            return left == NULL ? right == NULL : right != NULL && strcmp(left, right) == 0;
+        }
+
+        static AnkusGuc *
+        ankus_guc_runtime_find(const char *name)
+        {
+            for (AnkusRuntimeGuc *current = ankus_guc_runtime; current != NULL; current = current->next)
+            {
+                if (ankus_guc_name_equal(current->definition.name_utf8, name))
+                    return &current->definition;
+            }
+
+            return NULL;
+        }
+
+        /* A repeated definition, such as one from a retried module load, must describe the same parameter. */
+        static bool
+        ankus_guc_runtime_same(const AnkusGuc *existing, const AnkusGucDefinitionRequest *input)
+        {
+            if (existing->kind != input->kind || existing->context != input->context || existing->flags != input->flags ||
+                existing->unit != input->unit || !ankus_guc_runtime_text_equal(existing->short_utf8, input->short_utf8) ||
+                !ankus_guc_runtime_text_equal(existing->long_utf8, input->long_utf8))
+                return false;
+            switch (input->kind)
+            {
+                case 0: return existing->boot.boolean == (input->boot_boolean != 0);
+                case 1: return existing->boot.integer == input->boot_integer &&
+                    existing->minimum.integer == input->minimum_integer && existing->maximum.integer == input->maximum_integer;
+                case 2: return memcmp(&existing->boot.real, &input->boot_real, sizeof(double)) == 0 &&
+                    memcmp(&existing->minimum.real, &input->minimum_real, sizeof(double)) == 0 &&
+                    memcmp(&existing->maximum.real, &input->maximum_real, sizeof(double)) == 0;
+                case 3: return ankus_guc_runtime_text_equal(existing->boot.string, input->boot_null ? NULL : input->boot_string);
+                case 4:
+                {
+                    if (existing->boot.integer != input->boot_integer)
+                        return false;
+                    int count = 0;
+                    while (existing->options_utf8[count].name != NULL)
+                        count++;
+                    if (count != input->option_count)
+                        return false;
+                    for (int index = 0; index < count; index++)
+                    {
+                        if (strcmp(existing->options_utf8[index].name, input->option_names[index]) != 0 ||
+                            existing->options_utf8[index].val != input->option_values[index] ||
+                            existing->options_utf8[index].hidden != (input->option_hidden[index] != 0))
+                            return false;
+                    }
+
+                    return true;
+                }
+                default: return false;
+            }
+        }
+
+        static void
+        ankus_guc_define_runtime_core(const char *name, const AnkusGucDefinitionRequest *input)
+        {
+            for (int index = 0; index < ankus_guc_count; index++)
+            {
+                if (ankus_guc_name_equal(ankus_guc_definitions[index]->name_utf8, name))
+                    ereport(ERROR, (errcode(ERRCODE_DUPLICATE_OBJECT),
+                        errmsg("configuration parameter \"%s\" is already declared by a PgGuc attribute", name)));
+            }
+
+            AnkusGuc *existing = ankus_guc_runtime_find(name);
+            if (existing != NULL)
+            {
+                if (!ankus_guc_runtime_same(existing, input))
+                    ereport(ERROR, (errcode(ERRCODE_DUPLICATE_OBJECT),
+                        errmsg("configuration parameter \"%s\" is already defined with different properties", name)));
+                ankus_guc_register(existing);
+                return;
+            }
+
+            AnkusRuntimeGuc *runtime = ankus_guc_allocate(sizeof(AnkusRuntimeGuc));
+            memset(runtime, 0, sizeof(AnkusRuntimeGuc));
+            AnkusGuc *definition = &runtime->definition;
+            definition->name_utf8 = ankus_guc_runtime_text(name);
+            definition->short_utf8 = ankus_guc_runtime_text(input->short_utf8);
+            definition->long_utf8 = ankus_guc_runtime_text(input->long_utf8);
+            definition->kind = input->kind;
+            definition->context = input->context;
+            definition->flags = input->flags;
+            definition->unit = input->unit;
+            switch (input->kind)
+            {
+                case 0:
+                    definition->variable = ankus_guc_allocate(sizeof(bool));
+                    definition->boot.boolean = input->boot_boolean != 0;
+                    *((bool *) definition->variable) = definition->boot.boolean;
+                    break;
+                case 1:
+                    definition->variable = ankus_guc_allocate(sizeof(int));
+                    definition->boot.integer = input->boot_integer;
+                    definition->minimum.integer = input->minimum_integer;
+                    definition->maximum.integer = input->maximum_integer;
+                    *((int *) definition->variable) = definition->boot.integer;
+                    break;
+                case 2:
+                    definition->variable = ankus_guc_allocate(sizeof(double));
+                    definition->boot.real = input->boot_real;
+                    definition->minimum.real = input->minimum_real;
+                    definition->maximum.real = input->maximum_real;
+                    *((double *) definition->variable) = definition->boot.real;
+                    break;
+                case 3:
+                    definition->variable = ankus_guc_allocate(sizeof(char *));
+                    *((char **) definition->variable) = NULL;
+                    definition->boot.string = input->boot_null ? NULL : ankus_guc_runtime_text(input->boot_string);
+                    break;
+                case 4:
+                {
+                    definition->variable = ankus_guc_allocate(sizeof(int));
+                    definition->boot.integer = input->boot_integer;
+                    *((int *) definition->variable) = definition->boot.integer;
+                    struct config_enum_entry *options =
+                        ankus_guc_allocate(sizeof(struct config_enum_entry) * (Size) (input->option_count + 1));
+                    memset(options, 0, sizeof(struct config_enum_entry) * (Size) (input->option_count + 1));
+                    for (int index = 0; index < input->option_count; index++)
+                    {
+                        options[index].name = ankus_guc_runtime_text(input->option_names[index]);
+                        options[index].val = input->option_values[index];
+                        options[index].hidden = input->option_hidden[index] != 0;
+                    }
+
+                    definition->options_utf8 = options;
+                    break;
+                }
+                default: elog(ERROR, "invalid Ankus configuration kind");
+            }
+
+            /* Link before registering: PostgreSQL may retain the storage even if registration then
+             * fails, and an identical retry must reuse it rather than define a second owner. */
+            runtime->next = ankus_guc_runtime;
+            ankus_guc_runtime = runtime;
+            ankus_guc_register(definition);
+        }
+        """;
+
+    /// <summary>
+    /// Gets the guarded entry point for run-time definitions, emitted after the read source's error capture.
+    /// </summary>
+    internal const string RuntimeDefinitionEntry = """
+        static int
+        ankus_guc_define_runtime(const char *name, intptr_t request, AnkusError *error)
+        {
+            if (ankus_recovery_failed(error))
+                return 1;
+
+            MemoryContext caller = CurrentMemoryContext;
+            volatile int status = 0;
+            PG_TRY();
+            {
+                PG_TRY();
+                {
+                    ankus_guc_define_runtime_core(name, (const AnkusGucDefinitionRequest *) request);
+                }
+                PG_CATCH();
+                {
+                    MemoryContextSwitchTo(caller);
+                    ErrorData *data = ankus_copy_error_data();
+                    FlushErrorState();
+                    ankus_guc_capture_error(data, error);
+                    ankus_recovery_record(error, false);
+                    ankus_free_error_data(data);
+                    status = 1;
+                }
+                PG_END_TRY();
+            }
+            PG_CATCH();
+            {
+                MemoryContextSwitchTo(caller);
+                FlushErrorState();
+                ereport(FATAL, (errmsg("Unable to recover an Ankus configuration definition failure")));
+            }
+            PG_END_TRY();
+            MemoryContextSwitchTo(caller);
+            return status;
+        }
+        """;
+
+    /// <summary>
     /// Gets the optional fast read binding included in every full native backend bridge.
     /// </summary>
     internal const string ReadBinding = """
         typedef int (*AnkusGucReadBinding)(const char *, int, AnkusValue *, AnkusError *);
         static AnkusGucReadBinding ankus_read_guc = NULL;
+        typedef int (*AnkusGucDefineBinding)(const char *, intptr_t, AnkusError *);
+        static AnkusGucDefineBinding ankus_define_guc = NULL;
         """;
 
     /// <summary>
@@ -639,6 +881,19 @@ internal static class NativeGucBridge
                     break;
                 }
             }
+
+        #ifdef ANKUS_GUC_RUNTIME
+            if (definition == NULL)
+            {
+                definition = ankus_guc_runtime_find(name);
+                if (definition != NULL && !definition->installed)
+                {
+                    error->sqlstate = ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE;
+                    strlcpy(error->message, "The run-time configuration parameter was not registered", sizeof(error->message));
+                    return 1;
+                }
+            }
+        #endif
 
             if (definition == NULL)
             {

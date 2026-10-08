@@ -502,6 +502,35 @@ public static unsafe partial class NativeBackend
     }
 
     /// <summary>
+    /// Defines and registers a configuration parameter whose name and metadata are supplied at run time.
+    /// </summary>
+    /// <param name="name">The terminated UTF-8 qualified name.</param>
+    /// <param name="definition">The definition, whose text remains valid for the call.</param>
+    internal static void DefineGuc(byte[] name, NativeGucDefinition* definition)
+    {
+        CheckAccess();
+        NativeSpiResult result = default;
+        try
+        {
+            fixed (byte* text = name)
+            {
+                var request = new NativeSpiRequest
+                {
+                    _operation = SpiOperation.GucDefine,
+                    _command = text,
+                    _commandLength = name.Length - 1,
+                    _callback = (nint)definition,
+                };
+                Invoke(&request, &result);
+            }
+        }
+        finally
+        {
+            ReleaseResult(&result);
+        }
+    }
+
+    /// <summary>
     /// Reads generated configuration backing storage without issuing SQL or opening a subtransaction.
     /// The caller receives ownership of the scalar transport and must release it after copying.
     /// </summary>

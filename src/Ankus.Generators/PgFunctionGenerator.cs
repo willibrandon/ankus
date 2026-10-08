@@ -107,8 +107,8 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             .Select(static (input, _) => input.Left.Left.AddRange(input.Left.Right).AddRange(input.Right));
         IncrementalValueProvider<EquatableArray<SqlReferenceModel>> references = SqlReferencePipeline.Register(context, referenceDeclarations);
         IncrementalValueProvider<GucPipeline.PropertyInputs> propertyInputs = NativeCallbackPipeline.Register(context)
-            .Combine(GucPipeline.Register(context))
-            .Select(static (value, _) => new GucPipeline.PropertyInputs(value.Left, value.Right));
+            .Combine(GucPipeline.Register(context)).Combine(GucPipeline.RegisterRuntimeUse(context))
+            .Select(static (value, _) => new GucPipeline.PropertyInputs(value.Left.Left, value.Left.Right, value.Right));
         IncrementalValueProvider<EquatableArray<SqlProviderModel>> providers = SqlProviderPipeline.Register(context);
         IncrementalValueProvider<GucPrefixPipeline.Output> prefixes = GucPrefixPipeline.Register(context);
         IncrementalValueProvider<(string Directory, bool IncludeTests, bool IncludeBenchmarks, string? Version)> projectDirectory =
@@ -258,7 +258,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         ILookup<DeclarationIdentity, TriggerPipeline.TriggerOutput> triggerModels = methodInputs.Triggers.ToLookup(static value => value.Analysis.Identity);
         ILookup<DeclarationIdentity, OperatorCastPipeline.Output> operatorModels = methodInputs.OperatorCasts.ToLookup(static value => value.Analysis.Identity);
         bool referencedCallbacks = nativeCompilation.Analysis.ReferencedCallbacks;
-        if (!referencedCallbacks && !module.Declared && references.IsEmpty && methods.IsEmpty && methodInputs.Workers.IsEmpty && methodInputs.Lifecycle.IsEmpty && schemaTypes.IsEmpty && providers.IsEmpty && customBlocks.IsEmpty && enumTypes.IsEmpty && aggregateOutputs.IsEmpty && propertyInputs.Callbacks.IsEmpty && propertyInputs.Settings.IsEmpty && !prefixOutput.Analysis.Declared && customTypes.IsEmpty && !mappingOutput.Analysis.Declared)
+        if (!referencedCallbacks && !module.Declared && references.IsEmpty && methods.IsEmpty && methodInputs.Workers.IsEmpty && methodInputs.Lifecycle.IsEmpty && schemaTypes.IsEmpty && providers.IsEmpty && customBlocks.IsEmpty && enumTypes.IsEmpty && aggregateOutputs.IsEmpty && propertyInputs.Callbacks.IsEmpty && propertyInputs.Settings.IsEmpty && !propertyInputs.RuntimeSettings && !prefixOutput.Analysis.Declared && customTypes.IsEmpty && !mappingOutput.Analysis.Declared)
         {
             return;
         }
@@ -353,6 +353,8 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         bool hasFunctionCallbacks = !methodInputs.Lifecycle.IsEmpty || hasWorkers || hasNativeCallbacks || !methods.IsEmpty ||
             benchmarks.Count != 0 || !aggregateOutputs.IsEmpty || !customTypes.IsEmpty || !selectedDerivedTypes.IsEmpty;
         bool hasBackend = hasFunctionCallbacks || hasGucCheck;
+        // Run-time definitions arrive through the guarded backend, so they need managed callers.
+        bool hasRuntimeGucs = propertyInputs.RuntimeSettings && hasBackend;
         bool hasDispatchers = hasFunctionCallbacks || hasGucHooks;
         var aggregateMethods = new HashSet<DeclarationIdentity>(aggregateOutputs.SelectMany(static value => value.Analysis.Selected));
         bool hasMemoryFunctionCallbacks = !methodInputs.Lifecycle.IsEmpty || hasWorkers || hasNativeCallbacks || hasGucHooks ||
@@ -451,7 +453,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             }
         }
 
-        if (gucs.Count != 0)
+        if (gucs.Count != 0 || hasRuntimeGucs)
         {
             native.AppendLine("#include <math.h>");
             if (hasGucHooks && !hasBackend)
@@ -468,7 +470,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             native.AppendLine(NativeGucBridge.Declarations);
             native.AppendLine(NativeGucBridge.Registration);
 
-            if (hasDispatchers)
+            if (hasDispatchers || hasRuntimeGucs)
             {
                 native.AppendLine(NativeGucBridge.GetManagedDeclarations(hasGucCheck, hasGucHooks, hasGucShow));
             }
@@ -709,7 +711,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         }
 
         var registration = new StringBuilder();
-        if (gucs.Count != 0)
+        if (gucs.Count != 0 || hasRuntimeGucs)
         {
             var definitions = new List<string>();
             foreach (GucPipeline.Output guc in gucOutputs)
@@ -722,17 +724,34 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                 registration.AppendLine($"        ankus_guc_register(&{symbol});");
             }
 
-            if (hasDispatchers)
+            if (hasDispatchers || hasRuntimeGucs)
             {
-                native.AppendLine("static AnkusGuc *ankus_guc_definitions[] = { " + string.Join(", ", definitions.Select(static symbol => "&" + symbol)) + " };");
+                // C before C23 has no empty initializers; a run-time-only registry keeps one unused slot.
+                native.AppendLine(definitions.Count == 0
+                    ? "static AnkusGuc *ankus_guc_definitions[1] = { NULL };"
+                    : "static AnkusGuc *ankus_guc_definitions[] = { " + string.Join(", ", definitions.Select(static symbol => "&" + symbol)) + " };");
                 native.AppendLine($"static const int ankus_guc_count = {definitions.Count};");
+                if (hasRuntimeGucs)
+                {
+                    native.AppendLine(NativeGucBridge.RuntimeDefinitions);
+                }
+
                 native.AppendLine(NativeGucBridge.GetManagedSource(hasGucCheck, hasGucHooks, hasGucShow));
+                if (hasRuntimeGucs)
+                {
+                    native.AppendLine(NativeGucBridge.RuntimeDefinitionEntry);
+                }
+
                 registration.Insert(0, (hasBackend ? "        ankus_read_guc = ankus_guc_read;\n" : string.Empty) +
+                    (hasRuntimeGucs ? "        ankus_define_guc = ankus_guc_define_runtime;\n" : string.Empty) +
                     "        ankus_guc_prepare_encoding();\n");
             }
 
-            context.AddSource("GucProperties.g.cs", "// <auto-generated />\n#nullable enable\n" +
-                string.Concat(gucOutputs.Select(static output => output.Emission!.Property)));
+            if (gucs.Count != 0)
+            {
+                context.AddSource("GucProperties.g.cs", "// <auto-generated />\n#nullable enable\n" +
+                    string.Concat(gucOutputs.Select(static output => output.Emission!.Property)));
+            }
         }
 
         native.Append(prefixOutput.Emission.Native);

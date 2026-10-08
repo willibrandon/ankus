@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace Ankus.CompilerServices;
@@ -213,6 +214,27 @@ public static unsafe class NativeGuc
         }
 
         return value;
+    }
+
+    /// <summary>
+    /// Copies optional text to terminated UTF-8 in native memory for a definition request.
+    /// </summary>
+    /// <param name="value">The text, or null.</param>
+    /// <param name="parameterName">The argument reported when the text is invalid.</param>
+    /// <returns>The native copy to free with <see cref="NativeMemory.Free(void*)"/>, or null.</returns>
+    internal static byte* AllocateText(string? value, string parameterName)
+    {
+        string? validated = ValidateText(value, parameterName);
+        if (validated is null)
+        {
+            return null;
+        }
+
+        int length = s_utf8.GetByteCount(validated);
+        byte* text = (byte*)NativeMemory.Alloc((nuint)length + 1);
+        s_utf8.GetBytes(validated, new Span<byte>(text, length));
+        text[length] = 0;
+        return text;
     }
 
     /// <summary>
