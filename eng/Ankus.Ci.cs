@@ -759,6 +759,9 @@ static void ConfigureWindowsToolchain()
         }
     }
 
+    // Reuse this exact developer environment in every child Native AOT build.
+    // Otherwise the SDK runs vcvarsall again for each project instance.
+    WriteEnvironment("IlcUseEnvironmentalTools", "true");
     Console.WriteLine($"Selected MSVC {Environment.GetEnvironmentVariable("VCToolsVersion")} for x64.");
 }
 

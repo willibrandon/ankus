@@ -85,9 +85,10 @@ internal static class NativeBindingSourceCache
                 await File.WriteAllTextAsync(Path.Combine(stage, Artifacts[3]), binding.AssemblyName + "\n", token);
                 await File.WriteAllTextAsync(Path.Combine(stage, Artifacts[4]), binding.AbiIdentity + "\n", token);
                 await VerifyObservationAsync(token);
-                // The generator's current bytes are part of the key and verified again above.
-                // Keeping its former package location here would invalidate an otherwise shared entry.
-                return nativeTools;
+                // Every tool's current bytes are bound into the key and verified again
+                // before publishing or consuming the artifacts. Recording them as additional
+                // dependencies would repeat the same reads while holding the shared entry lock.
+                return [];
             }, cancellationToken))
             {
                 // Keep the shared entry stable only until its artifacts have been copied.

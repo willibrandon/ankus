@@ -55,18 +55,24 @@ public sealed class NativeBindingHeaderCommandTests(TestContext context)
     /// The byte bound preserves every accepted byte across empty, interior and buffer-boundary inputs.
     /// </summary>
     /// <param name="count">The exact accepted input extent.</param>
+    /// <param name="cancelable">Whether the stream needs asynchronous cancellation support.</param>
     [TestMethod]
-    [DataRow(0)]
-    [DataRow(1)]
-    [DataRow(65535)]
-    [DataRow(65536)]
-    [DataRow(65537)]
-    public async Task BoundedCompilerOutputPreservesExactBytes(int count)
+    [DataRow(0, false)]
+    [DataRow(0, true)]
+    [DataRow(1, false)]
+    [DataRow(1, true)]
+    [DataRow(65535, false)]
+    [DataRow(65535, true)]
+    [DataRow(65536, false)]
+    [DataRow(65536, true)]
+    [DataRow(65537, false)]
+    [DataRow(65537, true)]
+    public async Task BoundedCompilerOutputPreservesExactBytes(int count, bool cancelable)
     {
         byte[] bytes = [.. Enumerable.Range(0, count).Select(static value => unchecked((byte)(value * 31 + 7)))];
         using var source = new MemoryStream(bytes);
         using var destination = new MemoryStream();
-        await NativeBindingHeaderCommand.CopyAsync(source, destination, count, context.CancellationToken);
+        await NativeBindingHeaderCommand.CopyAsync(source, destination, count, cancelable ? context.CancellationToken : CancellationToken.None);
         Assert.AreSequenceEqual(bytes, destination.ToArray());
     }
 
@@ -74,16 +80,21 @@ public sealed class NativeBindingHeaderCommandTests(TestContext context)
     /// An overrun is an explicit failure and cannot write beyond the allowed output extent.
     /// </summary>
     /// <param name="limit">The maximum accepted extent.</param>
+    /// <param name="cancelable">Whether the stream needs asynchronous cancellation support.</param>
     [TestMethod]
-    [DataRow(0)]
-    [DataRow(1)]
-    [DataRow(65536)]
-    public async Task CompilerOutputOverrunsFailExplicitly(int limit)
+    [DataRow(0, false)]
+    [DataRow(0, true)]
+    [DataRow(1, false)]
+    [DataRow(1, true)]
+    [DataRow(65536, false)]
+    [DataRow(65536, true)]
+    public async Task CompilerOutputOverrunsFailExplicitly(int limit, bool cancelable)
     {
         byte[] bytes = [.. Enumerable.Range(0, limit + 1).Select(static value => unchecked((byte)(value * 17)))];
         using var source = new MemoryStream(bytes);
         using var destination = new MemoryStream();
-        await Assert.ThrowsExactlyAsync<InvalidDataException>(() => NativeBindingHeaderCommand.CopyAsync(source, destination, limit, context.CancellationToken));
+        await Assert.ThrowsExactlyAsync<InvalidDataException>(() => NativeBindingHeaderCommand.CopyAsync(
+            source, destination, limit, cancelable ? context.CancellationToken : CancellationToken.None));
         Assert.IsLessThanOrEqualTo(limit, destination.Length);
         Assert.AreSequenceEqual(bytes.Take((int)destination.Length), destination.ToArray());
     }

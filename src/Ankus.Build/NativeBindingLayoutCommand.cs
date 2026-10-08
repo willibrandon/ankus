@@ -209,12 +209,15 @@ internal static class NativeBindingLayoutCommand
             start.ArgumentList.Add(argument);
         }
 
+        Task<string> output = Task.FromResult(string.Empty);
+        Task<string> errors = Task.FromResult(string.Empty);
         using Process process = Process.Start(start) ?? throw new InvalidOperationException($"Cannot start {program}.");
-        Task<string> output = process.StandardOutput.ReadToEndAsync(cancellationToken);
-        Task<string> errors = process.StandardError.ReadToEndAsync(cancellationToken);
         try
         {
+            output = ReadProcessOutputAsync(process.StandardOutput, cancellationToken);
+            errors = ReadProcessOutputAsync(process.StandardError, cancellationToken);
             await process.WaitForExitAsync(cancellationToken);
+            await Task.WhenAll(output, errors);
         }
         catch
         {
@@ -224,16 +227,7 @@ internal static class NativeBindingLayoutCommand
             }
 
             await process.WaitForExitAsync(CancellationToken.None);
-            try
-            {
-                await Task.WhenAll(output, errors);
-            }
-            catch (OperationCanceledException)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                throw;
-            }
-
+            await Task.WhenAll((Task)output, errors).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
             throw;
         }
 
@@ -246,4 +240,15 @@ internal static class NativeBindingLayoutCommand
 
         return standardOutput;
     }
+
+    /// <summary>
+    /// Drains synchronous Windows pipes without occupying thread-pool workers when no read cancellation is required.
+    /// </summary>
+    /// <param name="reader">The redirected stream owned by the caller's child process.</param>
+    /// <param name="cancellationToken">Cancels a read through the stream's asynchronous implementation.</param>
+    /// <returns>The complete redirected text; the caller must join the reader before disposing its process.</returns>
+    internal static Task<string> ReadProcessOutputAsync(StreamReader reader, CancellationToken cancellationToken)
+        => OperatingSystem.IsWindows() && !cancellationToken.CanBeCanceled
+            ? Task.Factory.StartNew(reader.ReadToEnd, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default)
+            : reader.ReadToEndAsync(cancellationToken);
 }

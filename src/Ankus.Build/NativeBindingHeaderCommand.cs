@@ -194,12 +194,15 @@ internal static class NativeBindingHeaderCommand
 
         cancellationToken.ThrowIfCancellationRequested();
         await using FileStream output = File.Create(ast);
+        Task copy = Task.CompletedTask;
+        Task<string> errors = Task.FromResult(string.Empty);
+        Task exit = Task.CompletedTask;
         using Process process = Process.Start(start) ?? throw new InvalidOperationException($"Cannot start {compiler}.");
-        Task copy = CopyAsync(process.StandardOutput.BaseStream, output, 512 * 1024 * 1024, cancellationToken);
-        Task<string> errors = process.StandardError.ReadToEndAsync(cancellationToken);
-        Task exit = process.WaitForExitAsync(cancellationToken);
         try
         {
+            copy = CopyAsync(process.StandardOutput.BaseStream, output, 512 * 1024 * 1024, cancellationToken);
+            errors = NativeBindingLayoutCommand.ReadProcessOutputAsync(process.StandardError, cancellationToken);
+            exit = process.WaitForExitAsync(cancellationToken);
             await Task.WhenAny(copy, exit);
             if (copy.IsCompleted)
             {
@@ -244,6 +247,15 @@ internal static class NativeBindingHeaderCommand
     internal static async Task CopyAsync(Stream source, Stream destination, int maximumBytes, CancellationToken cancellationToken)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(maximumBytes);
+        if (OperatingSystem.IsWindows() && !cancellationToken.CanBeCanceled)
+        {
+            // Anonymous Windows process pipes perform blocking reads. Give a non-cancellable
+            // drain its own reader so an idle stderr pipe cannot starve compiler stdout.
+            await Task.Factory.StartNew(() => CopySynchronous(source, destination, maximumBytes),
+                CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+            return;
+        }
+
         byte[] buffer = new byte[64 * 1024];
         long total = 0;
         int count;
@@ -256,6 +268,26 @@ internal static class NativeBindingHeaderCommand
             }
 
             await destination.WriteAsync(buffer.AsMemory(0, count), cancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// Drains a synchronous pipe on its dedicated reader while preserving the compiler output bound.
+    /// </summary>
+    private static void CopySynchronous(Stream source, Stream destination, int maximumBytes)
+    {
+        byte[] buffer = new byte[64 * 1024];
+        long total = 0;
+        int count;
+        while ((count = source.Read(buffer)) != 0)
+        {
+            total += count;
+            if (total > maximumBytes)
+            {
+                throw new InvalidDataException("Native compiler AST exceeds the supported byte limit.");
+            }
+
+            destination.Write(buffer.AsSpan(0, count));
         }
     }
 }

@@ -1,4 +1,13 @@
 <Project>
+  <Target Name="_SelectAnkusWindowsEnvironment" AfterTargets="SetupOSSpecificProps"
+          Condition="'$(_targetOS)' == 'win' and '$(IlcUseEnvironmentalTools)' == 'true'">
+    <!-- Native AOT uses PATH and LIB from the configured developer environment.
+         Carry those same library roots into Ankus's header and ABI checks. -->
+    <ItemGroup>
+      <AdditionalNativeLibraryDirectories Include="$(LIB)" />
+    </ItemGroup>
+  </Target>
+
   <Target Name="_SelectAnkusNativeLibrarySuffix" BeforeTargets="SetupOSSpecificProps"
           DependsOnTargets="ImportRuntimeIlcPackageTarget;_ResolveAnkusPostgresSelection" Condition="'$(PublishAot)' == 'true'">
     <!-- PostgreSQL on macOS used .so before PostgreSQL 16. Select the backend's

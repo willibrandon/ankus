@@ -207,7 +207,9 @@ Unix tools after the system tool directories. The `windows-toolchain` command
 requires Visual Studio 2022 17.9 or later and queries `vswhere` for the C++
 component, preventing unrelated products such as SQL Server Management Studio
 from winning discovery. Its developer environment puts the selected MSVC
-compiler and linker first.
+compiler and linker first. It exports `IlcUseEnvironmentalTools=true` so child
+Native AOT builds reuse that selection without repeating `vcvarsall`. The Ankus
+SDK also carries its `LIB` roots into header verification and native compilation.
 
 The dedicated runner keeps its SDK installation, NuGet packages, temporary
 files and work directory under its own storage root. Configure

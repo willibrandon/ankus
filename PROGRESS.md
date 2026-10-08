@@ -130,6 +130,34 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
 
 ## Active validation and work
 
+- Windows native-tool helpers with a one-processor build budget spent time
+  waiting for thread-pool workers blocked on synchronous redirected pipes.
+  Dedicated readers for non-cancellable Windows pipes reduce a measured warm
+  binding-source command from **5.319–5.546s** to **3.749–3.891s**, retaining
+  the same compiler checks and byte-identical generated sources. Cancellation,
+  bounded output and child cleanup remain enforced. CI also reuses its selected
+  Visual Studio environment; native-source caching removes a redundant tool
+  content read under the entry lock while retaining key and final-observation
+  verification. Hashing uses buffered asynchronous sequential reads.
+  Windows/PostgreSQL **17.11**, SDK **10.0.401**, retains twenty package slots:
+  the earlier eight-slot composition passed but took **27m55.990s**, versus
+  **22m43s** in primary CI. Sharing the selection pool and selecting the toolchain
+  once passes **13,486** tests with **36** platform skips in **21m04.173s**.
+  The pipe/cache composition passes all six Windows modules: **13,530** total,
+  **13,494** passed, **36** platform skips and zero failures in **19m41.590s**.
+  All **5,037** integration case identities and outcomes match the baseline.
+  Repository outputs were warm and generated consumers fresh in these local
+  comparisons; replacement CI remains required. The subsequent reader-start
+  failure cleanup and evaluation-only packaged-tool lookup pass focused checks.
+  The lookup no longer executes native binding compilation just to read a tool path.
+  Final native-process checks pass **393** cases with **2** platform skips on
+  Windows and **382** cases with **9** skips on macOS ARM64/PostgreSQL **18.6**;
+  all **13** packaged-tool cases pass on macOS, and the real packaged-header
+  check passes on Windows. The final Windows configuration module passes **482**
+  cases with **1** platform skip. An intermediate macOS composition
+  also passed all six modules (**13,462** passed, **60** skips) in **13m26.199s**;
+  these changes do not establish a macOS speedup. Release and documentation
+  checks pass. The requested full-suite feedback time remains unresolved.
 - Version-selection tests shared neither their idle projects nor the configured
   build capacity: two independent pools each used one quarter of the package
   limit, capped at four. They now share one pool bounded by the existing

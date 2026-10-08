@@ -133,7 +133,10 @@ internal static partial class NativeBindingCache
     /// </summary>
     internal static async Task<string> HashAsync(string file, CancellationToken cancellationToken)
     {
-        await using FileStream stream = new(file, FileMode.Open, FileAccess.Read, FileShare.Read);
+        // SHA256 reads small chunks. Buffer sequential input so large toolchain files
+        // do not enqueue a blocking filesystem read for every hash chunk on Windows.
+        await using FileStream stream = new(file, FileMode.Open, FileAccess.Read, FileShare.Read,
+            bufferSize: 64 * 1024, options: FileOptions.Asynchronous | FileOptions.SequentialScan);
         return Convert.ToHexString(await SHA256.HashDataAsync(stream, cancellationToken));
     }
 

@@ -34,6 +34,18 @@ dependencies still fail. Put LLVM's `bin` directory on
 Install the Visual Studio Clang tools or LLVM for the independent
 standard C fixture and the header-type collector.
 
+Windows CI configures the Visual Studio developer environment once and sets
+`IlcUseEnvironmentalTools=true` for child builds. Native AOT uses its selected
+`PATH`, `INCLUDE` and `LIB`; Ankus passes the same library roots to its native
+header and ABI checks. This avoids repeating Visual Studio discovery for each
+consumer project. Ordinary builds retain the SDK's default discovery behavior.
+Windows redirected process pipes use synchronous handles. Native-tool calls that
+do not require read cancellation drain those pipes on dedicated readers and join
+them before disposing the child process. This prevents an idle diagnostic pipe
+from occupying the thread-pool capacity needed to drain compiler output when a
+build has a small processor budget. Cancellable reads retain stream cancellation;
+compiler output retains its byte limit.
+
 Hosted CI selects LLVM 20 on Linux/macOS. Dedicated Linux/macOS CI uses its installed
 Clang and matching libclang; Windows uses its installed LLVM frontend. Each
 frontend is verified before running the suite. On macOS, Homebrew's `llvm` formula supplies

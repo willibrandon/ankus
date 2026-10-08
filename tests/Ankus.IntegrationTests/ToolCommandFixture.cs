@@ -12,7 +12,6 @@ public sealed partial class ToolCommandTests
     private static readonly int s_concurrentCases = IntegrationEnvironment.PackageTestConcurrency;
 
     private static readonly SemaphoreSlim s_caseSlots = new(s_concurrentCases, s_concurrentCases);
-    private static readonly SemaphoreSlim s_sampleProjectLock = new(1, 1);
     private static readonly ConcurrentQueue<PostgresTestInstallation> s_caseInstallations = new();
 
     private readonly ConcurrentQueue<string> _caseDirectories = new();

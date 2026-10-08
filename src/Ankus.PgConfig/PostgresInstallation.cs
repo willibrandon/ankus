@@ -272,18 +272,21 @@ public sealed class PostgresInstallation
             process.StartInfo.ArgumentList.Add(argument);
         }
 
+        Task<string> standardOutput = Task.FromResult(string.Empty);
+        Task<string> standardError = Task.FromResult(string.Empty);
         if (!process.Start())
         {
             throw new InvalidOperationException($"Failed to start '{pgConfigPath}'.");
         }
 
-        Task<string> standardOutput = process.StandardOutput.ReadToEndAsync(CancellationToken.None);
-        Task<string> standardError = process.StandardError.ReadToEndAsync(CancellationToken.None);
         try
         {
+            standardOutput = ReadQueryOutputAsync(process.StandardOutput);
+            standardError = ReadQueryOutputAsync(process.StandardError);
             await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+            await Task.WhenAll(standardOutput, standardError).ConfigureAwait(false);
         }
-        catch (OperationCanceledException)
+        catch
         {
             try
             {
@@ -295,7 +298,7 @@ public sealed class PostgresInstallation
             }
 
             await process.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
-            await Task.WhenAll(standardOutput, standardError).ConfigureAwait(false);
+            await Task.WhenAll((Task)standardOutput, standardError).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
             throw;
         }
 
@@ -317,4 +320,12 @@ public sealed class PostgresInstallation
 
         return output;
     }
+
+    /// <summary>
+    /// Drains Windows process pipes on dedicated readers until the query exits or is killed and reaped.
+    /// </summary>
+    private static Task<string> ReadQueryOutputAsync(StreamReader reader)
+        => OperatingSystem.IsWindows()
+            ? Task.Factory.StartNew(reader.ReadToEnd, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default)
+            : reader.ReadToEndAsync(CancellationToken.None);
 }
