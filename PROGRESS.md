@@ -571,9 +571,10 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   without their fixes and pass with them on Linux x64/PostgreSQL **18.6**.
 - Scalar call-site state now follows PostgreSQL's `fn_extra` contract, so a
   fresh `FmgrInfo` at a reused stack address no longer inherits another call's
-  state. Primary CI **37778899670** on **1504d0d** passed Linux and macOS; its two
-  Windows-only test defects (CRLF template comparison and Event Log routing in
-  the LATIN1 log check) are corrected.
+  state. Primary CI **37778899670** on **1504d0d** and **37782541757** on
+  **d5f27a0** passed Linux and macOS; their Windows-only test defects (CRLF
+  template comparison, and reading the decoded log snapshot instead of the raw
+  LATIN1 log) are corrected.
 - ANKUS044 now follows LINQ and stored callbacks, `+` concatenation in its
   fallback, unassigned parameter paths through branch merges, `StringBuilder`
   and tuple contents, mixed quoted/raw `string.Format` arguments including the

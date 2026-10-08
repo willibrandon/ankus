@@ -29217,6 +29217,10 @@ at **1504d0d** passed quality, runtime and the complete Linux and macOS suites.
 Windows/PostgreSQL 17 exposed two test-only defects. The scaffolder test compared
 generated SQL with LF text, but a Windows checkout's templates use CRLF and
 scaffolding preserves them; it now compares normalized lines. The LATIN1
-commit-callback case read only the raw log file, while Windows returns Event Log
-messages through `ReadServerLog()` from a separate state file; it now accepts
-either source. Every other Windows module passed.
+commit-callback case read `LogFilePath`, which on Windows is a UTF-8 snapshot
+that `ReadServerLog()` decodes from `pg_ctl`'s raw `.stderr.log`; the LATIN1
+byte became U+FFFD there. Run [37782541757](https://github.com/willibrandon/ankus/actions/runs/37782541757)
+at **d5f27a0** confirmed that diagnosis: every other Windows module and the
+complete Linux and macOS suites passed. The case now reads the raw native file,
+where PostgreSQL's redirected stderr keeps database-encoded bytes on every
+platform.

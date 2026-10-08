@@ -38,20 +38,17 @@ public sealed class DiagnosticEncodingTests(TestContext context)
             int backend = connection.ProcessID;
             await using var command = new NpgsqlCommand("SET client_encoding = LATIN1", connection);
             await command.ExecuteNonQueryAsync(token);
-            // Backends write the file in the database encoding. On Windows, ReadServerLog also returns messages
-            // that PostgreSQL routed through the UTF-16 Event Log, which the file itself does not contain.
+            // Backends write their native log in the database encoding.
             const string Message = "commit report café";
             byte[] latin1 = Encoding.Latin1.GetBytes(Message);
             int start = ReadLog().Length;
-            int textStart = PostgresFixture.Cluster.ReadServerLog().Length;
             command.CommandText = "BEGIN; SELECT datatype.transaction_callback_register_encoded_report(); COMMIT";
             await command.ExecuteNonQueryAsync(token);
             command.CommandText = "SELECT pg_catalog.pg_backend_pid()";
             Assert.AreEqual(backend, await command.ExecuteScalarAsync(token));
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
             timeout.CancelAfter(TimeSpan.FromSeconds(30));
-            while (ReadLog().AsSpan(start).IndexOf(latin1) < 0 &&
-                !PostgresFixture.Cluster.ReadServerLog()[textStart..].Contains(Message, StringComparison.Ordinal))
+            while (ReadLog().AsSpan(start).IndexOf(latin1) < 0)
             {
                 await Task.Delay(10, timeout.Token);
             }
@@ -60,9 +57,14 @@ public sealed class DiagnosticEncodingTests(TestContext context)
     /// <summary>
     /// Reads raw server log bytes, which use the database encoding of each reporting backend.
     /// </summary>
+    /// <remarks>
+    /// On Windows, LogFilePath is a decoded UTF-8 snapshot; pg_ctl writes the raw stream beside it, as
+    /// PostgresServerLog.NativeFilePath describes.
+    /// </remarks>
     private static byte[] ReadLog()
     {
-        using var stream = new FileStream(PostgresFixture.Cluster.LogFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        string path = PostgresFixture.Cluster.LogFilePath + (OperatingSystem.IsWindows() ? ".stderr.log" : string.Empty);
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
         using var memory = new MemoryStream();
         stream.CopyTo(memory);
         return memory.ToArray();
