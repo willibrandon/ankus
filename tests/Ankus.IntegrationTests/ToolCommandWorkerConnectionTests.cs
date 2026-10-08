@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 using Ankus.Testing;
 using Npgsql;
 
@@ -7,7 +8,8 @@ namespace Ankus.IntegrationTests;
 public sealed partial class ToolCommandTests
 {
     /// <summary>
-    /// Worker connection names and OIDs preserve database and role identity, privileges and process-ending failures.
+    /// Worker connection names and OIDs preserve database and role identity, privileges and process-ending failures,
+    /// and reports before a worker's first transaction use its database encoding.
     /// </summary>
     [TestMethod]
     public async Task BackgroundWorkerConnectionsPreserveRolesAndFailures()
@@ -79,6 +81,13 @@ public sealed partial class ToolCommandTests
             AssertWorkerConnection(recovered, databaseOid, readerRole, superuser: false);
             Assert.AreNotEqual(failed[0], recovered[0]);
         }
+
+        // Before its first transaction, a worker in a non-UTF-8 database still reports in the database encoding.
+        await ExecutePackageGucAsync(connection, "CREATE DATABASE worker_latin1 TEMPLATE template0 ENCODING 'LATIN1' LC_COLLATE 'C' LC_CTYPE 'C'");
+        (int Native, int Server) mark = EncodedServerLog.Mark(cluster);
+        string[] encoded = await ObserveWorkerConnectionAsync(connection, 3, "worker_latin1", null, 0, 0, true);
+        Assert.AreSequenceEqual(["1", "0", "0", "0", "0", "0", "47", "Stopped"], encoded.Skip(1));
+        await EncodedServerLog.AssertReportedAsync(cluster, mark, "worker report café", Encoding.Latin1, token);
     }
 
     /// <summary>
@@ -152,6 +161,16 @@ public sealed partial class ToolCommandTests
                 {
                     string[] fields = PgBackgroundWorker.Extra.Split('|');
                     Process.Exchange(Environment.ProcessId);
+                    if (mode == 3)
+                    {
+                        PgBackgroundWorker.Connect(fields[0], null);
+                        Connected.Exchange(1);
+                        // Catalog-based encoding conversion needs a transaction; this report precedes the first one.
+                        PgLog.Write(PgLogLevel.ServerOnly, "worker report café");
+                        Recovered.Exchange(PgBackgroundWorker.RunTransaction(() => Spi.ExecuteScalar<int>("SELECT 47")));
+                        return;
+                    }
+
                     if (mode == 1)
                     {
                         PgBackgroundWorker.Connect(fields[0] == "\u0001" ? null : fields[0], fields[1] == "\u0001" ? null : fields[1]);

@@ -72,7 +72,7 @@ defines the full scope; family-level implementation is not API-by-API completion
 | Errors and cancellation | Sticky query cancellation/FATAL, retained raw/memory errors, fail-fast backend access and explicit rollback recovery. Transaction-completion callback failures use a fixed-buffer emergency log path without PostgreSQL diagnostic allocation; it preserves the primary error and durable outcome. Abort-time FATAL remains FATAL while irreversible FATAL is promoted to PANIC. Primary-platform full CI passes. | Retain recovery guarantees and complete the version/platform matrix. |
 | Workers and shared memory | Native signal globals, lifecycle/transaction boundaries and shared memory. Idle Wait recovers repeated real cancellation; transaction waits still abort and terminal reports remain sticky. Complete primary-platform CI passes. | Full source-contract and complete version/platform acceptance remain required. |
 | Functions and callbacks | Scalar/array/SETOF/TABLE, triggers/events, lifecycle, native callbacks, operators/conversions and installation-schema search paths. | Full upstream declaration/option audit and complete version/platform evidence. |
-| Aggregates and SQL graph | Static abstract aggregate capabilities, typed Requires/Before/SupportFunction references with per-contract diagnostics at the authored value, deterministic SQL provenance and extended module magic. Empty SQL dependency anchors and exact authored CR/CRLF values pass complete native acceptance. | Remaining free-text graph diagnostics (`ANKUS005`, `ANKUS149`), inventoried contracts and complete version/platform acceptance. |
+| Aggregates and SQL graph | Static abstract aggregate capabilities, typed Requires/Before/SupportFunction references with per-contract diagnostics at the authored value, deterministic SQL provenance and extended module magic. Empty SQL dependency anchors and exact authored CR/CRLF values pass complete native acceptance. | Inventoried contracts and complete version/platform acceptance. |
 | Generator caching | Detached equatable declaration/provider/reference models, stable declaration-header locations and cached dispatcher/C/SQL artifacts across multi-declaration body edits, unrelated member insertion and unrelated file insertion. Only selected SQL files are read, with the complete path catalog retained. | Broader precise diagnostics, useful semantic code fixes and final inventory audit remain required. |
 | Values and ownership | Documented scalar, array, composite, temporal, JSON, network, geometry, custom codec and raw datum contracts. Interval equality, hashing and ordering agree with PostgreSQL while retaining exact components; complete primary-platform CI passes. | Remaining mapped/container contracts, parsing/formatting ergonomics and complete source-case mapping remain required. |
 | Runtime performance | Owned binary PgNumeric, direct decimal coefficient encoding, constant-time fixed-width array indexing, and a measured native guard for allowlisted pure built-ins. Catalog-miss errors require actual rollback; real-resource regressions and complete primary-platform CI pass. Persistent in-backend benchmarks provide batching, transaction modes and statistical baseline comparisons. | Complete current guard supported-version acceptance. Extend that tier only where ownership proofs and measurements justify it. Never weaken error recovery to reduce overhead. |
@@ -81,7 +81,7 @@ defines the full scope; family-level implementation is not API-by-API completion
 | .NET templates | Version-matched ordinary extension and worker templates reuse the CLI assets and pin local tools. Optional xUnit/NUnit consumers exercise managed and named backend cases, ignore reasons, worker processes and cleanup alongside default MSTest consumers. Complete primary-platform CI passes. | Remaining discovery contracts and complete version/platform acceptance. |
 | API discoverability | Idiomatic attributed declarations, documented runtime APIs, named logging helpers and typed SPI interpolation. Compiler transport helpers are isolated in Ankus.CompilerServices and hidden from IntelliSense; complete primary-platform CI passes. | Remaining value/assertion helpers and final inventory audit. |
 | Packages and release | MIT license, Brandon Williams copyright, author/repository/project metadata and deliberate SDK/runtime boundaries. | Full release gates and supported-platform packages before publishing 0.1.0. |
-| Documentation and samples | Public guides, generated API pages, pgrx migration and backend-execution guidance; current status separated from historical evidence. SPI, error/reporting, bytea, strings, datetime and in-backend benchmark samples cover their complete authoring loops. | Every remaining inventoried representative sample and final usage/limitation review. |
+| Documentation and samples | Public guides, generated API pages, pgrx migration and backend-execution guidance; current status separated from historical evidence. Twenty-seven of pgrx's 37 examples map to runnable samples with backend integration tests; the docs list the ten that remain. | The remaining pgrx examples (`notify`, `rewrite_manip`, `pglz_inspect`, `wal_decoder`, `postgres_type_variants`, custom and versioned library names, `bad_ideas`, `nostd`) and final usage/limitation review. |
 
 The custom-type alignment review found no defect: variable-length PostgreSQL
 types require at least four-byte datum alignment. Managed codec payload layout
@@ -130,6 +130,29 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
 
 ## Active validation and work
 
+- Integrated three parallel milestones. Graph diagnostics: `ANKUS005` is retired.
+  Its free-text cases are fixed contracts `ANKUS490`–`ANKUS514`, each reported at
+  the authored value, and `ANKUS149` has a fixed message; 4,699 generator cases
+  pass. Eleven pgrx examples are now runnable samples with backend tests:
+  `schemas`, `custom_sql`, `generic_agg`, the expanded `operators` and
+  `composite_type`, `memory_contexts`, `shmem`, `pgtrybuilder`,
+  `subtrans_infos`, `pgthread` and `hooks`. Twenty-seven of pgrx's 37 examples
+  now map to samples. Generated custom-type JSON text now escapes only what
+  serde_json escapes (quotes, reverse solidus and C0 controls), so `café`
+  prints as pgrx prints it. A self-chained native callback, possible when a
+  failed `PgModuleLoad` is retried after installing a hook, now raises
+  PostgreSQL's stack-depth error instead of crashing the backend. The retry
+  itself is documented Ankus behavior; PostgreSQL never re-runs a failed
+  `_PG_init`.
+  A worker report before the worker's first transaction in a non-UTF-8 database
+  raised "cannot perform encoding conversion outside a transaction"; a LATIN1
+  worker test reproduced it. Exact reports outside a transaction now convert
+  each code point through PostgreSQL's startup-prepared UTF-8 converter
+  (`pg_unicode_to_server`), and the test finds the database-encoding bytes in the
+  server log. The same test showed that published test clusters set
+  `dynamic_library_path` without `$libdir`. PostgreSQL 18 then cannot load its
+  own encoding conversions, so the fixture now appends `$libdir` as product code
+  does. VERIFY_PLACEHOLDER
 - Windows test time: primary CI **37825380597** takes **21m50s** for the Windows
   test step, against **11m37s** on Linux and **12m03s** on macOS. Per-class
   durations from the CI reports place the critical path in package-consumer
@@ -176,12 +199,8 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   PostgreSQL 13 CI artifact's native stderr file is empty and its event-derived
   log reads `commit report café`. An unconverted UTF-8 report would read
   `cafÃ©`, so the bridge converted correctly; the old test could not see the
-  event log. Separately, code inspection shows a remaining gap: a worker report
-  before the worker's first transaction in a non-UTF-8 database has no cached
-  conversion. PostgreSQL's general conversion then raises "cannot perform
-  encoding conversion outside a transaction". PostgreSQL's startup-prepared
-  UTF-8 conversion (`pg_unicode_to_server`) can convert it; that fix and a
-  worker test proving it remain required.
+  event log. A worker report before the worker's first transaction in a
+  non-UTF-8 database is fixed separately (see the sample-integration entry).
   On the CI host, Windows x64, SDK **10.0.401**, with package concurrency 20,
   complete suites ran concurrently as two CI jobs do. PostgreSQL **17.11**:
   **13,879** total, **13,843** passed, **36** platform skips, zero failures in

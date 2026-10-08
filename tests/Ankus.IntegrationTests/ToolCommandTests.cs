@@ -1170,7 +1170,8 @@ public sealed partial class ToolCommandTests(TestContext context)
         bool sharedPreload = false, string[]? additionalConfiguration = null)
     {
         PostgresInstallation installation = await PrepareCaseInstallationAsync(output, token);
-        List<string> configuration = ["dynamic_library_path = '" + EscapeSetting(output) + "'"];
+        // PostgreSQL 18 resolves $libdir modules, including its encoding conversions, through this search path.
+        List<string> configuration = ["dynamic_library_path = '" + EscapeSetting(output) + (OperatingSystem.IsWindows() ? ";" : ":") + "$libdir'"];
         if (sharedPreload)
         {
             configuration.Add("shared_preload_libraries = '" + PublishedExtension.Read(output).Library + "'");

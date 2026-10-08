@@ -34,7 +34,7 @@ Call `PgInterrupts.Check()` periodically in loops that only log messages. Native
 reporting errors, such as an encoding failure, still follow normal error recovery.
 
 Messages convert exactly to the database encoding, including outside a
-transaction. In a database that cannot represent a character, such as `€` in
+transaction and before a background worker's first transaction. In a database that cannot represent a character, such as `€` in
 LATIN1, an ordinary report fails with SQLSTATE `22P05`. `Fatal` and `Panic`
 reports never fail that way: the backend still terminates at the requested level,
 and each byte it cannot convert appears as a `\xNN` escape. The same rule

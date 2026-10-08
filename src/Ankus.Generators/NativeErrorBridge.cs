@@ -266,6 +266,25 @@ internal static class NativeErrorBridge
         #endif
                 }
 
+                if (exact && !to_utf8 && !IsTransactionState())
+                {
+                    /* Catalog lookups need a transaction, so a report before a worker's first
+                     * transaction has no cached function. PostgreSQL prepares its own UTF-8 to
+                     * server conversion during backend startup for use outside transactions;
+                     * convert one code point at a time, raising PostgreSQL's error for an
+                     * untranslatable character. */
+                    (void) pg_verify_mbstr(PG_UTF8, text, length, false);
+                    initStringInfo(&output);
+                    for (int offset = 0; offset < length; offset += pg_utf_mblen((const unsigned char *) text + offset))
+                    {
+                        unsigned char converted[MAX_UNICODE_EQUIVALENT_STRING + 1];
+                        pg_unicode_to_server(utf8_to_unicode((const unsigned char *) text + offset), converted);
+                        appendStringInfoString(&output, (char *) converted);
+                    }
+
+                    return output.data;
+                }
+
                 /* Without a cached function, an exact conversion keeps PostgreSQL's own
                  * behavior. PostgreSQL 13 conversions have no noError mode, so within a
                  * transaction capture keeps them too; only an untranslatable character

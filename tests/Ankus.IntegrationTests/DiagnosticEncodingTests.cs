@@ -39,55 +39,13 @@ public sealed class DiagnosticEncodingTests(TestContext context)
             await using var command = new NpgsqlCommand("SET client_encoding = LATIN1", connection);
             await command.ExecuteNonQueryAsync(token);
             // Backends write their native log in the database encoding.
-            const string Message = "commit report café";
-            byte[] latin1 = Encoding.Latin1.GetBytes(Message);
-            int start = ReadLog().Length;
-            int serverStart = PostgresFixture.Cluster.ReadServerLog().Length;
+            (int Native, int Server) mark = EncodedServerLog.Mark(PostgresFixture.Cluster);
             command.CommandText = "BEGIN; SELECT datatype.transaction_callback_register_encoded_report(); COMMIT";
             await command.ExecuteNonQueryAsync(token);
             command.CommandText = "SELECT pg_catalog.pg_backend_pid()";
             Assert.AreEqual(backend, await command.ExecuteScalarAsync(token));
-            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
-            timeout.CancelAfter(TimeSpan.FromSeconds(30));
-            while (true)
-            {
-                // Read the merged log first: a report absent from the later native read came from the event log.
-                string server = PostgresFixture.Cluster.ReadServerLog()[serverStart..];
-                byte[] native = ReadLog()[start..];
-                if (native.AsSpan().IndexOf("commit report caf"u8) >= 0)
-                {
-                    Assert.IsGreaterThanOrEqualTo(0, native.AsSpan().IndexOf(latin1),
-                        "Native stderr must carry the report in the database encoding.");
-                    break;
-                }
-
-                if (server.Contains("commit report caf", StringComparison.Ordinal))
-                {
-                    // PostgreSQL 13 and 14 send a Windows service's reports to the event log, converting them from
-                    // the database encoding to UTF-16; an unconverted UTF-8 report would read "cafÃ©".
-                    Assert.Contains(Message, server);
-                    break;
-                }
-
-                await Task.Delay(10, timeout.Token);
-            }
+            await EncodedServerLog.AssertReportedAsync(PostgresFixture.Cluster, mark, "commit report café", Encoding.Latin1, token);
         });
-
-    /// <summary>
-    /// Reads raw server log bytes, which use the database encoding of each reporting backend.
-    /// </summary>
-    /// <remarks>
-    /// On Windows, LogFilePath is a decoded UTF-8 snapshot; pg_ctl writes the raw stream beside it, as
-    /// PostgresServerLog.NativeFilePath describes.
-    /// </remarks>
-    private static byte[] ReadLog()
-    {
-        string path = PostgresFixture.Cluster.LogFilePath + (OperatingSystem.IsWindows() ? ".stderr.log" : string.Empty);
-        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-        using var memory = new MemoryStream();
-        stream.CopyTo(memory);
-        return memory.ToArray();
-    }
 
     /// <summary>
     /// Runs a case in a fresh database with the selected encoding and the test extension installed.
