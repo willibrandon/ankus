@@ -152,7 +152,18 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   server log. The same test showed that published test clusters set
   `dynamic_library_path` without `$libdir`. PostgreSQL 18 then cannot load its
   own encoding conversions, so the fixture now appends `$libdir` as product code
-  does. VERIFY_PLACEHOLDER
+  does.
+  Windows x64 complete suites for PostgreSQL **17.11** and **13.23**, run
+  concurrently on the CI host at package concurrency 20, each pass **13,977**
+  total, **13,941** passed and **36** platform skips with zero failures, in
+  **29m45.961s** and **29m54.633s**. Linux x64/PostgreSQL **18.6**
+  passes **13,977** total, **13,927** passed and **50** platform skips with zero
+  failures in **12m50.602s**. Release has zero warnings/errors; API freshness
+  (**245** pages, **2,795** members) and site checks (**297** pages) pass. The new
+  timing summaries show the Windows cost is concurrency, not per-operation
+  speed: a Native AOT consumer publish averages **84s** on Windows, with twenty
+  slots per suite and two suites, against **21s** on Linux with twelve slots on
+  24 processors; idle Windows publishes take 4–8s.
 - Windows test time: primary CI **37825380597** takes **21m50s** for the Windows
   test step, against **11m37s** on Linux and **12m03s** on macOS. Per-class
   durations from the CI reports place the critical path in package-consumer
