@@ -61,7 +61,7 @@ internal static class PostgresFixture
     }
 
     /// <summary>
-    /// Stops PostgreSQL even if tests failed or their cancellation token was canceled.
+    /// Stops PostgreSQL even if tests failed or their cancellation token was canceled, then writes the timing summary.
     /// </summary>
     internal static async Task CleanupAsync()
     {
@@ -75,7 +75,14 @@ internal static class PostgresFixture
         }
         finally
         {
-            await IntegrationEnvironment.CleanupAsync();
+            try
+            {
+                await IntegrationEnvironment.CleanupAsync();
+            }
+            finally
+            {
+                ProcessTimings.Write(Path.Combine(IntegrationEnvironment.RepositoryRoot, "artifacts", "test-logs", "process-timings.log"));
+            }
         }
     }
 }

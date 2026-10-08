@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Globalization;
 using Ankus.Testing;
 
@@ -28,6 +29,7 @@ internal static class PackageProcessRunner
     {
         bool reserve = RequiresSlot(fileName, arguments);
         int processorCount = 0;
+        long requested = Stopwatch.GetTimestamp();
         if (reserve)
         {
             await s_slots.WaitAsync(cancellationToken);
@@ -38,6 +40,7 @@ internal static class PackageProcessRunner
             }
         }
 
+        long started = Stopwatch.GetTimestamp();
         try
         {
             IReadOnlyDictionary<string, string?> processEnvironment = reserve
@@ -53,6 +56,7 @@ internal static class PackageProcessRunner
         }
         finally
         {
+            ProcessTimings.Record(fileName, arguments, Stopwatch.GetElapsedTime(requested, started), Stopwatch.GetElapsedTime(started));
             if (reserve)
             {
                 s_processorCounts.Enqueue(processorCount);

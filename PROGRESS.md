@@ -92,19 +92,19 @@ incorrect. See [the detailed review](docs/contributing/evidence/port-history.md#
 ## Current complete acceptance evidence
 
 Primary CI runs all six modules against real published Native AOT extensions.
-The latest successful primary CI source is **67c9cb5**, with runtime **10.0.12-ankus.4**.
-[CI 37741393964](https://github.com/willibrandon/ankus/actions/runs/37741393964)
-passes; [Docs run 37741394110](https://github.com/willibrandon/ankus/actions/runs/37741394110)
-also passes. All eighteen module reports were inspected: each platform completed
-all six modules with zero failures. No primary job timed out.
+The latest successful primary CI source is **e0e469a**, with runtime **10.0.12-ankus.4**.
+[CI 37825380597](https://github.com/willibrandon/ankus/actions/runs/37825380597)
+passes; [Docs run 37825380526](https://github.com/willibrandon/ankus/actions/runs/37825380526)
+also passes. Each platform completed all six modules with zero failures; no
+primary job timed out. It is the first green primary run since **67c9cb5**.
 A complete [Intel refresh](https://github.com/willibrandon/ankus/actions/runs/37460600236)
 also passes on source **e41c687**.
 
 | Source | Platform / PostgreSQL | Result | Duration |
 | --- | --- | --- | --- |
-| Latest primary CI, **67c9cb5 / ankus.4** | Linux x64 / 18 | 13,558 total; 13,510 passed; 48 platform skips; zero failures | 12m27s test step; 14m37s job |
-| Same CI / revision / runtime | macOS ARM64 / 18 | 13,558 total; 13,498 passed; 60 platform skips; zero failures | 12m11s test step; 13m55s job |
-| Same CI / revision / runtime | Windows x64 / 17 | 13,558 total; 13,522 passed; 36 platform skips; zero failures | 20m04s test step; 22m22s job |
+| Latest primary CI, **e0e469a / ankus.4** | Linux x64 / 18 | 13,883 total; 13,833 passed; 50 platform skips; zero failures | 11m37s test step; 13m48s job |
+| Same CI / revision / runtime | macOS ARM64 / 18 | 13,883 total; 13,821 passed; 62 platform skips; zero failures | 12m03s test step; 13m44s job |
+| Same CI / revision / runtime | Windows x64 / 17 | 13,883 total; 13,847 passed; 36 platform skips; zero failures | 21m50s test step; 24m04s job |
 | SQL/datetime composition, parent **e41c687 / ankus.4** | Linux x64 / 18.6 | 13,337 total; 13,289 passed; 48 platform skips; zero failures | 42m46.885s tests; 43m41.597s command |
 | Function-provider composition, parent **4da0bec / ankus.4** | Linux x64 / 18.6 | 13,365 total; 13,317 passed; 48 platform skips; zero failures | 42m39.165s tests; 43m46.937s command |
 | Type-provider composition, parent **97842d3 / ankus.4** | Linux x64 / 18.6 | 13,411 total; 13,363 passed; 48 platform skips; zero failures | 42m39.033s tests; 43m35.244s command |
@@ -130,6 +130,22 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
 
 ## Active validation and work
 
+- Windows test time: primary CI **37825380597** takes **21m50s** for the Windows
+  test step, against **11m37s** on Linux and **12m03s** on macOS. Per-class
+  durations from the CI reports place the critical path in package-consumer
+  tests (Windows **13.9** minutes, Linux **8.5**). Their builds and Native AOT
+  publishes run about twice as long on Windows, and classes that start their own
+  clusters run three to nine times as long. On the idle CI host, real-time
+  anti-malware scanning of the runner directories doubled `initdb` (**1.48s** to
+  **0.72s** when excluded) and Native AOT publication (**8.18s** to **3.95s**).
+  Restore, `pg_ctl` and template copies were unaffected. The runner directories
+  are now excluded on that host. Copying an initdb template takes **0.29s**,
+  versus **1.48s** for `initdb`, and `fsync = off` cuts a shutdown after five
+  database creations from **3.10s** to **1.01s**. PostgreSQL's own TAP clusters
+  use both techniques; adopting them in Ankus.Testing remains to be evaluated.
+  The integration suite now writes `process-timings.log`, summarizing time per
+  child-process command and cluster startup on each platform. The target is a
+  Windows test job of 15–20 minutes or less.
 - Primary CI has failed on Windows since **a04472b**; the last green primary run
   remains **67c9cb5**. Every failure in CI **37766380749**, **37773258253**,
   **37778899670**, **37782541757**, **37785972780**, **37791387341** and

@@ -29224,3 +29224,16 @@ at **d5f27a0** confirmed that diagnosis: every other Windows module and the
 complete Linux and macOS suites passed. The case now reads the raw native file,
 where PostgreSQL's redirected stderr keeps database-encoded bytes on every
 platform.
+
+## Primary CI superseded by e0e469a — 2026-10-08
+
+[CI 37741393964](https://github.com/willibrandon/ankus/actions/runs/37741393964) on
+**67c9cb5 / ankus.4** was the last green primary run before **e0e469a**.
+Primary CI then failed on Windows from **a04472b** through **e05d946**; the
+causes and repairs are recorded in PROGRESS.md.
+
+| Source | Platform / PostgreSQL | Result | Duration |
+| --- | --- | --- | --- |
+| **67c9cb5 / ankus.4** | Linux x64 / 18 | 13,558 total; 13,510 passed; 48 platform skips; zero failures | 12m27s test step; 14m37s job |
+| Same CI / revision / runtime | macOS ARM64 / 18 | 13,558 total; 13,498 passed; 60 platform skips; zero failures | 12m11s test step; 13m55s job |
+| Same CI / revision / runtime | Windows x64 / 17 | 13,558 total; 13,522 passed; 36 platform skips; zero failures | 20m04s test step; 22m22s job |

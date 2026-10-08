@@ -1186,7 +1186,8 @@ public sealed partial class ToolCommandTests(TestContext context)
             configuration.AddRange(additionalConfiguration);
         }
 
-        return await PostgresTestCluster.StartAsync(new PostgresTestClusterOptions
+        long started = System.Diagnostics.Stopwatch.GetTimestamp();
+        PostgresTestCluster cluster = await PostgresTestCluster.StartAsync(new PostgresTestClusterOptions
         {
             Installation = installation,
             DataDirectoryBase = Path.Combine(s_root, "pgdata"),
@@ -1194,6 +1195,8 @@ public sealed partial class ToolCommandTests(TestContext context)
             StartupTimeout = IntegrationEnvironment.StartupTimeout,
             PostgreSqlConfiguration = configuration,
         }, token);
+        ProcessTimings.Record("cluster start (initdb, start, bootstrap)", TimeSpan.Zero, System.Diagnostics.Stopwatch.GetElapsedTime(started));
+        return cluster;
     }
 
     private static Task<ProcessResult> RunDotnetAsync(string[] arguments, CancellationToken token)
