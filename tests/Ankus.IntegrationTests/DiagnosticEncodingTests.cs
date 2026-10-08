@@ -38,36 +38,30 @@ public sealed class DiagnosticEncodingTests(TestContext context)
             int backend = connection.ProcessID;
             await using var command = new NpgsqlCommand("SET client_encoding = LATIN1", connection);
             await command.ExecuteNonQueryAsync(token);
-            // Backends log in the database encoding; Windows collects some messages through the UTF-16 Event Log.
+            // Backends write the file in the database encoding. On Windows, ReadServerLog also returns messages
+            // that PostgreSQL routed through the UTF-16 Event Log, which the file itself does not contain.
             const string Message = "commit report café";
             byte[] latin1 = Encoding.Latin1.GetBytes(Message);
-            byte[] utf8 = Encoding.UTF8.GetBytes(Message);
             int start = ReadLog().Length;
+            int textStart = PostgresFixture.Cluster.ReadServerLog().Length;
             command.CommandText = "BEGIN; SELECT datatype.transaction_callback_register_encoded_report(); COMMIT";
             await command.ExecuteNonQueryAsync(token);
             command.CommandText = "SELECT pg_catalog.pg_backend_pid()";
             Assert.AreEqual(backend, await command.ExecuteScalarAsync(token));
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
             timeout.CancelAfter(TimeSpan.FromSeconds(30));
-            while (!Logged(ReadLog().AsSpan(start), latin1, utf8))
+            while (ReadLog().AsSpan(start).IndexOf(latin1) < 0 &&
+                !PostgresFixture.Cluster.ReadServerLog()[textStart..].Contains(Message, StringComparison.Ordinal))
             {
                 await Task.Delay(10, timeout.Token);
             }
         });
 
     /// <summary>
-    /// Finds a message written in either the database encoding or UTF-8.
-    /// </summary>
-    private static bool Logged(ReadOnlySpan<byte> log, byte[] database, byte[] utf8)
-        => log.IndexOf(database) >= 0 || log.IndexOf(utf8) >= 0;
-
-    /// <summary>
     /// Reads raw server log bytes, which use the database encoding of each reporting backend.
     /// </summary>
     private static byte[] ReadLog()
     {
-        // Windows refreshes the file from native and Event Log messages while reading.
-        _ = PostgresFixture.Cluster.ReadServerLog();
         using var stream = new FileStream(PostgresFixture.Cluster.LogFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
         using var memory = new MemoryStream();
         stream.CopyTo(memory);

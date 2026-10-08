@@ -63,10 +63,13 @@ public sealed class ProjectScaffolderTests(TestContext context)
             string setup = "-- This setup file runs when the regression database is created or recreated.\n" +
                 "-- Create the extension before running the ordinary SQL tests.\nCREATE EXTENSION " + expected + ";\n";
 
-            Assert.AreEqual(setup, await File.ReadAllTextAsync(Path.Combine(project, "pg_regress", "sql", "setup.sql"), context.CancellationToken));
-            Assert.AreEqual(setup, await File.ReadAllTextAsync(Path.Combine(project, "pg_regress", "expected", "setup.out"), context.CancellationToken));
+            // Scaffolding preserves each template's checked-out line endings, which are CRLF in a Windows checkout.
+            Assert.AreEqual(setup, (await File.ReadAllTextAsync(Path.Combine(project, "pg_regress", "sql", "setup.sql"),
+                context.CancellationToken)).ReplaceLineEndings("\n"));
+            Assert.AreEqual(setup, (await File.ReadAllTextAsync(Path.Combine(project, "pg_regress", "expected", "setup.out"),
+                context.CancellationToken)).ReplaceLineEndings("\n"));
             Assert.Contains("\nCREATE EXTENSION " + expected + ";\n",
-                await File.ReadAllTextAsync(Path.Combine(destination, "README.md"), context.CancellationToken));
+                (await File.ReadAllTextAsync(Path.Combine(destination, "README.md"), context.CancellationToken)).ReplaceLineEndings("\n"));
             string projectFile = await File.ReadAllTextAsync(Path.Combine(project, name + ".csproj"), context.CancellationToken);
             Assert.Contains("<AnkusExtensionName>" + catalogName + "</AnkusExtensionName>", projectFile);
             Assert.Contains("<AssemblyName>" + catalogName + "</AssemblyName>", projectFile);

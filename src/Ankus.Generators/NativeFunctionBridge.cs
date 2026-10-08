@@ -33,13 +33,34 @@ internal static class NativeFunctionBridge
             free(site);
         }
 
+        /* Identifies a scalar call site through fn_extra, which PostgreSQL leaves to the
+         * called function. A new FmgrInfo starts with NULL there, including one that
+         * OidFunctionCall or OidInputFunctionCall creates at a reused stack address, and
+         * fmgr_info_copy resets it, so each FmgrInfo receives its own state. */
+        #define ANKUS_FUNCTION_SITE_MARKER 0x414e4653U
+
+        typedef struct AnkusFunctionSiteMarker
+        {
+            uint32 magic;
+            intptr_t identity;
+        } AnkusFunctionSiteMarker;
+
         static void
         ankus_function_site(FmgrInfo *function, AnkusResult *result)
         {
             AnkusMemoryContext *owner = ankus_memory_register_context(function->fn_mcxt);
+            AnkusFunctionSiteMarker *marker = function->fn_retset ? NULL : function->fn_extra;
             result->function_memory = (intptr_t) owner->id;
             result->function_generation = owner->generation;
-            for (AnkusFunctionSite *site = ankus_function_sites; site != NULL; site = site->next)
+            if (marker != NULL && marker->magic == ANKUS_FUNCTION_SITE_MARKER)
+            {
+                result->function_site = marker->identity;
+                return;
+            }
+
+            /* Set-returning calls keep fn_extra for PostgreSQL's multi-call machinery; their
+             * FmgrInfo lives in executor state for the whole scan. */
+            for (AnkusFunctionSite *site = ankus_function_sites; function->fn_retset && site != NULL; site = site->next)
             {
                 if (site->function == function && site->owner == function->fn_mcxt && site->function_oid == function->fn_oid)
                 {
@@ -59,9 +80,21 @@ internal static class NativeFunctionBridge
             site->identity = (intptr_t) ankus_next_function_site++;
             site->reset.func = ankus_function_site_reset;
             site->reset.arg = site;
+            if (!function->fn_retset)
+            {
+                marker = MemoryContextAlloc(function->fn_mcxt, sizeof(AnkusFunctionSiteMarker));
+                marker->magic = ANKUS_FUNCTION_SITE_MARKER;
+                marker->identity = site->identity;
+            }
+
             site->next = ankus_function_sites;
             ankus_function_sites = site;
             MemoryContextRegisterResetCallback(site->owner, &site->reset);
+            if (marker != NULL)
+            {
+                function->fn_extra = marker;
+            }
+
             result->function_site = site->identity;
         }
 
@@ -75,7 +108,7 @@ internal static class NativeFunctionBridge
             ankus_datum_context(request->result_context, request->result_generation);
             result->function_oid = call->flinfo->fn_oid;
             result->collation_oid = call->fncollation;
-            /* fn_extra remains available to PostgreSQL's set-function machinery. */
+            /* Scalar sites own fn_extra; set-returning sites leave it to PostgreSQL's multi-call machinery. */
             ankus_function_site(call->flinfo, result);
             Oid *declared_types = NULL;
             int declared_count = 0;

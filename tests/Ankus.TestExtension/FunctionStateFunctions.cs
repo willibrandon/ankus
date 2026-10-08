@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using Ankus.Postgres;
 
 namespace Ankus.TestExtension;
 
@@ -32,6 +33,30 @@ public static class FunctionStateFunctions
         s_saved = call;
         GC.Collect();
         return $"{state.Next()}|{state.Text.Read<string?>() ?? "NULL"}";
+    }
+
+    /// <summary>
+    /// Counts calls through one call site's state.
+    /// </summary>
+    /// <param name="call">The native call site.</param>
+    /// <returns>The number of calls made through this site.</returns>
+    [PgFunction]
+    public static int StateSiteCount(PgFunctionContext call) => ++call.GetOrCreateState(static () => new StrongBox<int>()).Value;
+
+    /// <summary>
+    /// Calls the counter twice through PostgreSQL's OidFunctionCall0Coll, which builds each FmgrInfo on its own stack frame.
+    /// </summary>
+    /// <returns>Each call's count; distinct FmgrInfo values have distinct call-site state.</returns>
+    [PgFunction]
+    public static string StateFreshFunctionInfo()
+    {
+        uint function = Spi.ExecuteScalar<uint>("SELECT 'datatype.state_site_count()'::pg_catalog.regprocedure::pg_catalog.oid");
+        unsafe
+        {
+            ulong first = NativeMethods.OidFunctionCall0Coll(function, 0);
+            ulong second = NativeMethods.OidFunctionCall0Coll(function, 0);
+            return FormattableString.Invariant($"{(int)first}|{(int)second}");
+        }
     }
 
     /// <summary>

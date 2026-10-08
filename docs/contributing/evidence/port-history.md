@@ -29196,3 +29196,27 @@ its include block, which now also includes the trigger, lock and process
 headers. The Release solution build has zero warnings and errors. API
 freshness verifies **244** pages and **2,794** members; documentation checks
 report no errors, warnings or hints, and the site builds all **295** pages.
+
+### Function call sites and Windows test portability
+
+Call-site state was keyed by the `FmgrInfo` address, memory context and
+function OID. `OidFunctionCall*` and `OidInputFunctionCall` build a fresh
+`FmgrInfo` on their own stack frame, so two calls from the same caller reused
+one site and shared state, unlike PostgreSQL's `fn_extra` contract. Scalar call
+sites now store a marked identity in `fn_extra`, which PostgreSQL leaves to the
+called function, resets in every new `FmgrInfo` and clears in `fmgr_info_copy`.
+Set-returning sites keep the address key because PostgreSQL's multi-call
+machinery owns their `fn_extra`, and their `FmgrInfo` lives in executor state.
+Two `OidFunctionCall0Coll` calls from one frame returned `1|2` before the fix and
+return `1|1` after it; repeated rows through one executor `FmgrInfo` still share
+state (`1|2|3`). Function-state and diagnostic-encoding cases pass **26/26** on
+Linux x64/PostgreSQL **18.6**.
+
+Primary run [37778899670](https://github.com/willibrandon/ankus/actions/runs/37778899670)
+at **1504d0d** passed quality, runtime and the complete Linux and macOS suites.
+Windows/PostgreSQL 17 exposed two test-only defects. The scaffolder test compared
+generated SQL with LF text, but a Windows checkout's templates use CRLF and
+scaffolding preserves them; it now compares normalized lines. The LATIN1
+commit-callback case read only the raw log file, while Windows returns Event Log
+messages through `ReadServerLog()` from a separate state file; it now accepts
+either source. Every other Windows module passed.

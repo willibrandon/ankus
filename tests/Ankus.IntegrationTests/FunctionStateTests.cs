@@ -214,6 +214,19 @@ public sealed class FunctionStateTests(TestContext context)
     }
 
     /// <summary>
+    /// Each FmgrInfo has its own state, even when PostgreSQL rebuilds one at the same stack address in the same context.
+    /// </summary>
+    [TestMethod]
+    public async Task FreshFunctionInfoReceivesFreshState()
+    {
+        CancellationToken token = context.CancellationToken;
+        await using NpgsqlConnection connection = await PostgresFixture.Cluster.OpenConnectionAsync(token);
+        Assert.AreEqual("1|1", await ScalarAsync<string>(connection, "SELECT datatype.state_fresh_function_info()", token));
+        Assert.AreEqual("1|2|3", await ScalarAsync<string>(connection,
+            "SELECT string_agg(datatype.state_site_count()::text, '|') FROM generate_series(1, 3)", token));
+    }
+
+    /// <summary>
     /// Reads one independently observed SQL scalar.
     /// </summary>
     /// <typeparam name="T">The expected managed result type.</typeparam>
