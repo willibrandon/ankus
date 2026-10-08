@@ -93,7 +93,6 @@ internal static class GuardedBackend
             uint32 cancel_holdoff = QueryCancelHoldoffCount;
             ResourceOwner caller_owner = CurrentResourceOwner;
             int caller_nest_level = GetCurrentTransactionNestLevel();
-            int caller_internal_subtransaction_depth = ankus_internal_subtransaction_depth;
             volatile int status = 0;
             volatile bool retained_plan = false;
             bool standalone = request->session_id == 0;
@@ -153,7 +152,6 @@ internal static class GuardedBackend
                 caller_context = ankus_session->caller_context;
                 caller_owner = ankus_session->caller_owner;
                 caller_nest_level = ankus_session->caller_nest_level;
-                caller_internal_subtransaction_depth = ankus_session->caller_internal_subtransaction_depth;
             }
 
             if (reporting && request->log_level >= 0 && request->log_level < 10)
@@ -213,7 +211,7 @@ internal static class GuardedBackend
                             RollbackAndReleaseCurrentSubTransaction();
                         }
 
-                        ankus_internal_subtransaction_depth = caller_internal_subtransaction_depth;
+                        ankus_trim_internal_subtransactions();
                         request->session_id = 0;
                     }
                     else if (request->cleanup_only)
@@ -242,8 +240,7 @@ internal static class GuardedBackend
                          * the first failure until their managed entry has completely unwound. */
                         if (recovery_subtransaction)
                         {
-                            ankus_internal_subtransaction_depth++;
-                            BeginInternalSubTransaction(NULL);
+                            ankus_begin_internal_subtransaction();
                         }
 
                         code = SPI_connect();
@@ -253,15 +250,13 @@ internal static class GuardedBackend
                         }
 
                         ankus_register_trigger_data();
-                        ankus_register_session(request, caller_context, caller_owner, caller_nest_level,
-                            caller_internal_subtransaction_depth);
+                        ankus_register_session(request, caller_context, caller_owner, caller_nest_level);
                     }
                     else
                     {
                         if (recovery_subtransaction)
                         {
-                            ankus_internal_subtransaction_depth++;
-                            BeginInternalSubTransaction(NULL);
+                            ankus_begin_internal_subtransaction();
                         }
 
                         if (standalone && !direct)
@@ -458,12 +453,10 @@ internal static class GuardedBackend
 
                         if (recovery_subtransaction)
                         {
-                            ReleaseCurrentSubTransaction();
-                            ankus_internal_subtransaction_depth--;
+                            ankus_release_internal_subtransaction();
                             if (request->operation == ANKUS_SPI_CLOSE_SESSION)
                             {
-                                ReleaseCurrentSubTransaction();
-                                ankus_internal_subtransaction_depth--;
+                                ankus_release_internal_subtransaction();
                             }
                         }
                     }
@@ -494,7 +487,7 @@ internal static class GuardedBackend
                         recovered = true;
                     }
 
-                    ankus_internal_subtransaction_depth = caller_internal_subtransaction_depth;
+                    ankus_trim_internal_subtransactions();
 
                     MemoryContextSwitchTo(diagnostic_context);
                     CurrentResourceOwner = caller_owner;

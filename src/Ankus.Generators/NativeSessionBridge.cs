@@ -23,7 +23,6 @@ internal static class NativeSessionBridge
             MemoryContext caller_context;
             ResourceOwner caller_owner;
             int caller_nest_level;
-            int caller_internal_subtransaction_depth;
             bool subtransaction_owned;
             MemoryContext context;
             AnkusSessionPlan *plans;
@@ -64,7 +63,7 @@ internal static class NativeSessionBridge
 
         static void
         ankus_register_session(AnkusRequest *request, MemoryContext caller_context, ResourceOwner caller_owner,
-            int caller_nest_level, int caller_internal_subtransaction_depth)
+            int caller_nest_level)
         {
             AnkusSession *session;
             if (ankus_next_session_id == PG_INT64_MAX)
@@ -78,7 +77,6 @@ internal static class NativeSessionBridge
             session->caller_context = caller_context;
             session->caller_owner = caller_owner;
             session->caller_nest_level = caller_nest_level;
-            session->caller_internal_subtransaction_depth = caller_internal_subtransaction_depth;
             session->subtransaction_owned = GetCurrentTransactionNestLevel() > caller_nest_level;
             session->context = CurrentMemoryContext;
             session->previous = ankus_session;

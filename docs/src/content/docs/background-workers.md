@@ -235,6 +235,12 @@ handlers record flags and wake the latch; managed code processes them after
 waking. These observations are flags: multiple deliveries before consumption
 can coalesce. Consuming one selection leaves other pending observations intact;
 consuming the same selection again returns no flags unless another signal arrived.
+Termination that arrives while `RunTransaction` is executing also ends the
+running statement, as PostgreSQL's default handler does for any backend: the
+transaction rolls back and the worker exits with FATAL `57P01`, so
+`pg_terminate_backend` and fast shutdown do not wait for a long query. Between
+transactions, termination is only an observation: `Wait` returns false, and a
+final cleanup transaction started after that still runs.
 Attaching `Interrupt` makes SIGINT an observation rather than PostgreSQL query
 cancellation. With the default handlers, SIGINT can cancel a worker's wait or
 active transaction, including through `pg_cancel_backend`.

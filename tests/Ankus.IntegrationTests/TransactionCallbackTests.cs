@@ -400,6 +400,145 @@ public sealed class TransactionCallbackTests(TestContext context)
             "SELECT datatype.transaction_callback_root_alive()", token));
     }
 
+    /// <summary>
+    /// A savepoint commit callback failure aborts the enclosing transaction with ERROR instead of crashing the cluster.
+    /// </summary>
+    [TestMethod]
+    public async Task SavepointCommitCallbackFailureAbortsWithError()
+    {
+        CancellationToken token = context.CancellationToken;
+        await using NpgsqlConnection connection = await PostgresFixture.Cluster.OpenConnectionAsync(token);
+        int backend = connection.ProcessID;
+        await ResetAsync(connection, token);
+        await using (NpgsqlTransaction transaction = await connection.BeginTransactionAsync(token))
+        {
+            await ExecuteAsync(connection, transaction, "SELECT datatype.transaction_callback_register_savepoint_failure(false)", token);
+            await transaction.SaveAsync("committed", token);
+            PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => transaction.ReleaseAsync("committed", token));
+            Assert.AreEqual("ERROR", error.InvariantSeverity);
+            Assert.AreEqual("P7840", error.SqlState);
+            Assert.AreEqual("savepoint completion callback failure", error.MessageText);
+            await transaction.RollbackAsync(token);
+        }
+
+        Assert.AreEqual(backend, connection.ProcessID);
+        Assert.AreEqual(42, await ScalarAsync<int>(connection, null, "SELECT 42", token));
+    }
+
+    /// <summary>
+    /// A savepoint abort callback failure is reported as a warning while the rollback completes and the transaction continues.
+    /// </summary>
+    [TestMethod]
+    public async Task SavepointAbortCallbackFailureWarnsAndCompletesRollback()
+    {
+        CancellationToken token = context.CancellationToken;
+        await using NpgsqlConnection connection = await PostgresFixture.Cluster.OpenConnectionAsync(token);
+        int backend = connection.ProcessID;
+        var notices = new List<PostgresNotice>();
+        connection.Notice += (_, args) => notices.Add(args.Notice);
+        await ResetAsync(connection, token);
+        await using (NpgsqlTransaction transaction = await connection.BeginTransactionAsync(token))
+        {
+            await ExecuteAsync(connection, transaction, "SELECT datatype.transaction_callback_register_savepoint_failure(true)", token);
+            await transaction.SaveAsync("rolled_back", token);
+            await transaction.RollbackAsync("rolled_back", token);
+            Assert.AreEqual(42, await ScalarAsync<int>(connection, transaction, "SELECT 42", token));
+            await transaction.CommitAsync(token);
+        }
+
+        PostgresNotice warning = Assert.ContainsSingle(notices.Where(static notice => notice.SqlState == "P7840"));
+        Assert.AreEqual("WARNING", warning.InvariantSeverity);
+        Assert.AreEqual("savepoint completion callback failure", warning.MessageText);
+        Assert.AreEqual(backend, connection.ProcessID);
+    }
+
+    /// <summary>
+    /// A savepoint opened by SQL inside guarded SPI reaches callbacks, while the guard's own subtransaction does not.
+    /// </summary>
+    [TestMethod]
+    public async Task NestedSqlSavepointsReachCallbacksWithoutGuardSubtransactions()
+    {
+        CancellationToken token = context.CancellationToken;
+        await using NpgsqlConnection connection = await PostgresFixture.Cluster.OpenConnectionAsync(token);
+        await ResetAsync(connection, token);
+        await using NpgsqlTransaction transaction = await connection.BeginTransactionAsync(token);
+        await ExecuteAsync(connection, transaction, """
+            CREATE FUNCTION pg_temp.guarded_savepoint() RETURNS integer LANGUAGE plpgsql AS $$
+            BEGIN
+                BEGIN
+                    PERFORM 1;
+                EXCEPTION WHEN OTHERS THEN
+                    NULL;
+                END;
+                RETURN 7;
+            END $$
+            """, token);
+        await ExecuteAsync(connection, transaction, "SELECT datatype.transaction_callback_register_subtransactions(false)", token);
+        Assert.AreEqual(7, await ScalarAsync<int>(connection, transaction,
+            "SELECT datatype.spi_required_scalar('SELECT pg_temp.guarded_savepoint()')", token));
+        string[] events = Events(await StateAsync(connection, transaction, token));
+        Assert.HasCount(3, events);
+        string[] start = events[0].Split(':');
+        Assert.AreSequenceEqual(["start", start[1], start[2], "1"], start);
+        Assert.AreSequenceEqual(["pre-sub", start[1], start[2], "1"], events[1].Split(':'));
+        Assert.AreSequenceEqual(["commit-sub", start[1], start[2]], events[2].Split(':'));
+        await transaction.RollbackAsync(token);
+    }
+
+    /// <summary>
+    /// Another loaded Ankus extension's guard subtransactions are hidden from this extension's callbacks.
+    /// </summary>
+    [TestMethod]
+    [DoNotParallelize]
+    public async Task OtherExtensionGuardSubtransactionsAreHidden()
+    {
+        CancellationToken token = context.CancellationToken;
+        await using NpgsqlConnection connection = await PostgresFixture.Cluster.OpenConnectionAsync(token);
+        await ResetAsync(connection, token);
+        await using NpgsqlTransaction transaction = await connection.BeginTransactionAsync(token);
+        await ExecuteAsync(connection, transaction, "CREATE EXTENSION ankus_spi", token);
+        await ExecuteAsync(connection, transaction, "SELECT datatype.transaction_callback_register_subtransactions(false)", token);
+        Assert.IsTrue(await ScalarAsync<bool>(connection, transaction, "SELECT spi.spi_query_random_id() IN (1, 2, 3)", token));
+        Assert.AreEqual("2", await ScalarAsync<string>(connection, transaction, "SELECT spi.spi_query_title('Hello There!')::text", token));
+        Assert.IsEmpty(Events(await StateAsync(connection, transaction, token)));
+        await transaction.RollbackAsync(token);
+    }
+
+    /// <summary>
+    /// Deferred constraints queued by pre-commit SQL are still checked before the transaction commits.
+    /// </summary>
+    [TestMethod]
+    public async Task PreCommitSqlFiresDeferredConstraints()
+    {
+        CancellationToken token = context.CancellationToken;
+        string suffix = Guid.NewGuid().ToString("N");
+        string parent = "precommit_parent_" + suffix;
+        string child = "precommit_child_" + suffix;
+        await using NpgsqlConnection connection = await PostgresFixture.Cluster.OpenConnectionAsync(token);
+        await ResetAsync(connection, token);
+        await ExecuteAsync(connection, null, $"""
+            CREATE TABLE {parent} (id integer PRIMARY KEY);
+            CREATE TABLE {child} (parent_id integer REFERENCES {parent} DEFERRABLE INITIALLY DEFERRED)
+            """, token);
+        try
+        {
+            await using (NpgsqlTransaction transaction = await connection.BeginTransactionAsync(token))
+            {
+                await using var register = new NpgsqlCommand("SELECT datatype.transaction_callback_register_pre_commit_sql($1)", connection, transaction);
+                register.Parameters.AddWithValue($"INSERT INTO {child} VALUES (42)");
+                await register.ExecuteNonQueryAsync(token);
+                PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => transaction.CommitAsync(token));
+                Assert.AreEqual(PostgresErrorCodes.ForeignKeyViolation, error.SqlState);
+            }
+
+            Assert.AreEqual(0L, await ScalarAsync<long>(connection, null, $"SELECT count(*) FROM {child}", token));
+        }
+        finally
+        {
+            await ExecuteAsync(connection, null, $"DROP TABLE {child}, {parent}", CancellationToken.None);
+        }
+    }
+
     private static string[] Events(string state)
     {
         string text = state[..state.IndexOf('|')];

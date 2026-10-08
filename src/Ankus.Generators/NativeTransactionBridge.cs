@@ -10,6 +10,9 @@ internal static class NativeTransactionBridge
     /// </summary>
     internal const string Source = """
         #include "access/xact.h"
+        #include "commands/trigger.h"
+        #include "storage/lock.h"
+        #include "storage/proc.h"
         #include "utils/snapmgr.h"
 
         typedef int (*AnkusTransactionManaged)(int, int, uint32, uint32, AnkusError *,
@@ -20,7 +23,151 @@ internal static class NativeTransactionBridge
         static AnkusTransactionManaged ankus_transaction_managed;
         static bool ankus_transaction_registered;
         static bool ankus_subtransaction_registered;
-        static int ankus_internal_subtransaction_depth;
+
+        /* Ankus guards open internal subtransactions for recovery. Subtransaction
+         * callbacks ignore exactly those, including another loaded Ankus extension's,
+         * while still observing savepoints and PL/pgSQL exception blocks nested inside
+         * guarded SQL. Every Ankus extension in a backend shares this registry through
+         * a PostgreSQL rendezvous variable. An entry matches only its own top-level
+         * transaction and subtransaction ID, which PostgreSQL never reuses within a
+         * transaction, so an entry left behind by an abort can never hide a savepoint. */
+        #define ANKUS_SUBTRANSACTION_REGISTRY 0x414e5331U
+
+        typedef struct AnkusInternalSubtransaction
+        {
+            LocalTransactionId transaction;
+            SubTransactionId subtransaction;
+            int nest_level;
+        } AnkusInternalSubtransaction;
+
+        typedef struct AnkusSubtransactionRegistry
+        {
+            uint32 magic;
+            int starting;
+            int count;
+            int capacity;
+            AnkusInternalSubtransaction *entries;
+        } AnkusSubtransactionRegistry;
+
+        static AnkusSubtransactionRegistry ankus_private_subtransactions = { ANKUS_SUBTRANSACTION_REGISTRY, 0, 0, 0, NULL };
+        static AnkusSubtransactionRegistry *ankus_subtransactions;
+
+        /* Locates or creates the shared registry; callers are native PostgreSQL or guarded frames. */
+        static AnkusSubtransactionRegistry *
+        ankus_subtransaction_registry(void)
+        {
+            if (ankus_subtransactions == NULL)
+            {
+                AnkusSubtransactionRegistry **slot =
+                    (AnkusSubtransactionRegistry **) find_rendezvous_variable("ankus_internal_subtransactions");
+                if (*slot == NULL)
+                {
+                    AnkusSubtransactionRegistry *registry = MemoryContextAllocZero(TopMemoryContext, sizeof(AnkusSubtransactionRegistry));
+                    registry->magic = ANKUS_SUBTRANSACTION_REGISTRY;
+                    *slot = registry;
+                }
+
+                /* An incompatible Ankus version keeps its own registry; this one still filters its own guards. */
+                ankus_subtransactions = (*slot)->magic == ANKUS_SUBTRANSACTION_REGISTRY ? *slot : &ankus_private_subtransactions;
+            }
+
+            return ankus_subtransactions;
+        }
+
+        static LocalTransactionId
+        ankus_local_transaction(void)
+        {
+            VirtualTransactionId transaction;
+            if (MyProc == NULL)
+            {
+                return InvalidLocalTransactionId;
+            }
+
+            GET_VXID_FROM_PGPROC(transaction, *MyProc);
+            return transaction.localTransactionId;
+        }
+
+        /* Drops entries for subtransactions that have ended, after a release or rollback. */
+        static void
+        ankus_trim_internal_subtransactions(void)
+        {
+            AnkusSubtransactionRegistry *registry = ankus_subtransactions;
+            if (registry == NULL)
+            {
+                return;
+            }
+
+            LocalTransactionId transaction = ankus_local_transaction();
+            int nest_level = GetCurrentTransactionNestLevel();
+            while (registry->count > 0 && (registry->entries[registry->count - 1].transaction != transaction ||
+                registry->entries[registry->count - 1].nest_level > nest_level))
+            {
+                registry->count--;
+            }
+        }
+
+        /* Opens a recovery subtransaction that no Ankus subtransaction callback observes. */
+        static void
+        ankus_begin_internal_subtransaction(void)
+        {
+            AnkusSubtransactionRegistry *registry = ankus_subtransaction_registry();
+            ankus_trim_internal_subtransactions();
+            if (registry->count == registry->capacity)
+            {
+                int capacity = registry->capacity == 0 ? 8 : registry->capacity * 2;
+                Size size = sizeof(AnkusInternalSubtransaction) * (Size) capacity;
+                registry->entries = registry->entries == NULL
+                    ? MemoryContextAlloc(TopMemoryContext, size) : repalloc(registry->entries, size);
+                registry->capacity = capacity;
+            }
+
+            /* Start callbacks run before the new identity is known. The registry is read
+             * through its static pointer after setjmp, so no local can be clobbered. */
+            registry->starting++;
+            PG_TRY();
+            {
+                BeginInternalSubTransaction(NULL);
+            }
+            PG_FINALLY();
+            {
+                ankus_subtransactions->starting--;
+            }
+            PG_END_TRY();
+            ankus_subtransactions->entries[ankus_subtransactions->count].transaction = ankus_local_transaction();
+            ankus_subtransactions->entries[ankus_subtransactions->count].subtransaction = GetCurrentSubTransactionId();
+            ankus_subtransactions->entries[ankus_subtransactions->count].nest_level = GetCurrentTransactionNestLevel();
+            ankus_subtransactions->count++;
+        }
+
+        /* Commits an internal subtransaction; its commit callbacks still observe it as internal. */
+        static void
+        ankus_release_internal_subtransaction(void)
+        {
+            ReleaseCurrentSubTransaction();
+            ankus_trim_internal_subtransactions();
+        }
+
+        static bool
+        ankus_internal_subtransaction(SubXactEvent event, SubTransactionId subtransaction)
+        {
+            AnkusSubtransactionRegistry *registry = ankus_subtransaction_registry();
+            LocalTransactionId transaction;
+            if (event == SUBXACT_EVENT_START_SUB)
+            {
+                return registry->starting != 0;
+            }
+
+            transaction = ankus_local_transaction();
+            for (int index = registry->count - 1; index >= 0; index--)
+            {
+                if (registry->entries[index].subtransaction == subtransaction && registry->entries[index].transaction == transaction)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
 
         typedef struct AnkusTransactionFrame
         {
@@ -129,9 +276,20 @@ internal static class NativeTransactionBridge
             PG_END_TRY();
         }
 
+        /* The level reported for a callback failure in each phase. */
+        enum AnkusCallbackFailure
+        {
+            /* Reversible phases reject the operation. */
+            ANKUS_CALLBACK_ERROR,
+            /* Savepoint rollback must finish; an ERROR there would re-enter the same abort. */
+            ANKUS_CALLBACK_WARNING,
+            /* FATAL runs abort cleanup, which is unsafe after an irreversible transaction phase. */
+            ANKUS_CALLBACK_PANIC
+        };
+
         static void
         ankus_transaction_dispatch(int kind, int event, uint32 subtransaction_id,
-            uint32 parent_subtransaction_id, bool reversible, bool sql)
+            uint32 parent_subtransaction_id, enum AnkusCallbackFailure failure, bool sql)
         {
             AnkusError error = {0};
             AnkusMemoryApi memory = {0};
@@ -174,8 +332,15 @@ internal static class NativeTransactionBridge
 
             if (status != 0)
             {
-                /* FATAL runs abort cleanup, which is unsafe after an irreversible transaction phase. */
-                ankus_transaction_report(&error, reversible ? ERROR : PANIC);
+                ankus_transaction_report(&error, failure == ANKUS_CALLBACK_ERROR ? ERROR
+                    : failure == ANKUS_CALLBACK_WARNING ? WARNING : PANIC);
+            }
+            else if (sql && kind == 0)
+            {
+                /* PostgreSQL fires deferred triggers before PreCommit and PrePrepare callbacks,
+                 * then discards anything still queued. Fire the events queued by callback SQL,
+                 * such as deferred foreign-key checks, so they can still reject the transaction. */
+                AfterTriggerFireDeferred();
             }
 
             ankus_release_error(&error);
@@ -188,28 +353,28 @@ internal static class NativeTransactionBridge
             switch (event)
             {
                 case XACT_EVENT_ABORT:
-                    ankus_transaction_dispatch(0, 0, 0, 0, false, false);
+                    ankus_transaction_dispatch(0, 0, 0, 0, ANKUS_CALLBACK_PANIC, false);
                     break;
                 case XACT_EVENT_COMMIT:
-                    ankus_transaction_dispatch(0, 1, 0, 0, false, false);
+                    ankus_transaction_dispatch(0, 1, 0, 0, ANKUS_CALLBACK_PANIC, false);
                     break;
                 case XACT_EVENT_PRE_COMMIT:
-                    ankus_transaction_dispatch(0, 2, 0, 0, true, true);
+                    ankus_transaction_dispatch(0, 2, 0, 0, ANKUS_CALLBACK_ERROR, true);
                     break;
                 case XACT_EVENT_PARALLEL_ABORT:
-                    ankus_transaction_dispatch(0, 3, 0, 0, false, false);
+                    ankus_transaction_dispatch(0, 3, 0, 0, ANKUS_CALLBACK_PANIC, false);
                     break;
                 case XACT_EVENT_PARALLEL_COMMIT:
-                    ankus_transaction_dispatch(0, 4, 0, 0, false, false);
+                    ankus_transaction_dispatch(0, 4, 0, 0, ANKUS_CALLBACK_PANIC, false);
                     break;
                 case XACT_EVENT_PARALLEL_PRE_COMMIT:
-                    ankus_transaction_dispatch(0, 5, 0, 0, true, false);
+                    ankus_transaction_dispatch(0, 5, 0, 0, ANKUS_CALLBACK_ERROR, false);
                     break;
                 case XACT_EVENT_PREPARE:
-                    ankus_transaction_dispatch(0, 6, 0, 0, false, false);
+                    ankus_transaction_dispatch(0, 6, 0, 0, ANKUS_CALLBACK_PANIC, false);
                     break;
                 case XACT_EVENT_PRE_PREPARE:
-                    ankus_transaction_dispatch(0, 7, 0, 0, true, true);
+                    ankus_transaction_dispatch(0, 7, 0, 0, ANKUS_CALLBACK_ERROR, true);
                     break;
             }
         }
@@ -219,7 +384,7 @@ internal static class NativeTransactionBridge
             SubTransactionId parent_subtransaction_id, void *argument)
         {
             (void) argument;
-            if (ankus_internal_subtransaction_depth != 0)
+            if (ankus_internal_subtransaction(event, subtransaction_id))
             {
                 return;
             }
@@ -227,16 +392,17 @@ internal static class NativeTransactionBridge
             switch (event)
             {
                 case SUBXACT_EVENT_ABORT_SUB:
-                    ankus_transaction_dispatch(1, 0, subtransaction_id, parent_subtransaction_id, false, false);
+                    ankus_transaction_dispatch(1, 0, subtransaction_id, parent_subtransaction_id, ANKUS_CALLBACK_WARNING, false);
                     break;
                 case SUBXACT_EVENT_COMMIT_SUB:
-                    ankus_transaction_dispatch(1, 1, subtransaction_id, parent_subtransaction_id, false, false);
+                    /* A committed savepoint still belongs to its parent, which PostgreSQL then aborts. */
+                    ankus_transaction_dispatch(1, 1, subtransaction_id, parent_subtransaction_id, ANKUS_CALLBACK_ERROR, false);
                     break;
                 case SUBXACT_EVENT_PRE_COMMIT_SUB:
-                    ankus_transaction_dispatch(1, 2, subtransaction_id, parent_subtransaction_id, true, true);
+                    ankus_transaction_dispatch(1, 2, subtransaction_id, parent_subtransaction_id, ANKUS_CALLBACK_ERROR, true);
                     break;
                 case SUBXACT_EVENT_START_SUB:
-                    ankus_transaction_dispatch(1, 3, subtransaction_id, parent_subtransaction_id, true, true);
+                    ankus_transaction_dispatch(1, 3, subtransaction_id, parent_subtransaction_id, ANKUS_CALLBACK_ERROR, true);
                     break;
             }
         }

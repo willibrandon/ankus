@@ -62,6 +62,7 @@ internal static class NativeBackgroundWorkerBridge
         static volatile sig_atomic_t ankus_worker_term;
         static volatile sig_atomic_t ankus_worker_int;
         static volatile sig_atomic_t ankus_worker_child;
+        static volatile sig_atomic_t ankus_worker_transaction_active;
 
         static const char *
         ankus_worker_check_phase(AnkusMemoryRequest *request)
@@ -129,6 +130,14 @@ internal static class NativeBackgroundWorkerBridge
                 case SIGTERM:
                     ankus_worker_term = 1;
                     ShutdownRequestPending = 1;
+                    /* A running worker transaction ends as PostgreSQL's die() ends a backend
+                     * statement, so pg_terminate_backend and fast shutdown can interrupt it.
+                     * Between transactions, termination remains an observation for Wait. */
+                    if (ankus_worker_transaction_active && !proc_exit_inprogress)
+                    {
+                        InterruptPending = true;
+                        ProcDiePending = true;
+                    }
                     break;
                 case SIGINT:
                     ankus_worker_int = 1;
@@ -417,6 +426,7 @@ internal static class NativeBackgroundWorkerBridge
             {
                 SetCurrentStatementStartTimestamp();
                 StartTransactionCommand();
+                ankus_worker_transaction_active = 1;
                 PushActiveSnapshot(GetTransactionSnapshot());
                 AnkusMemoryApi memory = {0};
                 ankus_memory_initialize(&memory);
@@ -434,11 +444,13 @@ internal static class NativeBackgroundWorkerBridge
                     *recovered = true;
                 }
 
+                ankus_worker_transaction_active = 0;
                 if (error->sqlstate != 0)
                     ankus_report(error, ERROR);
             }
             PG_CATCH();
             {
+                ankus_worker_transaction_active = 0;
                 MemoryContextSwitchTo(caller);
                 AbortCurrentTransaction();
                 *recovered = true;

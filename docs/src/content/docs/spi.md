@@ -546,6 +546,14 @@ Managed `finally` blocks run normally for PostgreSQL errors and cancellation.
 SPI calls are confined to the active backend thread; worker-thread calls throw
 `InvalidOperationException` before accessing PostgreSQL state.
 
+Recovery has a cost for writes. Each call that writes in its subtransaction
+receives its own subtransaction ID. Once a transaction has more than 64 of them,
+PostgreSQL's per-backend cache overflows, and every concurrent snapshot must
+consult `pg_subtrans` until that transaction ends. Reads that write nothing do
+not consume IDs. For bulk changes, prefer one set-based statement, such as
+`INSERT ... SELECT` or a statement over an array parameter, instead of one call
+per row.
+
 PostgreSQL 13–16 prohibit subtransactions during parallel execution, including
 in parallel workers. Successful SPI queries, scoped sessions, prepared statements
 and cursors remain available subject to PostgreSQL's parallel restrictions.

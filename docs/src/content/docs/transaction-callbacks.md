@@ -94,7 +94,10 @@ is committed.
 | `ParallelAbort` | After a parallel worker rolls back | No |
 
 `PreCommit`, `PrePrepare` and `ParallelPreCommit` may reject the operation by
-throwing. Events after
+throwing. PostgreSQL fires deferred triggers before these callbacks run. Ankus
+fires the deferred triggers and constraint checks that callback SQL queues, such
+as a deferred foreign key, before PostgreSQL continues, so they can still reject
+the commit. Events after
 commit, rollback, or preparation are for cleanup and logging. An unhandled
 exception in those events causes PostgreSQL to disconnect all sessions and run
 crash recovery, as with pgrx. Committed changes remain committed; a transaction
@@ -129,8 +132,20 @@ PgSubtransactionCallback registration = PgTransaction.RegisterSubtransactionCall
 | `Abort` | After it rolls back | No |
 
 The callback receives `PgSubtransactionId` values for the current and parent IDs.
-Dispose its registration to stop future calls. Ankus's private error guards do
-not appear as consumer subtransaction events.
+Dispose its registration to stop future calls. Subtransactions that Ankus opens
+for its private error guards do not appear as events, including those opened by
+another Ankus extension in the same session. Savepoints and PL/pgSQL `EXCEPTION`
+blocks inside SQL that a guard runs do appear.
+
+SQL in `Start` and `PreCommit` callbacks must not open another subtransaction,
+for example through a PL/pgSQL `EXCEPTION` block. PostgreSQL cannot start one
+while a savepoint is starting or being released, and it terminates the session
+with a FATAL error if SQL tries.
+
+An exception in a savepoint `Commit` callback becomes a PostgreSQL error, and
+PostgreSQL aborts the enclosing transaction. An exception in a savepoint `Abort`
+callback is reported as a warning with its SQLSTATE and message, because the
+rollback must finish; raising an error there would repeat the same rollback.
 
 ## Errors
 
@@ -138,4 +153,4 @@ An uncaught managed exception in a reversible phase becomes a PostgreSQL error
 after managed `finally` blocks finish. A PostgreSQL error raised by SPI also aborts
 that phase, even when callback code catches the managed `PgException`; continuing
 would leave PostgreSQL in a failed transaction state. Nested callback dispatch is
-supported when callback SQL creates another subtransaction.
+supported when `PreCommit` or `PrePrepare` SQL creates another subtransaction.

@@ -173,14 +173,14 @@ internal static class NativeAggregateBridge
                         MemoryContext temporary;
                         int comparison;
                         if (!ankus_parallel_without_subtransactions())
-                            BeginInternalSubTransaction(NULL);
+                            ankus_begin_internal_subtransaction();
                         temporary = AllocSetContextCreate(CurrentMemoryContext, "Ankus aggregate comparison", ALLOCSET_SMALL_SIZES);
                         MemoryContextSwitchTo(temporary);
                         comparison = ankus_aggregate_compare(values, sort_key);
                         MemoryContextSwitchTo(caller);
                         MemoryContextDelete(temporary);
                         if (!ankus_parallel_without_subtransactions())
-                            ReleaseCurrentSubTransaction();
+                            ankus_release_internal_subtransaction();
                         MemoryContextSwitchTo(caller);
                         CurrentResourceOwner = resource_owner;
                         *output = (void *) (intptr_t) ((comparison > 0) - (comparison < 0));
@@ -216,6 +216,8 @@ internal static class NativeAggregateBridge
                         RollbackAndReleaseCurrentSubTransaction();
                         recovered = true;
                     }
+
+                    ankus_trim_internal_subtransactions();
 
                     MemoryContextSwitchTo(diagnostics);
                     CurrentResourceOwner = resource_owner;

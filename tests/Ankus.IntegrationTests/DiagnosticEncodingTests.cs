@@ -38,7 +38,10 @@ public sealed class DiagnosticEncodingTests(TestContext context)
             int backend = connection.ProcessID;
             await using var command = new NpgsqlCommand("SET client_encoding = LATIN1", connection);
             await command.ExecuteNonQueryAsync(token);
-            byte[] expected = Encoding.Latin1.GetBytes("commit report café");
+            // Backends log in the database encoding; Windows collects some messages through the UTF-16 Event Log.
+            const string Message = "commit report café";
+            byte[] latin1 = Encoding.Latin1.GetBytes(Message);
+            byte[] utf8 = Encoding.UTF8.GetBytes(Message);
             int start = ReadLog().Length;
             command.CommandText = "BEGIN; SELECT datatype.transaction_callback_register_encoded_report(); COMMIT";
             await command.ExecuteNonQueryAsync(token);
@@ -46,11 +49,17 @@ public sealed class DiagnosticEncodingTests(TestContext context)
             Assert.AreEqual(backend, await command.ExecuteScalarAsync(token));
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
             timeout.CancelAfter(TimeSpan.FromSeconds(30));
-            while (ReadLog().AsSpan(start).IndexOf(expected) < 0)
+            while (!Logged(ReadLog().AsSpan(start), latin1, utf8))
             {
                 await Task.Delay(10, timeout.Token);
             }
         });
+
+    /// <summary>
+    /// Finds a message written in either the database encoding or UTF-8.
+    /// </summary>
+    private static bool Logged(ReadOnlySpan<byte> log, byte[] database, byte[] utf8)
+        => log.IndexOf(database) >= 0 || log.IndexOf(utf8) >= 0;
 
     /// <summary>
     /// Reads raw server log bytes, which use the database encoding of each reporting backend.

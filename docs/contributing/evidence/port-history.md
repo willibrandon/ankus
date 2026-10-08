@@ -29106,3 +29106,93 @@ another test's thread-static callback scope; it now observes a dedicated thread.
 The Release solution build has zero warnings and errors. API freshness verifies
 **244** pages and **2,793** members; documentation checks report no errors,
 warnings or hints, and the site builds all **295** pages.
+
+## Round-3 transaction callback, worker and value findings — 2026-10-08
+
+### Transaction and savepoint callbacks
+
+An exception in a savepoint `Commit` or `Abort` callback reported PANIC, so one
+throwing callback inside a PL/pgSQL `EXCEPTION` block restarted every backend.
+A savepoint `Commit` failure now raises ERROR, and PostgreSQL aborts the
+enclosing transaction, as pgrx and PostgreSQL tolerate. A savepoint `Abort`
+failure is reported as a WARNING: an ERROR there would re-enter
+`AbortSubTransaction`, which calls the still-registered callbacks again until
+PostgreSQL's error stack overflows. Top-level post-completion phases keep their
+documented crash-recovery behavior.
+
+Subtransaction callbacks were filtered by a per-extension depth counter. Real
+savepoints and PL/pgSQL exception blocks inside guarded SQL therefore never
+fired callbacks, while another loaded Ankus extension's internal guards did.
+Guards now record their subtransactions in a registry that every Ankus
+extension in the backend shares through a PostgreSQL rendezvous variable. An
+entry matches only its own local transaction and subtransaction ID, which
+PostgreSQL never reuses within a transaction, so an entry left behind by an
+abort cannot hide a later savepoint. Error paths trim entries deeper than the
+nesting level they roll back to, so no guard has to read the registry before
+its native error boundary.
+
+PostgreSQL fires deferred triggers before `PreCommit` and `PrePrepare`
+callbacks and then discards anything queued afterward, so a deferred
+foreign-key violation inserted by callback SQL committed. After a successful
+SQL-capable top-level callback, Ankus now fires the queued deferred triggers
+itself, allowing them to reject the transaction.
+
+`BeginInternalSubTransaction` raises FATAL in `TBLOCK_SUBBEGIN` (every `Start`
+callback) and in `TBLOCK_SUBRELEASE` or `TBLOCK_SUBCOMMIT` (savepoint release),
+and extensions cannot observe the block state. Ordinary SQL in those phases is
+safe and remains available; the guide now states that SQL there must not open
+another subtransaction.
+
+### Worker termination
+
+Workers replace PostgreSQL's `die()` SIGTERM handler with one that records the
+request for `Wait`. A long statement inside `RunTransaction` therefore ignored
+`pg_terminate_backend` and fast shutdown. A SIGTERM that arrives during a worker
+transaction now also sets `ProcDiePending`, exactly as `die()` does, so the
+statement ends with FATAL `57P01`. Between transactions, termination remains an
+observation, so a graceful `Wait` loop and a final cleanup transaction still
+work.
+
+### Generator, SDK, scaffolding and value findings
+
+These fixes were developed in isolated worktrees and integrated after review:
+
+- Generator declaration keys ended at the whole file for file-scoped
+  namespaces, so every edit invalidated every key. Namespace headers now end at
+  the namespace name.
+- A PostgreSQL major authored in `Directory.Build.targets` was evaluated after
+  the SDK had already applied its default. The default and its explicit-selection
+  marker are now evaluated after `Directory.Build.targets`, in both packaged and
+  repository layouts.
+- `[PgSchema]` without an argument on an aggregate container crashed the
+  generator; it now reports `ANKUS050`. `PgColumnNames` with a non-array
+  argument is guarded, although Roslyn 5.9 did not reproduce the reported crash.
+- The reserved-schema check is case-sensitive, like PostgreSQL's
+  `IsReservedName`, so `"PG_Stage"` is accepted.
+- A parameter default containing `--` can no longer comment out the generated
+  closing parenthesis.
+- `ankus new` quotes extension names with PostgreSQL's `quote_identifier`
+  rules, so `User` scaffolds `CREATE EXTENSION "user"`.
+- Interval JSON uses the exact, session-independent ISO 8601 form instead of
+  the session's `IntervalStyle`. `PgInterval.Abs` now agrees with `Sign` and
+  PostgreSQL's interval comparison.
+- `PgNumeric.ToDecimal` rejects display-scale loss beyond what `decimal`
+  carries, like `SqlDecimal`, instead of silently dropping trailing zeros.
+- Default CBOR storage keeps exact NaN payload bits, deliberately unlike pgrx's
+  canonical NaN, and writes dictionary entries in ordinal key order.
+
+### Validation
+
+Complete local validation on Linux x64/PostgreSQL **18.6**, SDK **10.0.401**,
+covers the integrated source: the transaction-callback and worker fixes plus the
+reviewed generator, SDK, scaffolding and value commits. Build tests pass
+**1,259** of **1,268** with **9** platform skips; generator tests **4,558/4,558**;
+runtime tests **2,345/2,345**; PgConfig tests **481** of **505** with **24**
+platform skips; the Hello consumer **5/5**. The integration module passes
+**5,073** of **5,088** with **15** platform skips and zero failures in
+**11m59.688s**. The first integration attempt stopped in assembly
+initialization: the allocator-fault fixture locates the transaction bridge by
+its include block, which now also includes the trigger, lock and process
+headers. The Release solution build has zero warnings and errors. API
+freshness verifies **244** pages and **2,794** members; documentation checks
+report no errors, warnings or hints, and the site builds all **295** pages.

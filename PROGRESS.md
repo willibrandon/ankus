@@ -569,6 +569,25 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   transaction. Ordinary reports remain exact, and read-only or parallel-worker
   commits keep FATAL instead of PANIC. The crash and hang regressions fail
   without their fixes and pass with them on Linux x64/PostgreSQL **18.6**.
+- Primary CI **37773258253** on **d0df4e7** passes quality, all runtime jobs and
+  the complete Linux/PostgreSQL 18 and macOS ARM64/PostgreSQL 18 suites. Windows
+  x64/PostgreSQL 17 passes every module except one new case: the backend
+  survived its LATIN1 commit-callback report, but Windows routes that LOG line
+  through the UTF-16 Event Log, so the raw LATIN1 bytes never appeared. The case
+  now accepts the message in the database encoding or UTF-8.
+- Round-3 transaction-callback findings are fixed. Savepoint `Commit` callback
+  failures raise ERROR instead of PANIC; savepoint `Abort` failures become
+  WARNINGs so the rollback finishes. Callbacks now see savepoints nested inside
+  guarded SQL and ignore every loaded Ankus extension's guard subtransactions
+  through a shared rendezvous registry. Deferred triggers queued by `PreCommit`
+  SQL fire before commit. SIGTERM during a worker transaction now ends the
+  running statement as PostgreSQL's `die()` does. Generator file-scoped
+  namespace keys, `Directory.Build.targets` majors, aggregate `[PgSchema]`
+  recovery, case-sensitive `pg_` reservation, defaults containing `--`, quoted
+  `ankus new` extension names, ISO interval JSON, interval `Abs`, strict
+  `decimal` scale, exact CBOR NaN payloads and ordered dictionary keys are also
+  fixed. Per-call SPI subtransaction cost is now documented; an explicit opt-out
+  scope for bulk writes remains a design item.
 - Primary CI **37766380749** on **a04472b** passed Linux and macOS but failed one
   Windows/PostgreSQL 17 benchmark case: Hyper-V excluded TCP **28760–28859**,
   covering all default development ports. The case now reserves its port like

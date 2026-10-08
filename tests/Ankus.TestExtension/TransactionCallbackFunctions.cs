@@ -21,6 +21,23 @@ public static class TransactionCallbackFunctions
     private static WeakReference? s_root;
 
     /// <summary>
+    /// Registers a savepoint commit or abort callback that throws after the savepoint completes.
+    /// </summary>
+    /// <param name="abort">Whether the abort callback throws instead of the commit callback.</param>
+    [PgFunction]
+    public static void TransactionCallbackRegisterSavepointFailure(bool abort)
+        => s_subCommit = PgTransaction.RegisterSubtransactionCallback(abort ? PgSubtransactionEvent.Abort : PgSubtransactionEvent.Commit,
+            static (_, _) => throw new PgException("P7840", "savepoint completion callback failure"));
+
+    /// <summary>
+    /// Registers a pre-commit callback that runs SQL after PostgreSQL has fired the transaction's deferred triggers.
+    /// </summary>
+    /// <param name="sql">The command to run before commit.</param>
+    [PgFunction]
+    public static void TransactionCallbackRegisterPreCommitSql(string sql)
+        => s_preCommitFirst = PgTransaction.RegisterCallback(PgTransactionEvent.PreCommit, () => _ = Spi.Execute(sql));
+
+    /// <summary>
     /// Registers a commit callback whose server-only report needs encoding conversion after transaction state ends.
     /// </summary>
     [PgFunction]

@@ -16,6 +16,7 @@ public sealed partial class ToolCommandTests
     [DataRow(1)]
     [DataRow(2)]
     [DataRow(4)]
+    [DataRow(6)]
     public async Task WorkerTransactionsRecoverCancellationButRetainTerminalReports(int mode)
     {
         CancellationToken token = context.CancellationToken;
@@ -36,7 +37,20 @@ public sealed partial class ToolCommandTests
             Assert.IsTrue(Assert.IsInstanceOfType<bool>(await PackageGucScalarAsync(connection,
                 "SELECT EXISTS(SELECT FROM pg_stat_activity WHERE pid = " + pid + ")")));
             await ExecutePackageGucAsync(connection, "SELECT cancellation_release()");
-            if (mode == 2)
+            if (mode == 6)
+            {
+                // Termination ends the running statement as PostgreSQL's die() does, rather than waiting for the sleep.
+                await WaitForCancellationWorkerAsync(connection, cluster, process,
+                    "EXISTS(SELECT FROM pg_stat_activity WHERE pid = " + pid + " AND wait_event = 'PgSleep' AND xact_start IS NOT NULL)");
+                Assert.IsTrue(Assert.IsInstanceOfType<bool>(await PackageGucScalarAsync(connection, "SELECT pg_terminate_backend(" + pid + ")")));
+                await WaitForCancellationWorkerAsync(connection, cluster, process,
+                    "NOT EXISTS(SELECT FROM pg_stat_activity WHERE pid = " + pid + ")", requireAlive: false);
+                Assert.AreEqual(0L, await PackageGucScalarAsync(connection, "SELECT count(*) FROM worker_cancel_values"));
+                string log = cluster.ReadServerLog();
+                Assert.Contains("terminating background worker \"Ankus cancellation worker\" due to administrator command", log);
+                Assert.DoesNotContain("worker cancellation recovered", log);
+            }
+            else if (mode == 2)
             {
                 await WaitForCancellationWorkerAsync(connection, cluster, process,
                     "NOT EXISTS(SELECT FROM pg_stat_activity WHERE pid = " + pid + ")", requireAlive: false);
