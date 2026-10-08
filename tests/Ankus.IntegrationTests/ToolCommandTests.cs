@@ -20,6 +20,7 @@ public sealed partial class ToolCommandTests(TestContext context)
 
     private static string s_root = null!;
     private static string s_temporaryRoot = null!;
+    private static string s_pipeRoot = null!;
     private static string s_tool = null!;
     private static string s_home = null!;
     private static string s_published = null!;
@@ -52,6 +53,10 @@ public sealed partial class ToolCommandTests(TestContext context)
             Path.Combine(workRoot, ".aw-" + identity)));
         s_temporaryRoot = IntegrationEnvironment.PhysicalDirectory(Directory.CreateDirectory(
             Path.Combine(workRoot, ".at-" + identity)));
+        string? configuredPipeRoot = Environment.GetEnvironmentVariable("TESTINGPLATFORM_PIPE_DIRECTORY");
+        s_pipeRoot = PackagePipeDirectory.Create(s_temporaryRoot, string.IsNullOrWhiteSpace(configuredPipeRoot)
+            ? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
+            : configuredPipeRoot);
         // Independent cases own concurrency; each generated consumer build stays on one MSBuild node.
         await File.WriteAllTextAsync(Path.Combine(s_root, "Directory.Build.rsp"), "-m:1\n-nr:false\n", token);
         s_home = Path.Combine(s_root, "Ankus home");
@@ -100,7 +105,7 @@ public sealed partial class ToolCommandTests(TestContext context)
             ["TMP"] = s_temporaryRoot,
             ["TEMP"] = s_temporaryRoot,
             ["TMPDIR"] = s_temporaryRoot,
-            ["TESTINGPLATFORM_PIPE_DIRECTORY"] = s_temporaryRoot,
+            ["TESTINGPLATFORM_PIPE_DIRECTORY"] = s_pipeRoot,
             ["MSBUILDDISABLENODEREUSE"] = "1",
             // Generated projects use the selected installation even when it is outside standard discovery paths.
             ["AnkusPostgresMajor"] = s_installation.Version.Major.ToString(CultureInfo.InvariantCulture),
@@ -230,6 +235,11 @@ public sealed partial class ToolCommandTests(TestContext context)
         if (s_root is not null && Directory.Exists(s_root))
         {
             Directory.Delete(s_root, recursive: true);
+        }
+
+        if (s_pipeRoot is not null && s_pipeRoot != s_temporaryRoot && Directory.Exists(s_pipeRoot))
+        {
+            Directory.Delete(s_pipeRoot, recursive: true);
         }
 
         if (s_temporaryRoot is not null && Directory.Exists(s_temporaryRoot))

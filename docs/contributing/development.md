@@ -418,6 +418,13 @@ settings remain serial. Every platform job still runs the complete suite.
 Consumer builds disable MSBuild node reuse so worker processes release the
 fixture's temporary package assemblies before class cleanup.
 
+Consumer build files use runner-owned temporary storage in CI and are removed
+after each case. On Unix, test-controller sockets use a separate short directory
+when the build path would exceed the 103-byte portable socket-path limit.
+The check includes the generated pipe name and counts UTF-8 bytes. The fixture
+owns and removes the short directory; `TESTINGPLATFORM_PIPE_DIRECTORY` can select
+its parent when the user's home directory is also too long.
+
 `ankus new` bundles source templates under `src/Ankus.Tool/Templates/Extension`.
 It creates a version-matched solution with CPM and native MTP discovery. The
 package tests run the generated solution's `dotnet test` outside the checkout,

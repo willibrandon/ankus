@@ -132,6 +132,18 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
 
 ## Active validation and work
 
+- Primary CI **37713205889** on **bd46460** passed Linux/PostgreSQL 18,
+  Windows/PostgreSQL 17, all runtime jobs and quality; Docs **37713205808** passed.
+  macOS ARM64/PostgreSQL 18 failed because the runner-owned consumer directory
+  produced a **105-byte** test-controller socket path, exceeding macOS's
+  **103-byte** limit. Socket storage now checks the complete UTF-8 pathname and
+  uses a separately owned short directory when needed. Build-directory ownership
+  and per-case cleanup remain intact. macOS ARM64/PostgreSQL **18.6**, SDK
+  **10.0.401** passes the four focused checks and complete `dotnet test`:
+  **13,453** passed, **60** platform skips, zero failures in **11m57s** test time
+  (**12m19s** including build). All consumer and socket directories were removed.
+  Release build and site checks pass. Test latency still exceeds the requested
+  feedback time; this fixes the macOS startup regression.
 - Local test-performance work removes restore and compiler-input discovery from
   managed-binding cache hits. A second content cache shares compilation only after
   each consumer's restore and input resolution succeed. Source, runtime, SDK,
