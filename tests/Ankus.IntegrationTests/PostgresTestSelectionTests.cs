@@ -8,8 +8,7 @@ namespace Ankus.IntegrationTests;
 
 public sealed partial class ToolCommandTests
 {
-    private static readonly SelectionProjectPool s_plainSelectionProjects = new();
-    private static readonly SelectionProjectPool s_commandSelectionProjects = new();
+    private static readonly SelectionProjectPool s_selectionProjects = new();
 
     /// <summary>
     /// Plain dotnet test preserves project defaults and build overrides through publication and actual server execution.
@@ -27,7 +26,7 @@ public sealed partial class ToolCommandTests
     public async Task PlainTestHonorsProjectPostgresSelection(string selection)
     {
         CancellationToken token = context.CancellationToken;
-        using SelectionProjectLease lease = await AcquireSelectionProjectAsync(s_plainSelectionProjects, token);
+        using SelectionProjectLease lease = await AcquireSelectionProjectAsync(s_selectionProjects, token);
         string output = lease.Directory;
         string properties = selection is "extension-project" or "extension-relative"
             ? Path.Combine(output, "src", "TestCommandProbe", "TestCommandProbe.csproj")
@@ -101,7 +100,7 @@ public sealed partial class ToolCommandTests
     public async Task CommandSelectionHonorsProjectPostgresVersion(string selection)
     {
         CancellationToken token = context.CancellationToken;
-        using SelectionProjectLease lease = await AcquireSelectionProjectAsync(s_commandSelectionProjects, token);
+        using SelectionProjectLease lease = await AcquireSelectionProjectAsync(s_selectionProjects, token);
         string output = lease.Directory;
         string properties = selection == "extension-project"
             ? Path.Combine(output, "src", "TestCommandProbe", "TestCommandProbe.csproj")
@@ -159,7 +158,7 @@ public sealed partial class ToolCommandTests
     public async Task CommandSelectionAcceptsOrdinaryProjectLayouts(string layout)
     {
         CancellationToken token = context.CancellationToken;
-        using SelectionProjectLease lease = await AcquireSelectionProjectAsync(s_commandSelectionProjects, token);
+        using SelectionProjectLease lease = await AcquireSelectionProjectAsync(s_selectionProjects, token);
         string output = lease.Directory;
         string extension = Path.Combine(output, "src", "TestCommandProbe", "TestCommandProbe.csproj");
         XDocument document = XDocument.Load(extension);
@@ -508,7 +507,7 @@ public sealed partial class ToolCommandTests
     /// <summary>
     /// Reserves and restores an incremental packed consumer for one selection case.
     /// </summary>
-    /// <param name="pool">The reusable project pool for this family of cases.</param>
+    /// <param name="pool">The reusable project pool shared by version-selection cases.</param>
     /// <param name="token">Cancels scaffolding and writes.</param>
     /// <returns>A lease that releases the project for the next case.</returns>
     private static async Task<SelectionProjectLease> AcquireSelectionProjectAsync(
@@ -588,7 +587,7 @@ public sealed partial class ToolCommandTests
 
     private sealed class SelectionProjectPool
     {
-        private static readonly int s_capacity = Math.Clamp(IntegrationEnvironment.PackageTestConcurrency / 4, 1, 4);
+        private static readonly int s_capacity = IntegrationEnvironment.PackageTestConcurrency;
 
         /// <summary>
         /// Limits simultaneous consumers while preserving incremental outputs between cases.

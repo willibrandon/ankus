@@ -92,28 +92,26 @@ incorrect. See [the detailed review](docs/contributing/evidence/port-history.md#
 ## Current complete acceptance evidence
 
 Primary CI runs all six modules against real published Native AOT extensions.
-The latest successful primary CI source is **82503bf**, with runtime **10.0.12-ankus.4**.
-[CI 37644853764](https://github.com/willibrandon/ankus/actions/runs/37644853764)
-passes; [Docs run 37644853500](https://github.com/willibrandon/ankus/actions/runs/37644853500)
-also passes. All eighteen actual reports and all sixty-seven required native recovery
-partitions independently verify, alongside the callback and prefix corpora on
-every platform; no primary job timed out.
+The latest successful primary CI source is **7317ca1**, with runtime **10.0.12-ankus.4**.
+[CI 37719535843](https://github.com/willibrandon/ankus/actions/runs/37719535843)
+passes; [Docs run 37719535780](https://github.com/willibrandon/ankus/actions/runs/37719535780)
+also passes. All eighteen module reports were inspected: each platform completed
+all six modules with zero failures. No primary job timed out.
 A complete [Intel refresh](https://github.com/willibrandon/ankus/actions/runs/37460600236)
 also passes on source **e41c687**.
 
 | Source | Platform / PostgreSQL | Result | Duration |
 | --- | --- | --- | --- |
-| Latest primary CI, **82503bf / ankus.4** | Linux x64 / 18 | 13,485 total; 13,437 passed; 48 platform skips; zero failures | 44m23s job |
-| Same CI / revision / runtime | macOS ARM64 / 18 | 13,485 total; 13,425 passed; 60 platform skips; zero failures | 30m41s job |
-| Same CI / revision / runtime | Windows x64 / 17 | 13,485 total; 13,457 passed; 28 platform skips; zero failures | 42m48s job |
+| Latest primary CI, **7317ca1 / ankus.4** | Linux x64 / 18 | 13,518 total; 13,470 passed; 48 platform skips; zero failures | 11m58s test step; 14m02s job |
+| Same CI / revision / runtime | macOS ARM64 / 18 | 13,518 total; 13,458 passed; 60 platform skips; zero failures | 13m01s test step; 14m39s job |
+| Same CI / revision / runtime | Windows x64 / 17 | 13,518 total; 13,482 passed; 36 platform skips; zero failures | 22m43s test step; 24m58s job |
 | SQL/datetime composition, parent **e41c687 / ankus.4** | Linux x64 / 18.6 | 13,337 total; 13,289 passed; 48 platform skips; zero failures | 42m46.885s tests; 43m41.597s command |
 | Function-provider composition, parent **4da0bec / ankus.4** | Linux x64 / 18.6 | 13,365 total; 13,317 passed; 48 platform skips; zero failures | 42m39.165s tests; 43m46.937s command |
 | Type-provider composition, parent **97842d3 / ankus.4** | Linux x64 / 18.6 | 13,411 total; 13,363 passed; 48 platform skips; zero failures | 42m39.033s tests; 43m35.244s command |
 | Transaction-completion cleanup composition, parent **de27abd / ankus.4** | Linux x64 / 18.6 | 13,409 total; 13,361 passed; 48 platform skips; zero failures | 53m42.735s tests |
 
-All eighteen primary reports and the module identity, callback, prefix and native
-recovery partitions independently verify. Normal Release, API freshness and site
-checks pass. Earlier source counts, timings, rejected attempts and superseded
+Normal Release, API freshness and site checks pass. Earlier source counts,
+timings, rejected attempts and superseded
 results remain in the [acceptance history](docs/contributing/evidence/port-history.md#superseded-active-and-primary-acceptance-detail-before-sqldatetime-acceptance-2026-10-06).
 These results establish the named combinations, not full-port completion.
 
@@ -132,6 +130,18 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
 
 ## Active validation and work
 
+- Version-selection tests shared neither their idle projects nor the configured
+  build capacity: two independent pools each used one quarter of the package
+  limit, capped at four. They now share one pool bounded by the existing
+  configurable package limit. All **22** affected cases pass. Complete macOS
+  ARM64/PostgreSQL **18.6** runs with SDK **10.0.401** and eight package slots
+  retain **13,518** total tests, **13,458** passes, **60** platform skips and zero
+  failures. Test duration changes from **12m00.271s** to **11m40.965s**; total
+  command duration changes from **12m20.92s** to **12m03.33s**. The 22 selection
+  cases complete in **112.14s**, versus **187.68s** previously, while overlapping
+  other tests. This is a modest complete-suite improvement, not resolution of
+  the Windows latency gap. Release build and site checks pass. Windows profiling
+  separates command queue waits from native publication and project evaluation.
 - Primary CI **37716633362** on **358fd04** passed Linux/PostgreSQL 18,
   Windows/PostgreSQL 17, runtime jobs and quality; Docs **37716633355** passed.
   macOS ARM64/PostgreSQL 18 failed **41** consumer cases:
@@ -148,7 +158,8 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   **10.0.401**, passes **13,458** tests with **60** platform skips and zero
   failures in **12m00s** (**12m21s** including build). All **41** previously
   failing cases pass; consumer and socket directories were removed. Release
-  build and site checks pass. CI validation of the correction remains pending.
+  build and site checks pass. Complete primary CI **37719535843** on **7317ca1**
+  and Docs **37719535780** now pass; current platform counts and timings appear above.
   Test latency still exceeds the requested feedback time.
 - Local test-performance work removes restore and compiler-input discovery from
   managed-binding cache hits. A second content cache shares compilation only after

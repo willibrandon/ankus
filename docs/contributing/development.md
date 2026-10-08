@@ -407,7 +407,8 @@ receive `DOTNET_PROCESSOR_COUNT` equal to the machine's logical processors divid
 by the concurrent-build limit, with a minimum of one. Native AOT compilation,
 managed worker pools and GC consequently share that budget instead of each
 assuming ownership of the whole machine. This applies only to the repository's
-test processes. MSTest's worker count can impose a
+test processes. Version-selection cases share one reusable project pool with
+the same configured limit. MSTest's worker count can impose a
 lower limit. PostgreSQL releases before 18 also use a separate staged
 installation for each slot, so consumers with the same extension name cannot
 overwrite another active test's control or SQL files. PostgreSQL 18 and later
