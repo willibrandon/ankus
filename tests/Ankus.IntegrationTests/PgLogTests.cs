@@ -306,8 +306,7 @@ public sealed partial class PgLogTests(TestContext context)
         }
         else
         {
-            using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
-            deadline.CancelAfter(TimeSpan.FromSeconds(30));
+            using CancellationTokenSource deadline = CrashRecovery.CreateDeadline(token);
             string recoveredLog = await CrashRecovery.WaitAsync(cluster, deadline.Token);
             Assert.DoesNotContain("the database system is in recovery mode", recoveredLog);
             Assert.DoesNotContain("the database system is not yet accepting connections", recoveredLog);

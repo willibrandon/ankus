@@ -21,6 +21,18 @@ internal static class CrashRecovery
     }
 
     /// <summary>
+    /// Creates a recovery deadline linked to a test's cancellation.
+    /// </summary>
+    /// <param name="cancellationToken">The test's cancellation.</param>
+    /// <returns>A source canceled when recovery exceeds the startup budget.</returns>
+    internal static CancellationTokenSource CreateDeadline(CancellationToken cancellationToken)
+    {
+        var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(IntegrationEnvironment.StartupTimeout);
+        return deadline;
+    }
+
+    /// <summary>
     /// Waits for readiness after the most recent reinitialization, without repeatedly spawning rejected backends.
     /// </summary>
     /// <param name="cluster">The isolated server whose recovery is under test.</param>

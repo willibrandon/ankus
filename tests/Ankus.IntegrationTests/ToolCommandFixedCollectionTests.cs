@@ -99,8 +99,7 @@ public sealed partial class ToolCommandTests
             await backend.WaitForExitAsync(token);
         }
 
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
-        timeout.CancelAfter(TimeSpan.FromSeconds(30));
+        using CancellationTokenSource timeout = CrashRecovery.CreateDeadline(token);
         while (!cluster.ReadServerLog()[logLength..].Contains("database system is ready to accept connections", StringComparison.Ordinal))
         {
             await Task.Delay(10, timeout.Token);

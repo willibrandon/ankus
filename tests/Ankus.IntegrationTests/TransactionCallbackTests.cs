@@ -330,8 +330,7 @@ public sealed class TransactionCallbackTests(TestContext context)
             }
         }
 
-        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
-        deadline.CancelAfter(TimeSpan.FromSeconds(30));
+        using CancellationTokenSource deadline = CrashRecovery.CreateDeadline(token);
         string log = await CrashRecovery.WaitAsync(cluster, deadline.Token);
         string diagnostic = $"[{session}]: PANIC:  38000: managed post-commit failure";
         string cleanup = $"[{session}]: WARNING:  01000: managed post-commit finally";

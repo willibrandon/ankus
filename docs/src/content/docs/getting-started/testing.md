@@ -286,6 +286,10 @@ each cluster's diagnostics remain separate and are retained in its server log.
 Call `ReadServerLog()` to refresh that file while a Windows cluster is running.
 Disposing the cluster also collects its shutdown messages.
 
+`StartupTimeout` bounds initialization, server start and creation of the test
+database together. Its 180-second default matches PostgreSQL's own TAP test
+timeout, so a busy shared disk does not fail an otherwise healthy startup.
+
 If another process takes an automatically selected TCP port during startup, the fixture
 retries with a new isolated cluster and port. It allows up to three attempts
 within the original startup timeout, retaining each failed attempt's log and

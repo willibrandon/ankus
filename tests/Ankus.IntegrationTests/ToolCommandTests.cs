@@ -107,6 +107,9 @@ public sealed partial class ToolCommandTests(TestContext context)
             ["TMPDIR"] = s_temporaryRoot,
             ["TESTINGPLATFORM_PIPE_DIRECTORY"] = s_pipeRoot,
             ["MSBUILDDISABLENODEREUSE"] = "1",
+            // A compiler server started by a consumer build outlives it and, on Windows, keeps shadow copies of
+            // analyzers loaded from that build's TEMP, which is this class's temporary root.
+            ["UseSharedCompilation"] = "false",
             // Generated projects use the selected installation even when it is outside standard discovery paths.
             ["AnkusPostgresMajor"] = s_installation.Version.Major.ToString(CultureInfo.InvariantCulture),
             ["AnkusPgConfigPath"] = s_installation.PgConfigPath,
@@ -1188,6 +1191,7 @@ public sealed partial class ToolCommandTests(TestContext context)
             Installation = installation,
             DataDirectoryBase = Path.Combine(s_root, "pgdata"),
             LogDirectory = Path.Combine(IntegrationEnvironment.RepositoryRoot, "artifacts", "test-logs"),
+            StartupTimeout = IntegrationEnvironment.StartupTimeout,
             PostgreSqlConfiguration = configuration,
         }, token);
     }

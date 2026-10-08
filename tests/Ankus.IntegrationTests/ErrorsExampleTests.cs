@@ -115,8 +115,7 @@ public sealed class ErrorsExampleTests(TestContext context)
         Assert.AreEqual(System.Data.ConnectionState.Closed, connection.State);
         if (crashRecovery)
         {
-            using var recovery = CancellationTokenSource.CreateLinkedTokenSource(token);
-            recovery.CancelAfter(TimeSpan.FromSeconds(30));
+            using CancellationTokenSource recovery = CrashRecovery.CreateDeadline(token);
             _ = await CrashRecovery.WaitAsync(cluster, recovery.Token);
 
             await AssertRecoveredAsync(cluster, recovery.Token);

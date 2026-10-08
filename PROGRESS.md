@@ -130,6 +130,55 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
 
 ## Active validation and work
 
+- Primary CI has failed on Windows since **a04472b**; the last green primary run
+  remains **67c9cb5**. Every failure in CI **37766380749**, **37773258253**,
+  **37778899670**, **37782541757**, **37785972780**, **37791387341** and
+  **37791387910**, and in platform run **37786233416**, has an identified cause.
+  The three Windows runners share one host and run two complete suites at once.
+  Under that load, 30-second budgets expired while PostgreSQL was still healthy:
+  initdb, `pg_ctl start`, the first connection and the bootstrap
+  `CREATE DATABASE` (PostgreSQL 13 and 14 copy the template through a
+  checkpoint). Crash recovery also overran: one recovery spent **20.95s** in its
+  data-directory fsync and **6.632s** in its end-of-recovery checkpoint, then
+  became ready after the test's 30-second deadline. `StartupTimeout` now
+  defaults to **180s**, PostgreSQL's TAP `PG_TEST_TIMEOUT_DEFAULT`. Bootstrap
+  database creation and every crash-recovery wait share that budget. Isolated
+  on the same host, recovery takes about **4s**.
+  ToolCommandTests class cleanup could not delete
+  `Microsoft.CodeAnalysis.CSharp.NetAnalyzers.dll`. On Windows, a Roslyn
+  compiler server started by a consumer build keeps shadow copies of analyzers
+  loaded from that build's `TEMP`, which is the class's temporary root. A
+  concurrent job's `dotnet build-server shutdown` makes a consumer build start
+  that server. Tool-test children now build without shared compilation.
+  PostgreSQL 13's `ProcessInterrupts` reports a terminated worker as
+  "terminating connection due to administrator command"; PostgreSQL 14 added
+  the worker-specific message. The worker-termination assertion now expects each
+  major's message. PostgreSQL 13 and 14 treat a `NETWORK SERVICE` process as a
+  Windows service before checking stderr, so their reports go to the event log
+  as UTF-16. The LATIN1 commit-report test now accepts that sink, while still
+  requiring database-encoding bytes when the report reaches native stderr. The
+  PostgreSQL 13 CI artifact's native stderr file is empty and its event-derived
+  log reads `commit report café`. An unconverted UTF-8 report would read
+  `cafÃ©`, so the bridge converted correctly; the old test could not see the
+  event log. Separately, code inspection shows a remaining gap: a worker report
+  before the worker's first transaction in a non-UTF-8 database has no cached
+  conversion. PostgreSQL's general conversion then raises "cannot perform
+  encoding conversion outside a transaction". PostgreSQL's startup-prepared
+  UTF-8 conversion (`pg_unicode_to_server`) can convert it; that fix and a
+  worker test proving it remain required.
+  On the CI host, Windows x64, SDK **10.0.401**, with package concurrency 20,
+  complete suites ran concurrently as two CI jobs do. PostgreSQL **17.11**:
+  **13,879** total, **13,843** passed, **36** platform skips, zero failures in
+  **39m48.674s**. PostgreSQL **13.23**: the same counts and zero failures in
+  **36m40.360s**. Before these changes were complete, PostgreSQL 17.11 alone also
+  passed with the same counts in **25m47.602s**. On PostgreSQL 13.23, the
+  previously failing worker, LATIN1 and selection cases pass **15/15**. Linux
+  x64/PostgreSQL **18.6** passes the complete suite: **13,879** total,
+  **13,831** passed, **48** platform skips, zero failures in **12m29.807s**.
+  Release has zero warnings/errors; API freshness and site checks pass.
+  Local sessions cannot run under the runners' service account, so the
+  event-log branch was checked against the CI artifact, not executed locally.
+
 - Test scheduling now reserves crash recovery rather than excluding the whole
   integration suite. Isolated SDK rejection projects run alongside read-only
   checks; completed cases return installation leases before deleting build files.

@@ -345,7 +345,12 @@ public sealed class PostgresTestCluster : IAsyncDisposable
 
         await using NpgsqlConnection connection = await OpenConnectionAsync("postgres", "ankus-setup", cancellationToken)
             .ConfigureAwait(false);
-        await using var command = new NpgsqlCommand($"CREATE DATABASE {QuoteIdentifier(_options.DatabaseName)}", connection);
+        // PostgreSQL 13 and 14 copy the template database through a checkpoint, which can exceed an ordinary
+        // command timeout on a busy disk. Bootstrap shares the configured startup budget.
+        await using var command = new NpgsqlCommand($"CREATE DATABASE {QuoteIdentifier(_options.DatabaseName)}", connection)
+        {
+            CommandTimeout = GetConnectionTimeoutSeconds(_options.StartupTimeout),
+        };
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 

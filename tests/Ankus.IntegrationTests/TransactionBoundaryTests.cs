@@ -115,8 +115,7 @@ public sealed class TransactionBoundaryTests(TestContext context)
             Assert.AreEqual(SocketError.ConnectionReset, socket.SocketErrorCode);
         }
 
-        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
-        deadline.CancelAfter(TimeSpan.FromSeconds(30));
+        using CancellationTokenSource deadline = CrashRecovery.CreateDeadline(token);
         string log = await CrashRecovery.WaitAsync(cluster, deadline.Token);
         string diagnostic = $"[{identity}]: PANIC:  38000: managed post-prepare failure";
         string cleanup = $"[{identity}]: WARNING:  01000: managed post-prepare finally";

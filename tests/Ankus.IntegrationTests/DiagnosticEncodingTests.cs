@@ -42,14 +42,33 @@ public sealed class DiagnosticEncodingTests(TestContext context)
             const string Message = "commit report café";
             byte[] latin1 = Encoding.Latin1.GetBytes(Message);
             int start = ReadLog().Length;
+            int serverStart = PostgresFixture.Cluster.ReadServerLog().Length;
             command.CommandText = "BEGIN; SELECT datatype.transaction_callback_register_encoded_report(); COMMIT";
             await command.ExecuteNonQueryAsync(token);
             command.CommandText = "SELECT pg_catalog.pg_backend_pid()";
             Assert.AreEqual(backend, await command.ExecuteScalarAsync(token));
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
             timeout.CancelAfter(TimeSpan.FromSeconds(30));
-            while (ReadLog().AsSpan(start).IndexOf(latin1) < 0)
+            while (true)
             {
+                // Read the merged log first: a report absent from the later native read came from the event log.
+                string server = PostgresFixture.Cluster.ReadServerLog()[serverStart..];
+                byte[] native = ReadLog()[start..];
+                if (native.AsSpan().IndexOf("commit report caf"u8) >= 0)
+                {
+                    Assert.IsGreaterThanOrEqualTo(0, native.AsSpan().IndexOf(latin1),
+                        "Native stderr must carry the report in the database encoding.");
+                    break;
+                }
+
+                if (server.Contains("commit report caf", StringComparison.Ordinal))
+                {
+                    // PostgreSQL 13 and 14 send a Windows service's reports to the event log, converting them from
+                    // the database encoding to UTF-16; an unconverted UTF-8 report would read "cafÃ©".
+                    Assert.Contains(Message, server);
+                    break;
+                }
+
                 await Task.Delay(10, timeout.Token);
             }
         });

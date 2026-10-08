@@ -477,8 +477,7 @@ public sealed partial class CallbackSubtransactionCleanupTests(TestContext conte
 
         Assert.AreEqual(System.Data.ConnectionState.Closed, connection.State);
         string completeLog;
-        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
-        deadline.CancelAfter(TimeSpan.FromSeconds(30));
+        using CancellationTokenSource deadline = CrashRecovery.CreateDeadline(token);
         if (severity == "PANIC")
         {
             completeLog = await CrashRecovery.WaitAsync(cluster, deadline.Token);

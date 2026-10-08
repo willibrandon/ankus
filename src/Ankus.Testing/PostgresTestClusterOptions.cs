@@ -97,13 +97,17 @@ public sealed class PostgresTestClusterOptions
         = new Dictionary<string, string?>();
 
     /// <summary>
-    /// Gets the maximum time allowed for initialization and server readiness.
+    /// Gets the maximum time allowed for initialization, server readiness and creation of the test database.
     /// </summary>
+    /// <remarks>
+    /// The default is 180 seconds, the default timeout of PostgreSQL's own TAP test framework
+    /// (<c>PG_TEST_TIMEOUT_DEFAULT</c>), because these steps share one budget on hosts whose disks may be busy.
+    /// </remarks>
     public TimeSpan StartupTimeout
     {
         get;
         init;
-    } = TimeSpan.FromSeconds(30);
+    } = TimeSpan.FromSeconds(180);
 
     /// <summary>
     /// Gets the independent timeout used for shutdown, even when a test's cancellation token has been canceled.

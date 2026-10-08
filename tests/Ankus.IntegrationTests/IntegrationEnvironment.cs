@@ -16,6 +16,12 @@ internal static class IntegrationEnvironment
     private static PostgresTestInstallation? s_stagedInstallation;
 
     /// <summary>
+    /// Gets the readiness budget for server startup and for crash recovery, which repeats startup's data-directory
+    /// sync, WAL redo and checkpoint on the same shared disk. It matches PostgreSQL's TAP default timeout.
+    /// </summary>
+    internal static TimeSpan StartupTimeout { get; } = TimeSpan.FromSeconds(180);
+
+    /// <summary>
     /// Gets the configured Native AOT publication and package-consumer concurrency for this machine.
     /// </summary>
     internal static int PackageTestConcurrency { get; } = ReadPackageTestConcurrency();
@@ -99,7 +105,7 @@ internal static class IntegrationEnvironment
             Installation = installation,
             DataDirectoryBase = Path.Combine(RepositoryRoot, "artifacts", "test-pgdata"),
             LogDirectory = Path.Combine(RepositoryRoot, "artifacts", "test-logs"),
-            StartupTimeout = TimeSpan.FromSeconds(60),
+            StartupTimeout = StartupTimeout,
             PostgreSqlConfiguration = configuration,
         };
     }

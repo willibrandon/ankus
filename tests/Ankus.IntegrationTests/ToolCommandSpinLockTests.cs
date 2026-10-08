@@ -77,8 +77,7 @@ public sealed partial class ToolCommandTests
 
         await ExecutePackageGucAsync(first, "SELECT spin_prepare_gate()");
         Task holding = ExecutePackageGucAsync(first, "SELECT spin_hold_for_crash()");
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
-        timeout.CancelAfter(TimeSpan.FromSeconds(30));
+        using CancellationTokenSource timeout = CrashRecovery.CreateDeadline(token);
         while (!Equals(1, await PackageGucScalarAsync(second, "SELECT spin_gate()")))
         {
             await Task.Delay(10, timeout.Token);

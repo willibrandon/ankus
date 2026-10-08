@@ -47,7 +47,10 @@ public sealed partial class ToolCommandTests
                     "NOT EXISTS(SELECT FROM pg_stat_activity WHERE pid = " + pid + ")", requireAlive: false);
                 Assert.AreEqual(0L, await PackageGucScalarAsync(connection, "SELECT count(*) FROM worker_cancel_values"));
                 string log = cluster.ReadServerLog();
-                Assert.Contains("terminating background worker \"Ankus cancellation worker\" due to administrator command", log);
+                // PostgreSQL 14 added the worker-specific message; PostgreSQL 13's ProcessInterrupts reports the connection.
+                Assert.Contains(s_installation.Version.Major >= 14
+                    ? "FATAL:  57P01: terminating background worker \"Ankus cancellation worker\" due to administrator command"
+                    : "FATAL:  57P01: terminating connection due to administrator command", log);
                 Assert.DoesNotContain("worker cancellation recovered", log);
             }
             else if (mode == 2)

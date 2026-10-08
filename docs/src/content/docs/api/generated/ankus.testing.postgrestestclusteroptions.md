@@ -147,13 +147,16 @@ Value: [TimeSpan](https://learn.microsoft.com/dotnet/api/system.timespan)
 
 ### StartupTimeout
 
-Gets the maximum time allowed for initialization and server readiness.
+Gets the maximum time allowed for initialization, server readiness and creation of the test database.
 
 ```csharp
 public TimeSpan StartupTimeout { get; init; }
 ```
 
 Value: [TimeSpan](https://learn.microsoft.com/dotnet/api/system.timespan)
+
+The default is 180 seconds, the default timeout of PostgreSQL's own TAP test framework
+(<code>PG_TEST_TIMEOUT_DEFAULT</code>), because these steps share one budget on hosts whose disks may be busy.
 
 <a id="member-b3f57f2ddf9a1372"></a>
 
