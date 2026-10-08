@@ -29021,3 +29021,88 @@ shared home's default port. It now reserves an available port and passes it to
 every `ankus bench` invocation, as the run, connect, regression and cluster
 cases already do. The product's default ports remain pgrx-compatible; an
 explicit port or `ankus init --base-port` selects another range.
+
+## Round-3 backend safety findings — 2026-10-08
+
+### Read-only SPI without an active snapshot
+
+Native callbacks receive SPI whenever `IsTransactionState()` holds. Utility
+statements such as `SET` run without an active snapshot, and a transaction
+without an XID selects read-only SPI. PostgreSQL's read-only
+`SPI_cursor_open` calls `GetActiveSnapshot()` unconditionally (`spi.c`), which
+only asserts and dereferences null in release builds. Read-only execution
+survives on PostgreSQL 14 and later only because `EnsurePortalSnapshotExists`
+falls back to the active portal.
+
+Read-only execute, plan, cursor and `EXPLAIN` requests now take the transaction
+snapshot when none is active, inside the recovery subtransaction, and pop it
+after the statement; subtransaction or transaction abort releases it after an
+error. The snapshot is taken only for SQL. Pushing one for every callback would
+fix a REPEATABLE READ transaction's snapshot before a `LOCK` or `SET` that uses
+no SQL. A new `ProcessUtility_hook` fixture uses the selected major's exact
+signature. Before the fix, its cursor case terminated the backend; with it,
+scalar and cursor reads during `SET` return their values on the same backend.
+REPEATABLE READ cases prove a callback without SQL leaves the transaction
+snapshot to the next query, while one that runs SQL fixes it at that point.
+
+### FATAL inside a shared read
+
+A FATAL report exits from inside the PostgreSQL call that raised it, so a
+`PgShared<T>.Read` callback that called PostgreSQL never resumes and never
+releases its reader admission. The process-exit callback then waited forever
+for its own admission, and fast shutdown waited for that backend. Each access
+slot now also counts admissions held on the backend thread inside a native
+callback scope. Only such an operation can call PostgreSQL. Retirement during
+process exit waits for every other thread's finite operation and ignores those
+stranded admissions; a postmaster restart still waits for all readers.
+
+A packaged preload consumer terminates a backend sleeping in SPI inside
+`PgShared<T>.Read`. Without the fix the backend never left
+`pg_stat_activity` and the case failed after its 30-second deadline; with it,
+the backend reports `57P01`, exits, and another backend keeps using the shared
+state. Runtime unit tests prove backend-scope counting, nested reads, other
+threads and exception paths.
+
+### Diagnostic conversion in non-UTF-8 databases
+
+Error capture used `pg_server_to_any`, and report construction used
+`pg_any_to_server`. Without a UTF-8 client, both fall back to a catalog lookup
+that raises outside a transaction, even for ASCII. SQL_ASCII also validated
+captured text as UTF-8 and raised. A second ERROR during capture reached the
+guard's outer handler, which raises FATAL. A failure while building a FATAL or
+PANIC cleanup report replaced the terminal intent with an abortable ERROR.
+
+Diagnostic conversion now returns ASCII and same-encoding text unchanged. It
+caches the server/UTF-8 conversion functions whenever a guarded SPI operation
+or conversion runs inside a transaction, as PostgreSQL caches client-encoding
+conversions. Ordinary reports remain exact and raise PostgreSQL's own
+untranslatable-character error. Capture and FATAL/PANIC reports never raise:
+PostgreSQL 14 and later convert them with `noError`, and each byte that cannot
+be converted is written as a `\xNN` escape. PostgreSQL 13 has no `noError`
+conversion; inside a transaction capture keeps PostgreSQL's conversion, and
+outside one it escapes non-ASCII bytes. A FATAL or PANIC cleanup report whose
+construction fails now terminates at the same level with the escaped
+transported message.
+
+A FATAL cleanup report after commit was also promoted to PANIC for read-only
+and parallel-worker commits, because the check only observed a cleared virtual
+transaction ID. PostgreSQL itself panics only when aborting an XID that already
+has a commit or prepare record. The check now records a commit or prepare with
+an assigned XID; read-only and parallel-worker commits keep FATAL.
+
+### Round-3 backend safety validation
+
+Linux x64/PostgreSQL **18.6**, SDK **10.0.401**: all **132** affected
+integration cases pass in **2m13s**, covering diagnostics, logging, terminal
+cleanup, transaction callbacks, GUC encoding, worker faults, value ownership and
+the utility hook. The packaged shared-aggregate consumer and the utility-hook
+cases pass **5/5** in **3m46s**. Against the preceding source **e0e5cd6**, the
+cursor case terminated its backend, the terminated shared reader never exited,
+both encoding cases ended with an unrecoverable-failure termination ("Unable to
+recover…"), and the read-only commit reported PANIC. The complete generator suite
+passes **4,527/4,527** and the runtime suite **2,238/2,238**. The new runtime case
+first failed in the parallel suite because a reused thread-pool thread retained
+another test's thread-static callback scope; it now observes a dedicated thread.
+The Release solution build has zero warnings and errors. API freshness verifies
+**244** pages and **2,793** members; documentation checks report no errors,
+warnings or hints, and the site builds all **295** pages.

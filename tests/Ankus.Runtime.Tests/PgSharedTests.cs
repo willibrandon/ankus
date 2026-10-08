@@ -189,6 +189,46 @@ public sealed unsafe partial class PgSharedTests
     }
 
     /// <summary>
+    /// Backend callback admissions are counted separately so process exit can retire an address a FATAL report abandons.
+    /// </summary>
+    [TestMethod]
+    public void SharedViewsCountBackendCallbackAdmissions()
+    {
+        using var fixture = new SharedFixture();
+        PgShared<Aggregate> storage = fixture.Start(new Aggregate(73, 11));
+        Assert.AreEqual(0, storage.Read((in _) => fixture.Access->_backendReaders));
+        nint previous = NativeBackend.Enter(1);
+        try
+        {
+            Assert.AreEqual(11, storage.Read((in value) =>
+            {
+                Assert.AreEqual(1, fixture.Access->_backendReaders);
+                Assert.AreEqual(1, fixture.Access->_readers);
+                Assert.AreEqual(2, storage.Read((in _) => fixture.Access->_backendReaders));
+
+                // Other threads cannot call PostgreSQL, so their finite operations remain ordinary admissions.
+                // A dedicated thread has no callback scope, unlike a reused pool thread.
+                (int Backend, int Readers) observed = default;
+                var other = new Thread(() => observed = storage.Read((in _) => (fixture.Access->_backendReaders, fixture.Access->_readers)));
+                other.Start();
+                Assert.IsTrue(other.Join(TimeSpan.FromSeconds(10)));
+                Assert.AreEqual((1, 2), observed);
+                return value.Tag;
+            }));
+            var failure = new InvalidOperationException("reader failure");
+            Assert.AreSame(failure, Assert.ThrowsExactly<InvalidOperationException>(() => storage.Read<int>((in _) => throw failure)));
+            Assert.AreEqual(0, fixture.Access->_backendReaders);
+        }
+        finally
+        {
+            NativeBackend.Exit(previous);
+        }
+
+        Assert.AreEqual(0, fixture.Access->_readers);
+        Assert.AreEqual(0, fixture.Access->_backendReaders);
+    }
+
+    /// <summary>
     /// Concurrent readers update original atomic fields without calling native PostgreSQL operations.
     /// </summary>
     [TestMethod]

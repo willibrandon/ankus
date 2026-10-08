@@ -69,8 +69,8 @@ Datum ankus_test_value_ownership(PG_FUNCTION_ARGS)
         elog(ERROR, "the exact guarded catalog fault did not execute");
     }
     if (!owner_cancel && (strcmp(error.message, "controlled catalog ownership failure") != 0 ||
-        strcmp(ankus_error_field(&error, ANKUS_ERROR_DETAIL), "a real syscache reference is still owned") != 0 ||
-        strcmp(ankus_error_field(&error, ANKUS_ERROR_HINT), "roll back before further backend work") != 0))
+        strcmp(ankus_error_field(&error, ANKUS_ERROR_DETAIL, true), "a real syscache reference is still owned") != 0 ||
+        strcmp(ankus_error_field(&error, ANKUS_ERROR_HINT, true), "roll back before further backend work") != 0))
         elog(ERROR, "the guard lost the owned original diagnostics");
     int unrecovered = (error.flags & ANKUS_ERROR_UNRECOVERED) != 0;
     int before = owner_entry(owner_keeper)->refcount;

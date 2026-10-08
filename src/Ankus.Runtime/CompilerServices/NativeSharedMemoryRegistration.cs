@@ -122,7 +122,14 @@ internal sealed unsafe class NativeSharedMemoryRegistration(string name, string 
             throw new InvalidOperationException("PostgreSQL shared storage has an invalid value address.");
         }
 
-        return new NativeSharedMemoryAccessLease(location, value);
+        // Only a callback-scoped backend operation can call PostgreSQL and be abandoned by FATAL.
+        bool backend = NativeBackend.InCallback;
+        if (backend)
+        {
+            access->_backendReaders++;
+        }
+
+        return new NativeSharedMemoryAccessLease(location, value, backend);
     }
 
     /// <summary>

@@ -133,8 +133,12 @@ internal static class NativeMemoryBridge
         ankus_memory_completion_event(XactEvent event, void *argument)
         {
             (void) argument;
-            ankus_memory_completion_committed = event == XACT_EVENT_COMMIT ||
-                event == XACT_EVENT_PARALLEL_COMMIT || event == XACT_EVENT_PREPARE;
+            /* Only a commit or prepare record makes completion irreversible: aborting
+             * that XID is what PostgreSQL itself escalates to PANIC. A read-only commit
+             * writes no record, and a parallel worker's commit belongs to its leader, so
+             * FATAL remains FATAL there. The XID is still assigned during these callbacks. */
+            ankus_memory_completion_committed = (event == XACT_EVENT_COMMIT || event == XACT_EVENT_PREPARE) &&
+                TransactionIdIsValid(GetTopTransactionIdIfAny());
         }
 
         static void
@@ -365,20 +369,27 @@ internal static class NativeMemoryBridge
         {
             if (error->report_level >= 12)
             {
+                /* FATAL runs AbortTransaction during process exit. A durable commit
+                 * or prepare can no longer be aborted, so PostgreSQL requires PANIC. */
+                volatile int level = error->report_level == 12 && !ankus_memory_completion_after_commit() ? FATAL : PANIC;
                 uint32 interrupt_holdoff = InterruptHoldoffCount;
                 HOLD_INTERRUPTS();
                 PG_TRY();
                 {
-                    /* FATAL runs AbortTransaction during process exit. A durable commit
-                     * or prepare can no longer be aborted, so PostgreSQL requires PANIC. */
-                    ankus_report(error, error->report_level == 12 && !ankus_memory_completion_after_commit()
-                        ? FATAL : PANIC);
+                    ankus_report(error, level);
                 }
-                PG_FINALLY();
+                PG_CATCH();
                 {
-                    InterruptHoldoffCount = interrupt_holdoff;
+                    /* Building the complete report failed. Its ERROR must not replace the
+                     * terminal intent with an abortable failure, so terminate with the
+                     * transported message alone; it needs no conversion or allocation. */
+                    char message[sizeof(error->message) * 4];
+                    ankus_escape_diagnostic_text(error->message, message, sizeof(message));
+                    ereport(level, (errcode(error->sqlstate != 0 ? error->sqlstate : ERRCODE_INTERNAL_ERROR),
+                        errmsg_internal("%s", message)));
                 }
                 PG_END_TRY();
+                InterruptHoldoffCount = interrupt_holdoff;
             }
 
             /* Transaction completion cannot safely allocate, invoke log hooks, perform

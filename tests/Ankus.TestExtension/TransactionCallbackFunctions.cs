@@ -21,6 +21,14 @@ public static class TransactionCallbackFunctions
     private static WeakReference? s_root;
 
     /// <summary>
+    /// Registers a commit callback whose server-only report needs encoding conversion after transaction state ends.
+    /// </summary>
+    [PgFunction]
+    public static void TransactionCallbackRegisterEncodedReport()
+        => _ = PgTransaction.RegisterCallback(PgTransactionEvent.Commit,
+            static () => PgLog.Write(PgLogLevel.ServerOnly, "commit report café"));
+
+    /// <summary>
     /// Clears observations after cancelling any callback still pending in the current transaction.
     /// </summary>
     [PgFunction]

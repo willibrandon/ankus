@@ -192,7 +192,8 @@ public sealed partial class PgFunctionGeneratorTests
         AssertInitializationCompilationSucceeds(compilation, diagnostics);
         string native = ManifestValue(compilation, "Ankus.NativeSource").ReplaceLineEndings("\n");
         Assert.Contains("#include \"port/atomics.h\"", native);
-        Assert.Contains("StaticAssertDecl(sizeof(AnkusSharedAccess) == 16", native);
+        Assert.Contains("StaticAssertDecl(sizeof(AnkusSharedAccess) == 24", native);
+        Assert.Contains("StaticAssertDecl(offsetof(AnkusSharedAccess, backend_readers) == 16", native);
         Assert.Contains("offsetof(AnkusSharedAccess, readers.value) == 8", native);
         Assert.Contains("offsetof(AnkusSharedAccess, process_id.value) == 12", native);
         Assert.Contains("entry->kind == 1 && entry->size < sizeof(uint64) ? sizeof(uint64) : entry->size", native);

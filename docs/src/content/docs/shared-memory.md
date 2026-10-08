@@ -279,6 +279,9 @@ threads may call `Read` after their process has attached, without invoking
 PostgreSQL. Keep callbacks finite: shutdown closes admission and waits for active
 callbacks before unmapping their shared segment. New callbacks fail during
 retirement and can read replacement storage after startup publishes it.
+A FATAL report from PostgreSQL inside a callback, for example
+`pg_terminate_backend` during a query, exits without resuming that callback.
+The exiting backend does not wait for its own abandoned reads.
 
 ## Spinlocks
 

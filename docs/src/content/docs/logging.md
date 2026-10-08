@@ -33,6 +33,17 @@ cancellation is processed at a later interrupt check, after the report finishes.
 Call `PgInterrupts.Check()` periodically in loops that only log messages. Native
 reporting errors, such as an encoding failure, still follow normal error recovery.
 
+Messages convert exactly to the database encoding, including outside a
+transaction. In a database that cannot represent a character, such as `€` in
+LATIN1, an ordinary report fails with SQLSTATE `22P05`. `Fatal` and `Panic`
+reports never fail that way: the backend still terminates at the requested level,
+and each byte it cannot convert appears as a `\xNN` escape. The same rule
+applies when PostgreSQL diagnostics are copied into a `PgException`. Text that
+is not valid UTF-8 in a SQL_ASCII database, for example, keeps its ASCII
+characters and escapes the other bytes. PostgreSQL 13 cannot convert without
+raising, so outside a transaction it escapes every non-ASCII byte in those
+diagnostics.
+
 PostgreSQL applies `client_min_messages` and `log_min_messages` separately. In the
 server log, `Log` ranks above `Error`; it is not an ordinary numeric threshold.
 

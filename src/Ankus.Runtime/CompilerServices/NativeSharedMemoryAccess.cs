@@ -6,7 +6,7 @@ namespace Ankus.CompilerServices;
 /// <summary>
 /// Matches the selected-header native address slot and its closed-bit reader admission counter.
 /// </summary>
-[StructLayout(LayoutKind.Sequential)]
+[StructLayout(LayoutKind.Sequential, Size = 24)]
 internal struct NativeSharedMemoryAccess
 {
     /// <summary>
@@ -23,6 +23,15 @@ internal struct NativeSharedMemoryAccess
     /// Identifies the process whose shutdown callback protects this address.
     /// </summary>
     internal int _processId;
+
+    /// <summary>
+    /// Counts admissions held on the backend thread inside a native callback scope.
+    /// </summary>
+    /// <remarks>
+    /// Only that thread changes or reads this count. A FATAL report from a PostgreSQL call inside such an operation
+    /// exits without resuming it, so retirement during process exit cannot wait for these admissions.
+    /// </remarks>
+    internal int _backendReaders;
 }
 
 /// <summary>
@@ -30,9 +39,11 @@ internal struct NativeSharedMemoryAccess
 /// </summary>
 /// <param name="access">The process-local native admission slot.</param>
 /// <param name="value">The admitted shared value address.</param>
-internal ref struct NativeSharedMemoryAccessLease(nint access, nint value)
+/// <param name="backend">Whether the admission is counted as held on the backend thread inside a native callback scope.</param>
+internal ref struct NativeSharedMemoryAccessLease(nint access, nint value, bool backend)
 {
     private nint _access = access;
+    private readonly bool _backend = backend;
 
     /// <summary>
     /// Gets the address held until this lease is disposed.
@@ -59,6 +70,11 @@ internal ref struct NativeSharedMemoryAccessLease(nint access, nint value)
         {
             var access = (NativeSharedMemoryAccess*)_access;
             _access = 0;
+            if (_backend)
+            {
+                access->_backendReaders--;
+            }
+
             Interlocked.Decrement(ref access->_readers);
         }
     }

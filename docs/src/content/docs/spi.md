@@ -211,6 +211,12 @@ After the caller or a writable SPI operation establishes that ID, selection uses
 fresh writable snapshots so it sees preceding writes. This applies across nested
 SPI sessions and resets when the transaction ends.
 
+Some native callbacks run without an active snapshot, such as a utility hook
+while PostgreSQL executes `SET` or `LOCK`. A read-only query or cursor there
+uses the transaction snapshot for that statement, as a writable query does.
+A callback that runs no SQL leaves snapshot timing unchanged, so a REPEATABLE
+READ transaction still takes its snapshot at its first query.
+
 `Execute`, the default `Query` and `QueryRaw` overloads, and scalar helpers
 establish writable intent, including when their SQL is a `SELECT`. This matches
 pgrx's `run` and `get_one` helpers. Choose `Select` for transaction-aware reads;

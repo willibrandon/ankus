@@ -12,6 +12,10 @@ internal static class NativeErrorBridge
         #include "utils/memutils.h"
         #include "miscadmin.h"
         #include "tcop/dest.h"
+        #include "access/xact.h"
+        #include "catalog/namespace.h"
+        #include "lib/stringinfo.h"
+        #include "mb/pg_wchar.h"
         #if PG_VERSION_NUM < 140000
         #include "postmaster/postmaster.h"
         #include "tcop/tcopprot.h"
@@ -105,6 +109,192 @@ internal static class NativeErrorBridge
         """;
 
     /// <summary>
+    /// Gets diagnostic text conversion that never raises, including outside a transaction.
+    /// </summary>
+    internal const string Conversion = """
+        /* Diagnostics cross the managed boundary as UTF-8. PostgreSQL's general
+         * conversions look up their function in the catalog, so they raise outside a
+         * transaction. These conversions reuse functions cached while a transaction
+         * was available, as the backend does for its client encoding. Exact
+         * conversions raise PostgreSQL's own untranslatable-character error, as
+         * ordinary reports always have. Diagnostic capture and terminal reports must
+         * never raise: PostgreSQL 14 and later convert them with noError, and each byte
+         * that cannot be converted is written as a \xNN escape. ASCII and
+         * same-encoding text is returned unchanged. */
+        static int ankus_diagnostic_encoding = -1;
+        static FmgrInfo ankus_diagnostic_to_utf8;
+        static FmgrInfo ankus_diagnostic_from_utf8;
+
+        static bool
+        ankus_diagnostic_ascii(const char *text, int length)
+        {
+            for (int index = 0; index < length; index++)
+            {
+                if (IS_HIGHBIT_SET(text[index]))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        /* Looks up both directions once per backend while catalog access is available. */
+        static void
+        ankus_prepare_diagnostic_conversion(void)
+        {
+            int encoding = GetDatabaseEncoding();
+            Oid to_utf8;
+            Oid from_utf8;
+            if (ankus_diagnostic_encoding == encoding || encoding == PG_UTF8 || encoding == PG_SQL_ASCII ||
+                !IsTransactionState())
+            {
+                return;
+            }
+
+            to_utf8 = FindDefaultConversionProc(encoding, PG_UTF8);
+            from_utf8 = FindDefaultConversionProc(PG_UTF8, encoding);
+            if (OidIsValid(to_utf8) && OidIsValid(from_utf8))
+            {
+                fmgr_info_cxt(to_utf8, &ankus_diagnostic_to_utf8, TopMemoryContext);
+                fmgr_info_cxt(from_utf8, &ankus_diagnostic_from_utf8, TopMemoryContext);
+                ankus_diagnostic_encoding = encoding;
+            }
+        }
+
+        static void
+        ankus_escape_diagnostic_byte(StringInfo output, unsigned char value)
+        {
+            static const char digits[] = "0123456789abcdef";
+            appendStringInfoChar(output, '\\');
+            appendStringInfoChar(output, 'x');
+            appendStringInfoChar(output, digits[value >> 4]);
+            appendStringInfoChar(output, digits[value & 15]);
+        }
+
+        /* Writes ASCII-escaped text into a caller buffer without allocation, for terminal fallbacks. */
+        static void
+        ankus_escape_diagnostic_text(const char *text, char *output, size_t size)
+        {
+            static const char digits[] = "0123456789abcdef";
+            size_t used = 0;
+            for (const unsigned char *cursor = (const unsigned char *) text; *cursor != '\0' && used + 5 <= size; cursor++)
+            {
+                if (IS_HIGHBIT_SET(*cursor))
+                {
+                    output[used++] = '\\';
+                    output[used++] = 'x';
+                    output[used++] = digits[*cursor >> 4];
+                    output[used++] = digits[*cursor & 15];
+                }
+                else
+                {
+                    output[used++] = (char) *cursor;
+                }
+            }
+
+            output[used] = '\0';
+        }
+
+        /* Returns text in the requested encoding, or a palloc'd copy when bytes changed. */
+        static char *
+        ankus_convert_diagnostic(const char *text, int length, bool to_utf8, bool exact)
+        {
+            int server = GetDatabaseEncoding();
+            StringInfoData output;
+            if (length <= 0 || server == PG_UTF8 || ankus_diagnostic_ascii(text, length))
+            {
+                return (char *) text;
+            }
+
+            if (server == PG_SQL_ASCII)
+            {
+                /* SQL_ASCII performs no conversion. Any bytes are valid server text;
+                 * transport valid UTF-8 exactly and escape everything else. */
+                if (!to_utf8 || pg_verify_mbstr(PG_UTF8, text, length, !exact))
+                {
+                    return (char *) text;
+                }
+            }
+            else
+            {
+                ankus_prepare_diagnostic_conversion();
+                if (ankus_diagnostic_encoding == server)
+                {
+                    FmgrInfo *function = to_utf8 ? &ankus_diagnostic_to_utf8 : &ankus_diagnostic_from_utf8;
+                    int source = to_utf8 ? server : PG_UTF8;
+                    int target = to_utf8 ? PG_UTF8 : server;
+                    if (exact)
+                    {
+                        /* PostgreSQL raises its own precise error for an untranslatable character. */
+                        char *result = MemoryContextAllocHuge(CurrentMemoryContext, (Size) length * MAX_CONVERSION_GROWTH + 1);
+        #if PG_VERSION_NUM >= 140000
+                        (void) FunctionCall6(function, Int32GetDatum(source), Int32GetDatum(target), CStringGetDatum(text),
+                            CStringGetDatum(result), Int32GetDatum(length), BoolGetDatum(false));
+        #else
+                        (void) FunctionCall5(function, Int32GetDatum(source), Int32GetDatum(target), CStringGetDatum(text),
+                            CStringGetDatum(result), Int32GetDatum(length));
+        #endif
+                        return result;
+                    }
+        #if PG_VERSION_NUM >= 140000
+                    else
+                    {
+                        int offset = 0;
+                        initStringInfo(&output);
+                        while (offset < length)
+                        {
+                            /* Bounded chunks keep the worst-case expansion on the stack. */
+                            unsigned char buffer[1024 * MAX_CONVERSION_GROWTH + 1];
+                            int chunk = Min(length - offset, 1024);
+                            int converted = DatumGetInt32(FunctionCall6(function, Int32GetDatum(source), Int32GetDatum(target),
+                                CStringGetDatum(text + offset), CStringGetDatum((char *) buffer), Int32GetDatum(chunk),
+                                BoolGetDatum(true)));
+                            appendStringInfoString(&output, (char *) buffer);
+                            if (converted == 0)
+                            {
+                                /* An invalid or untranslatable sequence stops conversion at its first byte. */
+                                ankus_escape_diagnostic_byte(&output, (unsigned char) text[offset]);
+                                converted = 1;
+                            }
+
+                            offset += converted;
+                        }
+
+                        return output.data;
+                    }
+        #endif
+                }
+
+                /* Without a cached function, an exact conversion keeps PostgreSQL's own
+                 * behavior. PostgreSQL 13 conversions have no noError mode, so within a
+                 * transaction capture keeps them too; only an untranslatable character
+                 * can raise there. */
+                if (exact || IsTransactionState())
+                {
+                    return to_utf8 ? pg_server_to_any(text, length, PG_UTF8) : pg_any_to_server(text, length, PG_UTF8);
+                }
+            }
+
+            initStringInfo(&output);
+            for (int index = 0; index < length; index++)
+            {
+                if (IS_HIGHBIT_SET(text[index]))
+                {
+                    ankus_escape_diagnostic_byte(&output, (unsigned char) text[index]);
+                }
+                else
+                {
+                    appendStringInfoChar(&output, text[index]);
+                }
+            }
+
+            return output.data;
+        }
+
+        """;
+
+    /// <summary>
     /// Gets severity mapping and transaction-independent PostgreSQL message filtering.
     /// </summary>
     internal const string Logging = """
@@ -175,7 +365,7 @@ internal static class NativeErrorBridge
     /// <summary>
     /// Gets diagnostic capture, allocator-matched cleanup, and backend error reconstruction helpers.
     /// </summary>
-    internal const string Source = Declarations + "\n" + Logging + "\n" + Capture + "\n" + Reporting;
+    internal const string Source = Declarations + "\n" + Conversion + "\n" + Logging + "\n" + Capture + "\n" + Reporting;
 
     /// <summary>
     /// Gets a guarded initializer logging capability that never opens a transaction or enables SPI.
@@ -295,7 +485,7 @@ internal static class NativeErrorBridge
                 const char *text = fields[index];
                 if (text != NULL)
                 {
-                    char *utf8 = pg_server_to_any(text, strlen(text), PG_UTF8);
+                    char *utf8 = ankus_convert_diagnostic(text, strlen(text), true, false);
                     int length = strlen(utf8);
                     AnkusValue *value = &error->fields[index];
                     if (index == ANKUS_ERROR_MESSAGE)
@@ -332,7 +522,7 @@ internal static class NativeErrorBridge
     /// </summary>
     private const string Reporting = """
         static char *
-        ankus_error_field(AnkusError *error, enum AnkusDiagnosticField field)
+        ankus_error_field(AnkusError *error, enum AnkusDiagnosticField field, bool exact)
         {
             AnkusValue *value = &error->fields[field];
             char *converted;
@@ -342,7 +532,7 @@ internal static class NativeErrorBridge
                 return NULL;
             }
 
-            converted = pg_any_to_server((char *) value->data, value->length, PG_UTF8);
+            converted = ankus_convert_diagnostic((char *) value->data, value->length, false, exact);
             /* Own every string before releasing the native or managed transport allocator. */
             copy = pstrdup(converted);
             if (converted != (char *) value->data)
@@ -403,6 +593,8 @@ internal static class NativeErrorBridge
         {
             ErrorData data = {0};
             bool rethrow = level == ERROR && (error->flags & ANKUS_ERROR_RETHROW) != 0;
+            /* A terminal report must still terminate; it escapes text it cannot convert. */
+            bool exact = level < FATAL;
 
             MemoryContext volatile temporary = NULL;
             MemoryContextCallback *volatile cleanup = NULL;
@@ -429,25 +621,25 @@ internal static class NativeErrorBridge
         #if PG_VERSION_NUM < 140000
                 data.show_funcname = (error->flags & ANKUS_ERROR_SHOW_FUNCTION) != 0;
         #endif
-                data.message = ankus_error_field(error, ANKUS_ERROR_MESSAGE);
+                data.message = ankus_error_field(error, ANKUS_ERROR_MESSAGE, exact);
                 if (data.message == NULL)
                 {
-                    data.message = pstrdup(pg_any_to_server(error->message, strlen(error->message), PG_UTF8));
+                    data.message = pstrdup(ankus_convert_diagnostic(error->message, strlen(error->message), false, exact));
                 }
 
-                data.detail = ankus_error_field(error, ANKUS_ERROR_DETAIL);
-                data.hint = ankus_error_field(error, ANKUS_ERROR_HINT);
-                data.context = ankus_error_field(error, ANKUS_ERROR_CONTEXT);
-                data.schema_name = ankus_error_field(error, ANKUS_ERROR_SCHEMA);
-                data.table_name = ankus_error_field(error, ANKUS_ERROR_TABLE);
-                data.column_name = ankus_error_field(error, ANKUS_ERROR_COLUMN);
-                data.datatype_name = ankus_error_field(error, ANKUS_ERROR_DATATYPE);
-                data.constraint_name = ankus_error_field(error, ANKUS_ERROR_CONSTRAINT);
-                data.internalquery = ankus_error_field(error, ANKUS_ERROR_QUERY);
-                data.filename = ankus_error_field(error, ANKUS_ERROR_FILE);
-                data.funcname = ankus_error_field(error, ANKUS_ERROR_ROUTINE);
-                data.detail_log = ankus_error_field(error, ANKUS_ERROR_DETAIL_LOG);
-                data.backtrace = ankus_error_field(error, ANKUS_ERROR_BACKTRACE);
+                data.detail = ankus_error_field(error, ANKUS_ERROR_DETAIL, exact);
+                data.hint = ankus_error_field(error, ANKUS_ERROR_HINT, exact);
+                data.context = ankus_error_field(error, ANKUS_ERROR_CONTEXT, exact);
+                data.schema_name = ankus_error_field(error, ANKUS_ERROR_SCHEMA, exact);
+                data.table_name = ankus_error_field(error, ANKUS_ERROR_TABLE, exact);
+                data.column_name = ankus_error_field(error, ANKUS_ERROR_COLUMN, exact);
+                data.datatype_name = ankus_error_field(error, ANKUS_ERROR_DATATYPE, exact);
+                data.constraint_name = ankus_error_field(error, ANKUS_ERROR_CONSTRAINT, exact);
+                data.internalquery = ankus_error_field(error, ANKUS_ERROR_QUERY, exact);
+                data.filename = ankus_error_field(error, ANKUS_ERROR_FILE, exact);
+                data.funcname = ankus_error_field(error, ANKUS_ERROR_ROUTINE, exact);
+                data.detail_log = ankus_error_field(error, ANKUS_ERROR_DETAIL_LOG, exact);
+                data.backtrace = ankus_error_field(error, ANKUS_ERROR_BACKTRACE, exact);
                 data.filename = data.filename == NULL ? __FILE__ : data.filename;
                 data.funcname = data.funcname == NULL ? "ankus_report" : data.funcname;
                 data.assoc_context = CurrentMemoryContext;

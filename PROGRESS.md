@@ -559,6 +559,16 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   name and overload diagnostics, and an unreachable support path. Planner support
   now applies to every function generated from one method. The complete generator
   suite passes **4,527/4,527**; Release, API freshness and both site gates pass.
+- Round-3 high-severity backend findings 1–3 are fixed. Read-only SPI execute,
+  cursor and `EXPLAIN` requests take the transaction snapshot only when none is
+  active, so a utility hook can open a cursor during `SET` without crashing the
+  backend, and callbacks without SQL keep REPEATABLE READ snapshot timing. Process
+  exit no longer waits for shared-read admissions a FATAL report strands on the
+  backend thread. Diagnostic capture and FATAL/PANIC reports no longer raise
+  during encoding conversion in LATIN1 or SQL_ASCII databases outside a
+  transaction. Ordinary reports remain exact, and read-only or parallel-worker
+  commits keep FATAL instead of PANIC. The crash and hang regressions fail
+  without their fixes and pass with them on Linux x64/PostgreSQL **18.6**.
 - Primary CI **37766380749** on **a04472b** passed Linux and macOS but failed one
   Windows/PostgreSQL 17 benchmark case: Hyper-V excluded TCP **28760–28859**,
   covering all default development ports. The case now reserves its port like

@@ -27,6 +27,11 @@ public static unsafe partial class NativeBackend
     internal static nint CleanupBinding => s_execute;
 
     /// <summary>
+    /// Gets whether the current thread is the backend thread inside a native callback scope, where PostgreSQL calls are permitted.
+    /// </summary>
+    internal static bool InCallback => s_callbackDepth > 0;
+
+    /// <summary>
     /// Enters a native callback scope, preserving the previous binding for recursive SPI calls.
     /// </summary>
     /// <param name="execute">The native guarded SPI entry point.</param>

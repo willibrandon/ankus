@@ -296,6 +296,14 @@ public sealed partial class CallbackSubtransactionCleanupTests(TestContext conte
             preparedTransaction: preparedTransaction);
 
     /// <summary>
+    /// A read-only commit writes no commit record, so a caught FATAL cleanup report remains FATAL instead of PANIC.
+    /// </summary>
+    [TestMethod]
+    public Task CleanupTerminalReportAfterReadOnlyCommitRemainsFatal()
+        => AssertTerminalCleanupAsync(FormattableString.Invariant($"datatype.memory_callback_prepare_terminal({(int)PgLogLevel.Fatal})"),
+            (int)PgLogLevel.Fatal, write: false);
+
+    /// <summary>
     /// Caught terminal intent from iterator or aggregate disposal terminates safely after an executor failure starts rollback.
     /// </summary>
     /// <param name="aggregate">Whether an aggregate owns cleanup rather than an iterator.</param>
@@ -402,8 +410,9 @@ public sealed partial class CallbackSubtransactionCleanupTests(TestContext conte
     /// <param name="abortQuery">The executor failure initiating callback cleanup, or null for durable completion.</param>
     /// <param name="setupStatement">Optional backend-local fixture setup before writes begin.</param>
     /// <param name="preparedTransaction">Whether the irreversible completion prepares the transaction.</param>
+    /// <param name="write">Whether the transaction writes and therefore commits durably.</param>
     private async Task AssertTerminalCleanupAsync(string preparation, int level, string? abortQuery = null,
-        string? setupStatement = null, bool preparedTransaction = false)
+        string? setupStatement = null, bool preparedTransaction = false, bool write = true)
     {
         CancellationToken token = context.CancellationToken;
         using IDisposable recoverySlot = await CrashRecovery.ReserveAsync(token);
@@ -438,13 +447,13 @@ public sealed partial class CallbackSubtransactionCleanupTests(TestContext conte
             await command.ExecuteNonQueryAsync(token);
         }
 
-        command.CommandText = "INSERT INTO callback_reporter_commit VALUES(73); SELECT " + preparation;
+        command.CommandText = (write ? "INSERT INTO callback_reporter_commit VALUES(73); " : string.Empty) + "SELECT " + preparation;
         Assert.AreEqual(42, await command.ExecuteScalarAsync(token));
         command.CommandText = preparedTransaction
             ? "PREPARE TRANSACTION 'cleanup_reporter_prepared'"
             : abortQuery ?? "COMMIT";
         NpgsqlException failure = await Assert.ThrowsAsync<NpgsqlException>(() => command.ExecuteNonQueryAsync(token));
-        bool irreversible = abortQuery is null;
+        bool irreversible = abortQuery is null && write;
         string severity = level == (int)PgLogLevel.Panic || irreversible ? "PANIC" : "FATAL";
         if (failure is PostgresException error)
         {
@@ -490,7 +499,8 @@ public sealed partial class CallbackSubtransactionCleanupTests(TestContext conte
         Assert.DoesNotContain("it was already committed", log);
         if (severity == "FATAL")
         {
-            int abortWarnings = log.Split("AbortTransaction while in ABORT state", StringSplitOptions.None).Length - 1;
+            string abortState = abortQuery is null ? "COMMIT" : "ABORT";
+            int abortWarnings = log.Split($"AbortTransaction while in {abortState} state", StringSplitOptions.None).Length - 1;
             Assert.AreEqual(1, abortWarnings);
             Assert.DoesNotContain("reinitializing", completeLog[logStart..]);
         }
@@ -505,7 +515,7 @@ public sealed partial class CallbackSubtransactionCleanupTests(TestContext conte
         }
 
         await using var query = new NpgsqlCommand("SELECT ARRAY(SELECT value FROM callback_reporter_commit)", recovered);
-        Assert.AreSequenceEqual(abortQuery is null ? [73] : [], Assert.IsInstanceOfType<int[]>(await query.ExecuteScalarAsync(deadline.Token)));
+        Assert.AreSequenceEqual(abortQuery is null && write ? [73] : [], Assert.IsInstanceOfType<int[]>(await query.ExecuteScalarAsync(deadline.Token)));
         query.CommandText = "SELECT datatype.log_message(9, 'cleanup reporter recovered'), 42";
         await using NpgsqlDataReader reader = await query.ExecuteReaderAsync(deadline.Token);
         Assert.IsTrue(await reader.ReadAsync(deadline.Token));

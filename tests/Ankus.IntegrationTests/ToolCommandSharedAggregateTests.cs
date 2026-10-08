@@ -64,6 +64,31 @@ public sealed partial class ToolCommandTests
         PostgresException packed = await Assert.ThrowsExactlyAsync<PostgresException>(() => ExecutePackageGucAsync(first, "SELECT shared_unaligned()"));
         Assert.Contains("eight-byte alignment", packed.MessageText);
         Assert.AreEqual(107L, await PackageGucScalarAsync(first, "SELECT shared_count()"));
+
+        // FATAL exits from inside the read's PostgreSQL call, so the backend's own admission is never released.
+        await using (NpgsqlConnection sleeper = await cluster.OpenConnectionAsync(token))
+        {
+            int sleeperProcess = sleeper.ProcessID;
+            Task sleeping = ExecutePackageGucAsync(sleeper, "SELECT shared_sleep()");
+            using var exiting = CancellationTokenSource.CreateLinkedTokenSource(token);
+            exiting.CancelAfter(TimeSpan.FromSeconds(30));
+            while (!Equals(true, await PackageGucScalarAsync(second,
+                $"SELECT EXISTS (SELECT FROM pg_catalog.pg_stat_activity WHERE pid = {sleeperProcess} AND wait_event = 'PgSleep')")))
+            {
+                await Task.Delay(10, exiting.Token);
+            }
+
+            Assert.IsTrue(Assert.IsInstanceOfType<bool>(await PackageGucScalarAsync(second, $"SELECT pg_catalog.pg_terminate_backend({sleeperProcess})")));
+            PostgresException terminated = await Assert.ThrowsExactlyAsync<PostgresException>(() => sleeping);
+            Assert.AreEqual("57P01", terminated.SqlState);
+            while (!Equals(false, await PackageGucScalarAsync(second,
+                $"SELECT EXISTS (SELECT FROM pg_catalog.pg_stat_activity WHERE pid = {sleeperProcess})")))
+            {
+                await Task.Delay(10, exiting.Token);
+            }
+        }
+
+        Assert.AreEqual(107L, await PackageGucScalarAsync(second, "SELECT shared_count()"));
         int logLength = cluster.ReadServerLog().Length;
         using (Process backend = Process.GetProcessById(first.ProcessID))
         {
@@ -195,6 +220,9 @@ public sealed partial class ToolCommandTests
             [PgFunction]
             public static string SharedCellSnapshot() => State.Read(static (in SharedState value) => string.Create(CultureInfo.InvariantCulture,
                 $"{value.Flag.Value}|{value.Tiny.Value}|{BitConverter.DoubleToInt64Bits(value.Bits.Value)}"));
+
+            [PgFunction]
+            public static long SharedSleep() => State.Read(static (in SharedState value) => Spi.Execute("SELECT pg_catalog.pg_sleep(60)"));
 
             [PgFunction]
             public static void SharedFail(bool native, long replacement) => State.Read<int>((in SharedState value) =>

@@ -14,6 +14,7 @@ internal static class NativeSpiBridge
         #include "utils/lsyscache.h"
         #include "utils/memutils.h"
         #include "tcop/tcopprot.h"
+        #include "utils/snapmgr.h"
 
         typedef struct AnkusParameter
         {
@@ -293,8 +294,39 @@ internal static class NativeSpiBridge
             return (Datum) 0;
         }
 
+        static int ankus_run_spi_statement(AnkusRequest *request, AnkusResult *result);
+
         static int
         ankus_run_spi_request(AnkusRequest *request, AnkusResult *result)
+        {
+            /* Read-only SPI statements and cursors use the caller's active snapshot,
+             * which PostgreSQL only asserts. Native callbacks such as utility hooks can
+             * run in a transaction without one. Take the transaction snapshot only for
+             * such a statement, as read-write SPI does for each statement, so callbacks
+             * that run no SQL leave the transaction's snapshot timing unchanged. An
+             * ERROR leaves the snapshot to the enclosing subtransaction or transaction
+             * abort, which releases every snapshot pushed at its level. */
+            bool snapshot = request->read_only != 0 && !ActiveSnapshotSet() &&
+                (request->operation == ANKUS_SPI_EXECUTE || request->operation == ANKUS_SPI_EXECUTE_PLAN ||
+                    request->operation == ANKUS_SPI_OPEN_CURSOR || request->operation == ANKUS_SPI_OPEN_PLAN_CURSOR ||
+                    request->operation == ANKUS_SPI_EXPLAIN);
+            int code;
+            if (snapshot)
+            {
+                PushActiveSnapshot(GetTransactionSnapshot());
+            }
+
+            code = ankus_run_spi_statement(request, result);
+            if (snapshot)
+            {
+                PopActiveSnapshot();
+            }
+
+            return code;
+        }
+
+        static int
+        ankus_run_spi_statement(AnkusRequest *request, AnkusResult *result)
         {
             Oid *types = NULL;
             Datum *values = NULL;

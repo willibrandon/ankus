@@ -175,6 +175,9 @@ internal static class GuardedBackend
                     uint64 caller_identity = recovery_context == ErrorContext
                         ? ankus_memory_context_id(caller_context) : 0;
                     int code;
+                    /* Cache diagnostic conversions while catalog access is available, so later
+                     * reports and captured errors outside a transaction can still convert text. */
+                    ankus_prepare_diagnostic_conversion();
                     if (subtransaction && transaction_frame != NULL)
                         ereport(ERROR, (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
                             errmsg("Explicit recovery scopes are unavailable during transaction callbacks")));

@@ -51,12 +51,17 @@ internal static class NativeSharedMemoryBridge
             pg_atomic_uint64 address;
             pg_atomic_uint32 readers;
             pg_atomic_uint32 process_id;
+            /* Admissions held on the backend thread inside a native callback scope.
+             * Only that thread reads or writes this count. */
+            uint32 backend_readers;
+            uint32 reserved;
         } AnkusSharedAccess;
 
-        StaticAssertDecl(sizeof(AnkusSharedAccess) == 16, "Ankus atomic access requires native 64-bit atomics");
+        StaticAssertDecl(sizeof(AnkusSharedAccess) == 24, "Ankus atomic access requires native 64-bit atomics");
         StaticAssertDecl(offsetof(AnkusSharedAccess, address.value) == 0, "Ankus atomic address layout changed");
         StaticAssertDecl(offsetof(AnkusSharedAccess, readers.value) == 8, "Ankus atomic reader layout changed");
         StaticAssertDecl(offsetof(AnkusSharedAccess, process_id.value) == 12, "Ankus atomic process layout changed");
+        StaticAssertDecl(offsetof(AnkusSharedAccess, backend_readers) == 16, "Ankus backend reader layout changed");
 
         typedef struct AnkusSharedStorage
         {
@@ -90,9 +95,14 @@ internal static class NativeSharedMemoryBridge
         static void
         ankus_shared_close(AnkusSharedStorage *entry)
         {
+            /* FATAL and proc_exit leave from inside the PostgreSQL call that raised them.
+             * Managed reads on this thread that made such a call never resume, so their
+             * admissions are never released. Process exit retires the address after
+             * every other thread's finite operation; a postmaster restart waits for all. */
+            uint32 stranded = proc_exit_inprogress ? entry->access.backend_readers : 0;
             pg_atomic_fetch_or_u32(&entry->access.readers, 0x80000000U);
             pg_atomic_write_u32(&entry->access.process_id, 0);
-            while ((pg_atomic_read_u32(&entry->access.readers) & 0x7fffffffU) != 0)
+            while ((pg_atomic_read_u32(&entry->access.readers) & 0x7fffffffU) > stranded)
             {
                 pg_usleep(1000L);
             }
@@ -148,6 +158,7 @@ internal static class NativeSharedMemoryBridge
                          * Keep an unpublished address closed until startup attaches it. */
                         pg_atomic_write_u32(&entry->access.readers,
                             pg_atomic_read_u64(&entry->access.address) == 0 ? 0x80000000U : 0);
+                        entry->access.backend_readers = 0;
                     }
 
                     pg_atomic_write_u32(&entry->access.process_id, (uint32) MyProcPid);
@@ -381,6 +392,7 @@ internal static class NativeSharedMemoryBridge
             pg_atomic_init_u64(&entry->access.address, 0);
             pg_atomic_init_u32(&entry->access.readers, 0x80000000U);
             pg_atomic_init_u32(&entry->access.process_id, 0);
+            entry->access.backend_readers = 0;
             PG_TRY();
             {
                 (void) ankus_shared_size(entry);

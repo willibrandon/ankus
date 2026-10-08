@@ -173,8 +173,8 @@ ankus_test_worker_allocation_fault(PG_FUNCTION_ARGS)
         int allocations = fault_worker_allocations;
         int id_change = (int) (ankus_worker_next_id - previous_id);
         char *message = pstrdup(error.message);
-        char *detail = ankus_error_field(&error, ANKUS_ERROR_DETAIL);
-        char *hint = ankus_error_field(&error, ANKUS_ERROR_HINT);
+        char *detail = ankus_error_field(&error, ANKUS_ERROR_DETAIL, true);
+        char *hint = ankus_error_field(&error, ANKUS_ERROR_HINT, true);
         char *state = pstrdup(unpack_sql_state(error.sqlstate));
         ankus_release_error(&error);
         for (int index = 0; index < ANKUS_ERROR_FIELD_COUNT; index++)
