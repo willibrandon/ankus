@@ -208,11 +208,12 @@ internal sealed class AggregateDeclaration(INamedTypeSymbol type, AttributeData 
                 return Invalid(AggregateDiagnostics.Container, container.Locations.FirstOrDefault());
             }
 
+            // The nearest container schema applies, including a missing or null argument while the attribute is being typed.
             AttributeData? schema = container.GetAttributes().FirstOrDefault(static item => item.AttributeClass?.ToDisplayString() == "Ankus.PgSchemaAttribute");
-            if (aggregate.Schema is null && schema is not null)
+            if (aggregate.Schema is null && inheritedSchema is null && schema is not null)
             {
                 inheritedSchema = schema;
-                aggregate.Schema = schema.ConstructorArguments[0].Value as string;
+                aggregate.Schema = schema.ConstructorArguments.FirstOrDefault().Value as string;
             }
         }
 
@@ -221,7 +222,7 @@ internal sealed class AggregateDeclaration(INamedTypeSymbol type, AttributeData 
             return Invalid(AggregateDiagnostics.Name, Option("Name"));
         }
 
-        if (aggregate.Schema is not null && !SqlText.IsIdentifier(aggregate.Schema))
+        if ((aggregate.Schema is not null || inheritedSchema is not null) && !SqlText.IsIdentifier(aggregate.Schema))
         {
             return Invalid(FunctionDeclarationDiagnostics.Schema, inheritedSchema is null ? Option("Schema") :
                 FunctionDeclarationDiagnostics.ConstructorArgument(inheritedSchema, context.CancellationToken));

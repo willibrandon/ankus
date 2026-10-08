@@ -102,6 +102,9 @@ public sealed partial class PgFunctionGeneratorTests
     [DataRow("", false, "ANKUS050")]
     [DataRow(null, false, "ANKUS050")]
     [DataRow("pg_reserved", false, "ANKUS063")]
+    [DataRow("PG_Stage", true, "")]
+    [DataRow("Pg_stage", true, "")]
+    [DataRow("pG_stage", true, "")]
     [DataRow("🐘🐘🐘🐘🐘🐘🐘🐘🐘🐘🐘🐘🐘🐘🐘", true, "")]
     [DataRow("🐘🐘🐘🐘🐘🐘🐘🐘🐘🐘🐘🐘🐘🐘🐘🐘", false, "ANKUS050")]
     public void EmptySchemasHaveValidatedStandaloneMetadata(string? name, bool valid, string diagnosticId)

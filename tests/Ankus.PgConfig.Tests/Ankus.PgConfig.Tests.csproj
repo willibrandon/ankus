@@ -7,6 +7,9 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/Ankus.PgConfig/Ankus.PgConfig.csproj" />
+    <!-- Scaffolding tests run the tool's template writer in process with its bundled templates. -->
+    <ProjectReference Include="../../src/Ankus.Tool/Ankus.Tool.csproj" />
+    <None Include="../../src/Ankus.Templates/Configuration/template.json" Link="TemplateConfiguration/template.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

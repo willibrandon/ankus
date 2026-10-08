@@ -23,6 +23,36 @@ internal static partial class ProjectScaffolder
     };
 
     /// <summary>
+    /// The reserved, column-name and type-or-function-name keywords of PostgreSQL 13–19, which quote_identifier quotes.
+    /// Each later major's list contains every earlier one; the dotnet new template's extensionIdentifier symbol matches it.
+    /// </summary>
+    private static readonly HashSet<string> s_postgresKeywords = new(StringComparer.Ordinal)
+    {
+        "all", "analyse", "analyze", "and", "any", "array", "as", "asc", "asymmetric", "authorization", "between",
+        "bigint", "binary", "bit", "boolean", "both", "case", "cast", "char", "character", "check", "coalesce",
+        "collate", "collation", "column", "concurrently", "constraint", "create", "cross", "current_catalog",
+        "current_date", "current_role", "current_schema", "current_time", "current_timestamp", "current_user", "dec",
+        "decimal", "default", "deferrable", "desc", "distinct", "do", "else", "end", "except", "exists", "extract",
+        "false", "fetch", "float", "for", "foreign", "freeze", "from", "full", "grant", "greatest", "group",
+        "grouping", "having", "ilike", "in", "initially", "inner", "inout", "int", "integer", "intersect", "interval",
+        "into", "is", "isnull", "join", "json", "json_array", "json_arrayagg", "json_exists", "json_object",
+        "json_objectagg", "json_query", "json_scalar", "json_serialize", "json_table", "json_value", "lateral",
+        "leading", "least", "left", "like", "limit", "localtime", "localtimestamp", "merge_action", "national",
+        "natural", "nchar", "none", "normalize", "not", "notnull", "null", "nullif", "numeric", "offset", "on", "only",
+        "or", "order", "out", "outer", "overlaps", "overlay", "placing", "position", "precision", "primary", "real",
+        "references", "returning", "right", "row", "select", "session_user", "setof", "similar", "smallint", "some",
+        "substring", "symmetric", "system_user", "table", "tablesample", "then", "time", "timestamp", "to", "trailing",
+        "treat", "trim", "true", "union", "unique", "user", "using", "values", "varchar", "variadic", "verbose",
+        "when", "where", "window", "with", "xmlattributes", "xmlconcat", "xmlelement", "xmlexists", "xmlforest",
+        "xmlnamespaces", "xmlparse", "xmlpi", "xmlroot", "xmlserialize", "xmltable",
+    };
+
+    /// <summary>
+    /// Gets the PostgreSQL keywords that require a quoted identifier on at least one supported server major.
+    /// </summary>
+    internal static IReadOnlySet<string> PostgresKeywords => s_postgresKeywords;
+
+    /// <summary>
     /// Creates a version-matched extension solution in a new directory using an atomic move from staging.
     /// </summary>
     /// <param name="name">The portable project name whose namespace is normalized for C#.</param>
@@ -62,6 +92,7 @@ internal static partial class ProjectScaffolder
             ["__PROJECT__"] = name,
             ["__NAMESPACE__"] = ToNamespace(name),
             ["__EXTENSION__"] = extension,
+            ["__EXTENSION_IDENTIFIER__"] = QuoteIdentifier(extension),
             ["__VERSION__"] = version,
             ["__PRELOAD__"] = backgroundWorker ? "true" : "false",
             ["__TEST_FRAMEWORK__"] = framework switch { "xunit" => "xUnit", "nunit" => "NUnit", _ => "MSTest" },
@@ -119,8 +150,26 @@ internal static partial class ProjectScaffolder
     private static string Replace(string value, Dictionary<string, string> replacements)
         => TokenPattern().Replace(value, match => replacements[match.Value]);
 
-    [GeneratedRegex("__(PROJECT|NAMESPACE|EXTENSION|VERSION|PRELOAD|WORKER_STATE|TEST_FRAMEWORK)__", RegexOptions.CultureInvariant)]
+    [GeneratedRegex("__(PROJECT|NAMESPACE|EXTENSION|EXTENSION_IDENTIFIER|VERSION|PRELOAD|WORKER_STATE|TEST_FRAMEWORK)__",
+        RegexOptions.CultureInvariant)]
     private static partial Regex TokenPattern();
+
+    /// <summary>
+    /// Writes an identifier as PostgreSQL's quote_identifier does on every supported server major.
+    /// </summary>
+    /// <param name="identifier">The exact catalog identifier.</param>
+    /// <returns>
+    /// The identifier unchanged when it starts with a lowercase ASCII letter or underscore, contains only lowercase ASCII
+    /// letters, digits and underscores, and is not a reserved, column-name or type-or-function-name keyword; otherwise the
+    /// identifier in double quotes with embedded quotes doubled.
+    /// </returns>
+    internal static string QuoteIdentifier(string identifier)
+    {
+        bool safe = identifier.Length != 0 && (char.IsAsciiLetterLower(identifier[0]) || identifier[0] == '_') &&
+            identifier.All(static c => char.IsAsciiLetterLower(c) || char.IsAsciiDigit(c) || c == '_') &&
+            !s_postgresKeywords.Contains(identifier);
+        return safe ? identifier : "\"" + identifier.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"";
+    }
 
     private static void ValidateName(string name)
     {

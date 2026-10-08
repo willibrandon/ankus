@@ -67,7 +67,9 @@ Every argument following a defaulted argument must also have a default. Ankus
 reports `ANKUS062` on an argument missing that default. Other invalid options
 have [specific declaration diagnostics](#declaration-diagnostics).
 PostgreSQL validates SQL expressions during installation. Expressions are
-trusted extension source, just like handwritten installation SQL.
+trusted extension source, just like handwritten installation SQL. An expression
+may end with a `--` comment: Ankus then closes its `DEFAULT (...)` clause on the
+next line, so the comment cannot hide the rest of the generated declaration.
 
 Constants retain decimal scale, floating-point signed zero and special values,
 escaped text, and integer bounds. Supported value-type `default` arguments use
@@ -431,4 +433,4 @@ constructor arguments. These errors replace the former general `ANKUS004` code.
 | ANKUS060 | Supply a nonempty SQL default expression with valid Unicode and no zero characters. |
 | ANKUS061 | Supply `PgParameter.Default` when the C# optional value has no exact SQL translation. |
 | ANKUS062 | Give every input after a defaulted SQL argument its own SQL default. |
-| ANKUS063 | Create schemas outside PostgreSQL's reserved `pg_` namespace. Use `Create = false` when referencing an existing schema. |
+| ANKUS063 | Create schemas outside PostgreSQL's reserved `pg_` namespace. As in PostgreSQL, only the exact lowercase prefix is reserved; quoted names such as `PG_Stage` are allowed. Use `Create = false` when referencing an existing schema. |

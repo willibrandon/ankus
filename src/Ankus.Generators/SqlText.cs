@@ -77,4 +77,15 @@ internal static class SqlText
     /// <returns>An escape-string SQL literal.</returns>
     internal static string Literal(string value) => "E'" + value.Replace("\\", "\\\\").Replace("'", "''")
         .Replace("\r", "\\r").Replace("\n", "\\n") + "'";
+
+    /// <summary>
+    /// Renders an argument default clause that a trailing SQL line comment cannot extend into the following declaration.
+    /// </summary>
+    /// <param name="expression">The exact authored or converted default expression.</param>
+    /// <returns>
+    /// The parenthesized default. When the expression contains <c>--</c>, which can begin a comment that runs to the end
+    /// of the line, the closing parenthesis follows a newline; the added whitespace does not change the expression.
+    /// </returns>
+    internal static string Default(string expression)
+        => " DEFAULT (" + expression + (expression.Contains("--") ? "\n)" : ")");
 }

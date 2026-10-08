@@ -112,6 +112,10 @@ internal readonly record struct GeneratorLocation(string Path, int TreeOccurrenc
     /// <summary>
     /// Encodes tokens through a declaration's implementation boundary without source trivia.
     /// </summary>
+    /// <remarks>
+    /// A namespace header ends with its name. File-scoped namespaces contain the rest of the file, and block namespaces
+    /// being typed can lack an opening brace; neither form may make member text part of every nested declaration key.
+    /// </remarks>
     private static string Header(MemberDeclarationSyntax member)
     {
         int end = member switch
@@ -125,7 +129,7 @@ internal readonly record struct GeneratorLocation(string Path, int TreeOccurrenc
             EventDeclarationSyntax { AccessorList: { } accessors } => accessors.SpanStart,
             TypeDeclarationSyntax { OpenBraceToken.IsMissing: false } type => type.OpenBraceToken.SpanStart,
             EnumDeclarationSyntax { OpenBraceToken.IsMissing: false } type => type.OpenBraceToken.SpanStart,
-            NamespaceDeclarationSyntax { OpenBraceToken.IsMissing: false } space => space.OpenBraceToken.SpanStart,
+            BaseNamespaceDeclarationSyntax space => space.Name.Span.End,
             _ => member.Span.End,
         };
         var header = new StringBuilder();

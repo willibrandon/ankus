@@ -16,5 +16,5 @@ internal sealed record SqlFunctionParameter(string Name, FunctionType Type, bool
     /// <returns>The complete named argument declaration.</returns>
     internal string Emit(SqlTypeProviders? providers)
         => (Variadic ? "VARIADIC " : string.Empty) + SqlText.Identifier(Name) + " " + SqlSchemaTemplate.Type(Type, providers) +
-            (Default is null ? string.Empty : " DEFAULT (" + Default + ")");
+            (Default is null ? string.Empty : SqlText.Default(Default));
 }

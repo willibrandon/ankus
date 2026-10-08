@@ -15,6 +15,7 @@
     <PackageReference Include="NuGet.Versioning" />
     <PackageReference Include="NuGet.Configuration" />
     <ProjectReference Include="../Ankus.PgConfig/Ankus.PgConfig.csproj" />
+    <InternalsVisibleTo Include="Ankus.PgConfig.Tests" />
     <None Update="Templates/**/*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <None Remove="Templates/Extension/.config/**/*" />
     <None Include="Templates/Extension/.config/**/*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />

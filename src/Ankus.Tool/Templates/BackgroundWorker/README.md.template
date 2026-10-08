@@ -34,7 +34,7 @@ shared_preload_libraries = '__EXTENSION__'
 Install the SQL declarations and inspect the worker:
 
 ```sql
-CREATE EXTENSION __EXTENSION__;
+CREATE EXTENSION __EXTENSION_IDENTIFIER__;
 SELECT worker_process(), worker_result();
 ```
 

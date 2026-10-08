@@ -17,7 +17,7 @@ public sealed partial class PgFunctionGeneratorTests
     [DataRow("bad\0name", "ANKUS050")]
     [DataRow("🐘🐘🐘🐘🐘🐘🐘🐘🐘🐘🐘🐘🐘🐘🐘🐘", "ANKUS050")]
     [DataRow("pg_reserved", "ANKUS063")]
-    [DataRow("PG_reserved", "ANKUS063")]
+    [DataRow("pg_", "ANKUS063")]
     public void SchemaDiagnosticsIdentifyTheConstructorValue(string? name, string id)
     {
         string literal = name is null ? "null!" : SymbolDisplay.FormatLiteral(name, quote: true);
@@ -33,6 +33,21 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.AreEqual("https://willibrandon.github.io/ankus/function-declarations/#declaration-diagnostics", diagnostic.Descriptor.HelpLinkUri);
         Assert.IsEmpty(output.GetDiagnostics(context.CancellationToken).Where(static value => value.Severity == DiagnosticSeverity.Error));
         Assert.AreEqual("CREATE SCHEMA IF NOT EXISTS \"accepted\";\n", InstallationBody(output));
+    }
+
+    /// <summary>
+    /// PostgreSQL reserves only the exact lowercase pg_ prefix, so a quoted mixed-case schema is created and inherited.
+    /// </summary>
+    [TestMethod]
+    public void SchemaReservationMatchesPostgresCaseSensitivePrefix()
+    {
+        (Compilation output, ImmutableArray<Diagnostic> diagnostics) = Generate("[Ankus.PgSchema(\"PG_Stage\")] public static class Functions { " +
+            "[Ankus.PgFunction] public static int Value() => 1; }");
+
+        Assert.IsEmpty(diagnostics);
+        Assert.StartsWith("CREATE SCHEMA IF NOT EXISTS \"PG_Stage\";\n", InstallationBody(output));
+        Assert.Contains("CREATE FUNCTION \"PG_Stage\".\"value\"()", InstallationBody(output));
+        Assert.AreEqual("false", ManifestValue(output, "Ankus.Relocatable"));
     }
 
     /// <summary>

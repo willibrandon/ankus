@@ -52,7 +52,10 @@ escape C# keywords. SQL extension names use lowercase ASCII snake case,
 replacing separators and non-ASCII characters with underscores and prefixing
 leading digits with `_`: `1Ext` becomes `_1_ext` and `Acme.Search` becomes
 `acme_search`. The native library uses that extension identity as its filename.
-Use `ankus new --extension-name` to choose one explicitly.
+Use `ankus new --extension-name` to choose one explicitly. Generated SQL quotes
+the name as PostgreSQL's `quote_identifier` does when it is a reserved, column-name
+or type/function-name keyword in any supported PostgreSQL version: `User` creates
+`CREATE EXTENSION "user";`.
 `--output` selects a new destination directory. Existing destinations are preserved.
 
 Creation needs no PostgreSQL installation. Running the generated backend tests

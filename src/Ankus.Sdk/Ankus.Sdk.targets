@@ -8,6 +8,9 @@
     <AnkusNativeAotSdkPath Condition="'$(AnkusNativeAotSdkPath)' == '' and Exists('$(MSBuildThisFileDirectory)../../artifacts/nativeaot/$(_AnkusDevelopmentRuntimeIdentifier)/aotsdk/System.Private.CoreLib.dll')">$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)', '..', '..', 'artifacts', 'nativeaot', '$(_AnkusDevelopmentRuntimeIdentifier)', 'aotsdk'))</AnkusNativeAotSdkPath>
     <AnkusNativeAotCompilerToolsPath Condition="'$(AnkusNativeAotCompilerToolsPath)' == '' and Exists('$(MSBuildThisFileDirectory)../../artifacts/nativeaot/$(NETCoreSdkRuntimeIdentifier)/compiler/ilc')">$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)', '..', '..', 'artifacts', 'nativeaot', '$(NETCoreSdkRuntimeIdentifier)', 'compiler'))</AnkusNativeAotCompilerToolsPath>
     <AnkusNativeAotCompilerToolsPath Condition="'$(AnkusNativeAotCompilerToolsPath)' == '' and Exists('$(MSBuildThisFileDirectory)../../artifacts/nativeaot/$(NETCoreSdkRuntimeIdentifier)/compiler/ilc.exe')">$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)', '..', '..', 'artifacts', 'nativeaot', '$(NETCoreSdkRuntimeIdentifier)', 'compiler'))</AnkusNativeAotCompilerToolsPath>
+    <!-- Repository projects import these targets from the project body, before Microsoft.NET.Sdk imports
+         Directory.Build.targets. Evaluate the PostgreSQL selection defaults after it, as the packaged SDK does. -->
+    <CustomAfterDirectoryBuildTargets>$(CustomAfterDirectoryBuildTargets);$(MSBuildThisFileDirectory)targets/Ankus.PostgresSelection.targets</CustomAfterDirectoryBuildTargets>
   </PropertyGroup>
 
   <ItemGroup>

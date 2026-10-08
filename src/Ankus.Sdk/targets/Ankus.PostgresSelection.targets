@@ -1,0 +1,10 @@
+<Project>
+  <!-- Imported after Microsoft.NET.Sdk's targets, and therefore after Directory.Build.props, the project file and
+       Directory.Build.targets. A major authored in any of them, or passed as a global property, is explicit.
+       Only an unspecified major uses the PostgreSQL 18 default, which an explicitly supplied pg_config replaces. -->
+  <PropertyGroup>
+    <_AnkusPostgresMajorWasSpecified Condition="'$(AnkusPostgresMajor)' != ''">true</_AnkusPostgresMajorWasSpecified>
+    <_AnkusPostgresMajorWasSpecified Condition="'$(_AnkusPostgresMajorWasSpecified)' == ''">false</_AnkusPostgresMajorWasSpecified>
+    <AnkusPostgresMajor Condition="'$(AnkusPostgresMajor)' == ''">18</AnkusPostgresMajor>
+  </PropertyGroup>
+</Project>

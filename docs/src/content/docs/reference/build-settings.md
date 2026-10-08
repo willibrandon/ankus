@@ -30,7 +30,9 @@ Set extension properties in your project file:
 Relative `AnkusPgConfigPath` file paths use each project's directory, including
 when the property comes from an imported file. A bare executable name, such as
 `pg_config`, uses `PATH`. Ankus commands and the testing fixture use the
-executable's reported major when `AnkusPostgresMajor` is omitted. A direct
+executable's reported major when `AnkusPostgresMajor` is omitted. A major set in
+the project file, `Directory.Build.props` or `Directory.Build.targets` is an
+explicit selection, so the executable's major is not substituted for it. A direct
 `dotnet publish` uses the SDK's PostgreSQL 18 default, so pass both properties
 when publishing another major. A test project without its own PostgreSQL
 selection inherits the extension project's evaluated installation.

@@ -19,7 +19,7 @@ internal sealed record FunctionSqlEmission(string Header, EquatableArray<Functio
     {
         var arguments = new EquatableArray<Argument>(model.Parameters.Select(static parameter =>
             new Argument((parameter.Variadic ? "VARIADIC " : string.Empty) + SqlText.Identifier(parameter.Name) + " ",
-                parameter.Type, parameter.Default is null ? string.Empty : " DEFAULT (" + parameter.Default + ")")));
+                parameter.Type, parameter.Default is null ? string.Empty : SqlText.Default(parameter.Default))));
         bool table = model.Set && model.Columns[0].Name is not null;
         var result = new ReturnClause(table ? "TABLE (" : model.Set ? "SETOF " : string.Empty,
             new(model.Columns.Select(static column =>

@@ -35,7 +35,7 @@ dotnet ankus install
 ```
 
 ```sql
-CREATE EXTENSION __EXTENSION__;
+CREATE EXTENSION __EXTENSION_IDENTIFIER__;
 SELECT add(40, 2), greet('PostgreSQL');
 ```
 

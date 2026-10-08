@@ -9,6 +9,12 @@
     <None Include="../../src/Ankus.Sdk/targets/Ankus.Bindings.targets" Link="Sdk/Ankus.Bindings.targets" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../src/Ankus.Sdk/targets/Ankus.Development.targets" Link="Sdk/Ankus.Development.targets" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../src/Ankus.Sdk/targets/Ankus.Native.targets" Link="Sdk/Ankus.Native.targets" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../src/Ankus.Sdk/targets/Ankus.PostgresSelection.targets" Link="Sdk/Ankus.PostgresSelection.targets" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The packaged MSBuild SDK layout, imported as Sdk="Ankus.Sdk" consumers import it, beside the repository's
+         project-body entry point for the same targets. -->
+    <None Include="../../src/Ankus.Sdk/Sdk/Sdk.props;../../src/Ankus.Sdk/Sdk/Sdk.targets" Link="AnkusSdk/Sdk/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../src/Ankus.Sdk/Ankus.props;../../src/Ankus.Sdk/Ankus.Sdk.targets" Link="AnkusSdk/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../src/Ankus.Sdk/targets/*.targets" Link="AnkusSdk/targets/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <PropertyGroup>
     <EnableMSTestSourceGeneration>true</EnableMSTestSourceGeneration>

@@ -164,7 +164,9 @@ internal sealed record SetResult
 
         if (namesAttribute is not null)
         {
-            if (namesAttribute.ConstructorArguments.Length != 1 || namesAttribute.ConstructorArguments[0].IsNull)
+            // Only an array exposes Values; an unfinished application may not have bound its params array.
+            if (namesAttribute.ConstructorArguments.Length != 1 || namesAttribute.ConstructorArguments[0].Kind != TypedConstantKind.Array ||
+                namesAttribute.ConstructorArguments[0].IsNull)
             {
                 valid = false;
                 Error(s_nullColumnNames, AttributeLocation());

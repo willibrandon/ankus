@@ -50,6 +50,7 @@ public sealed class SdkDefineConstantsTests(TestContext context)
 
     /// <summary>
     /// Imports the actual SDK defaults and shared targets, with a later consumer override and real MSBuild scheduling.
+    /// The selection defaults follow the shared targets, matching their position after Microsoft.NET.Sdk in the SDK.
     /// </summary>
     private async Task<(string[] Constants, string Major, bool Explicit)> EvaluateAsync(string major, string? globalMajor,
         string targets)
@@ -69,6 +70,7 @@ public sealed class SdkDefineConstantsTests(TestContext context)
                     new XElement("DefineConstants", "CONSUMER;SECOND"),
                     new XElement("AnkusPostgresMajor", new XAttribute("Condition", "'" + major + "' != ''"), major)),
                 new XElement("Import", new XAttribute("Project", Path.Combine(sdk, "Ankus.Bindings.targets"))),
+                new XElement("Import", new XAttribute("Project", Path.Combine(sdk, "Ankus.PostgresSelection.targets"))),
                 new XElement("Target", new XAttribute("Name", "PrepareForBuild")),
                 new XElement("Target", new XAttribute("Name", "BeforeCompile")),
                 new XElement("Target", new XAttribute("Name", "CoreCompile")))).Save(project);

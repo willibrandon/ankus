@@ -37,7 +37,8 @@ internal static class SchemaPipeline
         AttributeData attribute = context.Attributes[0];
         string? name = attribute.ConstructorArguments.FirstOrDefault().Value as string;
         bool create = AttributeValues.Get(attribute, "Create", true);
-        SchemaDeclaration? declaration = SqlText.IsIdentifier(name) && (!create || !name!.StartsWith("pg_", StringComparison.OrdinalIgnoreCase))
+        // PostgreSQL's IsReservedName compares the exact catalog name; the quoted "PG_x" or "Pg_x" is not reserved.
+        SchemaDeclaration? declaration = SqlText.IsIdentifier(name) && (!create || !name!.StartsWith("pg_", StringComparison.Ordinal))
             ? new(name!, create) : null;
         GeneratorProblem? problem = declaration is null
             ? new(SqlText.IsIdentifier(name) ? FunctionDeclarationDiagnostics.ReservedSchema : FunctionDeclarationDiagnostics.Schema,
