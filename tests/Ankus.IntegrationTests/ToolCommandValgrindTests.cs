@@ -13,7 +13,7 @@ public sealed partial class ToolCommandTests
     /// </summary>
     /// <param name="configuredRange">The caller's optional GC region range.</param>
     /// <param name="expectedRange">The actual instrumented runtime range in bytes.</param>
-    [TestMethod]
+    [RetryPortCollisionTestMethod]
     [DataRow(null, 34359738368L)]
     [DataRow("", 34359738368L)]
     [DataRow("200000000", 8589934592L)]
@@ -155,7 +155,7 @@ public sealed partial class ToolCommandTests
     /// <summary>
     /// Startup timeout terminates the launcher even before the real server can create a PostgreSQL PID file.
     /// </summary>
-    [TestMethod]
+    [RetryPortCollisionTestMethod]
     [OSCondition(OperatingSystems.Linux)]
     public async Task ValgrindTimeoutBeforePostgresStartsTerminatesChild()
     {

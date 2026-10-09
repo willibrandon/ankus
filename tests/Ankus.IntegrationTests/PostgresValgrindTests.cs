@@ -23,7 +23,7 @@ public sealed class PostgresValgrindTests(TestContext context)
     /// <summary>
     /// Memcheck runs the selected executable, preserves exact settings and data, and does not replace a running server.
     /// </summary>
-    [TestMethod]
+    [RetryPortCollisionTestMethod]
     [OSCondition(OperatingSystems.Linux)]
     public async Task ValgrindStartupPreservesDataAndReportsInstrumentation()
     {
@@ -89,7 +89,7 @@ public sealed class PostgresValgrindTests(TestContext context)
     /// <summary>
     /// Actual native memory errors reach the server log with their stack and delimiters while subsequent SQL remains usable.
     /// </summary>
-    [TestMethod]
+    [RetryPortCollisionTestMethod]
     [OSCondition(OperatingSystems.Linux)]
     public async Task ValgrindReportsNativeErrorsAndPreservesDiagnostics()
     {
@@ -165,7 +165,7 @@ public sealed class PostgresValgrindTests(TestContext context)
     /// <summary>
     /// A failed instrumented bind retains initialized data, releases the operation lock, and permits a healthy restart.
     /// </summary>
-    [TestMethod]
+    [RetryPortCollisionTestMethod]
     [OSCondition(OperatingSystems.Linux)]
     public async Task ValgrindStartupFailureRecovers()
     {
@@ -206,7 +206,7 @@ public sealed class PostgresValgrindTests(TestContext context)
     /// Timeout and cancellation during a witnessed native preload stop the instrumented server and allow restart.
     /// </summary>
     /// <param name="cancel">Whether to cancel explicitly instead of exhausting the startup timeout.</param>
-    [TestMethod]
+    [RetryPortCollisionTestMethod]
     [OSCondition(OperatingSystems.Linux)]
     [DataRow(false)]
     [DataRow(true)]

@@ -14,7 +14,7 @@ public sealed partial class ToolCommandTests
     /// <param name="extensionName">An explicit SQL name, or null to use the derived name.</param>
     /// <param name="expectedName">The independently expected SQL extension name.</param>
     /// <param name="template">Whether to create through the installed dotnet-new template.</param>
-    [TestMethod]
+    [RetryPortCollisionTestMethod]
     [DataRow("Acme.RegressProbe", null, "acme_regress_probe", false)]
     [DataRow("class.select", "regression_named", "regression_named", false)]
     [DataRow("Acme.RegressProbe", null, "acme_regress_probe", true)]

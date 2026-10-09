@@ -10,7 +10,7 @@ public sealed partial class ToolCommandTests
     /// <summary>
     /// Installed lifecycle commands preserve rows, exact settings, and the existing backend across redundant starts.
     /// </summary>
-    [TestMethod]
+    [RetryPortCollisionTestMethod]
     public async Task ClusterCommandsPreserveDataAcrossRestarts()
     {
         CancellationToken token = context.CancellationToken;

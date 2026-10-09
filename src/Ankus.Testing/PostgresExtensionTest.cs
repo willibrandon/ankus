@@ -244,7 +244,11 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
             await using (FileStream buildLock = await LockBuildAsync(
                 Path.Combine(buildArtifacts, "publish.lock"), cancellationToken).ConfigureAwait(false))
             {
-                DeleteDirectory(buildOutput);
+                if (Directory.Exists(buildOutput))
+                {
+                    Directory.Delete(buildOutput, recursive: true);
+                }
+
                 Directory.CreateDirectory(buildOutput);
                 await ProcessRunner.RunCheckedAsync("dotnet",
                     ["publish", projectPath, .. PropertyArguments(properties), "--artifacts-path", buildArtifacts,
@@ -320,8 +324,8 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
                 await stagedInstallation.DisposeAsync().ConfigureAwait(false);
             }
 
-            DeleteDirectory(dataDirectoryBase);
-            Directory.Delete(output, recursive: true);
+            PostgresServerStorage.Delete(dataDirectoryBase);
+            PostgresServerStorage.Delete(output);
             throw;
         }
     }
@@ -351,19 +355,8 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
             await _stagedInstallation.DisposeAsync().ConfigureAwait(false);
         }
 
-        DeleteDirectory(_dataDirectoryBase);
-        if (Directory.Exists(_publishDirectory))
-        {
-            Directory.Delete(_publishDirectory, recursive: true);
-        }
-    }
-
-    private static void DeleteDirectory(string path)
-    {
-        if (Directory.Exists(path))
-        {
-            Directory.Delete(path, recursive: true);
-        }
+        PostgresServerStorage.Delete(_dataDirectoryBase);
+        PostgresServerStorage.Delete(_publishDirectory);
     }
 
     private static string PublicationBuildKey(IReadOnlyDictionary<string, string> properties)

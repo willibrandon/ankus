@@ -12,7 +12,7 @@ public sealed partial class ToolCommandTests
     /// <summary>
     /// A real publication executes native SQL, reuses existing setup, and resets only the selected database when requested or changed.
     /// </summary>
-    [TestMethod]
+    [RetryPortCollisionTestMethod]
     public async Task RegressBuildsAndPreservesSetupLifecycle()
     {
         CancellationToken token = context.CancellationToken;
@@ -78,7 +78,7 @@ public sealed partial class ToolCommandTests
     /// <summary>
     /// Bootstrap runs setup first, writes exact native output, honors SQL error verbosity and rejects replacing an existing expectation.
     /// </summary>
-    [TestMethod]
+    [RetryPortCollisionTestMethod]
     public async Task RegressBootstrapsSetupAndPreservesErrorVerbosity()
     {
         CancellationToken token = context.CancellationToken;
@@ -119,7 +119,7 @@ public sealed partial class ToolCommandTests
     /// <summary>
     /// Native alternate expectations, ordered selections, repeat diffs and automatic promotion retain exact failure and ownership semantics.
     /// </summary>
-    [TestMethod]
+    [RetryPortCollisionTestMethod]
     public async Task RegressRepeatsNativeDiffsAndPromotesOnlyFailedSelections()
     {
         CancellationToken token = context.CancellationToken;
@@ -179,7 +179,7 @@ public sealed partial class ToolCommandTests
     /// <summary>
     /// Failed psql clients cannot bootstrap or replace expectations from stale or partial output; corrected SQL recovers.
     /// </summary>
-    [TestMethod]
+    [RetryPortCollisionTestMethod]
     public async Task RegressRejectsFailedClientOutput()
     {
         CancellationToken token = context.CancellationToken;

@@ -264,7 +264,7 @@ public sealed partial class ToolCommandTests
     /// </summary>
     /// <param name="explicitDatabase">Whether the command overrides the environment database.</param>
     /// <param name="explicitClient">Whether an explicit client option overrides an invalid environment default.</param>
-    [TestMethod]
+    [RetryPortCollisionTestMethod]
     [DataRow(false, false)]
     [DataRow(true, false)]
     [DataRow(false, true)]
@@ -330,7 +330,7 @@ public sealed partial class ToolCommandTests
     /// The true client default selects pgcli, while an explicit false option selects the installation's psql.
     /// </summary>
     /// <param name="overrideClient">Whether the command explicitly selects psql.</param>
-    [TestMethod]
+    [RetryPortCollisionTestMethod]
     [DataRow(false)]
     [DataRow(true)]
     public async Task EnvironmentClientSelectsPgcliUnlessOverridden(bool overrideClient)

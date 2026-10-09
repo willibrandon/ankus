@@ -13,7 +13,7 @@ public sealed partial class ToolCommandTests
     /// <summary>
     /// Native creation and client connections preserve unusual names and reject lossy identifier truncation.
     /// </summary>
-    [TestMethod]
+    [RetryPortCollisionTestMethod]
     public async Task DevelopmentDatabasesPreserveExactNamesAndRejectTruncation()
     {
         CancellationToken token = context.CancellationToken;
@@ -75,7 +75,7 @@ public sealed partial class ToolCommandTests
     /// <summary>
     /// Connect starts a missing cluster, reuses live custom-port state and forwards a client's nonzero exit.
     /// </summary>
-    [TestMethod]
+    [RetryPortCollisionTestMethod]
     public async Task ConnectPreservesDatabaseAndUsesRunningPort()
     {
         CancellationToken token = context.CancellationToken;
@@ -122,7 +122,7 @@ public sealed partial class ToolCommandTests
     /// </summary>
     /// <param name="explicitName">Whether the project imports an explicit extension name.</param>
     /// <param name="configuration">The exact MSBuild configuration used to select imported properties.</param>
-    [TestMethod]
+    [RetryPortCollisionTestMethod]
     [DataRow(true, "Release")]
     [DataRow(false, "Release")]
     [DataRow(true, "Shipping;Channel=canary")]
@@ -165,7 +165,7 @@ public sealed partial class ToolCommandTests
     /// </summary>
     /// <param name="configuration">A custom configuration, or null to retain the Release default.</param>
     /// <param name="version">The expected configuration-specific extension version.</param>
-    [TestMethod]
+    [RetryPortCollisionTestMethod]
     [DataRow(null, "0.1.0")]
     [DataRow("Staging", "7.8.9")]
     public async Task RunBuildsInstallsAndLoadsNativeExtension(string? configuration, string version)

@@ -10,7 +10,7 @@ public sealed partial class ToolCommandTests
     /// <summary>
     /// Project properties select exact native code and default databases while client arguments remain client arguments.
     /// </summary>
-    [TestMethod]
+    [RetryPortCollisionTestMethod]
     public async Task ProjectGlobalPropertiesReachRunConnectAndRegression()
     {
         CancellationToken token = context.CancellationToken;

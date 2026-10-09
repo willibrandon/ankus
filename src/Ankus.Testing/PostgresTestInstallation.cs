@@ -77,7 +77,7 @@ public sealed class PostgresTestInstallation : IAsyncDisposable
         }
         catch
         {
-            Directory.Delete(root, recursive: true);
+            PostgresServerStorage.Delete(root);
             throw;
         }
     }
@@ -95,14 +95,18 @@ public sealed class PostgresTestInstallation : IAsyncDisposable
     }
 
     /// <summary>
-    /// Deletes the staged installation.
+    /// Deletes the staged installation after the servers using it have stopped.
     /// </summary>
+    /// <remarks>
+    /// On Windows, a stopped server's exiting processes can briefly keep the staged executables and libraries open;
+    /// deletion retries as <see cref="PostgresServerStorage.Delete(string)"/> describes.
+    /// </remarks>
     /// <returns>A completed task after synchronous file cleanup.</returns>
     public ValueTask DisposeAsync()
     {
-        if (Interlocked.Exchange(ref _disposed, 1) == 0 && Directory.Exists(RootDirectory))
+        if (Interlocked.Exchange(ref _disposed, 1) == 0)
         {
-            Directory.Delete(RootDirectory, recursive: true);
+            PostgresServerStorage.Delete(RootDirectory);
         }
 
         return ValueTask.CompletedTask;

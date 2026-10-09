@@ -109,7 +109,7 @@ public sealed class PostgresRegressionPrerequisiteTests(TestContext context)
     /// <summary>
     /// Removal preserves exact names, enforces the byte limit, leaves other data intact and can recreate an empty database.
     /// </summary>
-    [TestMethod]
+    [RetryPortCollisionTestMethod]
     public async Task DatabaseRemovalPreservesNamesOtherDataAndResetIdentity()
     {
         CancellationToken token = context.CancellationToken;
@@ -204,7 +204,7 @@ public sealed class PostgresRegressionPrerequisiteTests(TestContext context)
     /// <summary>
     /// Active sessions require explicit force, and errors, cancellation and operation locks preserve the database.
     /// </summary>
-    [TestMethod]
+    [RetryPortCollisionTestMethod]
     public async Task DatabaseRemovalHonorsForceLocksCancellationAndRecovery()
     {
         CancellationToken token = context.CancellationToken;

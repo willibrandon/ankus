@@ -11,7 +11,7 @@ public sealed partial class ToolCommandTests
     /// <summary>
     /// A package consumer uses the saved testing base to publish and query an extension on the exact requested port.
     /// </summary>
-    [TestMethod]
+    [RetryPortCollisionTestMethod]
     public async Task PackagedExtensionFixtureUsesSavedTestPortAndCleansUp()
     {
         CancellationToken token = context.CancellationToken;
@@ -163,7 +163,7 @@ public sealed partial class ToolCommandTests
     /// <summary>
     /// Saved bases affect future starts, while an active server and explicit overrides retain their exact selected ports and data.
     /// </summary>
-    [TestMethod]
+    [RetryPortCollisionTestMethod]
     public async Task DevelopmentPortsHonorSavedBasesRunningStateAndOverrides()
     {
         CancellationToken token = context.CancellationToken;

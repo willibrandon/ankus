@@ -12,7 +12,7 @@ public sealed partial class ToolCommandTests
     /// <summary>
     /// Publishes benchmark-only wrappers, measures inside PostgreSQL, rolls author writes back, and retains history.
     /// </summary>
-    [TestMethod]
+    [RetryPortCollisionTestMethod]
     [DoNotParallelize]
     public async Task BenchRunsInBackendAndPersistsResultsOutsideMeasurementTransaction()
     {

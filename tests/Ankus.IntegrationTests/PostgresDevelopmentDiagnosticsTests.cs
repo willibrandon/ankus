@@ -14,7 +14,7 @@ public sealed class PostgresDevelopmentDiagnosticsTests(TestContext context)
     /// <summary>
     /// Separate development-cluster instances retain the same isolated event diagnostics across reads, shutdown and restart.
     /// </summary>
-    [TestMethod]
+    [RetryPortCollisionTestMethod]
     [OSCondition(OperatingSystems.Windows)]
     public async Task DevelopmentDiagnosticsPersistAcrossCollectorsAndRestarts()
     {
@@ -77,7 +77,7 @@ public sealed class PostgresDevelopmentDiagnosticsTests(TestContext context)
     /// <summary>
     /// A native startup failure retains its reason and existing database, and a corrected restart recovers.
     /// </summary>
-    [TestMethod]
+    [RetryPortCollisionTestMethod]
     public async Task DevelopmentDiagnosticsRetainNativeFailureAndRecover()
     {
         CancellationToken token = context.CancellationToken;

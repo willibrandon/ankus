@@ -129,8 +129,8 @@ public sealed class PglzInspectExampleTests(TestContext context)
             token));
         string recommendation = await ScalarAsync<string>(connection, transaction, "SELECT pglz_recommend('events'::regclass, 'payload')", token);
         Assert.StartsWith("RECOMMEND: PGLZ saves ~", recommendation);
-        Assert.EndsWith("% on events.payload (1000 of 1000 sampled rows accepted). Run: ALTER TABLE events ALTER COLUMN payload SET COMPRESSION pglz;",
-            recommendation);
+        Assert.EndsWith("% on events.payload (1000 of 1000 sampled rows accepted). Run: " +
+            await RecommendedDdlAsync(connection, transaction, "events", "payload", token), recommendation);
 
         await ExecuteAsync(connection, transaction, """
             CREATE TABLE mixed AS
@@ -257,8 +257,8 @@ public sealed class PglzInspectExampleTests(TestContext context)
 
         string recommendation = await ScalarAsync<string>(connection, transaction, $"SELECT pglz_recommend({Table}, 'Value Column')", token);
         Assert.StartsWith("RECOMMEND: PGLZ saves ~", recommendation);
-        Assert.EndsWith("% on \"Mixed Case\".\"Odd \"\"Name\"\"\".Value Column (12 of 12 sampled rows accepted). " +
-            "Run: ALTER TABLE \"Mixed Case\".\"Odd \"\"Name\"\"\" ALTER COLUMN \"Value Column\" SET COMPRESSION pglz;", recommendation);
+        Assert.EndsWith("% on \"Mixed Case\".\"Odd \"\"Name\"\"\".Value Column (12 of 12 sampled rows accepted). Run: " +
+            await RecommendedDdlAsync(connection, transaction, "\"Mixed Case\".\"Odd \"\"Name\"\"\"", "\"Value Column\"", token), recommendation);
         Assert.AreEqual("NO DATA: no non-null rows sampled from \"Mixed Case\".\"Odd \"\"Name\"\"\".Value Column", await ScalarAsync<string>(connection, transaction,
             $"SELECT pglz_recommend({Table}, 'Value Column', -5)", token));
         Assert.AreEqual(Buckets.Replace(",", ":0,", StringComparison.Ordinal) + ":0", await ScalarAsync<string>(connection, transaction,
@@ -282,6 +282,15 @@ public sealed class PglzInspectExampleTests(TestContext context)
             await ExecuteAsync(connection, transaction, "CREATE EXTENSION ankus_pglz_inspect", token);
             await test(connection, transaction, token);
         }, context.CancellationToken);
+
+    /// <summary>
+    /// Returns the DDL the sample recommends. PostgreSQL 14 added column compression; on 13 the sample gives pgrx's trigger advice.
+    /// </summary>
+    private static async Task<string> RecommendedDdlAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, string table,
+        string column, CancellationToken token)
+        => await ScalarAsync<int>(connection, transaction, "SELECT current_setting('server_version_num')::integer", token) >= 140000
+            ? $"ALTER TABLE {table} ALTER COLUMN {column} SET COMPRESSION pglz;"
+            : $"-- pg13: SET COMPRESSION unavailable; use a BEFORE INSERT trigger that PGLZ-compresses {table}.{column} into a bytea sibling column.";
 
     private static async Task<T> ScalarAsync<T>(NpgsqlConnection connection, NpgsqlTransaction? transaction, string sql,
         CancellationToken token)
