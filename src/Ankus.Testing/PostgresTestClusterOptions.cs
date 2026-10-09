@@ -80,6 +80,10 @@ public sealed class PostgresTestClusterOptions
     /// Gets additional settings appended to <c>postgresql.auto.conf</c> after the
     /// harness defaults, allowing extension settings to override them.
     /// </summary>
+    /// <remarks>
+    /// The harness defaults include <c>fsync = off</c>, as PostgreSQL's own test clusters use; supply
+    /// <c>fsync = on</c> to test behavior that depends on it.
+    /// </remarks>
     public IReadOnlyList<string> PostgreSqlConfiguration
     {
         get;

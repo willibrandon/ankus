@@ -106,6 +106,9 @@ public IReadOnlyList<string> PostgreSqlConfiguration { get; init; }
 
 Value: [IReadOnlyList&lt;string&gt;](https://learn.microsoft.com/dotnet/api/system.collections.generic.ireadonlylist-1)
 
+The harness defaults include <code>fsync = off</code>, as PostgreSQL's own test clusters use; supply
+<code>fsync = on</code> to test behavior that depends on it.
+
 <a id="member-e8ba88aa611dc6b3"></a>
 
 ### ProcessEnvironment

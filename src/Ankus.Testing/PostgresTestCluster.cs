@@ -303,6 +303,10 @@ public sealed class PostgresTestCluster : IAsyncDisposable
         await ProcessRunner.RunCheckedAsync(Installation.InitDbPath, arguments, _environment, cancellationToken).ConfigureAwait(false);
 
         var configuration = new StringBuilder();
+        // Like PostgreSQL's own TAP clusters, a disposable test cluster skips fsync: crash recovery still replays the
+        // operating system's cached WAL, and only durability across an operating system crash is given up.
+        // Configuration supplied by the test follows and can enable it again.
+        configuration.AppendLine("fsync = off");
         configuration.AppendLine("log_min_messages = info");
         configuration.AppendLine("log_min_duration_statement = 1000");
         foreach (string setting in _options.PostgreSqlConfiguration)

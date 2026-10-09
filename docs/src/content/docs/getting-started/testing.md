@@ -286,6 +286,11 @@ each cluster's diagnostics remain separate and are retained in its server log.
 Call `ReadServerLog()` to refresh that file while a Windows cluster is running.
 Disposing the cluster also collects its shutdown messages.
 
+Test clusters run with `fsync = off`, as PostgreSQL's own test clusters do.
+PostgreSQL crash recovery still works, because the operating system keeps the
+written WAL; only durability across an operating system crash is given up. Add
+`fsync = on` to `PostgreSqlConfiguration` to test behavior that depends on it.
+
 `StartupTimeout` bounds initialization, server start and creation of the test
 database together. Its 180-second default matches PostgreSQL's own TAP test
 timeout, so a busy shared disk does not fail an otherwise healthy startup.

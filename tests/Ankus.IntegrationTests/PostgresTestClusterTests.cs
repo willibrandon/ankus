@@ -102,6 +102,33 @@ public sealed class PostgresTestClusterTests(TestContext context)
     }
 
     /// <summary>
+    /// Test clusters skip fsync as PostgreSQL's own TAP clusters do, and configuration supplied by the test can enable it.
+    /// </summary>
+    [TestMethod]
+    public async Task ClustersSkipFsyncUnlessConfigured()
+    {
+        await using (NpgsqlConnection fixture = await PostgresFixture.Cluster.OpenConnectionAsync(context.CancellationToken))
+        await using (var show = new NpgsqlCommand("SHOW fsync", fixture))
+        {
+            Assert.AreEqual("off", await show.ExecuteScalarAsync(context.CancellationToken));
+        }
+
+        PostgresTestClusterOptions defaults = await IntegrationEnvironment.CreateOptionsAsync(context.CancellationToken);
+        var options = new PostgresTestClusterOptions
+        {
+            Installation = defaults.Installation,
+            DataDirectoryBase = defaults.DataDirectoryBase,
+            LogDirectory = defaults.LogDirectory,
+            StartupTimeout = defaults.StartupTimeout,
+            PostgreSqlConfiguration = [.. defaults.PostgreSqlConfiguration, "fsync = on"],
+        };
+        await using PostgresTestCluster cluster = await PostgresTestCluster.StartAsync(options, context.CancellationToken);
+        await using NpgsqlConnection connection = await cluster.OpenConnectionAsync(context.CancellationToken);
+        await using var command = new NpgsqlCommand("SHOW fsync", connection);
+        Assert.AreEqual("on", await command.ExecuteScalarAsync(context.CancellationToken));
+    }
+
+    /// <summary>
     /// Verifies multiple clusters in one process have independent ports and data, and disposal stops only the owned server.
     /// </summary>
     [TestMethod]

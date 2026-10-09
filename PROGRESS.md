@@ -210,7 +210,11 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   are now excluded on that host. Copying an initdb template takes **0.29s**,
   versus **1.48s** for `initdb`, and `fsync = off` cuts a shutdown after five
   database creations from **3.10s** to **1.01s**. PostgreSQL's own TAP clusters
-  use both techniques; adopting them in Ankus.Testing remains to be evaluated.
+  use both techniques. `PostgresTestCluster` now writes `fsync = off` before
+  test-supplied configuration, which can enable it again; crash recovery still
+  replays the operating system's cached WAL. On Linux/PostgreSQL 18.6, the cluster
+  tests and the PANIC, post-commit PANIC and prepared-transaction recovery
+  cases pass (**35/35**). An initdb template remains to be evaluated.
   After the exclusions, CI **37839931438** on **038d063** completes the Windows
   test job in **19m10s** (integration module **16m22s**), down from **24m04s**,
   despite 94 more cases and eleven more samples. Single local Windows suites
