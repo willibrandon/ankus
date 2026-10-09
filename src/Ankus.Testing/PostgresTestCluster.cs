@@ -261,10 +261,12 @@ public sealed class PostgresTestCluster : IAsyncDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(testName);
         ArgumentNullException.ThrowIfNull(test);
         string sessionName = $"ankus-{Guid.NewGuid():N}";
+        int backend = 0;
         try
         {
             await using NpgsqlConnection connection = await OpenConnectionAsync(
                 _options.DatabaseName, sessionName, cancellationToken).ConfigureAwait(false);
+            backend = connection.ProcessID;
             await using NpgsqlTransaction transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
             await test(connection, transaction, cancellationToken).ConfigureAwait(false);
             // Npgsql's transaction disposal rolls back without the canceled test token.
@@ -275,7 +277,15 @@ public sealed class PostgresTestCluster : IAsyncDisposable
         }
         catch (Exception error)
         {
-            string sessionLog = ReadSessionLog(sessionName);
+            string sessionLog = ReadSessionLog(sessionName, backend);
+            // A lost connection may mean the backend died; the postmaster reports that shortly after the client notices.
+            for (int attempt = 0; attempt < 40 && backend != 0 && error is NpgsqlException and not PostgresException &&
+                !sessionLog.Contains($"(PID {backend})", StringComparison.Ordinal); attempt++)
+            {
+                await Task.Delay(50, CancellationToken.None).ConfigureAwait(false);
+                sessionLog = ReadSessionLog(sessionName, backend);
+            }
+
             throw new PostgresTestException(testName, sessionLog, error);
         }
     }
@@ -535,16 +545,40 @@ public sealed class PostgresTestCluster : IAsyncDisposable
         }
     }
 
-    private string ReadSessionLog(string sessionName)
+    /// <summary>
+    /// Selects the session's own lines and the postmaster's report about its backend, with that report's details.
+    /// </summary>
+    /// <param name="sessionName">The session's application name.</param>
+    /// <param name="backend">The session's backend process ID, or zero when it never connected.</param>
+    /// <returns>The selected log lines.</returns>
+    private string ReadSessionLog(string sessionName, int backend)
     {
         string marker = $"[{sessionName}]: ";
+        string? report = backend == 0 ? null : $"(PID {backend})";
+        string? reporter = null;
         var result = new StringBuilder();
         bool include = false;
         foreach (string line in ReadServerLog().Split('\n'))
         {
             if (line.StartsWith('['))
             {
-                include = line.Contains(marker, StringComparison.Ordinal);
+                // log_line_prefix is '[%m] [%p] [%c] [%a]: ', so the second field is the writing process.
+                int process = line.IndexOf("] [", StringComparison.Ordinal);
+                int processEnd = process < 0 ? -1 : line.IndexOf(']', process + 3);
+                string? writer = processEnd < 0 ? null : line[(process + 3)..processEnd];
+                int prefixEnd = line.IndexOf("]: ", StringComparison.Ordinal);
+                string message = prefixEnd < 0 ? string.Empty : line[(prefixEnd + 3)..];
+                bool detail = message.StartsWith("DETAIL:", StringComparison.Ordinal) || message.StartsWith("HINT:", StringComparison.Ordinal);
+                if (report is not null && line.Contains(report, StringComparison.Ordinal))
+                {
+                    reporter = writer;
+                    include = true;
+                }
+                else
+                {
+                    include = line.Contains(marker, StringComparison.Ordinal) || (detail && reporter is not null && writer == reporter);
+                    reporter = detail ? reporter : null;
+                }
             }
 
             if (include)

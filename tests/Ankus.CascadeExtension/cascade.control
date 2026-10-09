@@ -1,0 +1,2 @@
+comment = 'Requires another extension so the test fixture must cascade'
+requires = 'ankus_cascade_dependency'

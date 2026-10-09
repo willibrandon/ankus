@@ -138,6 +138,18 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   and reject other spellings; seeded pgrx `RandomData` values with unsigned
   64-bit and date-list members survive table storage, compression, arrays and
   every exchange path in the backend.
+- A second source-case mapping covers pgrx's compile-fail, `todo` and UI cases,
+  its testing framework, its benchmark runner and `cargo-pgrx/tests` (203 cases in
+  118 rows: 66 covered, 14 partial, 3 gaps, 11 deliberate differences and 24
+  Rust-specific). The test fixture now creates the extension with `CASCADE`, as
+  pgrx's does, so an extension that `requires` another starts; a failed test's
+  report includes the server's account of its backend when that process died;
+  `ankus bench` prints pgrx's running line, intervals, change and group summary,
+  with benchmarks missing from the current run and why a comparison is
+  unavailable; and new tests pin the comparison summaries, concurrent test
+  isolation, process-exit cleanup, the logging defaults and the composite and
+  text-array signatures pgrx keeps in its `todo` corpus. The ranked gaps start with Valgrind runs of test clusters and the
+  benchmark history report.
 - `PgMemoryContext.CreateFlatArray<T>` builds a zeroed PostgreSQL array of a
   fixed-size scalar in place, the counterpart of pgrx's `FlatArray::new_zeroed_in`;
   it rejects zero-length dimensions, more than six dimensions and PostgreSQL's
@@ -156,6 +168,14 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   test compiles every declaration kind beside types named `System`, `Ankus`,
   `Spi` and other names generated code uses. SPI conversion errors now name the
   source value's type.
+- **ac6486e** passes the complete Windows x64 suite on PostgreSQL 17.11 (**14,382**
+  total; **14,340** passed; 42 skips; zero failures; **58m** while the machine also
+  ran PostgreSQL 13 and Linux suites and focused runs). Its PostgreSQL 13.23 run
+  failed only two regression-prerequisite cleanups, which deleted a directory
+  while a stopped server's handles were still closing; that cleanup now waits as
+  PostgreSQL's own Windows `unlink` does. Its Linux run failed two cases on
+  30-second client timeouts while five suites shared the machine; the next
+  revision is validated without that contention.
 - **805783b** passes complete Windows x64 suites on PostgreSQL 17.11 (**14,312**
   total; **14,270** passed; 42 skips; zero failures; **40m** while the machine also
   ran CI and Linux) and Linux x64 on PostgreSQL 18.6 with run-as (**14,261** passed;

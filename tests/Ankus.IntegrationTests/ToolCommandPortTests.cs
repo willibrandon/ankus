@@ -9,7 +9,8 @@ namespace Ankus.IntegrationTests;
 public sealed partial class ToolCommandTests
 {
     /// <summary>
-    /// A package consumer uses the saved testing base to publish and query an extension on the exact requested port.
+    /// A package consumer uses the saved testing base to publish and query an extension on the exact requested port, and a
+    /// cluster the host never disposes is stopped and removed when the host exits.
     /// </summary>
     [RetryPortCollisionTestMethod]
     public async Task PackagedExtensionFixtureUsesSavedTestPortAndCleansUp()
@@ -68,6 +69,10 @@ public sealed partial class ToolCommandTests
             }
 
             Console.WriteLine($"PORT_PROBE:{observed}|{Directory.Exists(data)}|{Directory.Exists(sockets)}");
+
+            // Exit without disposing this cluster; the fixture's process-exit handler must stop and remove it.
+            PostgresTestCluster abandoned = await PostgresTestCluster.StartAsync(new PostgresTestClusterOptions { Installation = installation });
+            Console.WriteLine($"ABANDONED:{abandoned.DataDirectory}|{abandoned.SocketDirectory}");
             """, token);
         reservation.Dispose();
         ProcessResult result = await PackageProcessRunner.RunAsync("dotnet",
@@ -75,6 +80,10 @@ public sealed partial class ToolCommandTests
             s_environment, token, workingDirectory: consumerRoot);
         Assert.AreEqual(0, result.ExitCode, result.StandardOutput + result.StandardError);
         Assert.Contains($"PORT_PROBE:{reservation.Port}|42|False|False", result.StandardOutput);
+        string[] abandoned = result.StandardOutput.Split('\n').Single(static line => line.StartsWith("ABANDONED:", StringComparison.Ordinal))
+            ["ABANDONED:".Length..].Trim().Split('|');
+        Assert.IsFalse(Directory.Exists(abandoned[0]), "A cluster the host never disposed kept its data directory after exit.");
+        Assert.IsFalse(Directory.Exists(abandoned[1]), "A cluster the host never disposed kept its socket directory after exit.");
         Assert.IsEmpty(Directory.GetDirectories(Path.Combine(extensionRoot, "bin", "ankus-test-publish")));
         using PortReservation released = PortReservation.Create(reservation.Port);
         Assert.AreEqual(reservation.Port, released.Port);

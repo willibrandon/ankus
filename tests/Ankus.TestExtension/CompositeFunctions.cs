@@ -187,6 +187,39 @@ public static class CompositeFunctions
         => [.. dogs.Select(static dog => dog?.Get<string?>("name"))];
 
     /// <summary>
+    /// Reads names from a defaulted non-variadic composite array, as pgrx's <c>sum_scritches_for_names_array_default</c>
+    /// declares one.
+    /// </summary>
+    /// <param name="dogs">The composites, defaulting to one row named Nami.</param>
+    /// <returns>The names.</returns>
+    [PgFunction(Requires = ["composite-types"])]
+    public static string?[] TupleArrayDefaultNames(
+        [PgCompositeType("dog", Schema = "tuple_values"), PgParameter(Default = "ARRAY[ROW('Nami', 0)]::tuple_values.dog[]")]
+        PgHeapTuple?[] dogs)
+        => [.. dogs.Select(static dog => dog?.Get<string?>("name"))];
+
+    /// <summary>
+    /// Describes a defaulted nullable array of nullable composites, as pgrx's exotic signature test declares one.
+    /// </summary>
+    /// <param name="dogs">The composites, SQL NULL by default.</param>
+    /// <returns>"null" for SQL NULL, otherwise the count of rows and of NULL rows.</returns>
+    [PgFunction(Requires = ["composite-types"])]
+    public static string TupleNullableArrayDefault([PgCompositeType("dog", Schema = "tuple_values")] PgHeapTuple?[]? dogs = null)
+        => dogs is null ? "null" : dogs.Length + ":" + dogs.Count(static dog => dog is null);
+
+    /// <summary>
+    /// Returns TABLE rows whose column holds an array of composites.
+    /// </summary>
+    /// <returns>Two rows: one pack with a NULL member and one empty pack.</returns>
+    [PgFunction(Requires = ["composite-types"])]
+    [return: PgCompositeType("dog", Schema = "tuple_values", Column = "pack")]
+    public static IEnumerable<(int Id, PgHeapTuple?[] Pack)> TupleArrayTable()
+    {
+        yield return (1, [TupleCreate("Nami", 3), null]);
+        yield return (2, []);
+    }
+
+    /// <summary>
     /// Reads names from a defaulted variadic composite argument, as pgrx's <c>gets_name_field_default_variadic</c> does.
     /// </summary>
     /// <param name="dogs">The composites, defaulting to one row named Nami.</param>

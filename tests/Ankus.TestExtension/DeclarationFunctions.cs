@@ -76,6 +76,12 @@ public static class DeclarationFunctions
     public static string DeclarationOptionalText(string? value = null) => value ?? "got default of null";
 
     /// <summary>
+    /// Counts a text array whose SQL default is an empty array, as pgrx's <c>random-vec-strs-arent-okay</c> declares.
+    /// </summary>
+    [PgFunction]
+    public static int DeclarationEmptyTextArrayDefault([PgParameter(Default = "ARRAY[]::text[]")] string?[] values) => values.Length;
+
+    /// <summary>
     /// Takes a parameter whose SQL name matches the function's, as pgrx's <c>same_name</c> does.
     /// </summary>
     [PgFunction]

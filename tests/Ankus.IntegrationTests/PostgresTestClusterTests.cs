@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Ankus.Testing;
 using Npgsql;
 
@@ -11,6 +12,33 @@ namespace Ankus.IntegrationTests;
 public sealed class PostgresTestClusterTests(TestContext context)
 {
     /// <summary>
+    /// A test whose backend dies reports the postmaster's account of that backend, not only the session's own lines.
+    /// </summary>
+    [TestMethod]
+    public async Task FailedTestReportsItsBackendsTermination()
+    {
+        CancellationToken token = context.CancellationToken;
+        PostgresTestClusterOptions options = await IntegrationEnvironment.CreateOptionsAsync(token);
+        await using PostgresTestCluster cluster = await PostgresTestCluster.StartAsync(options, token);
+        int backend = 0;
+        PostgresTestException error = await Assert.ThrowsExactlyAsync<PostgresTestException>(() =>
+            cluster.RunInTransactionAsync("killed backend", async (connection, transaction, cancellation) =>
+            {
+                backend = connection.ProcessID;
+                using (Process process = Process.GetProcessById(backend))
+                {
+                    process.Kill();
+                    await process.WaitForExitAsync(cancellation);
+                }
+
+                await using var command = new NpgsqlCommand("SELECT 1", connection, transaction);
+                await command.ExecuteScalarAsync(cancellation);
+            }, token));
+        Assert.Contains($"(PID {backend})", error.ServerLog);
+        Assert.Contains("DETAIL:  Failed process was running:", error.ServerLog);
+    }
+
+    /// <summary>
     /// Verifies backend test functions leave no committed rows after successful execution.
     /// </summary>
     [TestMethod]
@@ -18,6 +46,31 @@ public sealed class PostgresTestClusterTests(TestContext context)
     {
         await PostgresFixture.Cluster.RunTestAsync("tests", "insert_probe", cancellationToken: context.CancellationToken);
 
+        Assert.AreEqual(0L, await ReadProbeCountAsync());
+    }
+
+    /// <summary>
+    /// Concurrent test callbacks use separate sessions that cannot see each other's uncommitted rows, and both roll back.
+    /// </summary>
+    [TestMethod]
+    public async Task ConcurrentCallbacksAreIsolatedAndRolledBack()
+    {
+        TaskCompletionSource[] inserted = [new(TaskCreationOptions.RunContinuationsAsynchronously), new(TaskCreationOptions.RunContinuationsAsynchronously)];
+        int[] backends = new int[2];
+        long[] visible = new long[2];
+        Task Run(int index) => PostgresFixture.Cluster.RunInTransactionAsync("concurrent-" + index, async (connection, transaction, token) =>
+        {
+            backends[index] = connection.ProcessID;
+            await using var command = new NpgsqlCommand($"INSERT INTO tests.rollback_probe VALUES ({9001 + index})", connection, transaction);
+            await command.ExecuteNonQueryAsync(token);
+            inserted[index].SetResult();
+            await inserted[1 - index].Task.WaitAsync(token);
+            command.CommandText = "SELECT count(*) FROM tests.rollback_probe WHERE value IN (9001, 9002)";
+            visible[index] = Assert.IsInstanceOfType<long>(await command.ExecuteScalarAsync(token));
+        }, context.CancellationToken);
+        await Task.WhenAll(Run(0), Run(1));
+        Assert.AreNotEqual(backends[0], backends[1]);
+        Assert.AreSequenceEqual([1L, 1L], visible);
         Assert.AreEqual(0L, await ReadProbeCountAsync());
     }
 
@@ -102,15 +155,21 @@ public sealed class PostgresTestClusterTests(TestContext context)
     }
 
     /// <summary>
-    /// Test clusters skip fsync as PostgreSQL's own TAP clusters do, and configuration supplied by the test can enable it.
+    /// Clusters skip fsync and use pgrx's logging defaults, INFO messages and statements slower than a second, with a
+    /// C collation and UTF-8; settings supplied by the test follow the defaults and override them.
     /// </summary>
     [TestMethod]
     public async Task ClustersSkipFsyncUnlessConfigured()
     {
         await using (NpgsqlConnection fixture = await PostgresFixture.Cluster.OpenConnectionAsync(context.CancellationToken))
-        await using (var show = new NpgsqlCommand("SHOW fsync", fixture))
+        await using (var show = new NpgsqlCommand("""
+            SELECT concat_ws('|', current_setting('fsync'), current_setting('log_min_messages'),
+                current_setting('log_min_duration_statement'), current_setting('log_statement'),
+                current_setting('server_encoding'), datcollate IN ('C', 'C.UTF-8'))
+              FROM pg_database WHERE datname = current_database()
+            """, fixture))
         {
-            Assert.AreEqual("off", await show.ExecuteScalarAsync(context.CancellationToken));
+            Assert.AreEqual("off|info|1s|none|UTF8|t", await show.ExecuteScalarAsync(context.CancellationToken));
         }
 
         PostgresTestClusterOptions defaults = await IntegrationEnvironment.CreateOptionsAsync(context.CancellationToken);
@@ -120,12 +179,13 @@ public sealed class PostgresTestClusterTests(TestContext context)
             DataDirectoryBase = defaults.DataDirectoryBase,
             LogDirectory = defaults.LogDirectory,
             StartupTimeout = defaults.StartupTimeout,
-            PostgreSqlConfiguration = [.. defaults.PostgreSqlConfiguration, "fsync = on"],
+            PostgreSqlConfiguration = [.. defaults.PostgreSqlConfiguration, "fsync = on", "log_min_messages = debug1"],
         };
         await using PostgresTestCluster cluster = await PostgresTestCluster.StartAsync(options, context.CancellationToken);
         await using NpgsqlConnection connection = await cluster.OpenConnectionAsync(context.CancellationToken);
-        await using var command = new NpgsqlCommand("SHOW fsync", connection);
-        Assert.AreEqual("on", await command.ExecuteScalarAsync(context.CancellationToken));
+        await using var command = new NpgsqlCommand(
+            "SELECT current_setting('fsync') || '|' || current_setting('log_min_messages')", connection);
+        Assert.AreEqual("on|debug1", await command.ExecuteScalarAsync(context.CancellationToken));
     }
 
     /// <summary>

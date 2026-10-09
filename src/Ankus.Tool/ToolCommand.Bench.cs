@@ -189,10 +189,10 @@ internal static partial class ToolCommand
             {
                 if (!jsonOutput)
                 {
-                    Console.WriteLine("Benchmarking " + benchmark.Name);
+                    Console.WriteLine(benchmark.Running);
                 }
 
-                string? baseline = compareGroup is null ? null : await LoadBenchmarkBaselineAsync(
+                (string? baseline, string? comparisonNote) = compareGroup is null ? (null, null) : await LoadBenchmarkBaselineAsync(
                     sql, compareGroup, benchmark.Name, token);
                 string baselineSql = baseline is null ? "NULL" : TextExpression(baseline) + "::jsonb";
                 string measured = (await sql.ExecuteAsync(
@@ -209,7 +209,7 @@ internal static partial class ToolCommand
                 await PersistBenchmarkAsync(sql, runGroup, benchmark.Name, measured, token);
                 if (!jsonOutput)
                 {
-                    PrintBenchmarkResult(resultJson);
+                    Console.Write(BenchmarkConsoleFormat.Format(benchmark.Name, resultJson, comparisonNote));
                 }
             }
 
@@ -217,9 +217,14 @@ internal static partial class ToolCommand
             await sql.ExecuteAsync("UPDATE ankus_bench.run_group SET status = " +
                 TextExpression(status) + " WHERE id = " +
                 runGroup.ToString(CultureInfo.InvariantCulture) + ";\n", token);
+            List<string> missing = compareGroup is null ? [] : await LoadMissingBenchmarksAsync(sql, runGroup, compareGroup, token);
             if (jsonOutput)
             {
-                WriteBenchmarkSummary(groupName, compareGroup, results);
+                WriteBenchmarkSummary(groupName, compareGroup, results, missing);
+            }
+            else
+            {
+                Console.Write(BenchmarkConsoleFormat.Summary(groupName, compareGroup, benchmarks.Count, failures, missing));
             }
 
             return failures == 0 ? 0 : 1;
@@ -362,7 +367,8 @@ internal static partial class ToolCommand
             }
 
             descriptors.Add(new(name, root.GetProperty("function_name").GetString()!,
-                root.GetProperty("transaction_mode").GetString()!, root.GetProperty("config").GetProperty("sample_size").GetInt32()));
+                root.GetProperty("transaction_mode").GetString()!, root.GetProperty("config").GetProperty("sample_size").GetInt32(),
+                BenchmarkConsoleFormat.Running(root)));
         }
 
         return descriptors;
@@ -385,17 +391,29 @@ internal static partial class ToolCommand
         return long.Parse(value, NumberStyles.None, CultureInfo.InvariantCulture);
     }
 
-    private static async Task<string?> LoadBenchmarkBaselineAsync(
+    /// <summary>
+    /// Loads the compared group's latest run of a benchmark, or the reason no comparison is possible, as
+    /// <c>cargo pgrx bench</c> reports it.
+    /// </summary>
+    private static async Task<(string? Baseline, string? Note)> LoadBenchmarkBaselineAsync(
         BenchmarkSqlSession sql,
         string group,
         string benchmark,
         CancellationToken token)
     {
-        string result = await sql.ExecuteAsync(
+        string result = (await sql.ExecuteAsync(
             "SELECT r.result::text FROM ankus_bench.benchmark_run AS r JOIN ankus_bench.run_group AS g ON g.id = r.group_id " +
             "WHERE g.group_name = " + TextExpression(group) + " AND r.benchmark_name = " + TextExpression(benchmark) +
-            " AND r.result->>'status' = 'ok' ORDER BY g.created_at DESC, r.id DESC LIMIT 1;\n", token);
-        return string.IsNullOrWhiteSpace(result) ? null : result.Trim();
+            " ORDER BY g.created_at DESC, r.id DESC LIMIT 1;\n", token)).Trim();
+        if (result.Length == 0)
+        {
+            return (null, "New benchmark; no baseline comparison available.");
+        }
+
+        using JsonDocument document = JsonDocument.Parse(result);
+        return document.RootElement.GetProperty("status").GetString() == "ok"
+            ? (result, null)
+            : (null, "Comparison unavailable because the baseline benchmark did not complete successfully.");
     }
 
     private static async Task PersistBenchmarkAsync(
@@ -449,8 +467,8 @@ internal static partial class ToolCommand
             {
                 using JsonDocument document = JsonDocument.Parse(entry);
                 JsonElement root = document.RootElement;
-                Console.Write(root.GetProperty("group_name").GetString() + "  " + root.GetProperty("benchmark_name").GetString() + "  ");
-                PrintBenchmarkResult(root.GetProperty("result"));
+                Console.Write(BenchmarkConsoleFormat.Format(
+                    root.GetProperty("group_name").GetString() + "  " + root.GetProperty("benchmark_name").GetString(), root.GetProperty("result")));
             }
         }
 
@@ -511,27 +529,25 @@ internal static partial class ToolCommand
         return resolved.Length == 0 ? null : resolved;
     }
 
-    private static void PrintBenchmarkResult(JsonElement result)
+    /// <summary>
+    /// Lists benchmarks the compared group ran that this run did not, as <c>cargo pgrx bench</c> reports them.
+    /// </summary>
+    private static async Task<List<string>> LoadMissingBenchmarksAsync(
+        BenchmarkSqlSession sql,
+        long runGroup,
+        string compareGroup,
+        CancellationToken token)
     {
-        if (result.GetProperty("status").GetString() != "ok")
-        {
-            Console.WriteLine("FAILED: " + result.GetProperty("error_text").GetString());
-            return;
-        }
-
-        JsonElement[] estimates = [.. result.GetProperty("estimates").EnumerateArray()];
-        JsonElement primary = estimates.FirstOrDefault(static value =>
-            value.GetProperty("estimate_kind").GetString() == "slope");
-        if (primary.ValueKind == JsonValueKind.Undefined)
-        {
-            primary = estimates.First(static value => value.GetProperty("estimate_kind").GetString() == "mean");
-        }
-
-        Console.WriteLine(primary.GetProperty("point_estimate_ns").GetDouble()
-            .ToString("N2", CultureInfo.InvariantCulture) + " ns");
+        string names = await sql.ExecuteAsync(
+            "SELECT DISTINCT baseline.benchmark_name FROM ankus_bench.benchmark_run AS baseline " +
+            "WHERE baseline.group_id = (SELECT id FROM ankus_bench.run_group WHERE group_name = " + TextExpression(compareGroup) +
+            " ORDER BY created_at DESC, id DESC LIMIT 1) AND NOT EXISTS (SELECT 1 FROM ankus_bench.benchmark_run AS current_run " +
+            "WHERE current_run.group_id = " + runGroup.ToString(CultureInfo.InvariantCulture) +
+            " AND current_run.benchmark_name = baseline.benchmark_name) ORDER BY 1;\n", token);
+        return [.. names.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)];
     }
 
-    private static void WriteBenchmarkSummary(string group, string? comparison, List<JsonElement> results)
+    private static void WriteBenchmarkSummary(string group, string? comparison, List<JsonElement> results, List<string> missing)
     {
         using Stream output = Console.OpenStandardOutput();
         using var writer = new Utf8JsonWriter(output, new JsonWriterOptions { Indented = true });
@@ -550,6 +566,13 @@ internal static partial class ToolCommand
         foreach (JsonElement result in results)
         {
             result.WriteTo(writer);
+        }
+
+        writer.WriteEndArray();
+        writer.WriteStartArray("missing_from_current");
+        foreach (string name in missing)
+        {
+            writer.WriteStringValue(name);
         }
 
         writer.WriteEndArray();
@@ -709,5 +732,5 @@ internal static partial class ToolCommand
         }
     }
 
-    private sealed record BenchmarkDescriptor(string Name, string FunctionName, string Transaction, int SampleSize);
+    private sealed record BenchmarkDescriptor(string Name, string FunctionName, string Transaction, int SampleSize, string Running);
 }

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 
 namespace Ankus.Runtime.Tests;
@@ -271,6 +272,36 @@ public sealed class PgBenchmarkTests
             samples, configuration, PgBenchmarkSamplingMode.Flat);
         Assert.AreSequenceEqual(["mean", "median", "median_abs_dev", "std_dev"],
             flat.Select(static estimate => estimate.Kind));
+    }
+
+    /// <summary>
+    /// Each of Criterion's four summaries follows from the p-value and the mean change's confidence bounds, using
+    /// deterministic samples: identical distributions, a doubled time, a halved time and a significant change inside the
+    /// noise threshold.
+    /// </summary>
+    /// <param name="factor">The current time per iteration relative to the baseline.</param>
+    /// <param name="noiseThreshold">The relative change treated as noise.</param>
+    /// <param name="summary">The expected summary.</param>
+    /// <param name="significant">Whether the p-value must fall below the significance level.</param>
+    [TestMethod]
+    [DataRow(1.0, 0.05, "No change in performance detected.", false)]
+    [DataRow(2.0, 0.05, "Performance has regressed.", true)]
+    [DataRow(0.5, 0.05, "Performance has improved.", true)]
+    [DataRow(1.02, 0.05, "Change within noise threshold.", true)]
+    public void ComparisonSummariesFollowSignificanceAndNoise(double factor, double noiseThreshold, string summary, bool significant)
+    {
+        var configuration = new PgBenchmarkConfiguration(100, 1, 1, 1_000, noiseThreshold, 0.05);
+        double[] noise = [.. Enumerable.Range(0, 100).Select(static index => (index % 10) - 4.5)];
+        PgBenchmarkRunner.Sample[] current = [.. noise.Select((offset, index) =>
+            new PgBenchmarkRunner.Sample(index, 10, ((1_000 * factor) + offset) * 10))];
+        string baseline = "{\"status\":\"ok\",\"samples\":[" + string.Join(',', noise.Select(static offset =>
+            "{\"iteration_count\":10,\"elapsed_ns\":" + ((1_000 + offset) * 10).ToString(CultureInfo.InvariantCulture) + "}")) + "]}";
+        PgBenchmarkRunner.Comparison comparison = PgBenchmarkRunner.Compare(current, new PgJsonb(baseline), configuration);
+        Assert.AreEqual(summary, comparison.Summary);
+        Assert.AreEqual(significant, comparison.PValue < 0.05, comparison.PValue.ToString(CultureInfo.InvariantCulture));
+        Assert.AreEqual(factor - 1, comparison.Mean.Point, 0.001);
+        Assert.IsLessThanOrEqualTo(comparison.Mean.Point, comparison.Mean.LowerBound);
+        Assert.IsGreaterThanOrEqualTo(comparison.Mean.Point, comparison.Mean.UpperBound);
     }
 
     /// <summary>

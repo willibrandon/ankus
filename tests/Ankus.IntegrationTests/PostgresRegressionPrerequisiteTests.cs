@@ -15,10 +15,11 @@ public sealed class PostgresRegressionPrerequisiteTests(TestContext context)
     private readonly string _root = Directory.CreateTempSubdirectory("ankus regression prerequisites ").FullName;
 
     /// <summary>
-    /// Removes only the temporary data owned by this test after its server has stopped.
+    /// Removes only the temporary data owned by this test after its server has stopped, waiting as PostgreSQL does for
+    /// Windows to release the stopped server's file handles.
     /// </summary>
     [TestCleanup]
-    public void Cleanup() => Directory.Delete(_root, recursive: true);
+    public void Cleanup() => PostgresServerStorage.Delete(_root);
 
     /// <summary>
     /// The regression executable follows authoritative PGXS relocation and is optional for ordinary installation discovery.

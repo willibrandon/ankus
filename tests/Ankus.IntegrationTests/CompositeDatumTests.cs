@@ -364,7 +364,13 @@ public sealed class CompositeDatumTests(TestContext context)
                              WHERE castsource = 'tuple_values.dog'::regtype AND casttarget = 'tuple_values.other_dog'::regtype),
                            (NULL::tuple_values.dog)::tuple_values.other_dog IS NULL,
                            tuple_values.tuple_pack_build()::text = ROW(ROW('Nami', 3)::tuple_values.dog,
-                               ARRAY[ROW('Brandy', 1), NULL, ROW('Ada', 2)]::tuple_values.dog[], 'built')::tuple_values.pack::text
+                               ARRAY[ROW('Brandy', 1), NULL, ROW('Ada', 2)]::tuple_values.dog[], 'built')::tuple_values.pack::text,
+                           tuple_values.tuple_array_default_names(),
+                           tuple_values.tuple_array_default_names(ARRAY[NULL, ROW('Ada', 2)]::tuple_values.dog[]),
+                           tuple_values.tuple_nullable_array_default() || '|' ||
+                               tuple_values.tuple_nullable_array_default(ARRAY[NULL, ROW('Ada', 2)]::tuple_values.dog[]),
+                           (SELECT string_agg(id || '=' || pack::text, ';' ORDER BY id) FROM tuple_values.tuple_array_table()),
+                           (SELECT pg_typeof(pack)::text FROM tuple_values.tuple_array_table() LIMIT 1)
                     """, connection, transaction);
                 await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(token);
                 Assert.IsTrue(await reader.ReadAsync(token));
@@ -379,6 +385,11 @@ public sealed class CompositeDatumTests(TestContext context)
                 Assert.AreEqual("ef", reader.GetString(8));
                 Assert.IsTrue(reader.GetBoolean(9));
                 Assert.IsTrue(reader.GetBoolean(10));
+                Assert.AreSequenceEqual(["Nami"], reader.GetFieldValue<string?[]>(11));
+                Assert.AreSequenceEqual([null, "Ada"], reader.GetFieldValue<string?[]>(12));
+                Assert.AreEqual("null|2:1", reader.GetString(13));
+                Assert.AreEqual("1={\"(Nami,3)\",NULL};2={}", reader.GetString(14));
+                Assert.AreEqual("tuple_values.dog[]", reader.GetString(15));
             }, context.CancellationToken);
 
     /// <summary>

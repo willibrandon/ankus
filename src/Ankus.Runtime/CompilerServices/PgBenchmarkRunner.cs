@@ -425,7 +425,7 @@ public static class PgBenchmarkRunner
         return [.. estimates];
     }
 
-    private static Comparison Compare(Sample[] samples, PgJsonb baseline, PgBenchmarkConfiguration configuration)
+    internal static Comparison Compare(Sample[] samples, PgJsonb baseline, PgBenchmarkConfiguration configuration)
     {
         double[] current = SampleValues(samples);
         double[] previous = BaselineValues(baseline);
@@ -924,7 +924,7 @@ public static class PgBenchmarkRunner
         double? LowerBound,
         double? UpperBound);
 
-    private sealed record ComparisonEstimate(
+    internal sealed record ComparisonEstimate(
         string Kind,
         double Point,
         double StandardError,
@@ -932,7 +932,7 @@ public static class PgBenchmarkRunner
         double LowerBound,
         double UpperBound);
 
-    private sealed record Comparison(
+    internal sealed record Comparison(
         ComparisonEstimate Mean,
         ComparisonEstimate Median,
         double PValue,

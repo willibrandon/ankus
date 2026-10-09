@@ -65,6 +65,7 @@
     <Project Path="tests/Ankus.GucHooksExtension/Ankus.GucHooksExtension.csproj" />
     <Project Path="tests/Ankus.PreloadExtension/Ankus.PreloadExtension.csproj" />
     <Project Path="tests/Ankus.GucOnlyExtension/Ankus.GucOnlyExtension.csproj" />
+    <Project Path="tests/Ankus.CascadeExtension/Ankus.CascadeExtension.csproj" />
     <Project Path="tests/Ankus.GucPrefixExtension/Ankus.GucPrefixExtension.csproj" />
     <Project Path="tests/Ankus.GucShowExtension/Ankus.GucShowExtension.csproj" />
     <Project Path="tests/Ankus.GucUnicodePrefixExtension/Ankus.GucUnicodePrefixExtension.csproj" />

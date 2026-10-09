@@ -48,6 +48,29 @@ Supply an ordinal substring to select benchmark names:
 ankus bench AddNumeric --pg 18
 ```
 
+Results print in Criterion's layout, as `cargo pgrx bench` prints them:
+
+```console
+     Running Benchmarks.AddNumeric(Ankus.PgBencher) [transaction=shared, setup=none, sample_size=100, warm_up=3000ms, measurement=5000ms, nresamples=100000, noise_threshold=0.01, significance_level=0.05]
+Benchmarks.AddNumeric(Ankus.PgBencher)
+                            time:   [182.31 ns 183.02 ns 183.8 ns]
+                            change: [-1.2045% +0.3821% +1.9712%] (p = 0.64 > 0.05)
+                            No change in performance detected.
+                            slope:  [182.31 ns 183.02 ns 183.8 ns]
+                            mean:   [183.4 ns 184.27 ns 185.32 ns] std. dev. [3.1902 ns 4.6121 ns 6.0117 ns]
+                            median: [182.91 ns 183.5 ns 184.12 ns] med. abs. dev. [1.9834 ns 2.6705 ns 3.3122 ns]
+
+Bench group 20261009_121530_ac6486e
+   Compared 20261008_181204_805783b
+    Result 1 total, 1 ok, 0 failed
+```
+
+The time is the slope estimate when the sampling plan produced one, otherwise the
+mean; intervals are 95% confidence intervals. When the compared group has no run
+of a benchmark, or its run failed, the change line says so instead. When a compared
+group ran benchmarks that this run did not, the summary lists them under
+`Missing From Current Run`.
+
 `--list` discovers benchmarks without measuring them. Each run gets a timestamp
 and Git commit group name unless `--group-name` supplies one. By default, results
 compare with the latest retained group from the same build configuration.

@@ -18,6 +18,7 @@ public sealed partial class ToolCommandTests
     {
         CancellationToken token = context.CancellationToken;
         const string InsertBenchmark = "Ankus.Examples.Hello.BenchmarkProbe.SuccessInsertRow(Ankus.PgBencher)";
+        const string AddNumericBenchmark = "Ankus.Examples.Hello.BenchmarkProbe.SuccessAddNumeric(Ankus.PgBencher)";
         string installationSql = await File.ReadAllTextAsync(
             Directory.GetFiles(Path.Combine(s_published, "extension"), "ankus_tool_probe--*.sql").Single(), token);
         Assert.DoesNotContain("CREATE SCHEMA benches", installationSql);
@@ -52,8 +53,14 @@ public sealed partial class ToolCommandTests
             ProcessResult run = await InvokeAsync(
                 ["bench", "Success", .. options, "--group-name", Group, "--resetdb"], token);
             Assert.AreEqual(0, run.ExitCode, run.StandardOutput + run.StandardError);
-            Assert.Contains("Benchmarking " + InsertBenchmark, run.StandardOutput);
-            Assert.Contains(" ns", run.StandardOutput);
+            Assert.Contains("     Running " + InsertBenchmark + " [transaction=", run.StandardOutput);
+            Assert.Contains("Bench group " + Group + Environment.NewLine, run.StandardOutput);
+            Assert.MatchesRegex(@"    Result (\d+) total, \1 ok, 0 failed", run.StandardOutput);
+            Assert.Contains(new string(' ', 28) + "time:   [", run.StandardOutput);
+            Assert.Contains(new string(' ', 28) + "mean:   [", run.StandardOutput);
+            Assert.Contains("] std. dev. [", run.StandardOutput);
+            Assert.Contains(new string(' ', 28) + "median: [", run.StandardOutput);
+            Assert.Contains("] med. abs. dev. [", run.StandardOutput);
             Assert.IsEmpty(run.StandardError);
             if (s_installation.Version.Major >= 18)
             {
@@ -130,6 +137,10 @@ public sealed partial class ToolCommandTests
                     string output = await standardOutput;
                     Assert.AreEqual(0, process.ExitCode, output + await standardError);
                     Assert.Contains("Benchmark backend PID: " + backendPid.ToString(CultureInfo.InvariantCulture), output);
+                    Assert.Contains(new string(' ', 28) + "change: [", output);
+                    Assert.Contains("   Compared " + Group + Environment.NewLine, output);
+                    Assert.Contains("Missing From Current Run" + Environment.NewLine + "  " + InsertBenchmark, output);
+                    Assert.MatchesRegex(@"\] \(p = \d\.\d\d [<>] \d\.\d\d\)", output);
                 }
                 finally
                 {
@@ -164,9 +175,9 @@ public sealed partial class ToolCommandTests
                 primary = estimates.First(static value => value.GetProperty("estimate_kind").GetString() == "mean");
             }
 
-            string printed = primary.GetProperty("point_estimate_ns").GetDouble()
-                .ToString("N2", CultureInfo.InvariantCulture) + " ns";
-            Assert.Contains("Benchmarking " + InsertBenchmark + Environment.NewLine + printed, run.StandardOutput);
+            Assert.Contains(Environment.NewLine + InsertBenchmark + Environment.NewLine +
+                new string(' ', 28) + "time:   [" + BenchmarkTime(primary.GetProperty("ci_lower_bound_ns").GetDouble()) + " " +
+                BenchmarkTime(primary.GetProperty("point_estimate_ns").GetDouble()) + " ", run.StandardOutput);
             Assert.HasCount(3, history.RootElement.EnumerateArray());
             JsonElement automatic = history.RootElement.EnumerateArray().Single(value =>
                 value.GetProperty("group_name").GetString() == "persistent-session");
@@ -183,6 +194,14 @@ public sealed partial class ToolCommandTests
             JsonElement comparison = benchmark.GetProperty("comparison");
             Assert.IsTrue(double.IsFinite(comparison.GetProperty("p_value").GetDouble()));
             Assert.AreEqual(0.95, comparison.GetProperty("mean").GetProperty("confidence_level").GetDouble(), 0.000_001);
+            Assert.Contains(InsertBenchmark, comparisonOutput.RootElement.GetProperty("missing_from_current").EnumerateArray()
+                .Select(static name => name.GetString()));
+
+            ProcessResult newBenchmarkRun = await InvokeAsync(
+                ["bench", "SuccessInsertRow", .. options, "--group-name", "new-benchmark", "--compare-group", "comparison", "--no-build"], token);
+            Assert.AreEqual(0, newBenchmarkRun.ExitCode, newBenchmarkRun.StandardOutput + newBenchmarkRun.StandardError);
+            Assert.Contains(new string(' ', 28) + "New benchmark; no baseline comparison available.", newBenchmarkRun.StandardOutput);
+            Assert.Contains("Missing From Current Run" + Environment.NewLine + "  " + AddNumericBenchmark, newBenchmarkRun.StandardOutput);
 
             ProcessResult failureRun = await InvokeAsync(
                 ["bench", "Failure", .. options, "--group-name", "failure", "--no-build", "--json"], token);
@@ -193,6 +212,23 @@ public sealed partial class ToolCommandTests
             string? errorText = failed.GetProperty("error_text").GetString();
             Assert.IsNotNull(errorText);
             Assert.Contains("division by zero", errorText);
+
+            ProcessResult listed = await InvokeAsync(["bench", "Success", .. options, "--no-build", "--list"], token);
+            Assert.AreEqual(0, listed.ExitCode, listed.StandardOutput + listed.StandardError);
+            Assert.Contains(InsertBenchmark + " [", listed.StandardOutput);
+            Assert.Contains(AddNumericBenchmark + " [", listed.StandardOutput);
+            Assert.DoesNotContain("Running", listed.StandardOutput);
+            Assert.DoesNotContain("Failure", listed.StandardOutput);
+            ProcessResult unknown = await InvokeAsync(["bench", "SuccessAddNumeric", .. options, "--no-build",
+                "--group-name", "unknown-comparison", "--compare-group", "no-such-group"], token);
+            Assert.AreNotEqual(0, unknown.ExitCode);
+            Assert.Contains("Benchmark comparison group 'no-such-group' was not found.", unknown.StandardOutput + unknown.StandardError);
+            ProcessResult none = await InvokeAsync(["bench", "NoSuchBenchmark", .. options, "--no-build"], token);
+            Assert.AreNotEqual(0, none.ExitCode);
+            Assert.Contains("No benchmarks were discovered in the benches schema.", none.StandardOutput + none.StandardError);
+            ProcessResult combined = await InvokeAsync(["bench", .. options, "--report", "--list"], token);
+            Assert.AreNotEqual(0, combined.ExitCode);
+            Assert.Contains("--report cannot be combined with --list.", combined.StandardOutput + combined.StandardError);
         }
         finally
         {
@@ -250,5 +286,16 @@ public sealed partial class ToolCommandTests
         }
 
         throw new InvalidOperationException("The benchmark tool exited before its backend could be observed.");
+    }
+
+    /// <summary>
+    /// Formats a duration independently of the tool, with the unit and digits that cargo pgrx bench prints.
+    /// </summary>
+    private static string BenchmarkTime(double nanoseconds)
+    {
+        (double value, string unit) = nanoseconds >= 1e9 ? (nanoseconds / 1e9, "s") : nanoseconds >= 1e6 ? (nanoseconds / 1e6, "ms")
+            : nanoseconds >= 1e3 ? (nanoseconds / 1e3, "us") : nanoseconds >= 1 ? (nanoseconds, "ns") : (nanoseconds * 1e3, "ps");
+        string text = value.ToString(value >= 100 ? "0.00" : value >= 10 ? "0.000" : "0.0000", CultureInfo.InvariantCulture).TrimEnd('0');
+        return (text.EndsWith('.') ? text + "0" : text) + " " + unit;
     }
 }

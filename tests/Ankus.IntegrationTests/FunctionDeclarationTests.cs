@@ -63,6 +63,8 @@ public sealed class FunctionDeclarationTests(TestContext context)
     [DataRow("ankus_contract.declaration_optional_text('test')", "test")]
     [DataRow("ankus_contract.declaration_optional_text(NULL)", "got default of null")]
     [DataRow("ankus_contract.same_name('test')", "test")]
+    [DataRow("ankus_contract.declaration_empty_text_array_default()", "0")]
+    [DataRow("ankus_contract.declaration_empty_text_array_default(ARRAY['a', NULL])", "2")]
     [DataRow("ankus_contract.same_name(same_name => 'named')", "named")]
     [DataRow("replace_values.create_or_replace_method()", "true")]
     [DataRow("replace_values.create_or_replace_method_other()", "42")]

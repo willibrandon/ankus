@@ -225,8 +225,9 @@ await extension.Cluster.RunInTransactionAsync("addition", async (connection, tra
 ```
 
 The fixture passes the same PostgreSQL installation to native compilation and
-cluster startup, then executes `CREATE EXTENSION`. It leaves the selected
-installation untouched. Supply an explicit `PostgresInstallation` to test a
+cluster startup, then executes `CREATE EXTENSION ... CASCADE`, so extensions
+that your control file `requires` are created first when the installation
+provides them. It leaves the selected installation untouched. Supply an explicit `PostgresInstallation` to test a
 particular version.
 
 If your control file declares a custom SQL `directory`, the fixture remaps it
@@ -277,8 +278,9 @@ test uses a savepoint to recover from an expected error and verifies the next
 query on the same connection.
 
 Build logs and PostgreSQL logs remain under the extension project's
-`bin/ankus-test-logs/`. The cluster and temporary published library are removed
-on disposal. A failed build or extension load fails initialization and cleans up
+`bin/ankus-test-logs/`. A failed test's exception carries its session's log
+lines and, when its backend died, the server's report about that process. The
+cluster and temporary published library are removed on disposal. A failed build or extension load fails initialization and cleans up
 the resources it created.
 
 On Windows, the fixture also collects its server's Windows Event Log messages.
@@ -292,6 +294,12 @@ Test clusters run with `fsync = off`, as PostgreSQL's own test clusters do.
 PostgreSQL crash recovery still works, because the operating system keeps the
 written WAL; only durability across an operating system crash is given up. Add
 `fsync = on` to `PostgreSqlConfiguration` to test behavior that depends on it.
+
+Like pgrx's, test clusters log messages at `info` and statements that take over a
+second, and use a C collation with UTF-8 encoding. Unlike pgrx, they do not log
+every statement; add `log_statement = 'all'` to `PostgreSqlConfiguration` when a
+failure report should list each statement. Settings you supply follow the
+defaults, so they win.
 
 `StartupTimeout` bounds initialization, server start and creation of the test
 database together. Its 180-second default matches PostgreSQL's own TAP test

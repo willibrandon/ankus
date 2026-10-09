@@ -312,7 +312,9 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
             }, cancellationToken).ConfigureAwait(false);
             await using NpgsqlConnection connection = await cluster.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
             string name = Path.GetFileNameWithoutExtension(manifest.Control);
-            await using var command = new NpgsqlCommand("CREATE EXTENSION \"" + name.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"", connection);
+            // CASCADE installs the extensions that the control file requires, as pgrx's test framework does.
+            await using var command = new NpgsqlCommand(
+                "CREATE EXTENSION \"" + name.Replace("\"", "\"\"", StringComparison.Ordinal) + "\" CASCADE", connection);
             await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
             command.CommandText = "SELECT namespace.nspname FROM pg_extension extension JOIN pg_namespace namespace ON namespace.oid=extension.extnamespace WHERE extension.extname=$1";
             command.Parameters.AddWithValue(name);

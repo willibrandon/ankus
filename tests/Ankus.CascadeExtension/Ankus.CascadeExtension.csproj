@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AnkusExtensionName>ankus_cascade</AnkusExtensionName>
+    <AnkusExtensionControlFile>cascade.control</AnkusExtensionControlFile>
+  </PropertyGroup>
+  <Import Project="../../src/Ankus.Sdk/Ankus.Sdk.targets" />
+</Project>
