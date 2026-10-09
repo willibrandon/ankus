@@ -193,6 +193,61 @@ public sealed class SchemaSnapshotTests(TestContext context)
         Assert.IsEmpty(Directory.GetFiles(_root, "*.tmp"));
     }
 
+    /// <summary>
+    /// A versioned library resolves every module marker in the script and its graph together, preserving schema markers.
+    /// </summary>
+    [TestMethod]
+    public void VersionedModulePathResolvesScriptAndGraphTogether()
+    {
+        const string Preamble = "-- MODULE_PATHNAME preamble\n";
+        const string Declaration = "CREATE FUNCTION \0probe() RETURNS integer AS 'MODULE_PATHNAME', 'probe' LANGUAGE c;\n";
+        string sql = Preamble + Declaration.Replace("\0", "", StringComparison.Ordinal);
+        string graph = EncodeGraph(Preamble, Declaration, "FUNCTION \0probe()");
+        Assert.AreEqual(sql, ExtensionSchemaGraph.Parse(graph).Sql);
+
+        SchemaSnapshot versioned = Select(null, Compile(sql, graph)).WithModulePath("Probe-0.1.0");
+        string expected = sql.Replace("MODULE_PATHNAME", "Probe-0.1.0", StringComparison.Ordinal);
+        Assert.AreEqual(expected, versioned.Sql);
+        ExtensionSchemaGraph parsed = ExtensionSchemaGraph.Parse(versioned.Graph!);
+        Assert.AreEqual(expected, parsed.Sql);
+        ExtensionSchemaItem item = Assert.ContainsSingle(parsed.Items);
+        Assert.AreEqual(Declaration.Replace("MODULE_PATHNAME", "Probe-0.1.0", StringComparison.Ordinal), item.SqlTemplate);
+        Assert.AreEqual("FUNCTION \0probe()", Assert.ContainsSingle(item.AttachmentTemplates));
+
+        SchemaSnapshot repeated = versioned.WithModulePath("Probe-0.1.0");
+        Assert.AreEqual(versioned.Sql, repeated.Sql);
+        Assert.AreEqual(versioned.Graph, repeated.Graph);
+        Assert.AreEqual(expected, Select(null, Compile(sql, null)).WithModulePath("Probe-0.1.0").Sql);
+    }
+
+    private static string EncodeGraph(string preamble, string sql, string attachment)
+    {
+        using var stream = new MemoryStream();
+        using (var writer = new BinaryWriter(stream, new System.Text.UTF8Encoding(false), leaveOpen: true))
+        {
+            writer.Write("ANKUSG2\0"u8);
+            Text(preamble);
+            writer.Write(1);
+            Text("node");
+            Text("function");
+            Text(sql);
+            Text("");
+            writer.Write(0);
+            writer.Write(0);
+            writer.Write(1);
+            Text(attachment);
+
+            void Text(string value)
+            {
+                byte[] bytes = System.Text.Encoding.UTF8.GetBytes(value);
+                writer.Write(bytes.Length);
+                writer.Write(bytes);
+            }
+        }
+
+        return Convert.ToBase64String(stream.ToArray());
+    }
+
     private static SchemaSnapshot Select(string? path, ExtensionManifest manifest)
         => SchemaSnapshot.Select(path, manifest, "schema_probe", "0.1.0", "Probe.so", 18, "linux-x64");
 

@@ -1,0 +1,3 @@
+comment = 'custom_libname: a native library named other_name'
+relocatable = false
+superuser = false

@@ -159,4 +159,6 @@ perform crash recovery.
 
 The [errors sample](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.Errors)
 provides complete runnable functions for managed failures, guarded native errors,
-INFO, WARNING, ERROR, FATAL, and PANIC.
+INFO, WARNING, ERROR, FATAL, and PANIC. The
+[bad ideas sample](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.BadIdeas)
+shows `catch` blocks that swallow an ERROR but cannot discard FATAL or PANIC.

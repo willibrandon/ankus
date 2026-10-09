@@ -245,6 +245,43 @@ public sealed class UpgradeSqlCommandTests(TestContext context)
     }
 
     /// <summary>
+    /// Versioned libraries resolve MODULE_PATHNAME to each script's target version unless that version's control names a library.
+    /// </summary>
+    [TestMethod]
+    public async Task VersionedLibrariesResolveEachScriptTargetLibrary()
+    {
+        string[] arguments = Prepare();
+        var manifest = new PublishedExtension(18, "linux-x64", "Probe-release.so", "probe.control", "probe--release.sql", [],
+            ["probe--legacy.control"]);
+        manifest.Write(arguments[0]);
+        File.WriteAllText(Path.Combine(arguments[0], "extension", "probe--legacy.control"), "module_pathname='Legacy.so'\n");
+        File.WriteAllText(Path.Combine(arguments[1], "Probe-release.so"), "native payload");
+        const string Script = "CREATE OR REPLACE FUNCTION f() RETURNS int AS 'MODULE_PATHNAME', 'f' LANGUAGE c; -- MODULE_PATHNAME @EXTENSION_VERSION@\n";
+        string[] names = ["probe--base--release.sql", "probe--release--base.sql", "probe--older--legacy.sql"];
+        foreach (string name in names)
+        {
+            File.WriteAllText(Path.Combine(_root, name), Script);
+        }
+
+        File.WriteAllLines(arguments[2], names.Select(name => Path.Combine(_root, name)));
+        await UpgradeSqlCommand.RunAsync([.. arguments, "", "true"], context.CancellationToken);
+        string extension = Path.Combine(arguments[1], "extension");
+        Assert.AreEqual(Script.Replace("MODULE_PATHNAME", "Probe-release", StringComparison.Ordinal).Replace("@EXTENSION_VERSION@", "release",
+            StringComparison.Ordinal), File.ReadAllText(Path.Combine(extension, names[0])));
+        Assert.AreEqual(Script.Replace("MODULE_PATHNAME", "Probe-base", StringComparison.Ordinal).Replace("@EXTENSION_VERSION@", "release",
+            StringComparison.Ordinal), File.ReadAllText(Path.Combine(extension, names[1])));
+        Assert.AreEqual(Script.Replace("@EXTENSION_VERSION@", "release", StringComparison.Ordinal), File.ReadAllText(Path.Combine(extension, names[2])));
+        Assert.AreEqual("module_pathname='Legacy.so'\n", File.ReadAllText(Path.Combine(extension, "probe--legacy.control")));
+
+        await UpgradeSqlCommand.RunAsync([.. arguments, "", "false"], context.CancellationToken);
+        Assert.AreEqual(Script.Replace("@EXTENSION_VERSION@", "release", StringComparison.Ordinal), File.ReadAllText(Path.Combine(extension, names[0])));
+
+        new PublishedExtension(18, "linux-x64", "Probe.so", "probe.control", "probe--release.sql").Write(arguments[0]);
+        await Assert.ThrowsExactlyAsync<ArgumentException>(() => UpgradeSqlCommand.RunAsync([.. arguments, "", "true"], context.CancellationToken));
+        Assert.IsFalse(File.Exists(Path.Combine(arguments[1], PublishedExtension.FileName)));
+    }
+
+    /// <summary>
     /// SQL publication preserves the authored directory in metadata without writing outside its artifact directory.
     /// </summary>
     /// <param name="empty">Whether the author explicitly selected the PostgreSQL shared directory.</param>

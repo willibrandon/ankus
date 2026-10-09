@@ -1,0 +1,4 @@
+comment = 'postgres_type_variants: side-by-side custom type input and output variants'
+relocatable = false
+superuser = false
+trusted = false

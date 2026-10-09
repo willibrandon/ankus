@@ -47,6 +47,14 @@ The [threads sample](https://github.com/willibrandon/ankus/tree/main/samples/Ank
 ports pgrx's `pgthread` example. Its managed thread is rejected before running
 SPI, and its tasks sum a copied array without calling PostgreSQL.
 
+Exceptions on other threads never reach Ankus's boundary. Waiting for a task
+rethrows its exception on the backend thread, where it becomes ERROR. An exception
+left unhandled on a thread the extension started is different: .NET terminates
+the process, so the backend exits abnormally and PostgreSQL restarts every
+session to recover. Catch exceptions inside threads you start, or use tasks and
+wait for them. The [bad ideas sample](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.BadIdeas)
+demonstrates both.
+
 Call `PgInterrupts.Check()` periodically in long managed loops on the backend
 thread. A managed loop does not otherwise guarantee a PostgreSQL interrupt check;
 an unrelated .NET `CancellationToken` is not automatically connected to query
@@ -181,7 +189,8 @@ see [managed native callbacks](../../raw-values/#managed-native-callbacks-and-ho
 ## Errors
 
 An unhandled managed exception becomes PostgreSQL ERROR after `finally` blocks
-and `using` scopes finish.
+and `using` scopes finish. Every generated entry point has this boundary; unlike
+pgrx's `#[pg_extern(no_guard)]`, it cannot be turned off.
 
 SPI calls use internal subtransactions. A failed call rolls back its work before
 throwing `PgException`, allowing your function to catch it and continue. Successful

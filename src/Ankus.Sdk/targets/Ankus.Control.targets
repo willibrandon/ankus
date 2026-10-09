@@ -1,6 +1,6 @@
 <Project>
   <PropertyGroup>
-    <AnkusGenerateControlFileDependsOn>Build;SetupOSSpecificProps;_ResolveAnkusExtensionIdentity;$(AnkusGenerateControlFileDependsOn)</AnkusGenerateControlFileDependsOn>
+    <AnkusGenerateControlFileDependsOn>Build;SetupOSSpecificProps;_ResolveAnkusExtensionIdentity;_ResolveAnkusNativeLibrary;$(AnkusGenerateControlFileDependsOn)</AnkusGenerateControlFileDependsOn>
   </PropertyGroup>
 
   <Target Name="_ResolveAnkusExtensionIdentity">
@@ -15,7 +15,8 @@
     <PropertyGroup>
       <AnkusControlOutput Condition="'$(AnkusControlOutput)' == ''">$(IntermediateOutputPath)ankus-control/$(AnkusExtensionName).control</AnkusControlOutput>
       <_AnkusControlCommand>dotnet &quot;$(_AnkusBuildTool)&quot; control-file &quot;$(TargetPath)&quot; &quot;$(AnkusControlOutput)&quot; $(AnkusPostgresMajor)</_AnkusControlCommand>
-      <_AnkusControlCommand>$(_AnkusControlCommand) &quot;$(AnkusExtensionName)&quot; &quot;$(AnkusExtensionVersion)&quot; &quot;$(NativeBinaryPrefix)$(TargetName)$(NativeBinaryExt)&quot; &quot;$(AnkusExtensionControlFile)&quot;</_AnkusControlCommand>
+      <_AnkusControlCommand>$(_AnkusControlCommand) &quot;$(AnkusExtensionName)&quot; &quot;$(AnkusExtensionVersion)&quot; &quot;$(_AnkusNativeLibrary)&quot; &quot;$(AnkusExtensionControlFile)&quot;</_AnkusControlCommand>
+      <_AnkusControlCommand>$(_AnkusControlCommand) &quot;$(_AnkusVersionedLibrary)&quot;</_AnkusControlCommand>
     </PropertyGroup>
     <Exec Command="$(_AnkusControlCommand)" />
     <ItemGroup>

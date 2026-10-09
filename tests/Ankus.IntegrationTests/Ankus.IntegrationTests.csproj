@@ -51,6 +51,12 @@
     <ProjectReference Include="../../samples/Ankus.Examples.Notify/Ankus.Examples.Notify.csproj" />
     <ProjectReference Include="../../samples/Ankus.Examples.PglzInspect/Ankus.Examples.PglzInspect.csproj" />
     <ProjectReference Include="../../samples/Ankus.Examples.WalDecoder/Ankus.Examples.WalDecoder.csproj" />
+    <ProjectReference Include="../../samples/Ankus.Examples.CustomLibraryName/Ankus.Examples.CustomLibraryName.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../samples/Ankus.Examples.VersionedLibrary/Ankus.Examples.VersionedLibrary.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../samples/Ankus.Examples.VersionedCustomLibraryName/Ankus.Examples.VersionedCustomLibraryName.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../samples/Ankus.Examples.TypeVariants/Ankus.Examples.TypeVariants.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../samples/Ankus.Examples.BadIdeas/Ankus.Examples.BadIdeas.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../samples/Ankus.Examples.MinimalRuntime/Ankus.Examples.MinimalRuntime.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
 </Project>

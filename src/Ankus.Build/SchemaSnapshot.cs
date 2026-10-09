@@ -112,6 +112,24 @@ internal sealed class SchemaSnapshot(string name, string version, string library
     }
 
     /// <summary>
+    /// Resolves PostgreSQL's module marker for a versioned library in both the script and its matching graph.
+    /// </summary>
+    /// <param name="modulePath">The versioned library's suffix-free module path.</param>
+    /// <returns>A snapshot whose SQL names the library directly; a resolved snapshot is returned unchanged.</returns>
+    /// <exception cref="FormatException">The substituted graph no longer reproduces the substituted script.</exception>
+    internal SchemaSnapshot WithModulePath(string modulePath)
+    {
+        string sql = VersionedLibrary.Substitute(Sql, modulePath);
+        string? graph = Graph is null ? null : VersionedLibrary.SubstituteGraph(Graph, modulePath);
+        if (graph is not null && ExtensionSchemaGraph.Parse(graph).Sql != sql)
+        {
+            throw new FormatException("The versioned installation SQL disagrees with its embedded graph.");
+        }
+
+        return new(name, version, library, major, runtimeIdentifier, nativeContract, Relocatable, sql, graph);
+    }
+
+    /// <summary>
     /// Writes a prepared snapshot; successful publication commits it to the retained location separately.
     /// </summary>
     /// <param name="path">The owned intermediate file.</param>

@@ -1,0 +1,4 @@
+comment = 'versioned_custom_libname_so: a versioned native library named versioned_othername'
+# AnkusVersionedLibrary omits module_pathname; installation SQL names the versioned library.
+relocatable = false
+superuser = false

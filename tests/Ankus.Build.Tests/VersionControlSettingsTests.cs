@@ -67,6 +67,23 @@ public sealed class VersionControlSettingsTests
     }
 
     /// <summary>
+    /// Without a primary module path, only historical versions may name a library for PostgreSQL to substitute.
+    /// </summary>
+    [TestMethod]
+    public void VersionedPrimaryRejectsOnlyCurrentModulePathname()
+    {
+        const string Versioned = "default_version='release'\nencoding='UTF8'\nrelocatable=true\n";
+        FormatException current = Assert.ThrowsExactly<FormatException>(() =>
+            ExtensionControlSettings.MergeVersion(Versioned, "module_pathname='Probe-release'", 18, true, true));
+        Assert.Contains("versioned native library", current.Message);
+        (string historical, _) = ExtensionControlSettings.MergeVersion(Versioned, "module_pathname='Probe.so'", 18, false, true);
+        Assert.AreEqual("Probe.so", ExtensionControlFile.Parse(historical)["module_pathname"]);
+        Assert.AreEqual("UTF8", ExtensionControlFile.Parse(ExtensionControlSettings.MergeVersion(Versioned, "encoding=UTF8", 18, true, true)
+            .Control)["encoding"]);
+        Assert.ThrowsExactly<FormatException>(() => ExtensionControlSettings.MergeVersion(Versioned, "encoding=LATIN1", 18, true, true));
+    }
+
+    /// <summary>
     /// Secondary-only restrictions, malformed flags, encoding and selected-server gates fail before native publishing.
     /// </summary>
     /// <param name="authored">The unsupported assignment.</param>

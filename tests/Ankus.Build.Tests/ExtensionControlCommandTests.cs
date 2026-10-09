@@ -139,6 +139,33 @@ public sealed class ExtensionControlCommandTests(TestContext context)
     }
 
     /// <summary>
+    /// Versioned libraries omit module_pathname, reject an authored one, and require a library named for the version.
+    /// </summary>
+    [TestMethod]
+    public async Task VersionedLibraryControlOmitsModulePathname()
+    {
+        string[] arguments = Prepare(true);
+        arguments[5] = "Query-1.2.so";
+        await ExtensionControlCommand.RunAsync([.. arguments, "true"]);
+        IReadOnlyDictionary<string, string> control = ExtensionControlFile.Read(arguments[1]);
+        Assert.IsFalse(control.ContainsKey("module_pathname"));
+        Assert.AreEqual("1.2", control["default_version"]);
+        Assert.AreEqual("author", control["comment"]);
+        Assert.AreEqual("Query-1.2.so", ExtensionControlFile.Parse(ExtensionPackage.Create("query_probe", "1.2", "Query-1.2.so", "SELECT 1;",
+            true)["query_probe.control"])["module_pathname"]);
+
+        await File.WriteAllTextAsync(arguments[6], "module_pathname='Query-1.2.so'", context.CancellationToken);
+        FormatException authored = await Assert.ThrowsExactlyAsync<FormatException>(() => ExtensionControlCommand.RunAsync([.. arguments, "true"]));
+        Assert.Contains("versioned native library", authored.Message);
+        await ExtensionControlCommand.RunAsync([.. arguments, "false"]);
+        Assert.AreEqual("Query-1.2.so", ExtensionControlFile.Read(arguments[1])["module_pathname"]);
+
+        arguments[5] = "Query.so";
+        await Assert.ThrowsExactlyAsync<ArgumentException>(() => ExtensionControlCommand.RunAsync([.. arguments, "true"]));
+        await Assert.ThrowsExactlyAsync<ArgumentException>(() => ExtensionControlCommand.RunAsync([.. arguments, "yes"]));
+    }
+
+    /// <summary>
     /// Malformed command lines and unsupported majors fail without filesystem writes.
     /// </summary>
     [TestMethod]

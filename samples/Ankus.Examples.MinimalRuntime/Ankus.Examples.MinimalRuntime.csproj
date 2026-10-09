@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>The .NET counterpart of pgrx's nostd example: generated declarations under a minimal Native AOT runtime configuration.</Description>
+    <AnkusExtensionName>ankus_minimal_runtime</AnkusExtensionName>
+    <AnkusExtensionControlFile>$(MSBuildProjectDirectory)/ankus_minimal_runtime.control</AnkusExtensionControlFile>
+    <!-- .NET has no runtime-free mode. These documented Native AOT switches remove optional runtime features:
+         culture data and ICU, framework resource strings, and stack-trace metadata, and favor smaller code. -->
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <UseSystemResourceKeys>true</UseSystemResourceKeys>
+    <StackTraceSupport>false</StackTraceSupport>
+    <OptimizationPreference>Size</OptimizationPreference>
+  </PropertyGroup>
+
+  <Import Project="../../src/Ankus.Sdk/Ankus.Sdk.targets" />
+
+</Project>

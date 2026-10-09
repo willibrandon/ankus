@@ -12,17 +12,27 @@ internal static class UpgradeSqlCommand
     /// <summary>
     /// Publishes the installation SQL and selected upgrades, then commits the complete manifest.
     /// </summary>
-    /// <param name="arguments">Artifact directory, publish directory, script list, project directory, extension version, and optional schema snapshot destination.</param>
+    /// <param name="arguments">
+    /// Artifact directory, publish directory, script list, project directory, extension version, optional schema snapshot
+    /// destination, and optional versioned-library mode.
+    /// </param>
     /// <param name="cancellationToken">Cancels script reads and Git inspection.</param>
     /// <returns>A task that completes after the publication is installable.</returns>
+    /// <remarks>
+    /// Versioned libraries have no primary <c>module_pathname</c>. An upgrade script to version <c>new</c> therefore
+    /// resolves MODULE_PATHNAME to that version's library, as PostgreSQL would with a control file naming it, unless the
+    /// published control for <c>new</c> declares its own <c>module_pathname</c> for PostgreSQL to substitute.
+    /// </remarks>
     internal static async Task RunAsync(string[] arguments, CancellationToken cancellationToken = default)
     {
-        if (arguments.Length is not (5 or 6))
+        if (arguments.Length is not (5 or 6 or 7))
         {
-            throw new ArgumentException("Expected artifact directory, publish directory, upgrade list, project directory, extension version, and optional schema snapshot destination.", nameof(arguments));
+            throw new ArgumentException("Expected artifact directory, publish directory, upgrade list, project directory, extension version, " +
+                "optional schema snapshot destination, and optional versioned-library mode.", nameof(arguments));
         }
 
         cancellationToken.ThrowIfCancellationRequested();
+        bool versionedLibrary = arguments.Length == 7 && VersionedLibrary.ParseMode(arguments[6]);
         string artifacts = Path.GetFullPath(arguments[0]);
         string output = Path.GetFullPath(arguments[1]);
         PublishedExtension.Invalidate(output);
@@ -30,6 +40,8 @@ internal static class UpgradeSqlCommand
         string[] scripts = File.ReadAllLines(arguments[2]);
         var manifest = new PublishedExtension(original.PostgresMajor, original.RuntimeIdentifier, original.Library,
             original.Control, original.Sql, [.. scripts.Select(static path => Path.GetFileName(path))], original.VersionControlFiles, original.ScriptDirectory);
+        string? libraryBase = versionedLibrary ? VersionedLibrary.GetBaseName(original.Library, arguments[4]) : null;
+        string versionPrefix = original.Control[..^".control".Length] + "--";
         var encoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
         var contents = new Dictionary<string, byte[]>(StringComparer.Ordinal);
         string? gitHash = null;
@@ -43,7 +55,20 @@ internal static class UpgradeSqlCommand
             }
 
             content = content.Replace("@EXTENSION_VERSION@", arguments[4], StringComparison.Ordinal);
-            contents.Add(Path.GetFileName(script), encoding.GetBytes(content));
+            string name = Path.GetFileName(script);
+            if (libraryBase is not null)
+            {
+                // The manifest above validated the extension--old--new.sql form.
+                string target = name[versionPrefix.Length..^".sql".Length].Split("--")[1];
+                string control = versionPrefix + target + ".control";
+                if (!original.VersionControlFiles.Contains(control, StringComparer.Ordinal) ||
+                    !ExtensionControlFile.Read(Path.Combine(artifacts, "extension", control)).ContainsKey("module_pathname"))
+                {
+                    content = VersionedLibrary.Substitute(content, VersionedLibrary.GetModulePath(libraryBase, target));
+                }
+            }
+
+            contents.Add(name, encoding.GetBytes(content));
         }
 
         // Read the entire SQL and control payload before changing any published files.
@@ -61,7 +86,7 @@ internal static class UpgradeSqlCommand
         }
 
         manifest.CompletePublish(output);
-        if (arguments.Length == 6 && arguments[5].Length != 0)
+        if (arguments.Length >= 6 && arguments[5].Length != 0)
         {
             try
             {

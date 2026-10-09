@@ -17,6 +17,8 @@ Set extension properties in your project file:
 | `AnkusExtensionName` | Lowercase assembly name, with periods replaced by underscores | Names the control and SQL files |
 | `AnkusExtensionVersion` | Project `Version` | Selects the versioned SQL filename and control-file version |
 | `AnkusExtensionControlFile` | None | Adds author settings from a PostgreSQL control file; see [control settings](#extension-control-settings) |
+| `AnkusLibraryName` | `TargetName`, which defaults to `AssemblyName` | Names the native library file without its platform suffix; see [native library names](#native-library-names) |
+| `AnkusVersionedLibrary` | `false` | Appends the extension version to the library name so versions install side by side; see [versioned libraries](#versioned-libraries) |
 | `EnableDefaultAnkusUpgradeScripts` | Enabled | Includes `sql/<extension>--<old>--<new>.sql` upgrade files; set to `false` for explicit items only |
 | `EnableDefaultAnkusVersionControlFiles` | Enabled | Includes `sql/<extension>--<version>.control` files; set to `false` for explicit items only |
 | `AnkusPostgresMajor` | `18` | Selects the server headers used to compile the native wrapper |
@@ -89,9 +91,68 @@ constant references. Invalid project defaults require correcting the project's
 `AssemblyName` or `Version`. If both fields are invalid, both errors are reported.
 
 This metadata describes the native library. SQL installation names and versions
-still come from `AnkusExtensionName` and `AnkusExtensionVersion`. PostgreSQL
-13–17 use their ordinary compatibility block and do not expose this metadata.
-Every publication uses the ABI from its selected PostgreSQL headers.
+still come from `AnkusExtensionName` and `AnkusExtensionVersion`. `AnkusLibraryName`
+and `AnkusVersionedLibrary` change the library's filename, not this identity.
+PostgreSQL 13–17 use their ordinary compatibility block and do not expose this
+metadata. Every publication uses the ABI from its selected PostgreSQL headers.
+
+## Native library names
+
+The published library is named after `TargetName`, which defaults to
+`AssemblyName`, plus PostgreSQL's platform suffix: `.so` on Linux, `.dll` on
+Windows, and `.dylib` on macOS with PostgreSQL 16 and later (`.so` before).
+Set `AnkusLibraryName` to choose another name, as Cargo's `[lib] name` does:
+
+```xml
+<PropertyGroup>
+  <AnkusLibraryName>other_name</AnkusLibraryName>
+</PropertyGroup>
+```
+
+This publishes `other_name.so`, and the generated control file's
+`module_pathname` names that file. Only the native file changes: the assembly,
+its [module identity](#native-module-identity), generated export names and the
+default extension name still follow `AssemblyName` and `TargetName`. Changing
+`AssemblyName` also renames the library, but changes those identities too.
+Library names use ASCII letters, digits, `.`, `_`, `+` and `-`, without a
+directory or suffix, and cannot start with `.`. See the
+[custom library name sample](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.CustomLibraryName).
+
+### Versioned libraries
+
+Set `AnkusVersionedLibrary` to install several versions of an extension side by
+side, as cargo-pgrx's versioned shared-object mode does:
+
+```xml
+<PropertyGroup>
+  <AnkusVersionedLibrary>true</AnkusVersionedLibrary>
+</PropertyGroup>
+```
+
+The library name gains `-<version>`, using `AnkusExtensionVersion`: version
+`0.2.0` of `Acme.Search` publishes `Acme.Search-0.2.0.so`, or `other_name-0.2.0.so`
+with `AnkusLibraryName`. The generated control file has no `module_pathname`.
+Instead, Ankus performs PostgreSQL's `MODULE_PATHNAME` substitution when it
+publishes, replacing every occurrence in the installation script with
+`Acme.Search-0.2.0`. PostgreSQL appends the platform suffix while searching
+`dynamic_library_path`. The library's embedded schema and `ankus schema` contain
+the same resolved script.
+
+Installing a new version adds its library and SQL beside the earlier versions'.
+Databases keep using their version's library until they update. In an upgrade
+script, `sql/<extension>--<old>--<new>.sql`, `MODULE_PATHNAME` refers to the
+library of `<new>`: the library PostgreSQL would substitute if that version's
+control file named it. Copy each replaced function's declaration, including its
+export name, from the generated installation SQL of `<new>`; export names change
+with the assembly version. A [version-specific control file](#version-specific-control-files)
+for `<new>` that sets `module_pathname` keeps PostgreSQL's own substitution for
+scripts updating to that version, such as one published before this setting.
+
+The current version cannot set `module_pathname` in an authored control file.
+The version must be valid in a filename. `ankus get module_pathname` prints
+nothing for a versioned publication. See the
+[versioned library sample](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.VersionedLibrary)
+and [upgrading an extension](/getting-started/publishing/#upgrade-an-existing-extension).
 
 ## Extension control settings
 
@@ -140,8 +201,10 @@ configuration syntax; repeated assignments use the last value. Use SQL
 
 Ankus owns `default_version`, `module_pathname` and `encoding`; if present, those
 values must match the generated publication. Set the version through
-`AnkusExtensionVersion`, the library name through `AssemblyName`, and retain
-`UTF8` for generated SQL.
+`AnkusExtensionVersion`, the library name through [`AnkusLibraryName`](#native-library-names)
+or `AssemblyName`, and retain `UTF8` for generated SQL. A
+[versioned library](#versioned-libraries) has no `module_pathname`, so an
+authored value is rejected.
 
 Use [`ankus get`](/reference/cli/#query-extension-properties) to inspect the
 effective primary settings for a project or an existing publication.
@@ -212,8 +275,9 @@ upgrade. A `schema` override selects the schema for initial installation;
 PostgreSQL does not move objects during an update.
 
 Secondary files cannot set `default_version` or `directory`. The current
-version's `module_pathname` must match its generated native library. Other
-versions can name their own libraries, which must be distributed separately.
+version's `module_pathname` must match its generated native library, and is
+rejected for a versioned library. Other versions can name their own libraries,
+which must be distributed separately.
 All published scripts use UTF-8, so an explicit `encoding` must remain `UTF8`.
 The current version's relocation flag also appears in its embedded native schema
 metadata and cannot contradict generated SQL. Adding a fixed `schema` without
@@ -341,7 +405,8 @@ identifier, and installation filenames even if the library was renamed.
 
 `Sql` preserves the complete installation script, including PostgreSQL's
 `MODULE_PATHNAME` substitution marker. It is intended for extension installation;
-direct SQL replay must resolve that marker to the library's location first.
+direct SQL replay must resolve that marker to the library's location first. A
+[versioned library's](#versioned-libraries) script already names that library.
 Missing, malformed, incompatible, or oversized metadata raises `FormatException`.
 The native schema section is limited to 64 MiB. This metadata does not replace
 the control and SQL files PostgreSQL needs for `CREATE EXTENSION`.

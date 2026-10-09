@@ -44,6 +44,7 @@ public sealed partial class ExtensionSchema
 
     /// <summary>
     /// Gets the exact installation SQL, retaining MODULE_PATHNAME substitution for PostgreSQL installation.
+    /// A versioned library's SQL names that library directly instead.
     /// </summary>
     public string Sql { get; }
 

@@ -27,6 +27,11 @@ For a manually declared SQL type or an existing external type, use
 [`PgDatumType` with reader and writer converters](/raw-values/#reusable-scalar-mappings)
 to control scalar storage conversion independently of type DDL and serialization.
 
+The [type variants sample](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.TypeVariants)
+ports pgrx's `postgres_type_variants` example and compares these choices side by
+side: generated JSON, a custom text codec, packed native storage, a hand-written
+datum mapping and arrays of a custom type.
+
 ## Datum alignment
 
 Generated types use PostgreSQL's four-byte (`int4`) alignment. Select eight-byte

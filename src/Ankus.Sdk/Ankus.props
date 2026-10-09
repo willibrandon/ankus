@@ -9,6 +9,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <IsPackable>false</IsPackable>
     <AnkusReuseSchema Condition="'$(AnkusReuseSchema)' == ''">false</AnkusReuseSchema>
+    <AnkusVersionedLibrary Condition="'$(AnkusVersionedLibrary)' == ''">false</AnkusVersionedLibrary>
   </PropertyGroup>
   <ItemGroup>
     <CompilerVisibleProperty Include="MSBuildProjectDirectory" />

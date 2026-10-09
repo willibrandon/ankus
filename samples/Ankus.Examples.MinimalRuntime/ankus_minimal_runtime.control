@@ -1,0 +1,3 @@
+comment = 'nostd: generated declarations under a minimal Native AOT runtime'
+relocatable = false
+superuser = false

@@ -1,0 +1,3 @@
+comment = 'bad_ideas: things an extension should not do'
+relocatable = false
+superuser = false

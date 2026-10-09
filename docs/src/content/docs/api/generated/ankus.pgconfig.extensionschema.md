@@ -84,6 +84,7 @@ Value: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
 ### Sql
 
 Gets the exact installation SQL, retaining MODULE_PATHNAME substitution for PostgreSQL installation.
+A versioned library's SQL names that library directly instead.
 
 ```csharp
 public string Sql { get; }

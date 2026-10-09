@@ -10,12 +10,22 @@ internal static class ExtensionControlCommand
     /// <summary>
     /// Reads generated assembly metadata and atomically writes the effective primary control file.
     /// </summary>
-    /// <param name="arguments">Assembly, output, PostgreSQL major, extension name, version, library and optional author-file path.</param>
+    /// <param name="arguments">
+    /// Assembly, output, PostgreSQL major, extension name, version, library, optional author-file path and optional
+    /// versioned-library mode.
+    /// </param>
     internal static async Task RunAsync(string[] arguments)
     {
-        if (arguments.Length != 7)
+        if (arguments.Length is not (7 or 8))
         {
-            throw new ArgumentException("Expected assembly, control output, PostgreSQL major, name, version, library and author control path.");
+            throw new ArgumentException("Expected assembly, control output, PostgreSQL major, name, version, library, author control path " +
+                "and optional versioned-library mode.");
+        }
+
+        bool versionedLibrary = arguments.Length == 8 && VersionedLibrary.ParseMode(arguments[7]);
+        if (versionedLibrary)
+        {
+            _ = VersionedLibrary.GetBaseName(arguments[5], arguments[4]);
         }
 
         int major = int.Parse(arguments[2], CultureInfo.InvariantCulture);
@@ -32,7 +42,7 @@ internal static class ExtensionControlCommand
         ExtensionManifest manifest = ExtensionManifest.Read(arguments[0]);
         string? authored = arguments[6].Length == 0 ? null : await File.ReadAllTextAsync(arguments[6]);
         IReadOnlyDictionary<string, string> package = ExtensionPackage.Create(arguments[3], arguments[4], arguments[5],
-            manifest.Sql, manifest.Relocatable, authored, major);
+            manifest.Sql, manifest.Relocatable, authored, major, versionedLibrary);
         Directory.CreateDirectory(Path.GetDirectoryName(output)!);
         string temporary = output + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try

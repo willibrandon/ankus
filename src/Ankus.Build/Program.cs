@@ -96,11 +96,12 @@ try
         return 0;
     }
 
-    if (args.Length is not (11 or 12 or 13 or 14))
+    if (args.Length is not (11 or 12 or 13 or 14 or 15))
     {
         throw new ArgumentException(
             "Expected assembly, artifact directory, PostgreSQL major, linker, toolchain libraries, " +
-            "extension name, version, library, runtime identifier, optional pg_config path, target triple, optional control file, optional secondary control list, and optional saved schema.");
+            "extension name, version, library, runtime identifier, optional pg_config path, target triple, optional control file, " +
+            "optional secondary control list, optional saved schema, and optional versioned-library mode.");
     }
 
     string assembly = Path.GetFullPath(args[0]);
@@ -115,11 +116,18 @@ try
     }
 
     ExtensionManifest manifest = ExtensionManifest.Read(assembly);
-    SchemaSnapshot schema = SchemaSnapshot.Select(args.Length == 14 && args[13].Length != 0 ? args[13] : null,
+    bool versionedLibrary = args.Length == 15 && VersionedLibrary.ParseMode(args[14]);
+    SchemaSnapshot schema = SchemaSnapshot.Select(args.Length >= 14 && args[13].Length != 0 ? args[13] : null,
         manifest, args[5], args[6], args[7], major, args[8]);
+    if (versionedLibrary)
+    {
+        // Without module_pathname, PostgreSQL leaves the marker unresolved; name this version's library directly.
+        schema = schema.WithModulePath(VersionedLibrary.GetModulePath(VersionedLibrary.GetBaseName(args[7], args[6]), args[6]));
+    }
+
     string? authored = args.Length >= 12 && args[11].Length != 0 ? File.ReadAllText(args[11]) : null;
     var package = new Dictionary<string, string>(ExtensionPackage.Create(args[5], args[6], args[7],
-        schema.Sql, schema.Relocatable, authored, major));
+        schema.Sql, schema.Relocatable, authored, major, versionedLibrary));
     IReadOnlyDictionary<string, string> primaryControl = ExtensionControlFile.Parse(package[args[5] + ".control"]);
     bool relocatable = primaryControl["relocatable"] == "true";
     primaryControl.TryGetValue("schema", out string? defaultSchema);

@@ -170,11 +170,21 @@ the returned `PgGucSetting<T>`. See
 | Connect without rebuilding | `ankus connect --pg 18` |
 | Install or package the extension | `ankus install`, `ankus package` |
 | Run SQL regression files | `ankus regress --pg 18` |
+| Name the shared library with Cargo's `[lib] name` | Set `AnkusLibraryName` |
+| Install versions side by side by omitting `module_pathname` | Set `AnkusVersionedLibrary` to `true` |
 
 The project SDK selects the matching headers, generated bindings and packaged
 Native AOT runtime. `AnkusPostgresMajor` selects the project's PostgreSQL major;
 an explicit `--pg` selects a command invocation. See the [CLI guide](/reference/cli/)
-for each command's supported options and version selection.
+for each command's supported options and version selection, and
+[native library names](/reference/build-settings/#native-library-names) for
+library names and versioned libraries.
+
+Rust's `#![no_std]` has no .NET counterpart: a Native AOT library always contains
+the .NET runtime, which Ankus's managed boundary relies on. Native AOT feature
+switches such as `InvariantGlobalization` remove optional runtime features; the
+[minimal runtime sample](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.MinimalRuntime)
+shows the generated declarations working without them.
 
 When migrating an existing extension, preserve SQL identity and review its
 on-disk representation separately. Generated C# storage is not a promise of

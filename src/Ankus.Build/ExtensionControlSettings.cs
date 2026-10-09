@@ -54,9 +54,15 @@ internal static class ExtensionControlSettings
                 case "default_version":
                 case "module_pathname" when currentVersion:
                 case "encoding":
-                    if (value != identity[name])
+                    if (!identity.TryGetValue(name, out string? generated))
                     {
-                        throw new FormatException($"Control parameter '{name}' conflicts with the generated publication value '{identity[name]}'.");
+                        throw new FormatException($"Control parameter '{name}' cannot be set for a versioned native library; " +
+                            "its installation SQL names the library directly.");
+                    }
+
+                    if (value != generated)
+                    {
+                        throw new FormatException($"Control parameter '{name}' conflicts with the generated publication value '{generated}'.");
                     }
 
                     break;

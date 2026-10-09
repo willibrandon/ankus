@@ -106,6 +106,23 @@ query-tree column references with PostgreSQL's rewriter utilities.
 
 The [WAL decoder sample](samples/Ankus.Examples.WalDecoder/) is a logical decoding
 output plugin that captures committed row changes as JSON.
+The [type variants sample](samples/Ankus.Examples.TypeVariants/) compares five
+ways to define a custom type's input, output and storage: generated JSON, custom
+text, packed native bytes, a hand-written datum mapping and arrays of the type.
+
+The [custom library name sample](samples/Ankus.Examples.CustomLibraryName/) names
+its native library independently of its assembly and extension. The
+[versioned library](samples/Ankus.Examples.VersionedLibrary/) and
+[versioned custom library name](samples/Ankus.Examples.VersionedCustomLibraryName/)
+samples publish one library per extension version, so versions install side by side.
+
+The [bad ideas sample](samples/Ankus.Examples.BadIdeas/) shows how Ankus rejects,
+converts or documents things an extension should not do, from swallowed PANICs
+to exceptions on extension-created threads.
+
+The [minimal runtime sample](samples/Ankus.Examples.MinimalRuntime/) is the .NET
+counterpart of pgrx's `nostd` example: its declarations run with optional Native
+AOT runtime features removed.
 
 PostgreSQL 18 and later can report the library's name and version through
 `pg_get_loaded_modules()`. See [native module identity](docs/src/content/docs/reference/build-settings.md#native-module-identity)
@@ -687,6 +704,12 @@ see [schema extraction](docs/src/content/docs/getting-started/publishing.md#insp
 lowercased with periods replaced by underscores. `AnkusExtensionVersion` defaults
 to the project's `Version`. The control file resolves the native library through
 PostgreSQL's `dynamic_library_path`, whose default is `$libdir`.
+
+`AnkusLibraryName` names the native library without changing the assembly, like
+Cargo's `[lib] name`. `AnkusVersionedLibrary` follows cargo-pgrx's versioned
+shared-object mode: each version publishes `<library>-<version>`, and its SQL names
+that library, so versions install side by side. See
+[native library names](docs/src/content/docs/reference/build-settings.md#native-library-names).
 
 For a standard server installation, the native library belongs in
 `pg_config --pkglibdir`, and the control and versioned SQL files belong in the

@@ -279,13 +279,21 @@ extension version and `@GIT_HASH@` with the project's current commit. Git is
 required only when a script uses that token. PostgreSQL resolves
 `MODULE_PATHNAME` through the new control file when it executes the script.
 
-When native functions change, use a distinct `AssemblyName`, such as
-`Hello.0.2.0`, and replace their SQL declarations in the upgrade script with
+When native functions change, give the new version its own library and replace
+their SQL declarations in the upgrade script with
 `CREATE OR REPLACE FUNCTION ... AS 'MODULE_PATHNAME', 'native_export'`.
 Use the matching generated installation SQL for the actual declarations and
 export names. Already connected backends can then load the new library while
-retaining references to the old one. Ankus does not automatically version the
-native filename or generate migration SQL.
+retaining references to the old one.
+
+Set [`AnkusVersionedLibrary`](/reference/build-settings/#versioned-libraries) to
+name each version's library automatically, such as `Hello-0.2.0.so`. Its
+installation SQL names that library directly, so earlier versions remain
+installable beside it. In an upgrade script, `MODULE_PATHNAME` refers to the
+library of the version the script updates to, which also lets a downgrade script
+return to the earlier library. Alternatively, choose a distinct `AnkusLibraryName`
+or `AssemblyName`, such as `Hello.0.2.0`, for each version. Ankus does not
+generate migration SQL.
 
 Default discovery includes matching files directly under `sql/`. To remove a
 default item or include a script from elsewhere:

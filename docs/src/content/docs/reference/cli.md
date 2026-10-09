@@ -707,8 +707,9 @@ its primary control file. It cannot be combined with project, configuration or
 PostgreSQL selection options. `git_hash` requires a source project.
 
 Property names are case-sensitive. An absent property succeeds without output;
-an explicitly empty value prints a blank line. Values retain spaces, quotes and
-embedded equals signs. These are primary control values; PostgreSQL applies
+an explicitly empty value prints a blank line. A versioned library's control file
+has no `module_pathname`, so `ankus get module_pathname` prints nothing. Values
+retain spaces, quotes and embedded equals signs. These are primary control values; PostgreSQL applies
 [version-specific controls](/reference/build-settings/#version-specific-control-files)
 when installing or updating to a selected extension version.
 
@@ -736,6 +737,15 @@ paths, add `--destdir staging`.
 
 Connect to your database and run `CREATE EXTENSION` to make its functions
 available. `install` copies files; it does not modify databases.
+
+Installing replaces files with the same names and leaves other files in place.
+With [versioned libraries](/reference/build-settings/#versioned-libraries), each
+version has its own library, such as `Acme.Search-0.1.0.so` and
+`Acme.Search-0.2.0.so`, and its own installation SQL. Installing 0.2.0 therefore
+keeps 0.1.0 installed: databases on 0.1.0 continue to use its library,
+`CREATE EXTENSION ... VERSION '0.1.0'` still works, and `ALTER EXTENSION ... UPDATE`
+moves a database between versions through the installed upgrade scripts. The
+primary control file's `default_version` follows the most recent installation.
 
 ## Package for distribution
 
@@ -779,7 +789,10 @@ tree. You can move or archive the package root after creation.
 configuration is `Release`; `--configuration` also accepts `Debug` and custom
 MSBuild configurations such as `Shipping`.
 The package retains the extension name, version, and native library name from
-the publication, including a custom MSBuild `AssemblyName`.
+the publication, including an `AnkusLibraryName`, a custom MSBuild `AssemblyName`
+or a [versioned library](/reference/build-settings/#versioned-libraries) name.
+Packaging a later version into the same output adds its versioned library and
+scripts beside the earlier version's, as installation does.
 
 Package an existing publication without rebuilding:
 
