@@ -39,7 +39,8 @@ public sealed class PackageProcessSchedulingTests
             PackageProcessRunner.CreateProcessorBudgets(processors, concurrency)).ParamName);
 
     /// <summary>
-    /// Existing-publication and dry-run modes bypass compiler capacity while real builds remain bounded.
+    /// Existing-publication, dry-run and report modes bypass compiler capacity while real builds, including project
+    /// property reads, remain bounded.
     /// </summary>
     /// <param name="executable">The child process filename.</param>
     /// <param name="arguments">The tool's literal argument list.</param>
@@ -66,6 +67,10 @@ public sealed class PackageProcessSchedulingTests
     [DataRow("ankus", new[] { "schema", "--skip-build" }, false)]
     [DataRow("ankus", new[] { "schema", "--skip-build=false" }, true)]
     [DataRow("ankus", new[] { "upgrade" }, false)]
+    [DataRow("ankus", new[] { "get", "default_version", "--project", "extension.csproj" }, true)]
+    [DataRow("ankus", new[] { "get", "default_version", "--from", "published extension" }, false)]
+    [DataRow("ankus", new[] { "bench", "--report" }, false)]
+    [DataRow("ankus", new[] { "bench", "--report=false" }, true)]
     [DataRow("dotnet", new[] { "test", "--no-build" }, true)]
     [DataRow("dotnet.exe", new[] { "publish", "--no-restore" }, true)]
     [DataRow("psql.exe", new[] { "--no-build" }, false)]

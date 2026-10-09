@@ -146,14 +146,16 @@ internal static class PackageProcessRunner
         }
 
         if ((command is "bench" or "regress" or "run" && EnabledOption(arguments, "--no-build")) ||
+            (command == "bench" && EnabledOption(arguments, "--report")) ||
             (command == "regress" && EnabledOption(arguments, "--dry-run")) ||
             (command == "schema" && EnabledOption(arguments, "--skip-build")) ||
-            (command is "install" or "package" or "schema" && HasOption(arguments, "--from")))
+            (command is "get" or "install" or "package" or "schema" && HasOption(arguments, "--from")))
         {
             return false;
         }
 
-        return command is "bench" or "build" or "install" or "package" or "publish" or "regress" or "run" or "schema" or "test";
+        // A project property read runs the control-file build target, so it competes for the same processors.
+        return command is "bench" or "build" or "get" or "install" or "package" or "publish" or "regress" or "run" or "schema" or "test";
     }
 
     /// <summary>
