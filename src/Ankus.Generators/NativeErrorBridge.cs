@@ -27,7 +27,7 @@ internal static class NativeErrorBridge
             ANKUS_ERROR_MESSAGE, ANKUS_ERROR_DETAIL, ANKUS_ERROR_HINT, ANKUS_ERROR_CONTEXT,
             ANKUS_ERROR_SCHEMA, ANKUS_ERROR_TABLE, ANKUS_ERROR_COLUMN, ANKUS_ERROR_DATATYPE,
             ANKUS_ERROR_CONSTRAINT, ANKUS_ERROR_QUERY, ANKUS_ERROR_FILE, ANKUS_ERROR_ROUTINE,
-            ANKUS_ERROR_DETAIL_LOG, ANKUS_ERROR_BACKTRACE, ANKUS_ERROR_FIELD_COUNT
+            ANKUS_ERROR_DETAIL_LOG, ANKUS_ERROR_BACKTRACE, ANKUS_ERROR_DOMAIN, ANKUS_ERROR_FIELD_COUNT
         };
 
         enum AnkusErrorFlags
@@ -485,7 +485,7 @@ internal static class NativeErrorBridge
                 data->message, data->detail, data->hint, data->context,
                 data->schema_name, data->table_name, data->column_name, data->datatype_name,
                 data->constraint_name, data->internalquery, data->filename, data->funcname,
-                data->detail_log, data->backtrace
+                data->detail_log, data->backtrace, data->domain
             };
             error->sqlstate = data->sqlerrcode;
             error->position = data->cursorpos;
@@ -659,6 +659,9 @@ internal static class NativeErrorBridge
                 data.funcname = ankus_error_field(error, ANKUS_ERROR_ROUTINE, exact);
                 data.detail_log = ankus_error_field(error, ANKUS_ERROR_DETAIL_LOG, exact);
                 data.backtrace = ankus_error_field(error, ANKUS_ERROR_BACKTRACE, exact);
+                /* errstart records the message domain; NULL selects PostgreSQL's own. The string
+                 * lives in the report context until the next error flush, as the other fields do. */
+                data.domain = ankus_error_field(error, ANKUS_ERROR_DOMAIN, exact);
                 data.filename = data.filename == NULL ? __FILE__ : data.filename;
                 data.funcname = data.funcname == NULL ? "ankus_report" : data.funcname;
                 data.assoc_context = CurrentMemoryContext;

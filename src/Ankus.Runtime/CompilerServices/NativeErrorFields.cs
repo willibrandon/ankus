@@ -11,7 +11,7 @@ internal struct NativeErrorFields
     /// <summary>
     /// Contains the number of slots defined by NativeDiagnosticField.
     /// </summary>
-    internal const int Length = 14;
+    internal const int Length = 15;
 
     private NativeValue _element0;
 }

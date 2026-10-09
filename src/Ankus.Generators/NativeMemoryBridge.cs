@@ -324,11 +324,12 @@ internal static class NativeMemoryBridge
         ankus_write_completion_warning(AnkusError *error)
         {
             static const char *names[] = {"MESSAGE", "DETAIL", "HINT", "CONTEXT", "SCHEMA", "TABLE", "COLUMN",
-                "DATATYPE", "CONSTRAINT", "QUERY", "FILE", "ROUTINE", "DETAIL_LOG", "BACKTRACE"};
+                "DATATYPE", "CONSTRAINT", "QUERY", "FILE", "ROUTINE", "DETAIL_LOG", "BACKTRACE", "DOMAIN"};
             int backend = MyProcPid;
             const char *sqlstate = unpack_sql_state(error->sqlstate);
             AnkusValue *message = &error->fields[ANKUS_ERROR_MESSAGE];
             char message_name[32];
+            StaticAssertStmt(lengthof(names) == ANKUS_ERROR_FIELD_COUNT, "every diagnostic field needs a name");
             snprintf(message_name, sizeof(message_name), "WARNING: %s", sqlstate);
             if (message->data != NULL)
             {

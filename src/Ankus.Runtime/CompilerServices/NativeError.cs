@@ -54,6 +54,7 @@ public static class NativeError
                 WriteField(error, NativeDiagnosticField.Routine, postgres.Routine);
                 WriteField(error, NativeDiagnosticField.DetailLog, postgres.DetailLog);
                 WriteField(error, NativeDiagnosticField.Backtrace, postgres.Backtrace);
+                WriteField(error, NativeDiagnosticField.Domain, postgres.Domain);
             }
             else
             {
@@ -136,6 +137,7 @@ public static class NativeError
         WriteField(error, NativeDiagnosticField.File, diagnostic.File);
         WriteField(error, NativeDiagnosticField.Routine, diagnostic.Routine);
         WriteField(error, NativeDiagnosticField.DetailLog, diagnostic.DetailLog);
+        WriteField(error, NativeDiagnosticField.Domain, diagnostic.Domain);
     }
 
     private static unsafe void WriteField(NativeCallError* error, NativeDiagnosticField field, string? text)

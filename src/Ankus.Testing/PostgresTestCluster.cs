@@ -39,8 +39,30 @@ public sealed class PostgresTestCluster : IAsyncDisposable
         SocketDirectory = OperatingSystem.IsWindows()
             ? null
             : session is null || _account.Name is not null
-                ? Path.Combine(OperatingSystem.IsMacOS() || _account.Name is not null ? "/tmp" : Path.GetTempPath(), $"ak-{Guid.NewGuid():N}")
+                ? Path.Combine(SelectSocketRoot(Path.GetTempPath(), _account.Name is not null, OperatingSystem.IsMacOS()), $"ak-{Guid.NewGuid():N}")
                 : Path.Combine(session, $"s-{Guid.NewGuid():N}");
+    }
+
+    /// <summary>
+    /// Selects the parent of a cluster's Unix socket directory. PostgreSQL's socket path must fit the platform's
+    /// <c>sun_path</c>, so a temporary directory too long for it, such as a CI work directory, gives way to <c>/tmp</c>,
+    /// where PostgreSQL's own test clusters keep their sockets. Another account cannot use the caller's private
+    /// temporary directory, and macOS temporary directories are always too long.
+    /// </summary>
+    /// <param name="temporary">The caller's temporary directory.</param>
+    /// <param name="otherAccount">Whether another account runs the server.</param>
+    /// <param name="macOS">Whether the platform limits socket paths to 103 bytes, as macOS does, rather than Linux's 107.</param>
+    /// <returns>The directory beneath which the socket directory is created.</returns>
+    internal static string SelectSocketRoot(string temporary, bool otherAccount, bool macOS)
+    {
+        if (otherAccount || macOS)
+        {
+            return "/tmp";
+        }
+
+        // The longest socket path is the socket directory plus "/.s.PGSQL.65535".
+        int longest = Encoding.UTF8.GetByteCount(Path.Combine(temporary, "ak-" + new string('0', 32), ".s.PGSQL.65535"));
+        return longest <= 107 ? temporary : "/tmp";
     }
 
     /// <summary>

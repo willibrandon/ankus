@@ -119,7 +119,12 @@ See [errors and transactions](/spi/#errors-and-transactions).
 
 Throw `PgException` to report a PostgreSQL SQLSTATE and owned diagnostic fields.
 `PgLog` supplies PostgreSQL message levels. Native errors unwind managed cleanup
-before PostgreSQL reports them at the outer boundary.
+before PostgreSQL reports them at the outer boundary. Like pgrx's `debug1!`,
+`PgLog.Write(PgLogLevel.Debug1, $"...")` evaluates its arguments only when the
+level is enabled, and `PgDiagnostic.Domain` corresponds to `ereport_domain!`.
+pgrx reports a returned `Err` as SQLSTATE 22000; Ankus reports an unhandled .NET
+exception as 38000 (`external_routine_exception`), and `PgException` sets any
+other code.
 
 For deliberate error recovery comparable to a `PgTryBuilder` recovery scope,
 use `PgTransaction.RunInSubtransaction` around work that must roll back. A plain

@@ -54,6 +54,56 @@ public sealed partial class PgLogTests(TestContext context)
             }, context.CancellationToken);
 
     /// <summary>
+    /// An error raised with a message domain reaches the client, and PostgreSQL records the domain in the ErrorData a
+    /// caller catches, as pgrx's ereport_domain tests require; backend errors carry PostgreSQL's own domain.
+    /// </summary>
+    [TestMethod]
+    public Task ErrorsCarryTheirMessageDomain()
+        => PostgresFixture.Cluster.RunInTransactionAsync(nameof(ErrorsCarryTheirMessageDomain),
+            async (connection, transaction, token) =>
+            {
+                await using var command = new NpgsqlCommand("SELECT datatype.catch_domain('SELECT datatype.raise_domain()')", connection, transaction);
+                Assert.AreEqual("XX000|ereport error|test_extension_domain", await command.ExecuteScalarAsync(token));
+                command.CommandText = "SELECT datatype.catch_domain('SELECT 1 / 0')";
+                Assert.AreEqual($"22012|division by zero|postgres-{PostgresFixture.Cluster.Installation.Version.Major}",
+                    await command.ExecuteScalarAsync(token));
+                command.CommandText = "SELECT datatype.raise_domain()";
+                PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => command.ExecuteNonQueryAsync(token));
+                Assert.AreEqual(PostgresErrorCodes.InternalError, error.SqlState);
+                Assert.AreEqual("ereport error", error.MessageText);
+            }, context.CancellationToken);
+
+    /// <summary>
+    /// Interpolated messages evaluate their expressions only for enabled levels: DEBUG levels are disabled at
+    /// PostgreSQL's default client threshold, WARNING is enabled, and enabling DEBUG1 evaluates and delivers it.
+    /// </summary>
+    [TestMethod]
+    public Task InterpolatedMessagesSkipDisabledLevels()
+        => PostgresFixture.Cluster.RunInTransactionAsync(nameof(InterpolatedMessagesSkipDisabledLevels),
+            async (connection, transaction, token) =>
+            {
+                var notices = new List<PostgresNotice>();
+                connection.Notice += (_, args) => notices.Add(args.Notice);
+                await using var command = new NpgsqlCommand(
+                    "SELECT array_agg(datatype.log_enabled(level) ORDER BY level) FROM generate_series(0, 4) AS level", connection, transaction);
+                Assert.AreSequenceEqual<bool>([false, false, false, false, false], Assert.IsInstanceOfType<bool[]>(await command.ExecuteScalarAsync(token)));
+                command.CommandText = "SELECT datatype.log_enabled(9)";
+                Assert.IsTrue(Assert.IsInstanceOfType<bool>(await command.ExecuteScalarAsync(token)));
+                command.CommandText = "SELECT datatype.log_lazy(4)";
+                Assert.AreEqual(0, await command.ExecuteScalarAsync(token));
+                Assert.IsEmpty(notices);
+                command.CommandText = "SELECT datatype.log_lazy(9)";
+                Assert.AreEqual(1, await command.ExecuteScalarAsync(token));
+                Assert.AreEqual("WARNING|lazy 1", $"{Assert.ContainsSingle(notices).Severity}|{notices[0].MessageText}");
+                notices.Clear();
+                command.CommandText = "SET LOCAL client_min_messages = debug1";
+                await command.ExecuteNonQueryAsync(token);
+                command.CommandText = "SELECT datatype.log_lazy(4)";
+                Assert.AreEqual(1, await command.ExecuteScalarAsync(token));
+                Assert.AreEqual("DEBUG|lazy 1", $"{Assert.ContainsSingle(notices).Severity}|{notices[0].MessageText}");
+            }, context.CancellationToken);
+
+    /// <summary>
     /// Verifies filtering treats INFO and LOG specially rather than relying on a single numeric threshold.
     /// </summary>
     [TestMethod]

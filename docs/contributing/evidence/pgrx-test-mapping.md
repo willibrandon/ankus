@@ -64,8 +64,8 @@ gaps and partials are listed at the end, ranked by importance.
 | test_return_an_i32_numeric, test_return_a_u64_numeric | Covered | IT NumericContractTests GenericIntegersExecuteInNativeAot |
 | test_return_a_f64_numeric | Covered | IT NumericTests NumericDomainsConversionsAndCleanupRemainOwned |
 | test_deserialize_numeric | Covered | IT ScalarJsonTests ScalarJsonNumbersAndNullsUseExactContracts, ScalarJsonFailuresPreservePathsAndBackend |
-| test_limits | Partial | Integer and float4 limits are covered; double ±Infinity and NaN through `FromDouble`/`ToDouble`, including PostgreSQL 13's rejection, are not |
-| test_bad_conversions | Partial | Narrowing overflow is covered (RT PgNumericTests GenericIntegerConversionsAreExactAndChecked); numeric 1.79e308 to float4 overflow is not |
+| test_limits | Added | Integer and float4 limits: RT PgNumericTests, IT NumericContractTests; double ±Infinity and NaN: IT NumericContractTests SpecialAndOverflowingConversionsMatchSql (identical to a SQL cast, including PostgreSQL 13's rejection of infinity) |
+| test_bad_conversions | Added | Narrowing overflow: RT PgNumericTests GenericIntegerConversionsAreExactAndChecked; numeric beyond single precision: IT NumericContractTests SpecialAndOverflowingConversionsMatchSql |
 | test_nan_ordering, test_ordering | Covered | RT PgNumericTests EqualityAndHashesIgnoreDisplayScale, OrderingMatchesNumericMagnitudeAndSpecialValues |
 | test_anynumeric_sum, test_option_anynumeric_sum | Covered | IT NumericContractTests GenericArithmeticPreservesScale; IT ArrayDatumTests ArraysPreserveBinaryValuesAcrossOwners |
 
@@ -77,7 +77,7 @@ gaps and partials are listed at the end, ranked by importance.
 | uuid: array slice, display, accept, return, parse | Covered | IT BorrowedArraySliceTests; IT ExtendedDatumTests UuidUsesNetworkByteOrder, ExtendedTypesSurviveEverySpiPath |
 | bytea: test_return_bytes, test_return_vec_bytes, test_return_vec_subvec, test_bytea_arg_length, test_bytea_roundtrip | Covered | IT DatumConversionTests ByteaPreservesAllBytes; IT BorrowedBufferStorageTests BorrowedBuffersMatchNativeStorageAndCleanup; IT BorrowedBufferTests BorrowedBufferScalarReturnsPreserveExactValues |
 | bytea: test_return_bytes_slice | Rust-specific | A borrowed sub-slice return depends on Rust lifetimes; .NET copies |
-| bytea: test_bytea_is_empty | Partial | Empty bytea round-trips; `PgByteaView.Count == 0` is not asserted |
+| bytea: test_bytea_is_empty | Added | IT BorrowedBufferTests BorrowedByteaLengthDistinguishesEmptyValues |
 | inet: all three | Covered | IT NetworkDatumTests NetworkJsonUsesAotMetadata, NetworkOwnershipPathsPreserveValues |
 | json: test_json, test_jsonb, test_json_arg, test_jsonb_arg | Covered | IT ExtendedDatumTests SourceGeneratedJsonContractsRunInsideNativeAot, ExtendedTypesSurviveEverySpiPath |
 
@@ -86,7 +86,7 @@ gaps and partials are listed at the end, ranked by importance.
 | pgrx test | Status | Ankus evidence |
 | --- | --- | --- |
 | point, box, circle, line, lseg, path and polygon datums | Covered | IT GeometryDatumTests GeometryOwnershipPathsPreserveBinaryValues, GeometryParsingMatchesPostgres, GeometryBoundsMatchPostgres; RT PgGeometryTests |
-| test_fn_call_path_datum, test_fn_call_polygon_datum | Gap | No `PgFunctions.Call` test passes or returns path or polygon values |
+| test_fn_call_path_datum, test_fn_call_polygon_datum | Added | IT FunctionCallTests GeometryArgumentsAndResultsCrossDirectCalls (`popen` and `polygon` with path arguments and results) |
 
 ## Ranges and function calls
 
@@ -217,8 +217,8 @@ gaps and partials are listed at the end, ranked by importance.
 | test_pg_try_throw_different_error, test_pg_try_finally_with_catch_rethrow, test_drop variants | Rust-specific | C# `try`, `catch`, `finally` and `using`; replacing a caught backend error keeps the original (IT UnrecoveredErrorTests) |
 | test_drop_with_panic_no_catch | Covered | IT BadIdeasExampleTests BadIdeasSampleConvertsManagedFailuresToErrors |
 | log levels, test_error, test_ereport, test_check_for_interrupts, test_panic | Covered | IT PgLogHelperTests SeverityHelpersUsePostgresRouting, ErrorHelpersPreserveDiagnosticsAndRecovery; IT PgLogTests; RT PgInterruptsTests; IT ErrorsExampleTests |
-| test_ereport_domain, test_ereport_domain_value | Gap | `PgDiagnostic` and `PgException` have no message-domain field |
-| test_debug_skips_arg_evaluation, test_warning_evaluates_args | Partial | `PgLog.IsEnabled` guards are tested at non-default thresholds; there is no lazily formatted logging API and defaults are not asserted |
+| test_ereport_domain, test_ereport_domain_value | Added | IT PgLogTests ErrorsCarryTheirMessageDomain: `PgDiagnostic.Domain` and `PgException.Domain` cross `errstart` and the captured ErrorData; backend errors report `postgres-<major>` |
+| test_debug_skips_arg_evaluation, test_warning_evaluates_args | Added | IT PgLogTests InterpolatedMessagesSkipDisabledLevels: `PgLog.Write(level, $"...")` evaluates nothing for DEBUG at default thresholds and evaluates WARNING |
 | result_tests: errors, custom codes, set results | Covered | IT ErrorsExampleTests; IT TryCatchExampleTests; IT SetReturningTests NestedSetFailuresRecoverInsideSpi, IteratorFailuresPreserveOwnershipAndRecover |
 | result_tests: test_proper_sql_errcode | Different | An exception becomes SQLSTATE 38000; pgrx maps `Err` to 22000 |
 | result_tests: Ok and Option wrappers | Rust-specific | Ordinary and nullable returns |
@@ -261,7 +261,7 @@ gaps and partials are listed at the end, ranked by importance.
 | schema tests | Covered | IT SchemasExampleTests; IT FunctionDeclarationTests; IT TypedArrayCallbackTests; GT SqlGenerationGeneratorTests; IT SqlGenerationTests; IT DeclarationSqlTests |
 | aggregate: sum, moving window, shared implementation, percentile, anyelement | Covered | IT AggregateTests; IT SharedTypedAggregateTests; IT AggregatePercentileSampleTests; IT PolymorphicAggregateTests |
 | aggregate: aggregate_demo_custom_state | Partial | Same-schema custom-type state and cross-schema composite state are covered; a custom type from another schema is not |
-| aggregate: aggregate_first_json, aggregate_first_jsonb | Gap | No aggregate with JSON or JSONB state is tested |
+| aggregate: aggregate_first_json, aggregate_first_jsonb | Added | IT AggregateTests JsonStatesKeepTheFirstValue (state type, strict, immutable and parallel-safe transition in the catalog) |
 | type_ident tests | Rust-specific | Compiler type identity; GT ManagedTypeIdentityTests, PgFunctionGeneratorTests, PgEnumGenerationTests |
 | pg_cast: explicit, assignment and implicit casts and catalog flags | Covered | IT OperatorCastTests |
 | pg_cast: assert_composite_cast_exists | Partial | Composite-to-composite casts are generated (GT PgCompositeGenerationTests) but not installed |
@@ -283,14 +283,9 @@ gaps and partials are listed at the end, ranked by importance.
 Ranked by importance. Deliberate differences are documented where users meet them.
 
 1. `System.Text.Rune` to `varchar`, matching Rust `char` (fcinfo and nine round-trip cases).
-2. A message domain on `PgDiagnostic` and `PgException` (`ereport` domain).
-3. JSON and JSONB aggregate states, with strict, immutable and parallel-safe options.
-4. Background-worker SPI after termination ends the wait loop.
-5. Lazily formatted logging that skips disabled levels, and `IsEnabled` at default thresholds.
-6. Composite VARIADIC and DEFAULT parameters executed in the backend; a composite-to-composite cast installed.
-7. `PgFunctions.Call` with path and polygon arguments and results.
-8. Numeric double ±Infinity and NaN conversions, including PostgreSQL 13, and numeric-to-float4 overflow.
-9. TOAST-stored values fed to set-returning functions; a 10,000-row composite set.
-10. A non-strict function with a nullable custom-text parameter executed on NULL; a `string? = null` default.
-11. Check hooks that throw during registration or LOAD; `SHOW ALL`; enum members without labels set by name.
-12. Smaller cases: empty `PgByteaView.Count`, the managed stack trace of a backend error, value-type `PgInternal` payloads, conversion-mismatch messages, raw array bitmaps, an over-size array, serialized `ulong` and date-list members, the installed signature matrix, seeded temporal round trips, the `itemptr_encode` binding in the backend, a whole-surface shadowing compile test, a test-only compile symbol and a parameter named like its function.
+2. Background-worker SPI after termination ends the wait loop.
+3. Composite VARIADIC and DEFAULT parameters executed in the backend; a composite-to-composite cast installed.
+4. TOAST-stored values fed to set-returning functions; a 10,000-row composite set.
+5. A non-strict function with a nullable custom-text parameter executed on NULL; a `string? = null` default.
+6. Check hooks that throw during registration or LOAD; `SHOW ALL`; enum members without labels set by name.
+7. Smaller cases: the managed stack trace of a backend error, value-type `PgInternal` payloads, conversion-mismatch messages, raw array bitmaps, an over-size array, serialized `ulong` and date-list members, the installed signature matrix, seeded temporal round trips, the `itemptr_encode` binding in the backend, a whole-surface shadowing compile test, a test-only compile symbol and a parameter named like its function.

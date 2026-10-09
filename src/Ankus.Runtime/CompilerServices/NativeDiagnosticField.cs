@@ -74,4 +74,9 @@ internal enum NativeDiagnosticField
     /// Contains the native backtrace.
     /// </summary>
     Backtrace,
+
+    /// <summary>
+    /// Contains the message domain recorded by errstart.
+    /// </summary>
+    Domain,
 }

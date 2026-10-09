@@ -165,6 +165,20 @@ public sealed class PgDiagnostic
     }
 
     /// <summary>
+    /// Gets the message domain PostgreSQL records for the report, as C's <c>ereport_domain</c> and pgrx's
+    /// <c>ereport_domain!</c> supply, or null for PostgreSQL's own domain.
+    /// </summary>
+    /// <remarks>
+    /// The domain names the gettext catalog for message translation. PostgreSQL stores it with the error, so callers
+    /// that catch the report read it back from <see cref="PgException.Domain"/>.
+    /// </remarks>
+    public string? Domain
+    {
+        get;
+        init;
+    }
+
+    /// <summary>
     /// Creates an ERROR exception preserving every diagnostic field, defaulting an unspecified SQLSTATE to XX000.
     /// </summary>
     /// <returns>The exception to unwind through managed code before native reporting.</returns>
@@ -183,5 +197,6 @@ public sealed class PgDiagnostic
         Line = Line,
         Routine = Routine,
         DetailLog = DetailLog,
+        Domain = Domain,
     };
 }

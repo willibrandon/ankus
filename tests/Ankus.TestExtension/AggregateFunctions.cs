@@ -110,6 +110,32 @@ public static class AggregateFunctions
     }
 
     /// <summary>
+    /// Keeps the first non-NULL json value through a strict, immutable, parallel-safe transition, as pgrx's FirstJson does.
+    /// </summary>
+    [PgAggregate(Name = "first_json", Requires = ["aggregate-support"])]
+    public sealed class FirstJson : IPgAggregate<PgJson, PgJson>
+    {
+        /// <summary>
+        /// Returns the state PostgreSQL seeded from the first non-NULL input.
+        /// </summary>
+        [PgFunction(Volatility = PgVolatility.Immutable, ParallelSafety = PgParallelSafety.Safe)]
+        public static PgJson Transition(PgAggregateContext context, PgJson state, PgJson value) => state;
+    }
+
+    /// <summary>
+    /// Keeps the first non-NULL jsonb value through a strict, immutable, parallel-safe transition, as pgrx's FirstJsonB does.
+    /// </summary>
+    [PgAggregate(Name = "first_jsonb", Requires = ["aggregate-support"])]
+    public sealed class FirstJsonb : IPgAggregate<PgJsonb, PgJsonb>
+    {
+        /// <summary>
+        /// Returns the state PostgreSQL seeded from the first non-NULL input.
+        /// </summary>
+        [PgFunction(Volatility = PgVolatility.Immutable, ParallelSafety = PgParallelSafety.Safe)]
+        public static PgJsonb Transition(PgAggregateContext context, PgJsonb state, PgJsonb value) => state;
+    }
+
+    /// <summary>
     /// Lets PostgreSQL seed strict state from the first nonnull input without invoking the transition.
     /// </summary>
     [PgAggregate(Name = "strict_sum", Requires = ["aggregate-support"])]

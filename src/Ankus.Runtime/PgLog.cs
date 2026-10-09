@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace Ankus;
 
 /// <summary>
@@ -22,6 +24,21 @@ public static partial class PgLog
     /// <param name="level">The reporting severity.</param>
     /// <param name="message">The primary message.</param>
     public static void Write(PgLogLevel level, string message) => Write(level, new PgDiagnostic(message));
+
+    /// <summary>
+    /// Reports an interpolated message, evaluating and formatting its expressions only when PostgreSQL would report
+    /// the level, as pgrx's logging macros do. ERROR throws PgException; FATAL and PANIC unwind to the generated native
+    /// boundary before reporting.
+    /// </summary>
+    /// <param name="level">The reporting severity.</param>
+    /// <param name="message">The interpolated primary message.</param>
+    public static void Write(PgLogLevel level, [InterpolatedStringHandlerArgument(nameof(level))] ref PgLogInterpolatedStringHandler message)
+    {
+        if (message.IsEnabled)
+        {
+            Write(level, message.ToStringAndClear());
+        }
+    }
 
     /// <summary>
     /// Reports structured diagnostics using PostgreSQL's filtering and routing rules.

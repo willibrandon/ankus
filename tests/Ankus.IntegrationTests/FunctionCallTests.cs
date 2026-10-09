@@ -176,6 +176,18 @@ public sealed class FunctionCallTests(TestContext context)
     }
 
     /// <summary>
+    /// Variable-length geometry arguments and results cross direct calls intact.
+    /// </summary>
+    [TestMethod]
+    public async Task GeometryArgumentsAndResultsCrossDirectCalls()
+    {
+        CancellationToken token = context.CancellationToken;
+        await using NpgsqlConnection connection = await PostgresFixture.Cluster.OpenConnectionAsync(token);
+        Assert.AreEqual("[(1,2),(3,4),(5,0)]|False|((1,2),(3,4),(5,0))|(5,4),(1,0)",
+            await ScalarAsync<string>(connection, "SELECT datatype.call_geometry()", token));
+    }
+
+    /// <summary>
     /// Omitting only trailing defaulted arguments fills them, as pgrx's unspecified-default calls do; a STRICT function
     /// whose omitted argument defaults to NULL returns NULL without running; omitting a required argument fails.
     /// </summary>

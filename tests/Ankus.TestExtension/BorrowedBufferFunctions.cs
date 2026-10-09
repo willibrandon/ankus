@@ -17,6 +17,14 @@ public static partial class BorrowedBufferFunctions
     public static PgByteaView? ByteaIdentity(PgByteaView? value) => value;
 
     /// <summary>
+    /// Reports a borrowed bytea's length and emptiness, as pgrx's <c>is_empty</c> test does.
+    /// </summary>
+    /// <param name="value">The borrowed bytes.</param>
+    /// <returns>The byte count and whether it is zero.</returns>
+    [PgFunction]
+    public static string ByteaLength(PgByteaView value) => $"{value.Count}|{value.Count == 0}";
+
+    /// <summary>
     /// Returns original server-encoded text before its callback lease expires.
     /// </summary>
     /// <param name="value">The text or SQL NULL.</param>

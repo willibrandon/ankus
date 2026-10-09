@@ -782,7 +782,7 @@ internal static class NativeGucBridge
                 data->message, data->detail, data->hint, data->context,
                 data->schema_name, data->table_name, data->column_name, data->datatype_name,
                 data->constraint_name, data->internalquery, data->filename, data->funcname,
-                data->detail_log, data->backtrace
+                data->detail_log, data->backtrace, data->domain
             };
             error->sqlstate = data->sqlerrcode;
             error->position = data->cursorpos;

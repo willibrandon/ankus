@@ -109,6 +109,46 @@ public static class PgLogFunctions
     }
 
     /// <summary>
+    /// Raises an ERROR with its own message domain, as pgrx's <c>ereport_domain!</c> test does.
+    /// </summary>
+    [PgFunction]
+    public static void RaiseDomain()
+        => throw new PgException(PgSqlStates.InternalError, "ereport error") { Domain = "test_extension_domain" };
+
+    /// <summary>
+    /// Catches errors reported through PostgreSQL and returns the message domain recorded in their ErrorData.
+    /// </summary>
+    /// <param name="sql">The statement that fails.</param>
+    /// <returns>The SQLSTATE, message and domain.</returns>
+    [PgFunction]
+    public static string CatchDomain(string sql)
+    {
+        try
+        {
+            Spi.Execute(sql);
+        }
+        catch (PgException error)
+        {
+            return $"{error.SqlState}|{error.Message}|{error.Domain}";
+        }
+
+        return "no error";
+    }
+
+    /// <summary>
+    /// Logs an interpolated message whose expression counts its evaluations, as pgrx's argument-evaluation tests do.
+    /// </summary>
+    /// <param name="level">The managed severity.</param>
+    /// <returns>How many times the interpolated expression was evaluated.</returns>
+    [PgFunction]
+    public static int LogLazy(int level)
+    {
+        int evaluations = 0;
+        PgLog.Write((PgLogLevel)level, $"lazy {++evaluations}");
+        return evaluations;
+    }
+
+    /// <summary>
     /// Tests active server and client reporting thresholds.
     /// </summary>
     /// <param name="level">The managed severity.</param>

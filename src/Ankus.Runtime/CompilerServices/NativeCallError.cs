@@ -79,6 +79,7 @@ public unsafe struct NativeCallError
                 Routine = Read(NativeDiagnosticField.Routine),
                 DetailLog = Read(NativeDiagnosticField.DetailLog),
                 Backtrace = Read(NativeDiagnosticField.Backtrace),
+                Domain = Read(NativeDiagnosticField.Domain),
                 Position = _position,
                 InternalPosition = _internalPosition,
                 Line = _line,

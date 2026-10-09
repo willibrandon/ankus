@@ -47,12 +47,21 @@ diagnostics.
 PostgreSQL applies `client_min_messages` and `log_min_messages` separately. In the
 server log, `Log` ranks above `Error`; it is not an ordinary numeric threshold.
 
-Check the current settings before doing expensive formatting:
+`PgLog.Write` formats an interpolated message only when PostgreSQL would report
+its level, as pgrx's logging macros do. At PostgreSQL's default thresholds the
+call below evaluates nothing, so `Summarize` never runs:
+
+```csharp
+PgLog.Write(PgLogLevel.Debug1, $"Prepared {items.Count} items: {Summarize(items)}.");
+```
+
+The named helpers such as `PgLog.Debug1` take finished text. Check the current
+settings before building a message for them, or for a `PgDiagnostic`:
 
 ```csharp
 if (PgLog.IsEnabled(PgLogLevel.Debug1))
 {
-    PgLog.Debug1($"Prepared {items.Count} items.");
+    PgLog.Debug1(new PgDiagnostic($"Prepared {items.Count} items.") { Detail = Describe(items) });
 }
 ```
 
@@ -73,6 +82,12 @@ PgLog.Warning(new PgDiagnostic("Entry has expired.")
 `PgDiagnostic` also accepts context, object names, query positions, and source
 locations. `DetailLog` replaces `Detail` in the server log and is never sent to
 the client. Messages retain their full text across the native boundary.
+
+`Domain` sets the message domain, as C's `ereport_domain` and pgrx's
+`ereport_domain!` do. PostgreSQL uses it to look up translations and records it
+with the error, so code that catches the error reads it from
+`PgException.Domain`. Errors that PostgreSQL itself raises carry its own
+`postgres-` domain, such as `postgres-18`.
 
 Without an explicit SQLSTATE, warnings use `01000`, errors use `XX000`, and lower
 levels use `00000`. An explicit code has five uppercase ASCII letters or digits;

@@ -504,6 +504,28 @@ Messages below ERROR defer PostgreSQL interrupts while the native reporter emits
 Call [Check()](/api/ankus.pginterrupts/#member-7f3f063d086acd2d) periodically in loops that otherwise only report messages.
 Reporting failures still follow the ordinary native error recovery contract.
 
+<a id="member-84584bda80a9f906"></a>
+
+### Write(PgLogLevel, ref PgLogInterpolatedStringHandler)
+
+Reports an interpolated message, evaluating and formatting its expressions only when PostgreSQL would report
+the level, as pgrx's logging macros do. ERROR throws PgException; FATAL and PANIC unwind to the generated native
+boundary before reporting.
+
+```csharp
+public static void Write(PgLogLevel level, ref PgLogInterpolatedStringHandler message)
+```
+
+Parameters:
+
+`level` — [PgLogLevel](/api/ankus.pgloglevel/)
+
+The reporting severity.
+
+`message` — [PgLogInterpolatedStringHandler](/api/ankus.pgloginterpolatedstringhandler/)
+
+The interpolated primary message.
+
 <a id="member-65010fad7dc347e4"></a>
 
 ### Write(PgLogLevel, string)

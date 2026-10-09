@@ -321,4 +321,52 @@ public sealed class NumericContractTests(TestContext context)
         Assert.AreEqual(backend, reader.GetInt32(1));
         Assert.IsFalse(await reader.ReadAsync(token));
     }
+
+    /// <summary>
+    /// Double infinities and NaN convert to numeric exactly as a SQL cast does, including PostgreSQL 13's rejection of
+    /// infinity, and numeric values beyond single precision overflow exactly as a SQL cast to real does.
+    /// </summary>
+    /// <param name="managed">The managed conversion.</param>
+    /// <param name="native">The equivalent SQL cast.</param>
+    [TestMethod]
+    [DataRow("datatype.numeric_from_double('Infinity'::float8)::text", "('Infinity'::float8)::numeric::text")]
+    [DataRow("datatype.numeric_from_double('-Infinity'::float8)::text", "('-Infinity'::float8)::numeric::text")]
+    [DataRow("datatype.numeric_from_double('NaN'::float8)::text", "('NaN'::float8)::numeric::text")]
+    [DataRow("datatype.numeric_primitive_cast(1e308::numeric, 'float4')", "(1e308::numeric)::float4::text")]
+    [DataRow("datatype.numeric_primitive_cast(-1e308::numeric, 'float4')", "(-1e308::numeric)::float4::text")]
+    public async Task SpecialAndOverflowingConversionsMatchSql(string managed, string native)
+    {
+        CancellationToken token = context.CancellationToken;
+        await using NpgsqlConnection connection = await PostgresFixture.Cluster.OpenConnectionAsync(token);
+        (object? nativeValue, PostgresException? nativeError) = await TryScalarAsync(connection, native, token);
+        (object? managedValue, PostgresException? managedError) = await TryScalarAsync(connection, managed, token);
+        if (nativeError is null)
+        {
+            Assert.IsNull(managedError);
+            Assert.AreEqual(nativeValue, managedValue);
+        }
+        else
+        {
+            Assert.IsNotNull(managedError);
+            Assert.AreEqual(nativeError.SqlState, managedError.SqlState, managedError.MessageText);
+            Assert.AreEqual(nativeError.MessageText, managedError.MessageText);
+        }
+
+        await using var health = new NpgsqlCommand("SELECT 1", connection);
+        Assert.AreEqual(1, await health.ExecuteScalarAsync(token));
+    }
+
+    private static async Task<(object? Value, PostgresException? Error)> TryScalarAsync(NpgsqlConnection connection, string sql,
+        CancellationToken token)
+    {
+        await using var command = new NpgsqlCommand("SELECT " + sql, connection);
+        try
+        {
+            return (await command.ExecuteScalarAsync(token), null);
+        }
+        catch (PostgresException error)
+        {
+            return (null, error);
+        }
+    }
 }

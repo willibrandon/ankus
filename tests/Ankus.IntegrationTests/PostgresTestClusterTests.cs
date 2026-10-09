@@ -180,6 +180,29 @@ public sealed class PostgresTestClusterTests(TestContext context)
     }
 
     /// <summary>
+    /// The socket directory stays in the temporary directory while PostgreSQL's longest socket path fits Linux's 107-byte
+    /// limit, measured in UTF-8 bytes, and otherwise moves to <c>/tmp</c>, as it always does on macOS and for another account.
+    /// </summary>
+    /// <param name="nameLength">The characters in the temporary directory's single name, between two separators.</param>
+    /// <param name="multibyte">Whether the name uses two-byte UTF-8 characters.</param>
+    /// <param name="otherAccount">Whether another account runs the server.</param>
+    /// <param name="macOS">Whether the platform is macOS.</param>
+    /// <param name="keepsTemporary">Whether the temporary directory is selected.</param>
+    [TestMethod]
+    [DataRow(3, false, false, false, true)]
+    [DataRow(55, false, false, false, true)]
+    [DataRow(56, false, false, false, false)]
+    [DataRow(27, true, false, false, true)]
+    [DataRow(28, true, false, false, false)]
+    [DataRow(3, false, true, false, false)]
+    [DataRow(3, false, false, true, false)]
+    public void SocketRootFitsThePlatformLimit(int nameLength, bool multibyte, bool otherAccount, bool macOS, bool keepsTemporary)
+    {
+        string temporary = "/" + new string(multibyte ? 'é' : 'a', nameLength) + "/";
+        Assert.AreEqual(keepsTemporary ? temporary : "/tmp", PostgresTestCluster.SelectSocketRoot(temporary, otherAccount, macOS));
+    }
+
+    /// <summary>
     /// Verifies multiple clusters in one process have independent ports and data, and disposal stops only the owned server.
     /// </summary>
     [TestMethod]

@@ -33,6 +33,17 @@ public sealed partial class BorrowedBufferTests(TestContext context)
     }
 
     /// <summary>
+    /// A borrowed bytea reports zero bytes for an empty value and its exact length otherwise.
+    /// </summary>
+    [TestMethod]
+    public async Task BorrowedByteaLengthDistinguishesEmptyValues()
+    {
+        await using NpgsqlConnection connection = await PostgresFixture.Cluster.OpenConnectionAsync(context.CancellationToken);
+        Assert.AreEqual("0|True", await Scalar<string>(connection, "SELECT borrowed_buffers.bytea_length(''::bytea)"));
+        Assert.AreEqual("1|False", await Scalar<string>(connection, "SELECT borrowed_buffers.bytea_length('x'::bytea)"));
+    }
+
+    /// <summary>
     /// UTF-8 length measures native bytes and exact conversion never trims or replaces Unicode text.
     /// </summary>
     [TestMethod]

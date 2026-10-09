@@ -130,6 +130,36 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
 
 ## Active validation and work
 
+- Three pgrx capabilities are added. `PgDiagnostic.Domain` and `PgException.Domain`
+  carry the message domain of C's `ereport_domain` and pgrx's `ereport_domain!`:
+  the native report passes it to `errstart`, and captured ErrorData returns it,
+  so a caught error reports `test_extension_domain` after crossing PostgreSQL and
+  backend errors report `postgres-<major>`. `PgLog.Write(level, $"...")` uses a new
+  interpolated-string handler that evaluates nothing when PostgreSQL would not
+  report the level, as pgrx's logging macros skip their arguments; at default
+  thresholds DEBUG is skipped and WARNING evaluated. JSON and JSONB aggregate
+  states run with strict, immutable, parallel-safe transitions. Direct calls pass
+  and return path and polygon values, a borrowed empty bytea reports zero bytes,
+  and double infinities, NaN and numeric-to-real overflow match SQL casts exactly,
+  including PostgreSQL 13's rejection of numeric infinity. The pgrx mapping's
+  remaining gaps are `Rune` to `varchar`, background-worker SPI after termination,
+  composite VARIADIC/DEFAULT execution and a few smaller cases.
+- The dedicated Intel macOS runner passes its complete suite on **a3e39c8**
+  ([additional platforms 37892336665](https://github.com/willibrandon/ankus/actions/runs/37892336665), **1h15m**).
+  The Linux version matrix on the same revision
+  ([37892281684](https://github.com/willibrandon/ankus/actions/runs/37892281684))
+  passes PostgreSQL 14 and 15. PostgreSQL 16, 17 and 19 fail the same 32
+  consumer-fixture cases on newly added runners whose work directories are long:
+  without an `ankus test` session, a fixture placed its Unix socket under `TMPDIR`
+  and exceeded PostgreSQL's 107-byte socket path. The socket directory now stays
+  under `TMPDIR` only while the longest socket path fits and otherwise uses `/tmp`,
+  as PostgreSQL's own test clusters do; direct tests cover the byte boundary,
+  including multibyte names. PostgreSQL 13's job stopped when its runner service
+  received a shutdown signal. The matrix is to be rerun with the fix.
+- Complete Windows x64 suites on **0edd7e6** pass PostgreSQL 17.11 and 18.6
+  concurrently at package concurrency 20 (**14,236** total each; **14,194** passed;
+  42 skips; zero failures; **26m**), confirming the PostgreSQL 18 staging fix.
+
 - Every test case in pgrx's `pgrx-unit-tests/src/tests/` (539 cases, 63 files)
   is now mapped to a named Ankus test, a deliberate difference or a Rust-specific
   reason in the [pgrx unit-test mapping](docs/contributing/evidence/pgrx-test-mapping.md).

@@ -32,6 +32,28 @@ public sealed partial class AggregateTests(TestContext context)
         });
 
     /// <summary>
+    /// JSON and JSONB states keep the first non-NULL value through strict, immutable, parallel-safe transitions,
+    /// as pgrx's FirstJson and FirstJsonB aggregates do.
+    /// </summary>
+    /// <param name="type">The SQL JSON type.</param>
+    /// <param name="first">The first value's text as the type outputs it.</param>
+    [TestMethod]
+    [DataRow("json", "{\"foo\":\"one\"}")]
+    [DataRow("jsonb", "{\"foo\": \"one\"}")]
+    public Task JsonStatesKeepTheFirstValue(string type, string first)
+        => Run(nameof(JsonStatesKeepTheFirstValue), async (connection, transaction, token) =>
+        {
+            Assert.AreEqual(first, await Scalar<string>(connection, transaction,
+                $"SELECT aggregate_values.first_{type}(v)::text FROM unnest(ARRAY[NULL, '{{\"foo\":\"one\"}}'::{type}, '{{\"foo\":\"two\"}}']) AS v",
+                token));
+            Assert.AreEqual($"{type}|t|i|s", await Scalar<string>(connection, transaction, $"""
+                SELECT concat_ws('|', aggregate.aggtranstype::regtype, transition.proisstrict, transition.provolatile, transition.proparallel)
+                FROM pg_aggregate aggregate JOIN pg_proc transition ON transition.oid = aggregate.aggtransfn
+                WHERE aggregate.aggfnoid = 'aggregate_values.first_{type}({type})'::regprocedure
+                """, token));
+        });
+
+    /// <summary>
     /// Strict transition dispatch seeds state once and skips rows containing any NULL input.
     /// </summary>
     [TestMethod]

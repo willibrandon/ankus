@@ -110,6 +110,21 @@ public static class FunctionCallFunctions
     }
 
     /// <summary>
+    /// Passes and returns variable-length geometry through direct calls, as pgrx's path and polygon call tests do.
+    /// </summary>
+    /// <returns>The opened path and the polygon built from the closed path, with its bounding box.</returns>
+    [PgFunction]
+    public static string CallGeometry()
+    {
+        var closed = new PgPath([new PgPoint(1, 2), new PgPoint(3, 4), new PgPoint(5, 0)], isClosed: true);
+        PgPath opened = PgFunctions.Call<PgPath>("pg_catalog.popen", PgFunctionArgument.Create(closed));
+        PgPolygon polygon = PgFunctions.Call<PgPolygon>("pg_catalog.polygon", PgFunctionArgument.Create(closed));
+        return $"{opened}|{opened.IsClosed}|{polygon}|{polygon.BoundingBox}";
+    }
+
+    /// <summary>
+    /// Calls text functions with an optional explicit collation.
+    /// </summary>    /// <summary>
     /// Calls text functions with an optional explicit collation.
     /// </summary>
     /// <param name="name">The function identifier.</param>

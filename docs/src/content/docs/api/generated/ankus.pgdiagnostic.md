@@ -110,6 +110,22 @@ public string? DetailLog { get; init; }
 
 Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
 
+<a id="member-f3ebf047d9ef0e2f"></a>
+
+### Domain
+
+Gets the message domain PostgreSQL records for the report, as C's <code>ereport_domain</code> and pgrx's
+<code>ereport_domain!</code> supply, or null for PostgreSQL's own domain.
+
+```csharp
+public string? Domain { get; init; }
+```
+
+Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The domain names the gettext catalog for message translation. PostgreSQL stores it with the error, so callers
+that catch the report read it back from [Domain](/api/ankus.pgexception/#member-b604ed01387ff6eb).
+
 <a id="member-fe5f27d4d5188019"></a>
 
 ### File

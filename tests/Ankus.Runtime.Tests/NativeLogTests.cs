@@ -281,19 +281,21 @@ public sealed partial class NativeLogTests
             File = "source.cs",
             Routine = "Report",
             DetailLog = "server only",
+            Domain = "test_extension_domain",
             Position = 7,
             InternalPosition = 11,
             Line = 19,
         };
         PgLog.Write(PgLogLevel.Warning, diagnostic);
         Assert.AreSequenceEqual<string?>(
-            [message, "detail é", "", "context", "schema", "table", "column", "type", "constraint", "SELECT '🐘'", "source.cs", "Report", "server only", null],
+            [message, "detail é", "", "context", "schema", "table", "column", "type", "constraint", "SELECT '🐘'", "source.cs", "Report", "server only", null,
+                "test_extension_domain"],
             fixture.Fields);
         Assert.AreEqual(50_856_066, fixture.SqlState);
         Assert.AreEqual(7, fixture.Position);
         Assert.AreEqual(11, fixture.InternalPosition);
         Assert.AreEqual(19, fixture.Line);
-        Assert.AreEqual(13, fixture.ReportReleases);
+        Assert.AreEqual(14, fixture.ReportReleases);
         Assert.HasCount(restricted ? 2 : 0, fixture.Calls);
         Assert.HasCount(restricted ? 0 : 2, fixture.BackendOperations);
         GC.Collect();

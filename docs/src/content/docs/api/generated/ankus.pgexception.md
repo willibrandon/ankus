@@ -198,6 +198,19 @@ public bool DiagnosticsIncomplete { get; }
 
 Value: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
 
+<a id="member-b604ed01387ff6eb"></a>
+
+### Domain
+
+Gets the message domain PostgreSQL recorded for this error, such as an extension's own domain or PostgreSQL's
+<code>postgres-</code> domain, or null when it has not been reported.
+
+```csharp
+public string? Domain { get; init; }
+```
+
+Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
 <a id="member-cbc226c23081a9fb"></a>
 
 ### File

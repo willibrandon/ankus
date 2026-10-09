@@ -225,6 +225,7 @@ Assembly: `Ankus.Runtime.dll`
 - [PgJsonb](/api/ankus.pgjsonb/)
 - [PgLine](/api/ankus.pgline/)
 - [PgLineSegment](/api/ankus.pglinesegment/)
+- [PgLogInterpolatedStringHandler](/api/ankus.pgloginterpolatedstringhandler/)
 - [PgNumeric](/api/ankus.pgnumeric/)
 - [PgOid](/api/ankus.pgoid/)
 - [PgPoint](/api/ankus.pgpoint/)

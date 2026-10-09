@@ -195,6 +195,16 @@ public sealed class PgException : Exception
     }
 
     /// <summary>
+    /// Gets the message domain PostgreSQL recorded for this error, such as an extension's own domain or PostgreSQL's
+    /// <c>postgres-</c> domain, or null when it has not been reported.
+    /// </summary>
+    public string? Domain
+    {
+        get;
+        init;
+    }
+
+    /// <summary>
     /// Gets whether allocating or encoding diagnostic transport failed, leaving only partially copied diagnostics.
     /// </summary>
     public bool DiagnosticsIncomplete => (NativeFlags & NativeErrorFlags.Incomplete) != 0;
