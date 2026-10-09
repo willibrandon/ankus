@@ -235,21 +235,31 @@ public sealed partial class ToolCommandTests
             // Without --group-name, the group is named for the time and the project's commit. The run also records
             // the branch, describe output and whether tracked files have uncommitted changes.
             var git = new Dictionary<string, string?>(s_environment) { ["GITHUB_SHA"] = null };
-            string[] identity = ["-c", "user.name=Ankus", "-c", "user.email=ankus@example.invalid", "-c", "commit.gpgsign=false"];
-            await File.WriteAllTextAsync(Path.Combine(benchmarkDirectory, "notes.txt"), "first", token);
-            (await PackageProcessRunner.RunAsync("git", ["init", "-q", "-b", "main"], git, token, workingDirectory: benchmarkDirectory))
-                .EnsureSuccess("git", ["init"]);
-            (await PackageProcessRunner.RunAsync("git", ["add", "notes.txt"], git, token, workingDirectory: benchmarkDirectory))
-                .EnsureSuccess("git", ["add"]);
-            (await PackageProcessRunner.RunAsync("git", [.. identity, "commit", "-q", "--no-verify", "-m", "Benchmark history"], git, token,
-                workingDirectory: benchmarkDirectory)).EnsureSuccess("git", ["commit"]);
-            ProcessResult head = await PackageProcessRunner.RunAsync("git", ["rev-parse", "HEAD"], git, token, workingDirectory: benchmarkDirectory);
-            head.EnsureSuccess("git", ["rev-parse"]);
-            string commit = head.StandardOutput.Trim();
-            await File.WriteAllTextAsync(Path.Combine(benchmarkDirectory, "notes.txt"), "changed", token);
-            ProcessResult tunedRun = await PackageProcessRunner.RunAsync(s_tool,
-                ["bench", "SuccessAddNumeric", .. options, "--no-build", "--postgresql-conf", "random_page_cost=1.5"],
-                git, token, workingDirectory: s_root);
+            string commit;
+            ProcessResult tunedRun;
+            try
+            {
+                string[] identity = ["-c", "user.name=Ankus", "-c", "user.email=ankus@example.invalid", "-c", "commit.gpgsign=false"];
+                await File.WriteAllTextAsync(Path.Combine(benchmarkDirectory, "notes.txt"), "first", token);
+                (await PackageProcessRunner.RunAsync("git", ["init", "-q", "-b", "main"], git, token, workingDirectory: benchmarkDirectory))
+                    .EnsureSuccess("git", ["init"]);
+                (await PackageProcessRunner.RunAsync("git", ["add", "notes.txt"], git, token, workingDirectory: benchmarkDirectory))
+                    .EnsureSuccess("git", ["add"]);
+                (await PackageProcessRunner.RunAsync("git", [.. identity, "commit", "-q", "--no-verify", "-m", "Benchmark history"], git, token,
+                    workingDirectory: benchmarkDirectory)).EnsureSuccess("git", ["commit"]);
+                ProcessResult head = await PackageProcessRunner.RunAsync("git", ["rev-parse", "HEAD"], git, token, workingDirectory: benchmarkDirectory);
+                head.EnsureSuccess("git", ["rev-parse"]);
+                commit = head.StandardOutput.Trim();
+                await File.WriteAllTextAsync(Path.Combine(benchmarkDirectory, "notes.txt"), "changed", token);
+                tunedRun = await PackageProcessRunner.RunAsync(s_tool,
+                    ["bench", "SuccessAddNumeric", .. options, "--no-build", "--postgresql-conf", "random_page_cost=1.5"],
+                    git, token, workingDirectory: s_root);
+            }
+            finally
+            {
+                DeleteGitDirectory(benchmarkDirectory);
+            }
+
             Assert.AreEqual(0, tunedRun.ExitCode, tunedRun.StandardOutput + tunedRun.StandardError);
             Assert.Contains("   Compared comparison" + Environment.NewLine, tunedRun.StandardOutput);
             Match named = DefaultBenchmarkGroup().Match(tunedRun.StandardOutput);
@@ -354,6 +364,25 @@ public sealed partial class ToolCommandTests
         {
             await cluster.StopAsync(CancellationToken.None);
         }
+    }
+
+    /// <summary>
+    /// Removes a test's Git repository, whose object files Git marks read-only, which Windows will not delete.
+    /// </summary>
+    private static void DeleteGitDirectory(string workTree)
+    {
+        string repository = Path.Combine(workTree, ".git");
+        if (!Directory.Exists(repository))
+        {
+            return;
+        }
+
+        foreach (string file in Directory.EnumerateFiles(repository, "*", SearchOption.AllDirectories))
+        {
+            File.SetAttributes(file, FileAttributes.Normal);
+        }
+
+        Directory.Delete(repository, recursive: true);
     }
 
     [GeneratedRegex(@"Bench group (\d{8}_\d{6}_(?<commit>[0-9a-f]{7}))\r?\n", RegexOptions.CultureInvariant)]
