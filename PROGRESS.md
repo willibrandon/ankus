@@ -81,7 +81,7 @@ defines the full scope; family-level implementation is not API-by-API completion
 | .NET templates | Version-matched ordinary extension and worker templates reuse the CLI assets and pin local tools. Optional xUnit/NUnit consumers exercise managed and named backend cases, ignore reasons, worker processes and cleanup alongside default MSTest consumers. Complete primary-platform CI passes. | Remaining discovery contracts and complete version/platform acceptance. |
 | API discoverability | Idiomatic attributed declarations, documented runtime APIs, named logging helpers and typed SPI interpolation. Compiler transport helpers are isolated in Ankus.CompilerServices and hidden from IntelliSense; complete primary-platform CI passes. | Remaining value/assertion helpers and final inventory audit. |
 | Packages and release | MIT license, Brandon Williams copyright, author/repository/project metadata and deliberate SDK/runtime boundaries. | Full release gates and supported-platform packages before publishing 0.1.0. |
-| Documentation and samples | Public guides, generated API pages, pgrx migration and backend-execution guidance; current status separated from historical evidence. Twenty-seven of pgrx's 37 examples map to runnable samples with backend integration tests; the docs list the ten that remain. | The remaining pgrx examples (`notify`, `rewrite_manip`, `pglz_inspect`, `wal_decoder`, `postgres_type_variants`, custom and versioned library names, `bad_ideas`, `nostd`) and final usage/limitation review. |
+| Documentation and samples | Public guides, generated API pages, pgrx migration and backend-execution guidance; current status separated from historical evidence. All 37 of pgrx's examples map to runnable samples with backend integration tests. | Final usage/limitation review across samples and guides. |
 
 The custom-type alignment review found no defect: variable-length PostgreSQL
 types require at least four-byte datum alignment. Managed codec payload layout
@@ -130,6 +130,22 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
 
 ## Active validation and work
 
+- Every pgrx example now has an Ankus counterpart. `notify`, `rewrite_manip`,
+  `pglz_inspect` (all 24 pgrx tests in the backend) and `wal_decoder` are ported,
+  the last through a new `[PgOutputPlugin]` attribute. It exports
+  `_PG_output_plugin_init` beneath the native callback guard, and diagnostics
+  ANKUS515–526 cover invalid declarations. PostgreSQL 14.24, 15.19, 16.15, 17.11,
+  18.6 and 19 load only output plugins listed in `output_plugin_libraries`, even
+  for superusers; the guide and sample say so. `custom_libname`, `versioned_so`
+  and `versioned_custom_libname_so` use new SDK properties. `AnkusLibraryName`
+  renames only the native library, like Cargo's `[lib] name`, and
+  `AnkusVersionedLibrary` installs `<name>-<version>` libraries side by side as
+  cargo-pgrx's versioned shared-object mode does; `ALTER EXTENSION UPDATE` moves
+  between them in both directions. `postgres_type_variants` maps all five type
+  variants. `bad_ideas` demonstrates how Ankus contains each one, and `nostd`
+  maps to a minimal-runtime sample. Agents reported, on Linux/PostgreSQL 18.6:
+  68 native-sample integration cases, 18 SDK-sample cases, 4,735 generator, 2,348
+  runtime, 1,285 build and 483 PgConfig cases passing. INTEGRATION_EVIDENCE
 - Explicit scopes can now opt out of per-statement recovery, the remaining SPI
   cost difference from pgrx. `PgTransaction.RunInSubtransaction(action,
   PgSubtransactionMode.Atomic)` runs its statements directly in the scope's single
