@@ -121,6 +121,10 @@ even.
 
 ## Deliberate differences
 
+- PostgreSQL 13 does not mark `PGLZ_strategy_default` and `PGLZ_strategy_always`
+  as `PGDLLIMPORT`, so an extension cannot import them on Windows. On PostgreSQL
+  13 the sample builds both strategies from the values in PostgreSQL 13's
+  `pg_lzcompress.c`; PostgreSQL 14 and later use the server's own globals.
 - pgrx reads non-`bytea` columns with `col::text::bytea`, which parses the text
   as `bytea` input. Text containing backslashes, such as Windows paths or JSON
   escapes, then fails with `invalid input syntax for type bytea` or is measured

@@ -47,12 +47,32 @@ public static class Pglz
         int result;
         unsafe
         {
+#if ANKUS_PG13
+            // PostgreSQL 13 does not mark these globals PGDLLIMPORT, so a Windows extension cannot import them.
+            // These are PostgreSQL 13's own definitions from pg_lzcompress.c.
+            PGLZ_Strategy local = strategy switch
+            {
+                PglzStrategy.Default => new PGLZ_Strategy
+                {
+                    min_input_size = 32, max_input_size = int.MaxValue, min_comp_rate = 25, first_success_by = 1024,
+                    match_size_good = 128, match_size_drop = 10,
+                },
+                PglzStrategy.Always => new PGLZ_Strategy
+                {
+                    min_input_size = 0, max_input_size = int.MaxValue, min_comp_rate = 0, first_success_by = int.MaxValue,
+                    match_size_good = 128, match_size_drop = 6,
+                },
+                _ => throw new ArgumentOutOfRangeException(nameof(strategy), strategy, "Unknown PGLZ strategy."),
+            };
+            PGLZ_Strategy* native = &local;
+#else
             PGLZ_Strategy* native = strategy switch
             {
                 PglzStrategy.Default => NativeGlobals.PGLZ_strategy_default,
                 PglzStrategy.Always => NativeGlobals.PGLZ_strategy_always,
                 _ => throw new ArgumentOutOfRangeException(nameof(strategy), strategy, "Unknown PGLZ strategy."),
             };
+#endif
             fixed (byte* input = source)
             fixed (byte* output = destination)
             {
