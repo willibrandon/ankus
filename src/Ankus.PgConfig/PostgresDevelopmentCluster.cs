@@ -94,6 +94,7 @@ public sealed partial class PostgresDevelopmentCluster
             }
         }
 
+        string? suppressions = null;
         if (useValgrind)
         {
             try
@@ -104,6 +105,8 @@ public sealed partial class PostgresDevelopmentCluster
             {
                 throw new InvalidOperationException("Install Valgrind and make its executable available on PATH before using Valgrind startup.", error);
             }
+
+            suppressions = await _installation.GetValgrindSuppressionsPathAsync(cancellationToken).ConfigureAwait(false);
         }
 
         if (!Path.Exists(DataDirectory))
@@ -135,10 +138,7 @@ public sealed partial class PostgresDevelopmentCluster
             {
                 // pg_ctl inserts -D before -o arguments. Supply PGDATA instead so Valgrind
                 // receives its own options before the shell-quoted PostgreSQL executable.
-                string executable = "'" + Path.Combine(_installation.BinDirectory, "postgres").Replace("'", "'\"'\"'", StringComparison.Ordinal) + "'";
-                arguments = [.. arguments, "-p", "valgrind", "-o",
-                    "--tool=memcheck --leak-check=no --time-stamp=yes " +
-                    "--error-markers=VALGRINDERROR-BEGIN,VALGRINDERROR-END --trace-children=yes " + executable];
+                arguments = [.. arguments, "-p", "valgrind", "-o", ValgrindArguments(_installation, suppressions)];
                 environment = new Dictionary<string, string?> { ["PGDATA"] = DataDirectory };
                 if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DOTNET_GCRegionRange")))
                 {
@@ -337,6 +337,24 @@ public sealed partial class PostgresDevelopmentCluster
 
         return identity;
     }
+
+    /// <summary>
+    /// Formats Memcheck's options and the shell-quoted server executable for <c>pg_ctl -o</c>, with pgrx's options and
+    /// PostgreSQL's suppressions when the installation provides them.
+    /// </summary>
+    /// <param name="installation">The installation whose server runs under Memcheck.</param>
+    /// <param name="suppressions">PostgreSQL's suppressions file, or null.</param>
+    /// <returns>The options string.</returns>
+    private static string ValgrindArguments(PostgresInstallation installation, string? suppressions)
+        => "--tool=memcheck --leak-check=no --gen-suppressions=all --time-stamp=yes " +
+            "--error-markers=VALGRINDERROR-BEGIN,VALGRINDERROR-END --trace-children=yes " +
+            (suppressions is null ? string.Empty : ShellQuote("--suppressions=" + suppressions) + " ") +
+            ShellQuote(Path.Combine(installation.BinDirectory, "postgres"));
+
+    /// <summary>
+    /// Quotes a word for the POSIX shell that <c>pg_ctl</c> starts the server through.
+    /// </summary>
+    private static string ShellQuote(string value) => "'" + value.Replace("'", "'\"'\"'", StringComparison.Ordinal) + "'";
 
     /// <summary>
     /// Validates and formats literal settings before any filesystem changes or subprocesses.

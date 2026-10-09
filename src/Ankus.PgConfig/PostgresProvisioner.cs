@@ -96,6 +96,13 @@ public sealed class PostgresProvisioner(HttpClient client, string? homeDirectory
                 Directory.Move(staged, destination);
                 moved = true;
                 PostgresInstallation installation = await ValidateInstallationAsync(destination, version, cancellationToken).ConfigureAwait(false);
+                if (!OperatingSystem.IsWindows())
+                {
+                    // The source tree is removed below; keep its Valgrind suppressions in the PGXS tree, where
+                    // Valgrind startup finds them, as pgrx's kept source tree provides them.
+                    await InstallValgrindSuppressionsAsync(distribution, installation, cancellationToken).ConfigureAwait(false);
+                }
+
                 await File.WriteAllTextAsync(marker, version.ToString(), cancellationToken).ConfigureAwait(false);
                 installations.Add(installation);
                 moved = false;
@@ -113,6 +120,23 @@ public sealed class PostgresProvisioner(HttpClient client, string? homeDirectory
         }
 
         return installations;
+    }
+
+    /// <summary>
+    /// Copies PostgreSQL's <c>src/tools/valgrind.supp</c> from a source tree into the installation's PGXS tree.
+    /// </summary>
+    internal static async Task InstallValgrindSuppressionsAsync(string source, PostgresInstallation installation, CancellationToken cancellationToken)
+    {
+        string suppressions = Path.Combine(source, "src", "tools", "valgrind.supp");
+        if (!File.Exists(suppressions))
+        {
+            return;
+        }
+
+        string pgxs = Path.GetFullPath(await PostgresInstallation.QueryAsync(installation.PgConfigPath, ["--pgxs"], cancellationToken).ConfigureAwait(false));
+        string tools = Path.Combine(Path.GetDirectoryName(Path.GetDirectoryName(pgxs)!)!, "tools");
+        Directory.CreateDirectory(tools);
+        File.Copy(suppressions, Path.Combine(tools, "valgrind.supp"), overwrite: true);
     }
 
     /// <summary>

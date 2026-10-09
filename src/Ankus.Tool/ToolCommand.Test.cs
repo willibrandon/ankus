@@ -20,6 +20,7 @@ internal static partial class ToolCommand
         {
             Description = "Initialize and run the test servers as this Unix account through sudo -u; --pgdata must be writable by it.",
         };
+        var valgrind = new Option<bool>("--valgrind") { Description = "Run the test servers under Valgrind's Memcheck tool (Unix only)." };
         var forwarded = new Argument<string[]>("test-arguments")
         {
             Description = "Ordinary dotnet test arguments after --, including project selection, filters and report options.",
@@ -30,9 +31,15 @@ internal static partial class ToolCommand
         command.Options.Add(reports);
         command.Options.Add(dataDirectory);
         command.Options.Add(runAs);
+        command.Options.Add(valgrind);
         command.Arguments.Add(forwarded);
         command.SetAction(async (result, token) =>
         {
+            if (result.GetValue(valgrind) && OperatingSystem.IsWindows())
+            {
+                throw new ArgumentException("--valgrind is not supported on Windows.");
+            }
+
             string? account = result.GetValue(runAs);
             if (account is not null)
             {
@@ -110,7 +117,7 @@ internal static partial class ToolCommand
                     "-p:AnkusPgConfigPath=" + ExtensionBuilder.EscapeProperty(installation.PgConfigPath),
                     "--results-directory", resultsDirectory,
                     .. arguments[separator..],
-                ], token, environment: new Dictionary<string, string?>
+                ], token, environment: TestEnvironment(new Dictionary<string, string?>
                 {
                     ["ANKUS_TEST_PG_CONFIG"] = installation.PgConfigPath,
                     ["ANKUS_TEST_POSTGRES_MAJOR"] = major,
@@ -120,7 +127,7 @@ internal static partial class ToolCommand
                     ["ANKUS_TEST_DATA_DIRECTORY"] = session.DataDirectoryPath,
                     ["ANKUS_TEST_RUNAS"] = account,
                     ["ANKUS_TEST_MSBUILD_PROPERTIES_FILE"] = propertyFile,
-                });
+                }, result.GetValue(valgrind)));
                 Console.WriteLine($"{installation.Label}: dotnet test exited {code}.");
                 if (firstFailure == 0)
                 {
@@ -341,5 +348,18 @@ internal static partial class ToolCommand
         ];
         await File.WriteAllLinesAsync(path, lines, token);
         return path;
+    }
+
+    /// <summary>
+    /// Adds the Valgrind request without clearing an ANKUS_TEST_VALGRIND value the caller set.
+    /// </summary>
+    private static Dictionary<string, string?> TestEnvironment(Dictionary<string, string?> environment, bool valgrind)
+    {
+        if (valgrind)
+        {
+            environment["ANKUS_TEST_VALGRIND"] = "true";
+        }
+
+        return environment;
     }
 }

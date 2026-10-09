@@ -6,7 +6,7 @@ using Npgsql;
 namespace Ankus.IntegrationTests;
 
 /// <summary>
-/// Verifies instrumented development servers using native process evidence and persistent PostgreSQL data.
+/// Verifies instrumented development and test servers using native process evidence and persistent PostgreSQL data.
 /// </summary>
 /// <param name="context">The current cancellation context.</param>
 [TestClass]
@@ -19,6 +19,41 @@ public sealed class PostgresValgrindTests(TestContext context)
     /// </summary>
     [TestCleanup]
     public void Cleanup() => Directory.Delete(_root, recursive: true);
+
+    /// <summary>
+    /// A test cluster runs under Memcheck when asked, as pgrx's <c>USE_VALGRIND</c> test servers do, and its retained log
+    /// carries Memcheck's report.
+    /// </summary>
+    [RetryPortCollisionTestMethod]
+    [OSCondition(OperatingSystems.Linux)]
+    public async Task TestClustersRunUnderValgrind()
+    {
+        CancellationToken token = context.CancellationToken;
+        PostgresTestClusterOptions defaults = await IntegrationEnvironment.CreateOptionsAsync(token);
+        string log;
+        await using (PostgresTestCluster cluster = await PostgresTestCluster.StartAsync(new PostgresTestClusterOptions
+        {
+            Installation = defaults.Installation,
+            DataDirectoryBase = defaults.DataDirectoryBase,
+            LogDirectory = defaults.LogDirectory,
+            StartupTimeout = defaults.StartupTimeout,
+            UseValgrind = true,
+        }, token))
+        {
+            await cluster.RunInTransactionAsync(nameof(TestClustersRunUnderValgrind), async (connection, transaction, cancellation) =>
+            {
+                await using var command = new NpgsqlCommand("SELECT pg_backend_pid()", connection, transaction);
+                int backend = Assert.IsInstanceOfType<int>(await command.ExecuteScalarAsync(cancellation));
+                string maps = await File.ReadAllTextAsync($"/proc/{backend.ToString(CultureInfo.InvariantCulture)}/maps", cancellation);
+                Assert.Contains("vgpreload_memcheck", maps);
+            }, token);
+            log = cluster.LogFilePath;
+        }
+
+        string text = await File.ReadAllTextAsync(log, token);
+        Assert.Contains("Memcheck, a memory error detector", text);
+        Assert.Contains("ERROR SUMMARY:", text);
+    }
 
     /// <summary>
     /// Memcheck runs the selected executable, preserves exact settings and data, and does not replace a running server.
@@ -95,33 +130,7 @@ public sealed class PostgresValgrindTests(TestContext context)
     {
         CancellationToken token = context.CancellationToken;
         PostgresInstallation installation = await IntegrationEnvironment.GetInstallationAsync(token);
-        string source = Path.Combine(_root, "memory-probe.c");
-        string library = Path.Combine(_root, "memory-probe.so");
-        await File.WriteAllTextAsync(source, """
-            #include "postgres.h"
-            #include "fmgr.h"
-            #include <stdlib.h>
-            PG_MODULE_MAGIC;
-            PG_FUNCTION_INFO_V1(valgrind_error_probe);
-            Datum valgrind_error_probe(PG_FUNCTION_ARGS);
-            static volatile unsigned char observed;
-            Datum valgrind_error_probe(PG_FUNCTION_ARGS)
-            {
-                unsigned char *allocation = malloc(16);
-                if (allocation == NULL)
-                    elog(ERROR, "cannot allocate diagnostic witness");
-                allocation[0] = 42;
-                volatile unsigned char *released = allocation;
-                free(allocation);
-                /* Keep the deliberate fault observable to Memcheck's optimizer. */
-                observed = *released;
-                PG_RETURN_INT32(42);
-            }
-            """, token);
-        ProcessResult compilation = await ProcessRunner.RunAsync("cc",
-            ["-shared", "-fPIC", "-g", "-I", installation.ServerIncludeDirectory, "-I", installation.IncludeDirectory, source, "-o", library],
-            new Dictionary<string, string?>(), token);
-        Assert.AreEqual(0, compilation.ExitCode, compilation.StandardOutput + compilation.StandardError);
+        string library = await CompileErrorProbeAsync(installation, token);
         var cluster = new PostgresDevelopmentCluster(installation, _root);
         using PortReservation reservation = PortReservation.Create();
         int port = reservation.Port;
@@ -160,6 +169,108 @@ public sealed class PostgresValgrindTests(TestContext context)
         {
             await cluster.StopAsync(CancellationToken.None);
         }
+    }
+
+    /// <summary>
+    /// Valgrind startup passes PostgreSQL's suppressions from the installation's PGXS tree, as pgrx passes its source
+    /// tree's file, so a suppressed error is counted rather than reported; without that file, the source tree PGXS
+    /// records is used when it still exists.
+    /// </summary>
+    [RetryPortCollisionTestMethod]
+    [OSCondition(OperatingSystems.Linux)]
+    public async Task ValgrindUsesPostgresSuppressions()
+    {
+        CancellationToken token = context.CancellationToken;
+        PostgresInstallation source = await IntegrationEnvironment.GetInstallationAsync(token);
+        await using PostgresTestInstallation owner = await PostgresTestInstallation.StageAsync(source, Path.Combine(_root, "installation"), token);
+        PostgresInstallation installation = owner.Installation;
+        string pgxs = (await ProcessRunner.RunAsync(installation.PgConfigPath, ["--pgxs"], new Dictionary<string, string?>(), token))
+            .StandardOutput.Trim();
+        string pgxsSource = Path.GetDirectoryName(Path.GetDirectoryName(pgxs))!;
+        string sourceTree = Path.Combine(_root, "postgres source's tree");
+        Directory.CreateDirectory(Path.Combine(sourceTree, "src", "tools"));
+        string recorded = Path.Combine(sourceTree, "src", "tools", "valgrind.supp");
+        await File.WriteAllTextAsync(recorded, string.Empty, token);
+        string global = Path.Combine(pgxsSource, "Makefile.global");
+        string[] lines = await File.ReadAllLinesAsync(global, token);
+        await File.WriteAllLinesAsync(global, lines.Select(line => line.StartsWith("abs_top_srcdir", StringComparison.Ordinal)
+            ? "abs_top_srcdir = " + sourceTree : line), token);
+        Assert.AreEqual(recorded, await installation.GetValgrindSuppressionsPathAsync(token));
+        File.Delete(recorded);
+        Assert.IsNull(await installation.GetValgrindSuppressionsPathAsync(token));
+
+        string installed = Path.Combine(pgxsSource, "tools", "valgrind.supp");
+        Directory.CreateDirectory(Path.GetDirectoryName(installed)!);
+        await File.WriteAllTextAsync(installed, """
+            {
+               ankus_probe_read_after_free
+               Memcheck:Addr1
+               fun:valgrind_error_probe
+            }
+            """, token);
+        Assert.AreEqual(installed, await installation.GetValgrindSuppressionsPathAsync(token));
+        string library = await CompileErrorProbeAsync(installation, token);
+        var cluster = new PostgresDevelopmentCluster(installation, Path.Combine(_root, "home"));
+        using PortReservation reservation = PortReservation.Create();
+        int port = reservation.Port;
+        reservation.Dispose();
+        try
+        {
+            Assert.IsTrue(await cluster.StartAsync(new PostgresDevelopmentOptions { Port = port, UseValgrind = true }, token));
+            await using (NpgsqlConnection connection = await OpenAsync(port, token))
+            {
+                await using var setup = new NpgsqlCommand("CREATE FUNCTION valgrind_error_probe() RETURNS integer AS '" +
+                    library.Replace("'", "''", StringComparison.Ordinal) + "', 'valgrind_error_probe' LANGUAGE c STRICT", connection);
+                await setup.ExecuteNonQueryAsync(token);
+                await using var fault = new NpgsqlCommand("SELECT valgrind_error_probe()", connection);
+                Assert.AreEqual(42, await fault.ExecuteScalarAsync(token));
+            }
+
+            Assert.IsTrue(await cluster.StopAsync(token));
+            string log = await File.ReadAllTextAsync(cluster.LogFilePath, token);
+            Assert.DoesNotContain("valgrind_error_probe", string.Concat(log.Split("VALGRINDERROR-BEGIN").Skip(1)
+                .Select(static report => report.Split("VALGRINDERROR-END")[0])));
+            Assert.MatchesRegex(@"ERROR SUMMARY: \d+ errors from \d+ contexts \(suppressed: [1-9]", log);
+        }
+        finally
+        {
+            await cluster.StopAsync(CancellationToken.None);
+        }
+    }
+
+    /// <summary>
+    /// Compiles a C function that reads freed memory, which Memcheck reports as an invalid read.
+    /// </summary>
+    private async Task<string> CompileErrorProbeAsync(PostgresInstallation installation, CancellationToken token)
+    {
+        string source = Path.Combine(_root, "memory-probe.c");
+        string library = Path.Combine(_root, "memory-probe.so");
+        await File.WriteAllTextAsync(source, """
+            #include "postgres.h"
+            #include "fmgr.h"
+            #include <stdlib.h>
+            PG_MODULE_MAGIC;
+            PG_FUNCTION_INFO_V1(valgrind_error_probe);
+            Datum valgrind_error_probe(PG_FUNCTION_ARGS);
+            static volatile unsigned char observed;
+            Datum valgrind_error_probe(PG_FUNCTION_ARGS)
+            {
+                unsigned char *allocation = malloc(16);
+                if (allocation == NULL)
+                    elog(ERROR, "cannot allocate diagnostic witness");
+                allocation[0] = 42;
+                volatile unsigned char *released = allocation;
+                free(allocation);
+                /* Keep the deliberate fault observable to Memcheck's optimizer. */
+                observed = *released;
+                PG_RETURN_INT32(42);
+            }
+            """, token);
+        ProcessResult compilation = await ProcessRunner.RunAsync("cc",
+            ["-shared", "-fPIC", "-g", "-I", installation.ServerIncludeDirectory, "-I", installation.IncludeDirectory, source, "-o", library],
+            new Dictionary<string, string?>(), token);
+        Assert.AreEqual(0, compilation.ExitCode, compilation.StandardOutput + compilation.StandardError);
+        return library;
     }
 
     /// <summary>

@@ -130,6 +130,50 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
 
 ## Active validation and work
 
+- `PgPropertyRunner` and `PgGenerators` port pgrx's `PgTestRunner`: a property
+  runs against 256 generated inputs inside the backend, each in its own
+  subtransaction, so a PostgreSQL error is a failing input whose work rolls back
+  while the run continues. Failing inputs shrink by editing the recorded random
+  choices, as Hypothesis does, so composed generators shrink without extra code;
+  integers are a sign and a magnitude and reach their exact boundary. The report
+  names the smallest input, its error and the seed. .NET has no Microsoft-owned
+  property-testing package, so the generators are Ankus's own. pgrx-unit-tests'
+  eight temporal `proptests` now run through it with pgrx's raw-value strategies.
+- `ankus bench --report` prints pgrx's history report: a section per benchmark
+  with its first successful run as the baseline, the ten most recent groups as
+  bars with their change, drift marks for build configuration, PostgreSQL major,
+  runtime and non-default settings, and counts of omitted failed runs. Run groups
+  now record the extension and .NET SDK versions, the command line, the tool
+  version, the Git commit, branch, dirty state and describe output, and each
+  setting's unit, source and boot and reset values. A refresh blocked by a
+  dependent object names `--cascade`, and `--wait` prints pgrx's waiting message.
+  The bench test now covers default group names, `--postgresql-conf`, `--cascade`,
+  `--resetdb`, partial and failed groups and comparison filtering. Test clusters
+  can run under Valgrind (`ankus test --valgrind`), and every Valgrind start
+  passes PostgreSQL's `valgrind.supp`, which `ankus init` now keeps in the PGXS
+  tree. The cluster locale is asserted per platform, and an unknown
+  `upgrade --package` fails before any change. Messages a test raises that
+  contain `TMSG: ` reach its output live, as pgrx echoes them. Installing from a
+  solution directory and `schema` from the project directory with a relative
+  intermediate path are tested. `[PgBenchmark]` can report throughput
+  in pgrx's units, which pgrx's own `Bencher` cannot set. The tooling mapping now
+  has 82 covered rows, 12 documented differences, 24 Rust-specific rows and no
+  gaps or partials.
+- **921113f** passes complete suites on this repository's validation machine:
+  Windows x64 on PostgreSQL 17.11 and 13.23 run concurrently at package
+  concurrency 20 (**14,410** total each; **14,368** passed; 42 skips; zero
+  failures; **41m44s** and **41m51s**) and Linux x64 on PostgreSQL 18.6 with
+  run-as (**14,410** total; **14,359** passed; 51 skips; zero failures; **43m56s**),
+  all three at once. Its primary CI
+  ([37933668208](https://github.com/willibrandon/ankus/actions/runs/37933668208))
+  passes Linux x64 on 18 (18m), Windows x64 on 17 (21m) and macOS ARM64 on 18
+  (16m). The platform version run on **10c1391**
+  ([37917953859](https://github.com/willibrandon/ankus/actions/runs/37917953859))
+  passes macOS ARM64 on PostgreSQL 15 (23m) and 16 (21m) and Windows x64 on 13
+  (1h11m). Windows x64 on 18 failed two cleanups that deleted a cluster directory
+  while a stopped server still held handles: the regression-prerequisite cleanup
+  fixed in **ac6486e**, and the development-diagnostics cleanups, which now use
+  the same retrying delete.
 - Generated custom-type storage now serializes `Guid`, `DateOnly`, `TimeOnly`,
   `DateTime`, `DateTimeOffset` and `TimeSpan` members, as System.Text.Json does
   and as pgrx's serde storage does for its date type. JSON text uses
@@ -141,7 +185,7 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
 - A second source-case mapping covers pgrx's compile-fail, `todo` and UI cases,
   its testing framework, its benchmark runner and `cargo-pgrx/tests` (203 cases in
   118 rows: 66 covered, 14 partial, 3 gaps, 11 deliberate differences and 24
-  Rust-specific). The test fixture now creates the extension with `CASCADE`, as
+  Rust-specific at the time; see the entry above for the current counts). The test fixture now creates the extension with `CASCADE`, as
   pgrx's does, so an extension that `requires` another starts; a failed test's
   report includes the server's account of its backend when that process died;
   `ankus bench` prints pgrx's running line, intervals, change and group summary,

@@ -155,3 +155,17 @@ public bool SharedPreload { get; init; }
 ```
 
 Value: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+<a id="member-ceaa6f0fa29f0ad3"></a>
+
+### UseValgrind
+
+Gets whether the test server runs under Valgrind's Memcheck tool, as pgrx's <code>USE_VALGRIND</code> does.
+
+```csharp
+public bool UseValgrind { get; init; }
+```
+
+Value: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+<code>ankus test --valgrind</code> enables it for every fixture in the run. See [UseValgrind](/api/ankus.testing.postgrestestclusteroptions/#member-298fce8165470b13).

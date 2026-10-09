@@ -70,7 +70,7 @@ public sealed class PostgresDevelopmentDiagnosticsTests(TestContext context)
         finally
         {
             await first.StopAsync(CancellationToken.None);
-            Directory.Delete(home, recursive: true);
+            PostgresServerStorage.Delete(home);
         }
     }
 
@@ -120,7 +120,7 @@ public sealed class PostgresDevelopmentDiagnosticsTests(TestContext context)
         finally
         {
             await cluster.StopAsync(CancellationToken.None);
-            Directory.Delete(home, recursive: true);
+            PostgresServerStorage.Delete(home);
         }
     }
 
@@ -163,7 +163,7 @@ public sealed class PostgresDevelopmentDiagnosticsTests(TestContext context)
         }
         finally
         {
-            Directory.Delete(home, recursive: true);
+            PostgresServerStorage.Delete(home);
         }
     }
 

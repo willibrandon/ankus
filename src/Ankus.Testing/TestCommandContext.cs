@@ -94,6 +94,17 @@ internal static class TestCommandContext
     }
 
     /// <summary>
+    /// Gets whether ankus test --valgrind, or ANKUS_TEST_VALGRIND=true, runs every test server under Valgrind.
+    /// </summary>
+    internal static bool UseValgrind
+        => Environment.GetEnvironmentVariable("ANKUS_TEST_VALGRIND") switch
+        {
+            null or "" or "false" => false,
+            "true" => true,
+            _ => throw new InvalidOperationException("ANKUS_TEST_VALGRIND must be true or false."),
+        };
+
+    /// <summary>
     /// Gets the command-owned temporary root, or null outside ankus test.
     /// </summary>
     internal static string? SessionDirectory

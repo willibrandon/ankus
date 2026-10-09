@@ -76,6 +76,18 @@ public sealed class PostgresExtensionTestOptions
     }
 
     /// <summary>
+    /// Gets whether the test server runs under Valgrind's Memcheck tool, as pgrx's <c>USE_VALGRIND</c> does.
+    /// </summary>
+    /// <remarks>
+    /// <c>ankus test --valgrind</c> enables it for every fixture in the run. See <see cref="PostgresTestClusterOptions.UseValgrind"/>.
+    /// </remarks>
+    public bool UseValgrind
+    {
+        get;
+        init;
+    }
+
+    /// <summary>
     /// Gets an exact requested TCP port, or null for automatic reservation.
     /// </summary>
     public int? Port

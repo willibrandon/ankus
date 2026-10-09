@@ -161,15 +161,32 @@ public sealed class PostgresTestClusterTests(TestContext context)
     [TestMethod]
     public async Task ClustersSkipFsyncUnlessConfigured()
     {
+        // pgrx's C locale rules: C on Windows, C collation with UTF-8 character classes on macOS, and C.UTF-8 on other
+        // Unix systems that provide it.
+        string locale = "C|C";
+        if (OperatingSystem.IsMacOS())
+        {
+            locale = "C|UTF-8";
+        }
+        else if (!OperatingSystem.IsWindows())
+        {
+            ProcessResult locales = await PackageProcessRunner.RunAsync("locale", ["-a"], new Dictionary<string, string?>(),
+                context.CancellationToken);
+            if (locales.ExitCode == 0 && locales.StandardOutput.Split('\n').Any(static value => value.Trim() is "C.UTF-8" or "C.utf8"))
+            {
+                locale = "C.UTF-8|C.UTF-8";
+            }
+        }
+
         await using (NpgsqlConnection fixture = await PostgresFixture.Cluster.OpenConnectionAsync(context.CancellationToken))
         await using (var show = new NpgsqlCommand("""
             SELECT concat_ws('|', current_setting('fsync'), current_setting('log_min_messages'),
                 current_setting('log_min_duration_statement'), current_setting('log_statement'),
-                current_setting('server_encoding'), datcollate IN ('C', 'C.UTF-8'))
+                current_setting('server_encoding'), datcollate, datctype)
               FROM pg_database WHERE datname = current_database()
             """, fixture))
         {
-            Assert.AreEqual("off|info|1s|none|UTF8|t", await show.ExecuteScalarAsync(context.CancellationToken));
+            Assert.AreEqual("off|info|1s|none|UTF8|" + locale, await show.ExecuteScalarAsync(context.CancellationToken));
         }
 
         PostgresTestClusterOptions defaults = await IntegrationEnvironment.CreateOptionsAsync(context.CancellationToken);
@@ -186,6 +203,38 @@ public sealed class PostgresTestClusterTests(TestContext context)
         await using var command = new NpgsqlCommand(
             "SELECT current_setting('fsync') || '|' || current_setting('log_min_messages')", connection);
         Assert.AreEqual("on|debug1", await command.ExecuteScalarAsync(context.CancellationToken));
+    }
+
+    /// <summary>
+    /// Messages containing <c>TMSG: </c> reach the test output while the test runs, as pgrx echoes them; other
+    /// messages do not.
+    /// </summary>
+    [TestMethod]
+    public async Task TestMessagesAreEchoedWhileTheTestRuns()
+    {
+        using var output = new StringWriter();
+        PostgresTestCluster.TestMessageWriter.Value = output;
+        try
+        {
+            await PostgresFixture.Cluster.RunInTransactionAsync(nameof(TestMessagesAreEchoedWhileTheTestRuns), async (connection, transaction, token) =>
+            {
+                await using var command = new NpgsqlCommand("""
+                    DO $$
+                    BEGIN
+                        RAISE INFO 'TMSG: first';
+                        RAISE NOTICE 'not a test message';
+                        RAISE WARNING 'TMSG: second';
+                    END
+                    $$
+                    """, connection, transaction);
+                await command.ExecuteNonQueryAsync(token);
+                Assert.AreEqual("INFO:  TMSG: first" + Environment.NewLine + "WARNING:  TMSG: second" + Environment.NewLine, output.ToString());
+            }, context.CancellationToken);
+        }
+        finally
+        {
+            PostgresTestCluster.TestMessageWriter.Value = null;
+        }
     }
 
     /// <summary>

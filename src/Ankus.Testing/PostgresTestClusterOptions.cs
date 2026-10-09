@@ -84,6 +84,20 @@ public sealed class PostgresTestClusterOptions
     }
 
     /// <summary>
+    /// Gets whether the server runs under Valgrind's Memcheck tool.
+    /// </summary>
+    /// <remarks>
+    /// This corresponds to pgrx's <c>USE_VALGRIND</c> and <c>ankus test --valgrind</c>. Valgrind must be on <c>PATH</c>, and
+    /// Windows is not supported. Memory errors appear in the server log between <c>VALGRINDERROR-BEGIN</c> and
+    /// <c>VALGRINDERROR-END</c> markers. Startup gets an extra minute beyond <see cref="StartupTimeout"/>.
+    /// </remarks>
+    public bool UseValgrind
+    {
+        get;
+        init;
+    }
+
+    /// <summary>
     /// Gets the directory where server logs remain available after cluster shutdown.
     /// </summary>
     public string LogDirectory

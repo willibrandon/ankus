@@ -811,6 +811,7 @@ public sealed partial class ToolCommandTests
     [DataRow("unknown")]
     [DataRow("duplicateSdk")]
     [DataRow("missingProject")]
+    [DataRow("unknownPackage")]
     [DataRow("noFramework")]
     [DataRow("identityCycle")]
     [DataRow("identityUnknown")]
@@ -850,6 +851,11 @@ public sealed partial class ToolCommandTests
                 selection = Path.Combine(root, "Bad.slnx");
                 await File.WriteAllTextAsync(selection, "<Solution><Project Path='Probe.csproj'/><Project Path='Missing.csproj'/></Solution>", token);
                 break;
+            case "unknownPackage":
+                selection = Path.Combine(root, "Probe.slnx");
+                await File.WriteAllTextAsync(selection, "<Solution><Project Path='Probe.csproj'/></Solution>", token);
+                target = ["--to", "0.2.0", "--package", "Missing"];
+                break;
             case "noFramework":
                 await File.WriteAllTextAsync(project, "<Project Sdk='Microsoft.NET.Sdk'/>", token);
                 break;
@@ -865,6 +871,7 @@ public sealed partial class ToolCommandTests
             "unknown" => "not a literal NuGet version or range",
             "duplicateSdk" => "one string version for Ankus.Sdk",
             "missingProject" => "selected solution project was not found",
+            "unknownPackage" => "does not identify the requested C# project",
             "noFramework" => "no Ankus package or SDK version declarations",
             "identityCycle" => "package identity property 'A' has a circular reference",
             "identityUnknown" => "package identity property 'AnkusUnknownIdentity' has no source declaration",

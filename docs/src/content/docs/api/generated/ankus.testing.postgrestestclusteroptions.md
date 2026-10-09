@@ -180,6 +180,22 @@ Value: [TimeSpan](https://learn.microsoft.com/dotnet/api/system.timespan)
 The default is 180 seconds, the default timeout of PostgreSQL's own TAP test framework
 (<code>PG_TEST_TIMEOUT_DEFAULT</code>), because these steps share one budget on hosts whose disks may be busy.
 
+<a id="member-298fce8165470b13"></a>
+
+### UseValgrind
+
+Gets whether the server runs under Valgrind's Memcheck tool.
+
+```csharp
+public bool UseValgrind { get; init; }
+```
+
+Value: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+This corresponds to pgrx's <code>USE_VALGRIND</code> and <code>ankus test --valgrind</code>. Valgrind must be on <code>PATH</code>, and
+Windows is not supported. Memory errors appear in the server log between <code>VALGRINDERROR-BEGIN</code> and
+<code>VALGRINDERROR-END</code> markers. Startup gets an extra minute beyond [StartupTimeout](/api/ankus.testing.postgrestestclusteroptions/#member-483c4d79f0031427).
+
 <a id="member-b3f57f2ddf9a1372"></a>
 
 ### UserName

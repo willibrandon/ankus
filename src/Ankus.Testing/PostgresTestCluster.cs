@@ -14,6 +14,11 @@ public sealed class PostgresTestCluster : IAsyncDisposable
 {
     private readonly PostgresTestClusterOptions _options;
     private readonly IReadOnlyDictionary<string, string?> _environment;
+
+    /// <summary>
+    /// Whether the server runs under Valgrind, from the options or ankus test --valgrind.
+    /// </summary>
+    private readonly bool _useValgrind;
     private readonly PostgresTestLog _log;
     private readonly PostgresServerAccount _account;
     private readonly Lock _shutdownLock = new();
@@ -28,6 +33,7 @@ public sealed class PostgresTestCluster : IAsyncDisposable
     {
         _options = options;
         _environment = new Dictionary<string, string?>(options.ProcessEnvironment);
+        _useValgrind = options.UseValgrind || TestCommandContext.UseValgrind;
         _account = PostgresServerAccount.Create(options.RunAs ?? TestCommandContext.RunAs);
         Port = port;
         string invocation = $"{options.Installation.Version.Major}-{Environment.ProcessId}-{Guid.NewGuid():N}";
@@ -137,10 +143,28 @@ public sealed class PostgresTestCluster : IAsyncDisposable
             ArgumentOutOfRangeException.ThrowIfGreaterThan(port, 65535);
         }
 
+        bool useValgrind = options.UseValgrind || TestCommandContext.UseValgrind;
+        if (useValgrind && OperatingSystem.IsWindows())
+        {
+            throw new PlatformNotSupportedException("Valgrind requires a supported Unix platform; native Windows PostgreSQL cannot run under Valgrind.");
+        }
+
         cancellationToken.ThrowIfCancellationRequested();
+        if (useValgrind)
+        {
+            try
+            {
+                (await ProcessRunner.RunAsync("valgrind", ["--version"], options.ProcessEnvironment, cancellationToken).ConfigureAwait(false))
+                    .EnsureSuccess("valgrind", ["--version"]);
+            }
+            catch (System.ComponentModel.Win32Exception error)
+            {
+                throw new InvalidOperationException("Install Valgrind and make its executable available on PATH before using Valgrind.", error);
+            }
+        }
 
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(options.StartupTimeout);
+        timeout.CancelAfter(useValgrind ? options.StartupTimeout + TimeSpan.FromMinutes(1) : options.StartupTimeout);
         const int MaximumAttempts = 3;
         for (int attempt = 1; ; attempt++)
         {
@@ -267,6 +291,7 @@ public sealed class PostgresTestCluster : IAsyncDisposable
             await using NpgsqlConnection connection = await OpenConnectionAsync(
                 _options.DatabaseName, sessionName, cancellationToken).ConfigureAwait(false);
             backend = connection.ProcessID;
+            connection.Notice += static (_, notice) => EchoTestMessage(notice.Notice);
             await using NpgsqlTransaction transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
             await test(connection, transaction, cancellationToken).ConfigureAwait(false);
             // Npgsql's transaction disposal rolls back without the canceled test token.
@@ -287,6 +312,24 @@ public sealed class PostgresTestCluster : IAsyncDisposable
             }
 
             throw new PostgresTestException(testName, sessionLog, error);
+        }
+    }
+
+    /// <summary>
+    /// Gets a writer that receives test messages in this asynchronous flow instead of standard output.
+    /// </summary>
+    internal static AsyncLocal<TextWriter?> TestMessageWriter { get; } = new();
+
+    /// <summary>
+    /// Writes a message the session receives that contains <c>TMSG: </c>, as pgrx echoes such server log lines to
+    /// the test output while the test runs.
+    /// </summary>
+    /// <param name="notice">The INFO, NOTICE or WARNING message.</param>
+    private static void EchoTestMessage(PostgresNotice notice)
+    {
+        if (notice.MessageText.Contains("TMSG: ", StringComparison.Ordinal))
+        {
+            (TestMessageWriter.Value ?? Console.Out).WriteLine(notice.InvariantSeverity + ":  " + notice.MessageText);
         }
     }
 
@@ -368,17 +411,41 @@ public sealed class PostgresTestCluster : IAsyncDisposable
         [
             "start", "-D", DataDirectory, "-l", _log.NativeFilePath, "-w", "-t", GetTimeoutSeconds(_options.StartupTimeout),
         ];
+        IReadOnlyDictionary<string, string?> startupEnvironment = _environment;
         if (OperatingSystem.IsWindows())
         {
             // Command-line configuration takes effect before loading configuration files,
             // retaining startup errors as well as the service token's Event Log routing.
             startupArguments = [.. startupArguments, "-o", "-c event_source=" + _log.EventSource];
         }
+        else if (_useValgrind)
+        {
+            // pg_ctl inserts -D before -o arguments, so PGDATA names the data directory and Valgrind receives its own
+            // options before the shell-quoted PostgreSQL executable, as pgrx's USE_VALGRIND wrapper arranges.
+            string? suppressions = await Installation.GetValgrindSuppressionsPathAsync(cancellationToken).ConfigureAwait(false);
+            string executable = ShellQuote(Path.Combine(Installation.BinDirectory, "postgres"));
+            startupArguments =
+            [
+                "start", "-l", _log.NativeFilePath, "-w", "-t", GetTimeoutSeconds(_options.StartupTimeout + TimeSpan.FromMinutes(1)),
+                "-p", "valgrind", "-o",
+                "--tool=memcheck --leak-check=no --gen-suppressions=all --time-stamp=yes " +
+                "--error-markers=VALGRINDERROR-BEGIN,VALGRINDERROR-END --trace-children=yes " +
+                (suppressions is null ? string.Empty : ShellQuote("--suppressions=" + suppressions) + " ") + executable,
+            ];
+            var environment = new Dictionary<string, string?>(_environment) { ["PGDATA"] = DataDirectory };
+            if (!environment.ContainsKey("DOTNET_GCRegionRange") && string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DOTNET_GCRegionRange")))
+            {
+                // Memcheck shares a bounded address space with its client; the runtime's default reservation can exceed it.
+                environment["DOTNET_GCRegionRange"] = "800000000";
+            }
+
+            startupEnvironment = environment;
+        }
 
         await _account.RunCheckedAsync(
             Installation.PgCtlPath,
             startupArguments,
-            _environment,
+            startupEnvironment,
             cancellationToken,
             captureOutput: !OperatingSystem.IsWindows()).ConfigureAwait(false);
 
@@ -599,6 +666,11 @@ public sealed class PostgresTestCluster : IAsyncDisposable
 
     private static string QuoteSetting(string value)
         => $"'{value.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("'", "''", StringComparison.Ordinal)}'";
+
+    /// <summary>
+    /// Quotes a word for the POSIX shell that <c>pg_ctl</c> starts the server through.
+    /// </summary>
+    private static string ShellQuote(string value) => "'" + value.Replace("'", "'\"'\"'", StringComparison.Ordinal) + "'";
 
     private static string GetTimeoutSeconds(TimeSpan timeout)
         => Math.Ceiling(timeout.TotalSeconds).ToString(CultureInfo.InvariantCulture);

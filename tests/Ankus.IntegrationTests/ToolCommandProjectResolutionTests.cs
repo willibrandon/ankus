@@ -104,6 +104,55 @@ public sealed partial class ToolCommandTests
     }
 
     /// <summary>
+    /// Installing from a solution directory selects its one extension project and builds it with the solution's
+    /// shared build settings, as pgrx's <c>install_from_virtual_workspace_auto_detects_manifest_and_preserves_rustflags</c>
+    /// installs from a virtual workspace while keeping its rustflags.
+    /// </summary>
+    [TestMethod]
+    public async Task InstallFromSolutionDirectorySelectsTheExtensionProject()
+    {
+        CancellationToken token = context.CancellationToken;
+        string directory = CreateDirectory();
+        string extensionDirectory = Directory.CreateDirectory(Path.Combine(directory, "extension")).FullName;
+        string project = Path.Combine(extensionDirectory, "WorkspaceProbe.csproj");
+        XDocument definition = XDocument.Load(s_project);
+        definition.Root!.Add(new XElement("PropertyGroup", new XElement("AnkusExtensionName", "ankus_workspace_probe")));
+        definition.Save(project);
+        await File.WriteAllTextAsync(Path.Combine(extensionDirectory, "Functions.cs"), """
+            #if !WORKSPACE_SETTING
+            #error The solution's Directory.Build.props did not reach the extension build.
+            #endif
+            using Ankus;
+            public static class Functions
+            {
+                [PgFunction]
+                public static int WorkspaceValue() => 7;
+            }
+            """, token);
+        await File.WriteAllTextAsync(Path.Combine(directory, "Directory.Build.props"), """
+            <Project>
+              <PropertyGroup>
+                <DefineConstants>$(DefineConstants);WORKSPACE_SETTING</DefineConstants>
+              </PropertyGroup>
+            </Project>
+            """, token);
+        string helperDirectory = Directory.CreateDirectory(Path.Combine(directory, "helper")).FullName;
+        string helper = Path.Combine(helperDirectory, "Helper.csproj");
+        new XDocument(new XElement("Project", new XAttribute("Sdk", "Microsoft.NET.Sdk"),
+            new XElement("PropertyGroup", new XElement("TargetFramework", "net10.0")))).Save(helper);
+        await File.WriteAllTextAsync(Path.Combine(helperDirectory, "Helper.cs"), "public static class Helper { }", token);
+        _ = await WriteResolutionSolutionAsync(directory, "slnx", [project, helper], token);
+        string stage = CreateDirectory();
+        ProcessResult result = await PackageProcessRunner.RunAsync(s_tool,
+            ["install", "--home", s_home, "--pg", MajorText(), "--destdir", stage], s_environment, token, workingDirectory: directory);
+        Assert.AreEqual(0, result.ExitCode, result.StandardOutput + result.StandardError);
+        string extension = Path.Combine(StagedPath(stage, s_installation.SharedDirectory), "extension");
+        Assert.IsTrue(File.Exists(Path.Combine(extension, "ankus_workspace_probe.control")));
+        Assert.Contains("workspace_value", await File.ReadAllTextAsync(Path.Combine(extension, "ankus_workspace_probe--0.1.0.sql"), token));
+        Assert.IsFalse(Directory.Exists(Path.Combine(helperDirectory, "bin")));
+    }
+
+    /// <summary>
     /// An unrelated project that cannot evaluate does not block selection of the one valid extension project.
     /// </summary>
     /// <param name="format">The solution format.</param>

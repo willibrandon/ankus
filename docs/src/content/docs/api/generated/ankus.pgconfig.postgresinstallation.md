@@ -355,3 +355,25 @@ Exceptions:
 - [FileNotFoundException](https://learn.microsoft.com/dotnet/api/system.io.filenotfoundexception): The selected installation does not contain its regression driver.
 
 On Windows, include this installation's BinDirectory in the child process PATH so the driver can load its PostgreSQL DLLs.
+
+<a id="member-64f8249781f20700"></a>
+
+### GetValgrindSuppressionsPathAsync(CancellationToken)
+
+Locates PostgreSQL's Valgrind suppressions for this installation, which Valgrind startup passes to Memcheck as
+pgrx does when it keeps the PostgreSQL source tree.
+
+```csharp
+public Task<string?> GetValgrindSuppressionsPathAsync(CancellationToken cancellationToken = default)
+```
+
+Parameters:
+
+`cancellationToken` — [CancellationToken](https://learn.microsoft.com/dotnet/api/system.threading.cancellationtoken)
+
+Cancels the PGXS query.
+
+Returns: [Task&lt;string&gt;](https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1)
+
+The <code>src/tools/valgrind.supp</code> file that <code>ankus init</code> installs in the PGXS tree, else the one in the
+source tree that PGXS records as <code>abs_top_srcdir</code> when it still exists, else null.

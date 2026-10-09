@@ -309,6 +309,7 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
                 DataDirectoryBase = dataDirectoryBase,
                 LogDirectory = logs,
                 PostgreSqlConfiguration = configuration,
+                UseValgrind = options.UseValgrind,
             }, cancellationToken).ConfigureAwait(false);
             await using NpgsqlConnection connection = await cluster.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
             string name = Path.GetFileNameWithoutExtension(manifest.Control);

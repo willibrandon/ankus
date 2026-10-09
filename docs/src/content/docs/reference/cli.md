@@ -121,6 +121,11 @@ loopback TCP as the cluster's own superuser, and server logs are copied back to
 command never writes into the PostgreSQL installation, so it needs no root
 access. `--runas` is not supported on Windows.
 
+Add `--valgrind` to run every test server under Memcheck, as pgrx's
+`USE_VALGRIND` does; Memcheck reports go to each server's log in
+`bin/ankus-test-logs/`. Setting `ANKUS_TEST_VALGRIND=true` has the same effect
+for a plain `dotnet test` run.
+
 After an ordinary run has published the extension, add `--no-schema` to retain
 that installation SQL while rebuilding native code. This also retains the
 matching embedded schema graph; changes to SQL blocks wait until the next run
@@ -455,13 +460,19 @@ On a Unix platform supported by Valgrind, install Valgrind and put it on `PATH`:
 ankus start --pg 18 --valgrind
 ```
 
-`start`, `run`, `connect`, and `regress` accept `--valgrind`. PostgreSQL and its
+`start`, `run`, `connect`, `regress` and `test` accept `--valgrind`. PostgreSQL and its
 children run under Memcheck, with diagnostics in the server log. Error reports
 are delimited by `VALGRINDERROR-BEGIN` and `VALGRINDERROR-END`. Inspect that log
 after running your extension's queries and stopping the server. Instrumentation
 adds overhead; use `--timeout` when the server needs longer to start.
 A successful SQL test can still produce Memcheck reports, including diagnostics
 from PostgreSQL itself. Inspect the server log as part of memory testing.
+
+Memcheck reads PostgreSQL's own `src/tools/valgrind.supp` suppressions, as pgrx
+does, so known server reports stay out of the log. Installations built by
+`ankus init` keep that file in their PGXS tree. For a server you built yourself,
+Ankus uses the file in the source directory recorded at build time while it
+still exists. Each report also prints a suppression entry you can adapt.
 
 Valgrind limits the virtual address space available to an instrumented process.
 Ankus supplies a **32 GiB** .NET GC region range for Valgrind launches when
@@ -496,12 +507,14 @@ ankus bench --report --json
 An optional positional filter selects managed benchmark names by ordinal
 substring. `--list` discovers matching declarations without measuring them.
 `--group-name` names the retained run. Otherwise, Ankus uses a timestamp and the
-current Git commit. The latest retained group from the same build configuration
-is the default baseline; `--compare-group` selects a named group instead.
+current Git commit. The latest completed or partial group from the same build
+configuration is the default baseline; `--compare-group` selects a named group
+instead. A group is partial when some of its benchmarks failed.
 
 The default database is `<extension>_benches`. `--database` selects another
-database, and `--resetdb` recreates it. `--cascade` controls extension refresh,
-`--wait` pauses after printing the backend PID for debugger attachment, and
+database, and `--resetdb` recreates it, discarding retained history. Each run
+drops and recreates the extension; when other objects depend on it, the drop
+fails unless `--cascade` drops them too. `--wait` pauses after printing the backend PID for debugger attachment, and
 `--no-build` reuses the existing benchmark publication. Project selection,
 PostgreSQL selection, configuration, server settings and repeatable MSBuild
 properties follow the other build commands.
@@ -513,8 +526,9 @@ versions require a writable local installation because they do not provide
 `extension_control_path`.
 
 Each benchmark invocation runs inside `BEGIN` and is rolled back before its
-result is retained in the runner-owned `ankus_bench` schema. `--report` reads the
-latest retained results without rebuilding the extension. See the
+result is retained in the runner-owned `ankus_bench` schema. `--report` prints
+each benchmark's recent history against its first successful run without
+rebuilding the extension, and `--report --json` prints the latest raw results. See the
 [benchmark authoring guide](/benchmarks/) for timing loops, transaction modes and
 comparison statistics.
 

@@ -1,3 +1,4 @@
+using Ankus.PgConfig;
 using Ankus.Testing;
 
 namespace Ankus.IntegrationTests;
@@ -176,14 +177,10 @@ public sealed class PostgresDiagnosticCleanupTests(TestContext context)
         ProcessResult status = await ProcessRunner.RunAsync(cluster.Installation.PgCtlPath,
             ["status", "-D", cluster.DataDirectory], new Dictionary<string, string?>(), CancellationToken.None);
         Assert.AreEqual(3, status.ExitCode, "A live PostgreSQL directory must never be removed by regression-test cleanup.");
-        if (Directory.Exists(cluster.DataDirectory))
+        PostgresServerStorage.Delete(cluster.DataDirectory);
+        if (cluster.SocketDirectory is not null)
         {
-            Directory.Delete(cluster.DataDirectory, recursive: true);
-        }
-
-        if (cluster.SocketDirectory is not null && Directory.Exists(cluster.SocketDirectory))
-        {
-            Directory.Delete(cluster.SocketDirectory, recursive: true);
+            PostgresServerStorage.Delete(cluster.SocketDirectory);
         }
     }
 }

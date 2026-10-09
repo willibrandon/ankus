@@ -174,6 +174,41 @@ call inside `#if ANKUS_TESTS`, as pgrx code uses `#[cfg(feature = "pg_test")]`. 
 can consume the same framework-neutral catalog and fixture. Use
 [`[PgBenchmark]` and `ankus bench`](/benchmarks/) for measured backend work.
 
+## Property tests
+
+`PgPropertyRunner` checks a condition against many generated inputs inside the
+backend, as pgrx's `PgTestRunner` does with proptest:
+
+```csharp
+[PgTest]
+public static void DatesRoundTrip()
+    => new PgPropertyRunner().Run(
+        PgGenerators.Number<int>().Select(PgDate.FromRawSaturating),
+        date =>
+        {
+            if (Spi.ExecuteScalar<PgDate>("SELECT $1", SpiParameter.Create(date)) != date)
+            {
+                throw new InvalidOperationException($"{date} did not round trip.");
+            }
+        });
+```
+
+The test throws to fail. Each input runs in its own subtransaction, so a
+PostgreSQL error fails that input and rolls back its work while the run
+continues; passing inputs keep their changes until the test's transaction rolls
+back. Query cancellation stops the run.
+
+When an input fails, the runner shrinks it before reporting: numbers move toward
+zero, text and arrays lose elements, and choices move toward the first
+alternative. The `PgPropertyException` names the smallest failing input, its
+error and the seed. Set `PgPropertyOptions.Seed` to replay the same inputs.
+`Cases` defaults to 256 as in proptest.
+
+`PgGenerators` provides integers of any width with `Number<T>()`, floating-point
+values including NaN and the infinities, text, arrays, booleans, SQL NULL and
+fixed choices. Compose them with `Select`, `Where` and LINQ query syntax; the
+results still shrink.
+
 ## Declaration diagnostics
 
 Backend-test errors identify the requirement and its authored source.
@@ -283,6 +318,10 @@ lines and, when its backend died, the server's report about that process. The
 cluster and temporary published library are removed on disposal. A failed build or extension load fails initialization and cleans up
 the resources it created.
 
+While a test runs, messages it raises that contain `TMSG: ` go to the test's
+output as they arrive, as in pgrx. Use `PgLog.Info("TMSG: ...")` to trace a
+backend test; other messages stay in the server log.
+
 On Windows, the fixture also collects its server's Windows Event Log messages.
 Older PostgreSQL versions use that destination when the test host runs as a
 service. The test account needs read access to the Application event log;
@@ -294,6 +333,9 @@ Test clusters run with `fsync = off`, as PostgreSQL's own test clusters do.
 PostgreSQL crash recovery still works, because the operating system keeps the
 written WAL; only durability across an operating system crash is given up. Add
 `fsync = on` to `PostgreSqlConfiguration` to test behavior that depends on it.
+
+Set `UseValgrind` on the fixture or cluster options, or run `ankus test
+--valgrind`, to run the server under Valgrind's Memcheck on Linux or macOS.
 
 Like pgrx's, test clusters log messages at `info` and statements that take over a
 second, and use a C collation with UTF-8 encoding. Unlike pgrx, they do not log

@@ -156,6 +156,49 @@ public sealed class PostgresInstallation
     }
 
     /// <summary>
+    /// Locates PostgreSQL's Valgrind suppressions for this installation, which Valgrind startup passes to Memcheck as
+    /// pgrx does when it keeps the PostgreSQL source tree.
+    /// </summary>
+    /// <param name="cancellationToken">Cancels the PGXS query.</param>
+    /// <returns>
+    /// The <c>src/tools/valgrind.supp</c> file that <c>ankus init</c> installs in the PGXS tree, else the one in the
+    /// source tree that PGXS records as <c>abs_top_srcdir</c> when it still exists, else null.
+    /// </returns>
+    public async Task<string?> GetValgrindSuppressionsPathAsync(CancellationToken cancellationToken = default)
+    {
+        string pgxs = Path.GetFullPath(await QueryAsync(PgConfigPath, "--pgxs", cancellationToken).ConfigureAwait(false));
+        string? sourceDirectory = Path.GetDirectoryName(Path.GetDirectoryName(pgxs));
+        if (sourceDirectory is null)
+        {
+            return null;
+        }
+
+        string installed = Path.Combine(sourceDirectory, "tools", "valgrind.supp");
+        if (File.Exists(installed))
+        {
+            return installed;
+        }
+
+        string global = Path.Combine(sourceDirectory, "Makefile.global");
+        if (!File.Exists(global))
+        {
+            return null;
+        }
+
+        foreach (string line in await File.ReadAllLinesAsync(global, cancellationToken).ConfigureAwait(false))
+        {
+            string[] assignment = line.Split('=', 2, StringSplitOptions.TrimEntries);
+            if (assignment.Length == 2 && assignment[0] == "abs_top_srcdir" && assignment[1].Length != 0 && Path.IsPathRooted(assignment[1]))
+            {
+                string recorded = Path.Combine(assignment[1], "src", "tools", "valgrind.supp");
+                return File.Exists(recorded) ? recorded : null;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
     /// Discovers PostgreSQL 18 from persisted configuration, managed installations, PATH, and platform installation locations.
     /// </summary>
     /// <param name="cancellationToken">Cancels <c>pg_config</c> queries.</param>

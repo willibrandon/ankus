@@ -190,6 +190,16 @@ public sealed partial class ToolCommandTests
         ProcessResult skippedSchema = await InvokeAsync(["schema", .. options, "--skip-build"], token);
         Assert.AreEqual(0, skippedSchema.ExitCode, skippedSchema.StandardError);
         Assert.AreEqual(schema.StandardOutput, skippedSchema.StandardOutput);
+        // From the project directory without --project, a relative intermediate path names the same directory, as
+        // pgrx's third schema invocation uses a relative Cargo configuration from the extension directory.
+        string[] relative = [.. options.Where((_, index) => index is not (2 or 3))];
+        relative[^1] = "BaseIntermediateOutputPath=" + Path.GetFileName(Path.TrimEndingDirectorySeparator(intermediateDirectory)) +
+            Path.DirectorySeparatorChar;
+        ProcessResult projectDirectorySchema = await PackageProcessRunner.RunAsync(s_tool, ["schema", .. relative, "--skip-build"],
+            s_environment, token, workingDirectory: directory);
+        Assert.AreEqual(0, projectDirectorySchema.ExitCode, projectDirectorySchema.StandardOutput + projectDirectorySchema.StandardError);
+        Assert.AreEqual(schema.StandardOutput, projectDirectorySchema.StandardOutput);
+        Assert.IsFalse(Directory.Exists(Path.Combine(directory, "obj")));
         string stage = CreateDirectory();
         ProcessResult install = await InvokeAsync(["install", .. options, "--destdir", stage], token);
         Assert.AreEqual(0, install.ExitCode, install.StandardOutput + install.StandardError);
