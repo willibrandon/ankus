@@ -85,7 +85,8 @@ public sealed class PostgresDevelopmentDiagnosticsTests(TestContext context)
         string home = Directory.CreateTempSubdirectory("ankus-cluster-diagnostics-").FullName;
         var cluster = new PostgresDevelopmentCluster(installation, home);
         using PortReservation reservation = PortReservation.Create();
-        var options = new PostgresDevelopmentOptions { Port = reservation.Port, TimeoutSeconds = 5 };
+        // Successful starts get the suite's startup budget; the deliberate FATAL ends pg_ctl's wait at once.
+        var options = new PostgresDevelopmentOptions { Port = reservation.Port, TimeoutSeconds = (int)IntegrationEnvironment.StartupTimeout.TotalSeconds };
         reservation.Dispose();
         try
         {

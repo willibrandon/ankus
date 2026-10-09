@@ -185,7 +185,13 @@ public sealed class PostgresValgrindTests(TestContext context)
             Assert.Contains("Memcheck, a memory error detector", log);
             Assert.Contains("could not create any TCP/IP sockets", log);
             reservation.Dispose();
-            Assert.IsTrue(await cluster.StartAsync(options, token));
+            var recovered = new PostgresDevelopmentOptions
+            {
+                Port = options.Port,
+                TimeoutSeconds = (int)IntegrationEnvironment.StartupTimeout.TotalSeconds,
+                UseValgrind = true,
+            };
+            Assert.IsTrue(await cluster.StartAsync(recovered, token));
             await using NpgsqlConnection connection = await OpenAsync(options.Port!.Value, token);
             await using var command = new NpgsqlCommand("SELECT 19 + 23", connection);
             Assert.AreEqual(42, await command.ExecuteScalarAsync(token));

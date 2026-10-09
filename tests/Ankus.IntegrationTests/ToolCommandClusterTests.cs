@@ -92,7 +92,9 @@ public sealed partial class ToolCommandTests
             Assert.IsTrue(File.Exists(Path.Combine(cluster.DataDirectory, "PG_VERSION")));
             Assert.IsEmpty(Directory.GetDirectories(Path.GetDirectoryName(cluster.DataDirectory)!, ".init-*"));
             reservation.Dispose();
-            Assert.IsTrue(await cluster.StartAsync(options, token));
+            // The deliberate failure ends at once; the recovered start is an ordinary startup with the suite's budget.
+            var recovered = new PostgresDevelopmentOptions { Port = options.Port, TimeoutSeconds = (int)IntegrationEnvironment.StartupTimeout.TotalSeconds };
+            Assert.IsTrue(await cluster.StartAsync(recovered, token));
             await using NpgsqlConnection connection = await OpenDevelopmentConnectionAsync(options.Port!.Value, token);
             await using var command = new NpgsqlCommand("SELECT 19 + 23", connection);
             Assert.AreEqual(42, await command.ExecuteScalarAsync(token));
