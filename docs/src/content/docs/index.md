@@ -11,9 +11,6 @@ hero:
     - text: Get started
       link: ./getting-started/functions/
       icon: right-arrow
-    - text: Coming from pgrx
-      link: ./getting-started/from-pgrx/
-      variant: minimal
 ---
 
 ```csharp
