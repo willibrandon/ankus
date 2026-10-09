@@ -47,10 +47,6 @@ SELECT add(40, 2);  -- 42
     <span class="feature-key">ankus test</span>
     <span class="feature-label">Tests run inside a real server and roll back, as pgrx tests do. Add --all for every registered version.</span>
   </div>
-  <div class="feature-item">
-    <span class="feature-key">pgrx</span>
-    <span class="feature-label">Each pgrx example has a C# counterpart, and a guide maps its APIs.</span>
-  </div>
 </div>
 
 <p class="platform-note">PostgreSQL 13 through 19 on Linux, macOS and Windows</p>
