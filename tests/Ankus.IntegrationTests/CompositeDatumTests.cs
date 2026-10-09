@@ -317,6 +317,67 @@ public sealed class CompositeDatumTests(TestContext context)
             }, context.CancellationToken);
 
     /// <summary>
+    /// Streams 10,000 composites built from one descriptor to the client and through SPI, as pgrx's
+    /// <c>test_tuple_desc_clone</c> does.
+    /// </summary>
+    [TestMethod]
+    public Task LargeCompositeSetsShareOneDescriptor()
+        => PostgresFixture.Cluster.RunInTransactionAsync(nameof(LargeCompositeSetsShareOneDescriptor),
+            async (connection, transaction, token) =>
+            {
+                await using var command = new NpgsqlCommand("""
+                    SELECT count(*), count(DISTINCT (d).name), sum((d).age), bool_and((d).name = 'dog ' || (d).age)
+                      FROM tuple_values.tuple_many_dogs(10000) d
+                    """, connection, transaction);
+                await using (NpgsqlDataReader reader = await command.ExecuteReaderAsync(token))
+                {
+                    Assert.IsTrue(await reader.ReadAsync(token));
+                    Assert.AreEqual(10000L, reader.GetInt64(0));
+                    Assert.AreEqual(10000L, reader.GetInt64(1));
+                    Assert.AreEqual(50005000L, reader.GetInt64(2));
+                    Assert.IsTrue(reader.GetBoolean(3));
+                }
+
+                command.CommandText = "SELECT tuple_values.tuple_many_dogs_through_spi(10000)";
+                Assert.AreEqual("10000|10000|50005000", await command.ExecuteScalarAsync(token));
+            }, context.CancellationToken);
+
+    /// <summary>
+    /// Executes pgrx's composite default and variadic cases and an installed composite-to-composite cast in the backend.
+    /// </summary>
+    [TestMethod]
+    public Task CompositeDefaultsVariadicsAndCastsExecute()
+        => PostgresFixture.Cluster.RunInTransactionAsync(nameof(CompositeDefaultsVariadicsAndCastsExecute),
+            async (connection, transaction, token) =>
+            {
+                await using var command = new NpgsqlCommand("""
+                    SELECT tuple_values.tuple_default_name(),
+                           tuple_values.tuple_default_name(ROW('Brandy', 1)::tuple_values.dog),
+                           tuple_values.tuple_variadic_names(ROW('Nami', 1)::tuple_values.dog, ROW('Brandy', 1)::tuple_values.dog),
+                           tuple_values.tuple_variadic_names(VARIADIC ARRAY[NULL, ROW(NULL, 2)]::tuple_values.dog[]),
+                           tuple_values.tuple_default_variadic_names(),
+                           tuple_values.tuple_default_variadic_names(ROW('Brandy', 1)::tuple_values.dog),
+                           (ROW('Nami', 3)::tuple_values.dog)::tuple_values.other_dog::text,
+                           pg_typeof((ROW('Nami', 3)::tuple_values.dog)::tuple_values.other_dog) = 'tuple_values.other_dog'::regtype,
+                           (SELECT castcontext::text || castmethod::text FROM pg_cast
+                             WHERE castsource = 'tuple_values.dog'::regtype AND casttarget = 'tuple_values.other_dog'::regtype),
+                           (NULL::tuple_values.dog)::tuple_values.other_dog IS NULL
+                    """, connection, transaction);
+                await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(token);
+                Assert.IsTrue(await reader.ReadAsync(token));
+                Assert.AreEqual("Nami", reader.GetString(0));
+                Assert.AreEqual("Brandy", reader.GetString(1));
+                Assert.AreSequenceEqual(["Nami", "Brandy"], reader.GetFieldValue<string?[]>(2));
+                Assert.AreSequenceEqual([null, null], reader.GetFieldValue<string?[]>(3));
+                Assert.AreSequenceEqual(["Nami"], reader.GetFieldValue<string?[]>(4));
+                Assert.AreSequenceEqual(["Brandy"], reader.GetFieldValue<string?[]>(5));
+                Assert.AreEqual("(Nami,)", reader.GetString(6));
+                Assert.IsTrue(reader.GetBoolean(7));
+                Assert.AreEqual("ef", reader.GetString(8));
+                Assert.IsTrue(reader.GetBoolean(9));
+            }, context.CancellationToken);
+
+    /// <summary>
     /// Matches owned metadata to independent catalog values, including typmods, domains, collations, and physical holes.
     /// </summary>
     /// <param name="byOid">Whether descriptor lookup uses a name or catalog OID.</param>

@@ -137,6 +137,51 @@ public static class CompositeFunctions
         => value.Get<int?>("age");
 
     /// <summary>
+    /// Casts one named composite to another by building the target, as pgrx's <c>castdog_to_castcat</c> does.
+    /// </summary>
+    /// <param name="value">The source composite.</param>
+    /// <returns>The target composite with the source name and a NULL age.</returns>
+    [PgFunction(Requires = ["composite-types"])]
+    [PgCast]
+    [return: PgCompositeType("other_dog", Schema = "tuple_values")]
+    public static PgHeapTuple TupleOtherDog([PgCompositeType("dog", Schema = "tuple_values")] PgHeapTuple value)
+    {
+        PgHeapTuple other = PgTupleDescriptor.Load("tuple_values.other_dog").CreateTuple();
+        other.Set("name", value.Get<string?>("name"));
+        return other;
+    }
+
+    /// <summary>
+    /// Reads a composite argument whose SQL default is a row, as pgrx's <c>gets_name_field_default</c> does.
+    /// </summary>
+    /// <param name="dog">The composite, defaulting to Nami.</param>
+    /// <returns>The name field.</returns>
+    [PgFunction(Requires = ["composite-types"])]
+    public static string? TupleDefaultName(
+        [PgCompositeType("dog", Schema = "tuple_values"), PgParameter(Default = "ROW('Nami', 0)::tuple_values.dog")] PgHeapTuple dog)
+        => dog.Get<string?>("name");
+
+    /// <summary>
+    /// Reads each name from variadic composite arguments, as pgrx's <c>gets_name_field_variadic</c> does.
+    /// </summary>
+    /// <param name="dogs">The composites, which may include SQL NULL rows.</param>
+    /// <returns>The names, with SQL NULL for a NULL row.</returns>
+    [PgFunction(Requires = ["composite-types"])]
+    public static string?[] TupleVariadicNames([PgCompositeType("dog", Schema = "tuple_values")] params PgHeapTuple?[] dogs)
+        => [.. dogs.Select(static dog => dog?.Get<string?>("name"))];
+
+    /// <summary>
+    /// Reads names from a defaulted variadic composite argument, as pgrx's <c>gets_name_field_default_variadic</c> does.
+    /// </summary>
+    /// <param name="dogs">The composites, defaulting to one row named Nami.</param>
+    /// <returns>The names.</returns>
+    [PgFunction(Requires = ["composite-types"])]
+    public static string?[] TupleDefaultVariadicNames(
+        [PgCompositeType("dog", Schema = "tuple_values"), PgParameter(Default = "ARRAY[ROW('Nami', 0)]::tuple_values.dog[]")]
+        params PgHeapTuple?[] dogs)
+        => [.. dogs.Select(static dog => dog?.Get<string?>("name"))];
+
+    /// <summary>
     /// Constructs composite arrays with explicit identity and nondefault dimensions.
     /// </summary>
     [PgFunction(Requires = ["composite-types"])]
@@ -496,6 +541,47 @@ public static class CompositeFunctions
         yield return null;
         yield return PgTupleDescriptor.Load("tuple_values.dog").CreateTuple();
         yield return TupleCreate("set", 12);
+    }
+
+    /// <summary>
+    /// Streams many named composites built from one descriptor loaded before the first row, as pgrx's
+    /// <c>generate_lots_of_dogs</c> does.
+    /// </summary>
+    /// <param name="count">The number of rows.</param>
+    /// <returns>Rows named by their one-based position, with that position as the age.</returns>
+    [PgFunction(Requires = ["composite-types"], SetMode = PgSetMode.ValuePerCall)]
+    [return: PgCompositeType("dog", Schema = "tuple_values")]
+    public static IEnumerable<PgHeapTuple> TupleManyDogs(int count)
+    {
+        PgTupleDescriptor descriptor = PgTupleDescriptor.Load("tuple_values.dog");
+        for (int index = 1; index <= count; index++)
+        {
+            PgHeapTuple dog = descriptor.CreateTuple();
+            dog.Set("name", "dog " + index.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            dog.Set("age", index);
+            yield return dog;
+        }
+    }
+
+    /// <summary>
+    /// Reads every row of a large composite set through SPI, as pgrx's <c>test_tuple_desc_clone</c> does.
+    /// </summary>
+    /// <param name="count">The number of rows to generate.</param>
+    /// <returns>The row count, distinct names and the sum of ages that SPI read.</returns>
+    [PgFunction(Requires = ["composite-types"])]
+    public static string TupleManyDogsThroughSpi(int count)
+    {
+        SpiResult rows = Spi.Query(Spi.Sql($"SELECT d FROM tuple_values.tuple_many_dogs({count}) d"));
+        var names = new HashSet<string>(StringComparer.Ordinal);
+        long ages = 0;
+        foreach (SpiRow row in rows)
+        {
+            PgHeapTuple dog = row.Get<PgHeapTuple>(0);
+            names.Add(dog.Get<string>("name"));
+            ages += dog.Get<int>("age");
+        }
+
+        return string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{rows.Count}|{names.Count}|{ages}");
     }
 
     /// <summary>

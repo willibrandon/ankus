@@ -259,6 +259,21 @@ public static class CustomTextTypeFunctions
     public static TextValue? TextValueEcho(TextValue? value, int mode) => ArrayFunctions.Exchange(value, mode);
 
     /// <summary>
+    /// Formats a nullable custom-text value, or reports that SQL NULL reached the method, as pgrx's
+    /// <c>fn_takes_option</c> does.
+    /// </summary>
+    [PgFunction]
+    public static string TextValueOrNothing(TextValue? value)
+        => value is null ? "nothing" : string.Create(CultureInfo.InvariantCulture, $"{value.Number}|{value.Text}");
+
+    /// <summary>
+    /// Formats a nullable custom-text enum, or reports that SQL NULL reached the method, as pgrx's
+    /// <c>fn_takes_option_enum</c> does.
+    /// </summary>
+    [PgFunction]
+    public static string TextModeOrNothing(Mode? value) => value?.ToString() ?? "nothing";
+
+    /// <summary>
     /// Exchanges enum values through the same typed paths.
     /// </summary>
     [PgFunction]

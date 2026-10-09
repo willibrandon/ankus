@@ -199,6 +199,16 @@ public sealed class SpiRow
             return (T)(object)numeric.ToDecimal();
         }
 
+        if (value is string characters && (typeof(T) == typeof(System.Text.Rune) || typeof(T) == typeof(System.Text.Rune?)))
+        {
+            return (T)(object)PgRuneText.Parse(characters);
+        }
+
+        if (value is System.Text.Rune rune && typeof(T) == typeof(string))
+        {
+            return (T)(object)rune.ToString();
+        }
+
         if (value is PgRelationIdentity relation && typeof(T) == typeof(PgRelation))
         {
             return (T)(object)PgRelation.Open(relation.Oid);

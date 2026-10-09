@@ -9,6 +9,7 @@ Use `string` and `byte[]` for independent managed values. Use `PgTextView` and
 | C# representation | SQL type | Storage |
 | --- | --- | --- |
 | `string` | `text` | Independent managed Unicode string |
+| `Rune` | `varchar` | One Unicode scalar value, like Rust's `char` |
 | `byte[]` | `bytea` | Independent managed bytes, including embedded zero |
 | `PgTextView` | `text` | Checked UTF-8 view with the original server datum retained |
 | `PgByteaView` | `bytea` | Checked native byte view |
@@ -55,6 +56,11 @@ compressed and external values into a private child memory context. Text in a
 UTF-8 database keeps its original payload when detoasting is unnecessary. Other
 server encodings require conversion into the private context. Invalid encoding
 is rejected without replacing bytes or characters.
+
+A `Rune` reads `text`, `varchar` or `bpchar` that holds exactly one Unicode
+scalar value. Empty text fails, and so does `e` followed by a combining accent,
+which is two scalar values. Padded `bpchar` such as `'a'::char(3)` fails too.
+`Rune[]` and `PgArray<Rune?>` map to `varchar[]`.
 
 `PgTextView.Datum` retains the original server-encoded representation. Its
 `TypeOid` preserves domains and the `varchar`/`bpchar` identities accepted by

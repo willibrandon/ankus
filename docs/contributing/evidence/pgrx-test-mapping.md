@@ -120,13 +120,13 @@ gaps and partials are listed at the end, ranked by importance.
 | pgrx test | Status | Ankus evidence |
 | --- | --- | --- |
 | fcinfo: test_takes_i16/i32/i64/bool/f32/f64/i8, strings, options, void, tuple | Covered | IT DatumConversionTests ScalarValuesPreservePostgresRepresentation, RealPreservesBitPattern, DoublePreservesBitPattern, NullableContractsPreserveNullAndEmpty, GreetingUsesGeneratedTextConversion; IT SetReturningTests TableColumnsPreserveNamesTypesAndValues |
-| fcinfo: test_takes_char | Gap | No `System.Text.Rune` mapping to `varchar` exists |
+| fcinfo: test_takes_char | Added | IT RuneTests RunesRoundTripAsVarchar (`🚨` row) |
 | fcinfo: test_panics | Covered | IT ErrorsExampleTests ErrorsSamplePreservesDiagnosticsAndRecovery |
 | fcinfo: test_same_name | Gap (minor) | No function has a parameter named like itself |
 | fcinfo: test_null_strict_type, test_null_error_type | Covered | IT CustomTextTypeTests CustomTextNullInputOptionsPreserveSqlNull |
 | fcinfo: make_idea_happy, test_add_two_numbers | Rust-specific | A `[PgFunction]` method remains an ordinary static method |
 | default_arg_value: negative, positive and specified defaults | Covered | IT FunctionDeclarationTests SqlDispatchHonorsDeclarations |
-| default_arg_value: test_option_default_argument | Partial | Covered for `int?`; a `string? = null` parameter is not executed |
+| default_arg_value: test_option_default_argument | Added | IT FunctionDeclarationTests SqlDispatchHonorsDeclarations: `int? = null` and `string? = null`, omitted, supplied and NULL |
 | variadic: test_func_with_variadic_array_args | Covered | IT ArrayDatumTests ParamsArraysDeclareSqlVariadicFunctions |
 | pg_extern: immutable, security invoker/definer, overridden SQL, anyelement, name | Covered | IT FunctionDeclarationTests CatalogRetainsPlannerAndArgumentContracts, SecurityModeControlsPrivilegesAndRestoresContext; IT SqlGenerationTests; IT PolymorphicTests; IT PlannerSupportTests |
 | pg_extern: test_create_or_replace | Partial | Re-applying a definition is covered (GeneratedReplacementPreservesDependentObjects); replacing a different earlier definition within one install is not |
@@ -165,7 +165,7 @@ gaps and partials are listed at the end, ranked by importance.
 | --- | --- | --- |
 | test_generate_series, test_composite_set, test_return_table_iterator, test_return_setof_iterator, empty iterators, test_one_col_table | Covered | IT SetReturningTests ScalarSetsPreserveEmptyAndNullSemantics, TableColumnsPreserveNamesTypesAndValues; IT SpiExampleTests SpiSampleMapsAndFiltersRows |
 | spi_in_iterator, spi_in_setof | Added | IT SetSpiErrorTests SpiErrorsInsideSetsReachTheClient (before the first row, while streaming and while materializing; cleanup runs once; the backend reruns the function) and CaughtSpiErrorsContinueTheSet |
-| test_srf_setof_datum_detoasting_with_borrow, test_srf_table_datum_detoasting_with_borrow | Partial | Large inline arguments are covered; a TOAST-stored table column is not |
+| test_srf_setof_datum_detoasting_with_borrow, test_srf_table_datum_detoasting_with_borrow | Added | IT BorrowedBufferTests ToastedTextFeedsBorrowedSetFunctions: borrowed-text SETOF and TABLE functions reread table columns stored compressed inline, out of line and compressed out of line, with every token checked in order |
 | test_result_table_1 to _3 | Rust-specific | Result wrappers; values are covered by TableColumnsPreserveNamesTypesAndValues |
 | test_result_table_4_err, test_result_table_5_none | Covered | IT SpiExampleTests SpiSampleRejectsInvalidAgesAndRecovers; IT SetReturningTests IteratorFailuresPreserveOwnershipAndRecover |
 
@@ -174,12 +174,12 @@ gaps and partials are listed at the end, ranked by importance.
 | pgrx test | Status | Ankus evidence |
 | --- | --- | --- |
 | test_gets_name_field, _strict, test_create_dog, test_scritch, _strict, test_new_composite_type | Covered | IT CompositeDatumTests TupleCloneReplacesOnlyItsOwnSlots, DescriptorConstructionPreservesAllNullRowsAndArrayIdentity, NamedAndNestedTuplesPreserveExactValuesAcrossOwners; IT CompositesExampleTests |
-| test_gets_name_field_default, test_gets_name_field_variadic | Partial | Generated SQL is covered (GT PgCompositeGenerationTests CompositeVariadicsAndDefaultsKeepBindings); backend execution is not |
+| test_gets_name_field_default, test_gets_name_field_variadic | Added | IT CompositeDatumTests CompositeDefaultsVariadicsAndCastsExecute: a row default, variadic rows including NULL rows, and a defaulted variadic, called with and without arguments; GT PgCompositeGenerationTests CompositeVariadicsAndDefaultsKeepBindings |
 | test_missing_type | Added | IT CompositeDatumTests MissingTypeDescriptorFailsAndRecovers (42704, then the same backend loads an existing type) |
 | test_missing_field, test_missing_number | Added | IT CompositeDatumTests InvalidTupleOperationsLeaveExistingCellsIntact (get and set by unknown name or ordinal) |
 | test_wrong_type_assumed | Added | Same test. As in pgrx, a typed read of a NULL cell returns null without checking the requested type; non-NULL cells and every write are checked. |
 | test_compatibility | Added | Same test: reading `SELECT 1` as a tuple throws InvalidCastException |
-| test_tuple_desc_clone | Partial | Small composite sets are covered; a 10,000-row composite set is not |
+| test_tuple_desc_clone | Added | IT CompositeDatumTests LargeCompositeSetsShareOneDescriptor: 10,000 rows from one descriptor, read by the client and through SPI |
 | test_accept_relation | Covered | IT RelationTests MetadataMatchesCatalog, PhysicalDescriptorsMatchCatalogAfterClose |
 | list_length_10, list_length_1000, list_length_drained | Covered | IT ListTests GrowthUsesOriginalOwner, RemovalAndDrainPreserveRemainingCells |
 
@@ -201,7 +201,7 @@ gaps and partials are listed at the end, ranked by importance.
 | from_into_datum: test_incompatible_datum_returns_error | Partial | Type mismatches are rejected (IT SpiRawTests ManagedConversionsAndErrorsRecover); the message text is not asserted |
 | from_into_datum: test_cstring_roundtrip, null_string_is_none | Covered | IT CStringTests; IT SpiRawTests; IT BorrowedBufferTests |
 | roundtrip_tests: scalars, geometry, numeric, temporal, uuid, complex and their arrays | Covered | IT DatumConversionTests; IT TransactionIdTests; IT GeometryDatumTests; IT NumericTests; IT TemporalDatumTests; IT ExtendedDatumTests; IT DatumMappingTests MappedFixedStoragePreservesEveryComponentAndOwner; IT MappedArrayTests; IT ArrayDatumTests |
-| roundtrip_tests: test_rt_char_0 to _7, test_rt_array_char | Gap | No `Rune` mapping to `varchar` exists |
+| roundtrip_tests: test_rt_char_0 to _7, test_rt_array_char | Different | The values pass (IT RuneTests RunesRoundTripAsVarchar, RunesSurviveEverySpiPath); text that is not one scalar value fails (TextThatIsNotOneScalarValueIsRejected) where pgrx takes the first character. Documented in the text guide. |
 | roundtrip_tests: test_rt_random_data, test_rt_array_random_data | Partial | Serialized types are covered (IT SerializedTypeTests); unsigned 64-bit and date-list members and large payloads are not |
 
 ## Errors, logging, configuration, memory and workers
@@ -228,10 +228,10 @@ gaps and partials are listed at the end, ranked by importance.
 | pgrx test | Status | Ankus evidence |
 | --- | --- | --- |
 | bool, int, MB, float, string and null-default settings | Covered | IT GucTests DefaultsAndMetadataPreserveNativeTypes, FiveTypesUseNativeParsingAndOwnedStorage; IT GucPreloadTests UnitsUseServerConversionsAndBlockSizes; IT GucLifetimeTests |
-| test_enum_guc | Partial | Labels, aliases and hidden values are covered; an unlabelled member set by its name is not |
-| test_guc_flags | Partial | pg_settings flags are covered (GucTests FlagsPreserveNativeListingResetAndIdentifierRules); `SHOW ALL` output is not |
+| test_enum_guc | Added | Labels, aliases and hidden values (IT GucTests); an unlabelled member is listed and set by its C# name, case-insensitively, and restored in parallel workers (IT GucTests FiveTypesUseNativeParsingAndOwnedStorage, GucParallelTests) |
+| test_guc_flags | Added | IT GucTests FlagsPreserveNativeListingResetAndIdentifierRules: pg_settings flags, `RESET ALL`, and `SHOW ALL` omitting a no-show setting while listing the others |
 | test_guc_check_hook and the per-type check, message and hint variants | Added | IT GucTests CheckRejectionsCoverEveryType (bool, real, string and enum: PostgreSQL's standard message, a custom message with detail and a custom message with hint; no assignment) and CheckErrorsPreserveDiagnosticsAndRecover (integer) |
-| test_check_hook_fail | Partial | A check that throws at SET time and boot rejection are covered; a throw during registration or LOAD is not |
+| test_check_hook_fail | Added | IT GucTests ThrowingBootCheckFailsLoadAndKeepsTheBackend: an exception from the boot-value check fails LOAD with its message as an ERROR and the same backend loads the library again; a returned boot rejection stays FATAL (RejectedBootDefaultTerminatesOnlyItsBackend) |
 | test_assign_hook, test_show_hook, combined hooks and check sources | Covered | IT GucTests HooksRestoreValuesAndExtraAcrossLocalAndSavepoints, AllHookTypesNormalizeAndDisplayIndependently; IT GucPreloadTests; IT GucParallelTests; IT GucSourceTests |
 
 ### memcxt, shmem, bgworker, xact_callback, xid64 and internal tests
@@ -244,7 +244,8 @@ gaps and partials are listed at the end, ranked by importance.
 | shmem: lock with elog, release on drop, spinlock | Covered | IT ToolCommandSharedMemoryTests SharedMemoryLocksPreserveValuesAcrossBackendsAndFailures; RT PgLwLockTests; IT ToolCommandSpinLockTests |
 | shmem: test_lock_is_released_on_unwind | Added | IT ToolCommandSharedMemoryTests (`shared_unwind`: a guard released by managed unwinding without a transaction abort, observed from a second backend) |
 | bgworker: untracked worker, transaction return, slot exhaustion | Covered | IT ToolCommandBackgroundWorkerTests BackgroundWorkersRegisterAndShareState; IT ToolCommandWorkerConnectionTests |
-| bgworker: test_dynamic_bgworker, untracked termination handle | Partial | A worker transaction after termination ends its wait loop is not covered; terminate-then-wait is checked only against a fixture |
+| bgworker: test_dynamic_bgworker | Added | IT ToolCommandBackgroundWorkerTests BackgroundWorkersRegisterAndShareState: after termination ends the wait loop, the worker commits an update the launching backend reads |
+| bgworker: untracked termination handle | Partial | Terminate-then-wait on an untracked worker is checked only against a fixture |
 | xact_callback, xid64 | Covered | IT TransactionCallbackTests RollbackRunsAbortAndClearsCommitRegistrations; IT TransactionIdTests |
 | internal: get-or-insert | Covered | IT InternalTests InternalFunctionStateSurvivesCallbacksAndReleasesAtQueryEnd |
 | internal: internal_insert | Partial | A value-type payload is not asserted |
@@ -255,7 +256,7 @@ gaps and partials are listed at the end, ranked by importance.
 | --- | --- | --- |
 | postgres_type: raw-layout, custom-text, JSON and tagged-enum types | Covered | IT NativeLayoutTypeTests; IT CustomTextTypeTests; IT SerializedTypeTests; IT PolymorphicTypeTests; IT TypeVariantsExampleTests |
 | postgres_type: test_my_enum_type | Different | A raw-layout root enum is rejected (ANKUS436); enums are allowed as fields |
-| postgres_type: test_call_with_null, test_call_with_enum_null | Partial | No test proves a non-strict function with a nullable custom-text parameter runs on NULL |
+| postgres_type: test_call_with_null, test_call_with_enum_null | Added | IT CustomTextTypeTests NullableCustomTextParametersReceiveSqlNull: the methods run on NULL for a custom-text record and enum, and neither function is strict |
 | trigger tests | Covered | IT TriggerTests; IT TriggerLifecycleTests; IT SqlGenerationTests CustomSqlTriggerFunctionsExecuteAndRecover; GT PgTriggerGenerationTests |
 | trigger: before_insert_metadata_safe | Partial | Trigger metadata is covered; opening the relation from `RelationOid` inside a trigger is not |
 | schema tests | Covered | IT SchemasExampleTests; IT FunctionDeclarationTests; IT TypedArrayCallbackTests; GT SqlGenerationGeneratorTests; IT SqlGenerationTests; IT DeclarationSqlTests |
@@ -264,7 +265,7 @@ gaps and partials are listed at the end, ranked by importance.
 | aggregate: aggregate_first_json, aggregate_first_jsonb | Added | IT AggregateTests JsonStatesKeepTheFirstValue (state type, strict, immutable and parallel-safe transition in the catalog) |
 | type_ident tests | Rust-specific | Compiler type identity; GT ManagedTypeIdentityTests, PgFunctionGeneratorTests, PgEnumGenerationTests |
 | pg_cast: explicit, assignment and implicit casts and catalog flags | Covered | IT OperatorCastTests |
-| pg_cast: assert_composite_cast_exists | Partial | Composite-to-composite casts are generated (GT PgCompositeGenerationTests) but not installed |
+| pg_cast: assert_composite_cast_exists | Added | IT CompositeDatumTests CompositeDefaultsVariadicsAndCastsExecute installs and runs an explicit function cast between two composite types, including strict NULL |
 | struct_type and complex tests | Covered | IT DatumMappingTests MappedFixedStoragePreservesEveryComponentAndOwner |
 | postgres_type_variants_smoke | Covered | IT TypeVariantsExampleTests |
 | sql_translatable_signature: nested arrays | Partial | The return diagnostic is asserted (ANKUS039); the argument-only case is not |
@@ -282,10 +283,4 @@ gaps and partials are listed at the end, ranked by importance.
 
 Ranked by importance. Deliberate differences are documented where users meet them.
 
-1. `System.Text.Rune` to `varchar`, matching Rust `char` (fcinfo and nine round-trip cases).
-2. Background-worker SPI after termination ends the wait loop.
-3. Composite VARIADIC and DEFAULT parameters executed in the backend; a composite-to-composite cast installed.
-4. TOAST-stored values fed to set-returning functions; a 10,000-row composite set.
-5. A non-strict function with a nullable custom-text parameter executed on NULL; a `string? = null` default.
-6. Check hooks that throw during registration or LOAD; `SHOW ALL`; enum members without labels set by name.
-7. Smaller cases: the managed stack trace of a backend error, value-type `PgInternal` payloads, conversion-mismatch messages, raw array bitmaps, an over-size array, serialized `ulong` and date-list members, the installed signature matrix, seeded temporal round trips, the `itemptr_encode` binding in the backend, a whole-surface shadowing compile test, a test-only compile symbol and a parameter named like its function.
+1. Smaller cases: the managed stack trace of a backend error, value-type `PgInternal` payloads, conversion-mismatch messages, raw array bitmaps, an over-size array, serialized `ulong` and date-list members, the installed signature matrix, seeded temporal round trips, the `itemptr_encode` binding in the backend, a whole-surface shadowing compile test, a test-only compile symbol and a parameter named like its function.

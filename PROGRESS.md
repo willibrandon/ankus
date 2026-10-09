@@ -130,6 +130,39 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
 
 ## Active validation and work
 
+- `System.Text.Rune` maps to `varchar`, as Rust's `char` does in pgrx. Generated
+  arguments, results, `Rune[]` and `PgArray<Rune?>` (`varchar[]`), SPI parameters,
+  cells and edited rows all carry the scalar value as character text, and returned
+  arrays keep the `varchar` element type. pgrx's `rt_char`, `rt_array_char`
+  (including U+10FFFF and NULL elements) and `takes_char` values pass through all
+  eight SPI paths in the backend. Where pgrx takes the first character and reads
+  empty text as SQL NULL, a `Rune` requires exactly one scalar value: empty text,
+  `'ab'`, a base letter with a combining accent and padded `bpchar` fail with
+  38000 and the backend continues. Runtime tests pin the UTF-8 bytes and the
+  unpaired-surrogate message.
+- Two more mapped gaps are closed in the backend. A background worker whose wait
+  loop ends on termination commits a final transaction that the launching
+  backend reads after shutdown, as pgrx's `bgworker` does. pgrx's composite
+  default and variadic cases run with and without arguments, including NULL
+  rows, and an explicit function cast between two composite types installs,
+  converts and keeps strict NULL. Borrowed-text set functions read table columns
+  stored compressed inline, out of line and compressed out of line, and 10,000
+  composites built from one descriptor stream to the client and through SPI.
+  Methods whose only parameter is a nullable custom-text record or enum run on
+  SQL NULL from non-strict functions, and a `string? = null` default is executed
+  omitted, supplied and NULL.
+- A configuration check that throws on its boot value while a library load
+  registers the setting now fails that load with an ERROR carrying the managed
+  message, matching pgrx and a C hook's ERROR; previously it was a rejection,
+  which PostgreSQL turns into FATAL for a boot value. Only registration changes:
+  returned rejections, reload checks and ordinary `SET` keep their policy, and
+  the same backend loads the library again afterwards. `SHOW ALL` omits a
+  no-show setting, and an unlabelled GUC enum member is set by its C# name and
+  restored in parallel workers.
+- Complete Windows x64 suites on **5b72b18** pass PostgreSQL 17.11 and 13.23
+  concurrently at package concurrency 20 (**14,254** total each; **14,212** passed;
+  42 skips; zero failures; **34m** each while sharing the machine).
+
 - Three pgrx capabilities are added. `PgDiagnostic.Domain` and `PgException.Domain`
   carry the message domain of C's `ereport_domain` and pgrx's `ereport_domain!`:
   the native report passes it to `errstart`, and captured ErrorData returns it,
@@ -143,7 +176,8 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   and double infinities, NaN and numeric-to-real overflow match SQL casts exactly,
   including PostgreSQL 13's rejection of numeric infinity. The pgrx mapping's
   remaining gaps are `Rune` to `varchar`, background-worker SPI after termination,
-  composite VARIADIC/DEFAULT execution and a few smaller cases.
+  composite VARIADIC/DEFAULT execution and a few smaller cases; `Rune` has since
+  been added.
 - The dedicated Intel macOS runner passes its complete suite on **a3e39c8**
   ([additional platforms 37892336665](https://github.com/willibrandon/ankus/actions/runs/37892336665), **1h15m**).
   The Linux version matrix on the same revision

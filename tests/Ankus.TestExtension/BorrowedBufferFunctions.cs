@@ -84,6 +84,48 @@ public static partial class BorrowedBufferFunctions
     }
 
     /// <summary>
+    /// Splits borrowed text lazily, rereading its native storage after every set callback, as pgrx's
+    /// <c>split_set_with_borrow</c> does.
+    /// </summary>
+    /// <param name="value">The text, which may be stored compressed or out of line.</param>
+    /// <param name="separator">A single ASCII separator.</param>
+    /// <returns>Each token in order.</returns>
+    [PgFunction]
+    public static IEnumerable<string> SplitBorrowedText(PgTextView value, string separator)
+    {
+        using (value)
+        {
+            byte delimiter = AsciiSeparator(separator);
+            int start = 0;
+            while (start <= value.Utf8Length)
+            {
+                ReadOnlySpan<byte> rest = value.DangerousGetUtf8Span()[start..];
+                int length = rest.IndexOf(delimiter);
+                length = length < 0 ? rest.Length : length;
+                string token = System.Text.Encoding.UTF8.GetString(rest[..length]);
+                start += length + 1;
+                yield return token;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Splits borrowed text into numbered rows, as pgrx's <c>split_table_with_borrow</c> does.
+    /// </summary>
+    /// <param name="value">The text, which may be stored compressed or out of line.</param>
+    /// <param name="separator">A single ASCII separator.</param>
+    /// <returns>Each one-based position and token.</returns>
+    [PgFunction]
+    public static IEnumerable<(int Position, string Token)> SplitBorrowedTable(PgTextView value, string separator)
+    {
+        int position = 0;
+        foreach (string token in SplitBorrowedText(value, separator))
+        {
+            yield return (++position, token);
+        }
+    }
+
+    /// <summary>
     /// Retains the generated text snapshot across successive lazy set callbacks.
     /// </summary>
     /// <param name="value">The text snapshot or SQL NULL.</param>
@@ -133,4 +175,9 @@ public static partial class BorrowedBufferFunctions
             SpiParameter.Create<PgTextView?>(null).TypeOid.ToString(CultureInfo.InvariantCulture),
             SpiParameter.Create<PgByteaView?>(null).TypeOid.ToString(CultureInfo.InvariantCulture)];
     }
+
+    private static byte AsciiSeparator(string separator)
+        => separator is [char only] && char.IsAscii(only)
+            ? (byte)only
+            : throw new ArgumentException("The separator must be one ASCII character.", nameof(separator));
 }

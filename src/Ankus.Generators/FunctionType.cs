@@ -217,7 +217,7 @@ internal sealed record FunctionType
     /// <summary>
     /// Gets whether this type uses a variable-length native buffer.
     /// </summary>
-    internal bool IsBuffer => !UsesRawTransport && !IsInternal && !IsRelation && (Enumeration is not null || CustomType is not null || Reference || GeometryName.Length != 0 || Reader is "uuid" or "json" or "jsonb" or "numeric" or "inet" or "cidr");
+    internal bool IsBuffer => !UsesRawTransport && !IsInternal && !IsRelation && (Enumeration is not null || CustomType is not null || Reference || GeometryName.Length != 0 || Reader is "uuid" or "json" or "jsonb" or "numeric" or "inet" or "cidr" or "varchar");
 
     /// <summary>
     /// Gets the statically supported geometric transport method suffix.
@@ -467,6 +467,12 @@ internal sealed record FunctionType
         {
             string sql = name == "global::System.Guid" ? "uuid" : name == "global::Ankus.PgJson" ? "json" : "jsonb";
             return new(name, sql, sql, sql, string.Empty, nullable, reference: false);
+        }
+
+        if (name == "global::System.Text.Rune")
+        {
+            // Rust's char maps to varchar in pgrx; a Rune is one Unicode scalar value carried as character text.
+            return new(name, "varchar", "varchar", "varchar", string.Empty, nullable, reference: false);
         }
 
         if (name == "global::Ankus.PgItemPointer")

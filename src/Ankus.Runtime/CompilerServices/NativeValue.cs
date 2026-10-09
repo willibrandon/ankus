@@ -168,6 +168,20 @@ public unsafe partial struct NativeValue
     public readonly string ReadString() => s_utf8.GetString(new ReadOnlySpan<byte>(_data, _length));
 
     /// <summary>
+    /// Reads character text holding exactly one Unicode scalar value.
+    /// </summary>
+    /// <returns>The scalar value.</returns>
+    /// <exception cref="InvalidCastException">The text is empty or holds more than one scalar value.</exception>
+    public readonly Rune ReadRune() => PgRuneText.Parse(ReadString());
+
+    /// <summary>
+    /// Encodes one Unicode scalar value as character text.
+    /// </summary>
+    /// <param name="value">The scalar value.</param>
+    /// <returns>An owned output value.</returns>
+    public static NativeValue FromRune(Rune value) => FromString(value.ToString());
+
+    /// <summary>
     /// Copies an optional UTF-8 buffer, preserving the distinction between absent and empty diagnostics.
     /// </summary>
     /// <returns>The decoded string, or null if no buffer was supplied.</returns>

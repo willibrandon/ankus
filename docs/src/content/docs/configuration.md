@@ -242,6 +242,10 @@ Validation does not guarantee assignment. A rejected result preserves native
 severity selection: an interactive change can raise ERROR while placeholder
 adoption can warn. A null diagnostic message keeps PostgreSQL's default message.
 Thrown managed exceptions are contained and converted to native check diagnostics.
+One check differs: the boot value check that runs while a library load
+registers the setting. An exception thrown there fails the load with an ERROR,
+and the backend can load the library again. A rejected boot value instead ends
+the backend with FATAL, which is PostgreSQL's policy for an invalid default.
 Actual PostgreSQL errors during native conversion or unrecovered backend calls
 propagate for rollback; they cannot become a recoverable check rejection.
 

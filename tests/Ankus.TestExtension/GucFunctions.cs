@@ -270,6 +270,11 @@ public static partial class GucFunctions
             return new(new PgGucCheckError("Rejected boot integer."));
         }
 
+        if (source == PgGucSource.Default && Control == "throw-boot")
+        {
+            throw new InvalidOperationException("Boot check failure.");
+        }
+
         return value switch
         {
             13 => new(new PgGucCheckError("Rejected 100% café 🐘", "Owned detail", "Choose another integer.", "22003")),
@@ -527,4 +532,9 @@ public enum GucMode : ulong
     /// </summary>
     [PgGucLabel("secret", Hidden = true)]
     Hidden = 10,
+
+    /// <summary>
+    /// Selects a member without a label, which PostgreSQL accepts by its C# name as pgrx accepts a variant name.
+    /// </summary>
+    Steady = 3,
 }

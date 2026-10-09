@@ -81,7 +81,8 @@ public sealed partial class ToolCommandTests
     }
 
     /// <summary>
-    /// Published workers attach shared storage, execute recoverable transactions and preserve native process lifecycle semantics.
+    /// Published workers attach shared storage, execute recoverable transactions, commit one after termination as pgrx's
+    /// worker does, and preserve native process lifecycle semantics.
     /// </summary>
     [TestMethod]
     public async Task BackgroundWorkersRegisterAndShareState()
@@ -114,7 +115,7 @@ public sealed partial class ToolCommandTests
             Assert.IsGreaterThan(0, workerPid);
             Assert.AreNotEqual(connection.ProcessID, workerPid);
             Assert.AreNotEqual(staticPid, workerPid);
-            Assert.AreEqual("1023", fields[1]);
+            Assert.AreEqual("2047", fields[1]);
             Assert.AreEqual("28", fields[2]);
             Assert.AreEqual("1", fields[3]);
             Assert.AreEqual("2", fields[5]);
@@ -130,7 +131,7 @@ public sealed partial class ToolCommandTests
             }
 
             Assert.AreEqual(2L, await PackageGucScalarAsync(connection, "SELECT count(*) FROM worker_values"));
-            Assert.AreEqual(28L, await PackageGucScalarAsync(connection, "SELECT sum(value) FROM worker_values"));
+            Assert.AreEqual(29L, await PackageGucScalarAsync(connection, "SELECT sum(value) FROM worker_values"));
             Assert.AreEqual(42, await PackageGucScalarAsync(connection, "SELECT 42"));
         }
 
@@ -459,6 +460,8 @@ public sealed partial class ToolCommandTests
                         }
 
                         Errors.Exchange(errors | 512);
+                        PgBackgroundWorker.RunTransaction(() => Spi.Execute("UPDATE worker_values SET value = value + 1 WHERE value = 17"));
+                        Errors.Exchange(errors | 512 | 1024);
                     }
                     finally
                     {

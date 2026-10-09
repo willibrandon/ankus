@@ -70,6 +70,12 @@ public static class DeclarationFunctions
     public static int DeclarationNullable(int? value = null) => value ?? 99;
 
     /// <summary>
+    /// Reports an omitted nullable text argument, as pgrx's <c>option_default_argument</c> does.
+    /// </summary>
+    [PgFunction]
+    public static string DeclarationOptionalText(string? value = null) => value ?? "got default of null";
+
+    /// <summary>
     /// Casts a signed-byte numeric default to PostgreSQL's internal char type.
     /// </summary>
     [PgFunction]

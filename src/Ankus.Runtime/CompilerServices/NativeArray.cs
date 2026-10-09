@@ -20,7 +20,7 @@ public unsafe partial struct NativeValue
     {
         PgDatumRegistry.RejectOrdinaryArray(typeof(PgArray<T>));
         uint oid = ReadArrayElementOid();
-        if (typeof(T) == typeof(PgHeapTuple) ? _auxiliary2 != 2 : SpiType.GetOid<T>() != oid)
+        if (typeof(T) == typeof(PgHeapTuple) ? _auxiliary2 != 2 : CharacterTextElementOid(SpiType.GetOid<T>()) != oid)
         {
             throw new InvalidCastException($"Array element OID {oid} cannot be read as '{typeof(T)}'.");
         }
@@ -107,8 +107,7 @@ public unsafe partial struct NativeValue
             throw new InvalidOperationException("Invalid native array header.");
         }
 
-        uint oid = BinaryPrimitives.ReadUInt32BigEndian(new ReadOnlySpan<byte>(_data + 8, 4));
-        oid = oid is 1042 or 1043 ? 25 : oid;
+        uint oid = CharacterTextElementOid(BinaryPrimitives.ReadUInt32BigEndian(new ReadOnlySpan<byte>(_data + 8, 4)));
         if (_auxiliary2 == 0)
         {
             _ = SpiArray.ArrayOid(oid);
@@ -120,6 +119,13 @@ public unsafe partial struct NativeValue
 
         return oid;
     }
+
+    /// <summary>
+    /// Reads bpchar and varchar elements as text, which shares their storage.
+    /// </summary>
+    /// <param name="oid">The element type.</param>
+    /// <returns>The text type for character text, otherwise the element type.</returns>
+    private static uint CharacterTextElementOid(uint oid) => oid is 1042 or 1043 ? 25 : oid;
 
     /// <summary>
     /// Decodes validated array elements using one resolved enum mapping when applicable.

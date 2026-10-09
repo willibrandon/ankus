@@ -56,6 +56,7 @@ internal static class SpiArray
         21 => 1005,
         23 => 1007,
         25 => 1009,
+        1043 => 1015,
         2275 => 1263,
         26 => 1028,
         27 => 1010,
@@ -130,6 +131,7 @@ internal static class SpiArray
             Matches<float>(type) || Matches<float?>(type) ? 700u :
             Matches<double>(type) || Matches<double?>(type) ? 701u :
             Matches<Guid>(type) || Matches<Guid?>(type) ? 2950u :
+            Matches<System.Text.Rune>(type) || Matches<System.Text.Rune?>(type) ? 1043u :
             Matches<PgJson>(type) || Matches<PgJson?>(type) ? 114u :
             Matches<PgJsonb>(type) || Matches<PgJsonb?>(type) ? 3802u :
             Matches<PgNumeric>(type) || Matches<PgNumeric?>(type) || Matches<decimal>(type) || Matches<decimal?>(type) ? 1700u :
@@ -176,6 +178,7 @@ internal static class SpiArray
            Convert<PgTransactionId>(array, type) ?? Convert<PgTransactionId?>(array, type) ??
            Convert<double>(array, type) ?? Convert<double?>(array, type) ?? Convert<string>(array, type) ?? Convert<PgCString>(array, type) ??
            Convert<Guid>(array, type) ?? Convert<Guid?>(array, type) ?? Convert<PgJson>(array, type) ?? Convert<PgJson?>(array, type) ??
+           Convert<System.Text.Rune>(array, type) ?? Convert<System.Text.Rune?>(array, type) ??
            Convert<PgJsonb>(array, type) ?? Convert<PgJsonb?>(array, type) ?? Convert<PgNumeric>(array, type) ?? Convert<PgNumeric?>(array, type) ??
            Convert<decimal>(array, type) ?? Convert<decimal?>(array, type) ?? Convert<PgDate>(array, type) ?? Convert<PgDate?>(array, type) ??
            Convert<DateOnly>(array, type) ?? Convert<DateOnly?>(array, type) ?? Convert<PgTime>(array, type) ?? Convert<PgTime?>(array, type) ??
@@ -237,6 +240,8 @@ internal static class SpiArray
         bool?[] items => new PgArray<bool?>(items),
         byte[][] items => new PgArray<byte[]>(items),
         string[] items => new PgArray<string>(items),
+        System.Text.Rune[] items => new PgArray<System.Text.Rune>(items),
+        System.Text.Rune?[] items => new PgArray<System.Text.Rune?>(items),
         sbyte[] items => new PgArray<sbyte>(items),
         sbyte?[] items => new PgArray<sbyte?>(items),
         short[] items => new PgArray<short>(items),
@@ -291,6 +296,16 @@ internal static class SpiArray
     };
 
     /// <summary>
+    /// Determines whether binary-compatible text and varchar elements can be read as strings or runes.
+    /// </summary>
+    /// <typeparam name="T">The requested element type.</typeparam>
+    /// <param name="elementOid">The array's element type.</param>
+    /// <returns>Whether the elements are character text the requested type reads.</returns>
+    private static bool ReadsCharacterText<T>(uint elementOid)
+        => elementOid is 25 or 1043 &&
+            (typeof(T) == typeof(string) || typeof(T) == typeof(System.Text.Rune) || typeof(T) == typeof(System.Text.Rune?));
+
+    /// <summary>
     /// Preserves array shape while applying exact scalar conversions and NULL checks to each element.
     /// </summary>
     /// <typeparam name="T">The requested scalar element type.</typeparam>
@@ -305,7 +320,8 @@ internal static class SpiArray
             return typed;
         }
 
-        if (PgEnumRegistry.FindArray(array.GetType()) is not null || PgTypeRegistry.FindArray(array.GetType()) is not null || SpiType.GetOid<T>() != array.ElementOid)
+        if (PgEnumRegistry.FindArray(array.GetType()) is not null || PgTypeRegistry.FindArray(array.GetType()) is not null ||
+            (SpiType.GetOid<T>() != array.ElementOid && !ReadsCharacterText<T>(array.ElementOid)))
         {
             throw new InvalidCastException($"Array elements cannot be read as '{typeof(T)}'.");
         }

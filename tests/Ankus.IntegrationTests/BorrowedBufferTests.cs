@@ -33,6 +33,48 @@ public sealed partial class BorrowedBufferTests(TestContext context)
     }
 
     /// <summary>
+    /// Lazy set functions reread borrowed text stored compressed inline, out of line, or compressed out of line, as
+    /// pgrx's detoasting set tests do.
+    /// </summary>
+    /// <param name="storage">The column storage strategy.</param>
+    /// <param name="count">The number of space-separated tokens.</param>
+    /// <param name="expected">The SQL expression for the token at one-based position <c>n</c>.</param>
+    /// <param name="stored">A check that the row is stored in the intended form.</param>
+    [TestMethod]
+    [DataRow("MAIN", 5000, "'a'", "pg_column_size(s) < 2000")]
+    [DataRow("EXTERNAL", 2000, "md5(n::text)", "pg_column_size(s) = octet_length(s) AND toast > 0")]
+    [DataRow("EXTENDED", 5000, "md5((n % 100)::text)", "pg_column_size(s) BETWEEN 2100 AND octet_length(s) / 4 AND toast > 0")]
+    public Task ToastedTextFeedsBorrowedSetFunctions(string storage, int count, string expected, string stored)
+        => PostgresFixture.Cluster.RunInTransactionAsync(nameof(ToastedTextFeedsBorrowedSetFunctions),
+            async (connection, transaction, token) =>
+            {
+                await using var command = new NpgsqlCommand($"""
+                    CREATE TEMP TABLE srf_toast (s text);
+                    ALTER TABLE srf_toast ALTER COLUMN s SET STORAGE {storage};
+                    INSERT INTO srf_toast SELECT string_agg({expected}, ' ' ORDER BY n) FROM generate_series(1, {count}) n;
+                    """, connection, transaction);
+                await command.ExecuteNonQueryAsync(token);
+                command.CommandText = $"""
+                    SELECT {stored}
+                      FROM srf_toast, (SELECT pg_relation_size(reltoastrelid) AS toast FROM pg_class
+                                        WHERE oid = 'pg_temp.srf_toast'::regclass) relation
+                    """;
+                Assert.IsTrue(Assert.IsInstanceOfType<bool>(await command.ExecuteScalarAsync(token)));
+                command.CommandText = $"""
+                    SELECT (SELECT count(*)::text || '|' || bool_and(t = {expected})::text
+                              FROM srf_toast, LATERAL borrowed_buffers.split_borrowed_text(s, ' ') WITH ORDINALITY AS x(t, n)),
+                           (SELECT count(*)::text || '|' || bool_and(token = {expected.Replace("n", "position", StringComparison.Ordinal)})::text
+                              FROM srf_toast, LATERAL borrowed_buffers.split_borrowed_table(s, ' ')),
+                           (SELECT count(*) FROM (SELECT borrowed_buffers.split_borrowed_text(s, ' ') FROM srf_toast) tokens)
+                    """;
+                await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(token);
+                Assert.IsTrue(await reader.ReadAsync(token));
+                Assert.AreEqual(count + "|true", reader.GetString(0));
+                Assert.AreEqual(count + "|true", reader.GetString(1));
+                Assert.AreEqual(count, reader.GetInt64(2));
+            }, context.CancellationToken);
+
+    /// <summary>
     /// A borrowed bytea reports zero bytes for an empty value and its exact length otherwise.
     /// </summary>
     [TestMethod]

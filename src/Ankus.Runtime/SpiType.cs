@@ -168,6 +168,11 @@ internal static class SpiType
             return 2950;
         }
 
+        if (type == typeof(System.Text.Rune) || type == typeof(System.Text.Rune?))
+        {
+            return 1043;
+        }
+
         if (type == typeof(PgJson) || type == typeof(PgJson?))
         {
             return 114;
@@ -296,6 +301,7 @@ internal static class SpiType
             Array array when PgEnumRegistry.FindArray(array.GetType()) is { } mapping => NativeValue.FromArray(mapping.Wrap(array)),
             byte[] bytes => NativeValue.FromBytes(bytes),
             Guid uuid => NativeValue.FromGuid(uuid),
+            System.Text.Rune rune => NativeValue.FromRune(rune),
             PgInet address => NativeValue.FromInet(address),
             PgPoint point => NativeValue.FromPoint(point),
             PgLine line => NativeValue.FromLine(line),

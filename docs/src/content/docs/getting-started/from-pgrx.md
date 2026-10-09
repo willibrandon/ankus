@@ -55,6 +55,7 @@ passed through. A nullable result can return SQL NULL.
 | pgrx value or concept | Ankus representation |
 |---|---|
 | `&str`, `String` | `string`; checked native borrowing through `PgTextView` |
+| `char` | `Rune` as `varchar` |
 | `Vec<u8>` / `bytea` | `byte[]`; `PgByteaView` for borrowed bytes |
 | SQL arrays | `T[]` for vectors, `PgArray<T>` for explicit shape, `PgArrayView<T>` for checked borrowing |
 | `Json`, `JsonB` | `PgJson`, `PgJsonb` |
@@ -67,7 +68,9 @@ passed through. A nullable result can return SQL NULL.
 | Backend-owned opaque state | `PgInternal` |
 
 Use the full-range PostgreSQL temporal types when .NET's built-in range cannot
-represent a value. Use shaped arrays when dimensions or lower bounds matter.
+represent a value. pgrx reads a `char` from the first character of its text and
+treats empty text as SQL NULL; a `Rune` must hold exactly one Unicode scalar
+value, so `''` and `'ab'` fail instead. Use shaped arrays when dimensions or lower bounds matter.
 Conversions reject unsupported or lossy representations; see the individual
 value guides for exact rules.
 

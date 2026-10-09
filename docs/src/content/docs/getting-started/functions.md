@@ -129,6 +129,7 @@ Task and asynchronous iterator diagnostics are described in
 | `PgItemPointer` | `tid` ([tuple location](/item-pointers/)) |
 | `float`, `double` | `real`, `double precision` |
 | `string` | `text` |
+| `Rune` | `varchar` holding exactly one Unicode scalar value |
 | `byte[]` | `bytea` |
 | `PgTextView`, `PgByteaView` | `text`, `bytea` with [checked native borrowing](/text-and-binary/) |
 | `Guid` | `uuid` |

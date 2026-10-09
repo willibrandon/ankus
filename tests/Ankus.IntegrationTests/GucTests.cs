@@ -10,7 +10,7 @@ namespace Ankus.IntegrationTests;
 [TestClass]
 public sealed class GucTests(TestContext context)
 {
-    private static readonly string[] s_labels = ["idle", "rest", "fast"];
+    private static readonly string[] s_labels = ["idle", "rest", "fast", "Steady"];
     private static readonly string[] s_restorationEvents =
     [
         "check:21:Session", "assign:22:old=10:extra=00FF0016",
@@ -106,6 +106,9 @@ public sealed class GucTests(TestContext context)
         await ExecuteAsync(connection, "SET ankus_guc.text = ''; SET ankus_guc.mode = 'rest'");
         Assert.AreEqual($"False|-50|{BitConverter.DoubleToInt64Bits(-1.25)}||18446744073709551615", await ScalarAsync(connection, "SELECT datatype.guc_values()"));
         Assert.AreEqual("idle", await ScalarAsync(connection, "SHOW ankus_guc.mode"));
+        await ExecuteAsync(connection, "SET ankus_guc.mode = 'steady'");
+        Assert.AreEqual("Steady", await ScalarAsync(connection, "SHOW ankus_guc.mode"));
+        Assert.AreEqual($"False|-50|{BitConverter.DoubleToInt64Bits(-1.25)}||3", await ScalarAsync(connection, "SELECT datatype.guc_values()"));
         Assert.AreEqual(text, await ScalarAsync(connection, "SELECT datatype.guc_retained_text(false)"));
         await ExecuteAsync(connection, "RESET ALL");
         Assert.AreEqual("True|10|-9223372036854775808|<null>|18446744073709551615", await ScalarAsync(connection, "SELECT datatype.guc_values()"));
@@ -426,6 +429,26 @@ public sealed class GucTests(TestContext context)
     }
 
     /// <summary>
+    /// A check that throws on its boot default while LOAD registers the setting fails that LOAD with the managed
+    /// diagnostic, as pgrx's <c>test_check_hook_fail</c> does, and the same backend can load the library again.
+    /// </summary>
+    [TestMethod]
+    public async Task ThrowingBootCheckFailsLoadAndKeepsTheBackend()
+    {
+        await using NpgsqlConnection failing = await PostgresFixture.Cluster.OpenConnectionAsync(context.CancellationToken);
+        int process = failing.ProcessID;
+        await ExecuteAsync(failing, "SET ankus_guc.control = 'throw-boot'");
+        PostgresException error = await FailureAsync(failing, "LOAD 'Ankus.TestExtension'");
+        Assert.AreEqual("ERROR", error.InvariantSeverity, error.SqlState + " " + error.MessageText + " " + error.Detail);
+        Assert.AreEqual("38000", error.SqlState);
+        Assert.AreEqual("Boot check failure.", error.MessageText);
+        Assert.AreEqual(42, await ScalarAsync(failing, "SELECT 42"));
+        await ExecuteAsync(failing, "SET ankus_guc.control = ''; LOAD 'Ankus.TestExtension'");
+        Assert.AreEqual("integer=10;extra=0A000000", await ScalarAsync(failing, "SHOW ankus_guc.hook_int"));
+        Assert.AreEqual(process, failing.ProcessID);
+    }
+
+    /// <summary>
     /// A parameter-report display failure follows the server's transaction boundary without a report loop.
     /// </summary>
     [TestMethod]
@@ -473,6 +496,19 @@ public sealed class GucTests(TestContext context)
         Assert.Contains("ankus_guc.explain", Assert.IsInstanceOfType<string>(await ScalarAsync(connection, "EXPLAIN (SETTINGS, FORMAT JSON) SELECT 1")));
         PostgresException autoFile = await FailureAsync(connection, "ALTER SYSTEM SET ankus_guc.no_auto = '2'");
         Assert.AreEqual("55P02", autoFile.SqlState);
+        await using var show = new NpgsqlCommand("SHOW ALL", connection);
+        var listed = new HashSet<string>(StringComparer.Ordinal);
+        await using (NpgsqlDataReader reader = await show.ExecuteReaderAsync(context.CancellationToken))
+        {
+            while (await reader.ReadAsync(context.CancellationToken))
+            {
+                listed.Add(reader.GetString(0));
+            }
+        }
+
+        Assert.DoesNotContain("ankus_guc.hidden", listed);
+        Assert.Contains("ankus_guc.retained", listed);
+        Assert.Contains("ankus_guc.limit", listed);
     }
 
     /// <summary>

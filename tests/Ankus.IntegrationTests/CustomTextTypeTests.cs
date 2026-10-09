@@ -11,6 +11,24 @@ namespace Ankus.IntegrationTests;
 public sealed class CustomTextTypeTests(TestContext context)
 {
     /// <summary>
+    /// Non-strict functions whose only parameter is a nullable custom-text type run on SQL NULL, as pgrx's
+    /// <c>test_call_with_null</c> and <c>test_call_with_enum_null</c> require.
+    /// </summary>
+    [TestMethod]
+    public async Task NullableCustomTextParametersReceiveSqlNull()
+    {
+        await using NpgsqlConnection connection = await PostgresFixture.Cluster.OpenConnectionAsync(context.CancellationToken);
+        Assert.AreEqual("nothing", await Scalar<string>(connection, "SELECT custom_text.text_value_or_nothing(NULL)"));
+        Assert.AreEqual("nothing", await Scalar<string>(connection, "SELECT custom_text.text_mode_or_nothing(NULL)"));
+        Assert.AreEqual("7|ok", await Scalar<string>(connection, "SELECT custom_text.text_value_or_nothing('7|ok')"));
+        Assert.AreEqual("Ready", await Scalar<string>(connection, "SELECT custom_text.text_mode_or_nothing('on')"));
+        Assert.IsFalse(await Scalar<bool>(connection, """
+            SELECT bool_or(proisstrict) FROM pg_proc
+             WHERE pronamespace = 'custom_text'::regnamespace AND proname IN ('text_value_or_nothing', 'text_mode_or_nothing')
+            """));
+    }
+
+    /// <summary>
     /// Preserves field values, enum labels, concrete variants and SQL NULL across all ownership paths.
     /// </summary>
     /// <param name="mode">The direct or SPI path.</param>

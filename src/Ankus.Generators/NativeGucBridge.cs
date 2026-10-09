@@ -313,6 +313,9 @@ internal static class NativeGucBridge
             definition->prepared = true;
         }
 
+        /* The definition PostgreSQL is installing; its check runs on the boot value before the setting exists. */
+        static AnkusGuc *ankus_guc_defining = NULL;
+
         static void
         ankus_guc_register(AnkusGuc *definition)
         {
@@ -357,35 +360,45 @@ internal static class NativeGucBridge
         #endif
             }
         #endif
-            switch (definition->kind)
+            AnkusGuc *previous_defining = ankus_guc_defining;
+            ankus_guc_defining = definition;
+            PG_TRY();
             {
-                case 0:
-                    DefineCustomBoolVariable(definition->name, definition->short_desc, definition->long_desc,
-                        definition->variable, definition->boot.boolean, context, flags,
-                        definition->check.boolean, definition->assign.boolean, definition->show);
-                    break;
-                case 1:
-                    DefineCustomIntVariable(definition->name, definition->short_desc, definition->long_desc,
-                        definition->variable, definition->boot.integer, definition->minimum.integer, definition->maximum.integer,
-                        context, flags, definition->check.integer, definition->assign.integer, definition->show);
-                    break;
-                case 2:
-                    DefineCustomRealVariable(definition->name, definition->short_desc, definition->long_desc,
-                        definition->variable, definition->boot.real, definition->minimum.real, definition->maximum.real,
-                        context, flags, definition->check.real, definition->assign.real, definition->show);
-                    break;
-                case 3:
-                    DefineCustomStringVariable(definition->name, definition->short_desc, definition->long_desc,
-                        definition->variable, definition->boot_string, context, flags,
-                        definition->check.string, definition->assign.string, definition->show);
-                    break;
-                case 4:
-                    DefineCustomEnumVariable(definition->name, definition->short_desc, definition->long_desc,
-                        definition->variable, definition->boot.integer, definition->options, context, flags,
-                        definition->check.enumeration, definition->assign.enumeration, definition->show);
-                    break;
-                default: elog(ERROR, "invalid Ankus configuration kind");
+                switch (definition->kind)
+                {
+                    case 0:
+                        DefineCustomBoolVariable(definition->name, definition->short_desc, definition->long_desc,
+                            definition->variable, definition->boot.boolean, context, flags,
+                            definition->check.boolean, definition->assign.boolean, definition->show);
+                        break;
+                    case 1:
+                        DefineCustomIntVariable(definition->name, definition->short_desc, definition->long_desc,
+                            definition->variable, definition->boot.integer, definition->minimum.integer, definition->maximum.integer,
+                            context, flags, definition->check.integer, definition->assign.integer, definition->show);
+                        break;
+                    case 2:
+                        DefineCustomRealVariable(definition->name, definition->short_desc, definition->long_desc,
+                            definition->variable, definition->boot.real, definition->minimum.real, definition->maximum.real,
+                            context, flags, definition->check.real, definition->assign.real, definition->show);
+                        break;
+                    case 3:
+                        DefineCustomStringVariable(definition->name, definition->short_desc, definition->long_desc,
+                            definition->variable, definition->boot_string, context, flags,
+                            definition->check.string, definition->assign.string, definition->show);
+                        break;
+                    case 4:
+                        DefineCustomEnumVariable(definition->name, definition->short_desc, definition->long_desc,
+                            definition->variable, definition->boot.integer, definition->options, context, flags,
+                            definition->check.enumeration, definition->assign.enumeration, definition->show);
+                        break;
+                    default: elog(ERROR, "invalid Ankus configuration kind");
+                }
             }
+            PG_FINALLY();
+            {
+                ankus_guc_defining = previous_defining;
+            }
+            PG_END_TRY();
 
             if (reload_pending)
             {
@@ -1368,8 +1381,12 @@ internal static class NativeGucBridge
                     }
                     else if (frame->error.report_level != 0)
                         ankus_guc_report(&frame->error, ankus_log_level(frame->error.report_level - 1));
+                    /* A check that throws while PostgreSQL installs the setting fails the
+                     * registration, as a C hook's ERROR would; a returned rejection keeps
+                     * PostgreSQL's terminal boot-value policy. */
                     else if (!raise && (frame->error.flags & ANKUS_ERROR_UNRECOVERED) == 0 &&
-                        frame->error.sqlstate != ERRCODE_QUERY_CANCELED)
+                        frame->error.sqlstate != ERRCODE_QUERY_CANCELED &&
+                        !(status == 1 && source == PGC_S_DEFAULT && ankus_guc_defining == definition))
                         ankus_guc_reject(&frame->error);
                     else
                     {

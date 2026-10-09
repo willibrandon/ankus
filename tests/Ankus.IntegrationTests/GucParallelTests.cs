@@ -24,6 +24,7 @@ public sealed partial class GucParallelTests(TestContext context)
     [DataRow("default", null, "rest", "18446744073709551615")]
     [DataRow("value", "", "fast", "9223372036854775808")]
     [DataRow("value", "café 🐘", "secret", "10")]
+    [DataRow("value", "x", "Steady", "3")]
     [DataRow("normalized-null", null, "rest", "18446744073709551615")]
     public Task BackendLoadedWorkersRestoreTypedValuesAndRegenerateExtras(string textState, string? text, string mode, string modeValue)
         => PostgresFixture.Cluster.RunInTransactionAsync(nameof(BackendLoadedWorkersRestoreTypedValuesAndRegenerateExtras),
