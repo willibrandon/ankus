@@ -43,6 +43,38 @@ The Ankus home, defaulting to ANKUS_HOME or ~/.ankus.
 
 ## Methods
 
+<a id="member-1de5dc1d5737ba0b"></a>
+
+### CreateDatabaseAsync(string, string?, CancellationToken)
+
+Creates a database in the running cluster as another Unix account, or reuses an existing database without modifying it.
+
+```csharp
+public Task<bool> CreateDatabaseAsync(string database, string? runAs, CancellationToken cancellationToken)
+```
+
+Parameters:
+
+`database` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The literal database name.
+
+`runAs` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The Unix account and role that creates the database, or null for the cluster's own role.
+
+`cancellationToken` — [CancellationToken](https://learn.microsoft.com/dotnet/api/system.threading.cancellationtoken)
+
+Cancels database queries and creation.
+
+Returns: [Task&lt;bool&gt;](https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1)
+
+True when a database was created, or false when it already existed.
+
+As <code>cargo pgrx regress --runas</code> runs <code>createdb</code>, psql runs as <code class="paramref">runAs</code> through
+<code>sudo -u</code> and connects as the role of the same name, which owns the new database. That role must exist and
+be allowed to create databases. A null account creates the database as the cluster's <code>postgres</code> role.
+
 <a id="member-73b306aac5d399fe"></a>
 
 ### CreateDatabaseAsync(string, CancellationToken)
@@ -67,6 +99,42 @@ Cancels database queries and creation.
 Returns: [Task&lt;bool&gt;](https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1)
 
 True when a database was created, or false when it already existed.
+
+<a id="member-d409b1c8da50db33"></a>
+
+### DropDatabaseAsync(string, bool, string?, CancellationToken)
+
+Drops an exact database from the running development cluster as another Unix account, or leaves an absent
+database unchanged.
+
+```csharp
+public Task<bool> DropDatabaseAsync(string database, bool force, string? runAs, CancellationToken cancellationToken)
+```
+
+Parameters:
+
+`database` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The literal database name. Names exceeding the server's identifier limit are rejected.
+
+`force` — [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+Whether PostgreSQL should terminate connections to the selected database before dropping it.
+
+`runAs` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The Unix account and role that drops the database, or null for the cluster's own role.
+
+`cancellationToken` — [CancellationToken](https://learn.microsoft.com/dotnet/api/system.threading.cancellationtoken)
+
+Cancels database queries and removal.
+
+Returns: [Task&lt;bool&gt;](https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1)
+
+True when a database was dropped, or false when it was already absent.
+
+As <code>cargo pgrx regress --runas</code> runs <code>dropdb</code>, psql runs as <code class="paramref">runAs</code> through
+<code>sudo -u</code> and connects as the role of the same name, which must own the database or be a superuser.
 
 <a id="member-92cf619e8870aba5"></a>
 

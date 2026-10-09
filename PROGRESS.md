@@ -77,7 +77,7 @@ defines the full scope; family-level implementation is not API-by-API completion
 | Values and ownership | Documented scalar, array, composite, temporal, JSON, network, geometry, custom codec and raw datum contracts. Interval equality, hashing and ordering agree with PostgreSQL while retaining exact components; complete primary-platform CI passes. | Remaining mapped/container contracts, parsing/formatting ergonomics and complete source-case mapping remain required. |
 | Runtime performance | Owned binary PgNumeric, direct decimal coefficient encoding, constant-time fixed-width array indexing, and a measured native guard for allowlisted pure built-ins. Catalog-miss errors require actual rollback; real-resource regressions and complete primary-platform CI pass. Persistent in-backend benchmarks provide batching, transaction modes and statistical baseline comparisons. | Complete current guard supported-version acceptance. Extend that tier only where ownership proofs and measurements justify it. Never weaken error recovery to reduce overhead. |
 | Native bindings | pgrx 0.19.3 inventories, matching PostgreSQL 19 beta 4 inputs and target-compiler ABI checks; typed pointers and ANKUS129 make raw caller obligations explicit. Complete current primary-platform compositions pass, with focused binding checks on all seven majors. | Full supported-major/platform tests and final inventory audit. |
-| Development CLI | Version/project selection, installation/registration, cluster lifecycle, run/connect, test/regress/bench, property forwarding, environment selection, scriptable info and package prefixes. Benchmarks are measured inside PostgreSQL and retained in named comparison groups. | Persistent Windows diagnostic collection, account/privilege selection and remaining inventoried CLI/platform contracts. |
+| Development CLI | Version/project selection, installation/registration, cluster lifecycle, run/connect, test/regress/bench, property forwarding, environment selection, scriptable info and package prefixes. Benchmarks are measured inside PostgreSQL and retained in named comparison groups. `install --sudo`, `test --runas` and `regress --runas` follow cargo-pgrx with real-account evidence. | Persistent Windows diagnostic collection, run-as provisioning of the macOS and version runners, and remaining inventoried CLI/platform contracts. |
 | .NET templates | Version-matched ordinary extension and worker templates reuse the CLI assets and pin local tools. Optional xUnit/NUnit consumers exercise managed and named backend cases, ignore reasons, worker processes and cleanup alongside default MSTest consumers. Complete primary-platform CI passes. | Remaining discovery contracts and complete version/platform acceptance. |
 | API discoverability | Idiomatic attributed declarations, documented runtime APIs, named logging helpers and typed SPI interpolation. Compiler transport helpers are isolated in Ankus.CompilerServices and hidden from IntelliSense; complete primary-platform CI passes. | Remaining value/assertion helpers and final inventory audit. |
 | Packages and release | MIT license, Brandon Williams copyright, author/repository/project metadata and deliberate SDK/runtime boundaries. | Full release gates and supported-platform packages before publishing 0.1.0. |
@@ -129,6 +129,36 @@ Earlier timings, outcomes, failed checks and superseded acceptance details remai
 in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-table-before-spi-flow-acceptance-2026-10-05).
 
 ## Active validation and work
+
+- cargo-pgrx's account and privilege options are ported. `ankus install --sudo`
+  stages the publication as the current account, then runs `sudo cp` beside each
+  destination and `sudo mv` into place, control file last. Unlike pgrx's in-place
+  copy, a running server never maps a partly written library. A denied ordinary
+  installation now suggests `--sudo`, and Windows rejects the option. `ankus test
+  --runas` and `PostgresTestClusterOptions.RunAs` run `initdb`, `pg_ctl` and the
+  server's directory, configuration, log and cleanup operations through `sudo -u`.
+  That account owns the data, socket and native log, and logs are read back through
+  `sudo`. Publications stay with the test account, so unlike pgrx no root-owned
+  installation is written. `ankus regress --runas` creates and drops the database
+  through `sudo -u` psql as the role of the same name, as pgrx runs `createdb` and
+  `dropdb`. Cancellation stops only `sudo`, whose descendants belong to another
+  account. Downloaded installations carry an absolute `RUNPATH` into their home
+  directory, so another account cannot run them from a private home; distribution
+  and Homebrew packages work. Evidence on Linux x64/PostgreSQL 18.6 uses a real
+  `ankus-runas` account reached through a sudoers rule that grants only that
+  account, with a root-owned relocatable installation. The backend process runs as
+  that account; `ankus test --runas` passes the consumer's backend tests; regress
+  fails on a missing role as `createdb` would, then creates, owns, drops and
+  recreates its database as that role. In a Debian container with real root,
+  `install --sudo` writes root-owned files into a root-owned installation, removes
+  its staging, and PostgreSQL loads the extension (`add(40, 2)` returns 42), including
+  a reinstall while the server has the library mapped. A stand-in `sudo` verifies the
+  exact command sequence, a failed command's exit code and temporary-file removal.
+  Run-as cases run where passwordless sudo reaches `ANKUS_TEST_RUNAS_ACCOUNT` and
+  report inconclusive elsewhere. CI test runs use `ankus-runas` when the runner
+  provides it, create it on GitHub-hosted Linux runners and warn otherwise. The
+  primary Linux runner is provisioned; the macOS ARM64 and version runners remain
+  to be provisioned.
 
 - Every pgrx example now has an Ankus counterpart. `notify`, `rewrite_manip`,
   `pglz_inspect` (all 24 pgrx tests in the backend) and `wal_decoder` are ported,

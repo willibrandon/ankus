@@ -361,8 +361,8 @@ public sealed class GucPreloadTests(TestContext context)
         byte[] expected = System.Text.Encoding.UTF8.GetBytes(name + '\0' + value + '\0');
         for (int attempt = 0; attempt < 100; attempt++)
         {
-            byte[] contents = await File.ReadAllBytesAsync(path, context.CancellationToken);
-            if (contents.AsSpan().IndexOf(expected) >= 0)
+            byte[]? contents = await TryReadServerFileAsync(path);
+            if (contents is not null && contents.AsSpan().IndexOf(expected) >= 0)
             {
                 return;
             }
@@ -370,9 +370,30 @@ public sealed class GucPreloadTests(TestContext context)
             await Task.Delay(TimeSpan.FromMilliseconds(50), context.CancellationToken);
         }
 
-        byte[] actual = await File.ReadAllBytesAsync(path, context.CancellationToken);
+        byte[] actual = await TryReadServerFileAsync(path) ?? [];
         Assert.IsGreaterThanOrEqualTo(0, actual.AsSpan().IndexOf(expected),
             "The postmaster did not publish the reloaded child-process setting.");
+    }
+
+    /// <summary>
+    /// Reads a file the postmaster replaces by renaming, without blocking the rename, or returns null while it is in use.
+    /// </summary>
+    /// <param name="path">The server-owned file.</param>
+    /// <returns>The file's bytes, or null when another process holds it exclusively.</returns>
+    private async Task<byte[]?> TryReadServerFileAsync(string path)
+    {
+        try
+        {
+            await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete,
+                4096, FileOptions.Asynchronous);
+            using var buffer = new MemoryStream();
+            await stream.CopyToAsync(buffer, context.CancellationToken);
+            return buffer.ToArray();
+        }
+        catch (IOException) when (OperatingSystem.IsWindows())
+        {
+            return null;
+        }
     }
 
     private async Task<object?> ScalarAsync(NpgsqlConnection connection, string sql)

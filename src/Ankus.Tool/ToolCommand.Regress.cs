@@ -22,6 +22,10 @@ internal static partial class ToolCommand
         var verbose = new Option<bool>("--verbose", "-v") { Description = "Print native regression differences as well as their paths." };
         var verbosity = new Option<string>("--psql-verbosity") { Description = "SQL error detail: terse, default, verbose, or sqlstate.", DefaultValueFactory = _ => "terse" };
         var noBuild = new Option<bool>("--no-build") { Description = "Install the project's existing publication without rebuilding." };
+        var runAs = new Option<string?>("--runas")
+        {
+            Description = "Create and drop the test database as this Unix account and its role through sudo -u.",
+        };
         command.Arguments.Add(filter);
         command.Options.Add(database);
         command.Options.Add(reset);
@@ -32,6 +36,7 @@ internal static partial class ToolCommand
         command.Options.Add(verbose);
         command.Options.Add(verbosity);
         command.Options.Add(noBuild);
+        command.Options.Add(runAs);
         command.Options.Add(new Option<int?>("--port") { Description = "TCP port for the development server." });
         command.Options.Add(new Option<int>("--timeout") { Description = "Startup timeout in seconds (1–600).", DefaultValueFactory = _ => 60 });
         command.Options.Add(new Option<string[]>("--postgresql-conf") { Description = "Literal name=value setting; repeat for multiple settings." });
@@ -43,6 +48,12 @@ internal static partial class ToolCommand
             if (detail is not ("terse" or "default" or "verbose" or "sqlstate"))
             {
                 throw new ArgumentException("psql verbosity must be terse, default, verbose, or sqlstate.");
+            }
+
+            string? account = result.GetValue(runAs);
+            if (account is not null && OperatingSystem.IsWindows())
+            {
+                throw new ArgumentException("--runas is not supported on Windows.");
             }
 
             string project = await ExtensionBuilder.ResolveProjectAsync(result.GetValue<string?>("--project"),
@@ -104,7 +115,8 @@ internal static partial class ToolCommand
                     Console.WriteLine("Would start PostgreSQL under Valgrind Memcheck, with diagnostics in the server log.");
                 }
 
-                Console.WriteLine($"Would {(result.GetValue(reset) || newTest is not null || suite.SetupChanged ? "recreate" : "create or reuse")} database {targetDatabase}.");
+                Console.WriteLine($"Would {(result.GetValue(reset) || newTest is not null || suite.SetupChanged ? "recreate" : "create or reuse")} database {targetDatabase}" +
+                    (account is null ? "." : $" as {account} through sudo."));
                 if (newTest is not null)
                 {
                     Console.WriteLine($"Would bootstrap {newTest}, running setup.sql first when present.");
@@ -158,10 +170,10 @@ internal static partial class ToolCommand
                 Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"Regression run {iteration} of {iterations}: {targetDatabase}"));
                 if (result.GetValue(reset) || newTest is not null || suite.SetupChanged)
                 {
-                    await cluster.DropDatabaseAsync(targetDatabase, force: true, token);
+                    await cluster.DropDatabaseAsync(targetDatabase, force: true, account, token);
                 }
 
-                bool created = await cluster.CreateDatabaseAsync(targetDatabase, token);
+                bool created = await cluster.CreateDatabaseAsync(targetDatabase, account, token);
                 Console.WriteLine($"{(created ? "Created" : "Reusing")} database {targetDatabase}");
                 string connection = await cluster.GetConnectionStringAsync(targetDatabase, token);
                 if (newTest is not null)

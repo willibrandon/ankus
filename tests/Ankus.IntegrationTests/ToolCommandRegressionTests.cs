@@ -288,6 +288,75 @@ public sealed partial class ToolCommandTests
         Assert.IsFalse(Directory.Exists(Path.Combine(suite, "results")));
     }
 
+    /// <summary>
+    /// With --runas, regression databases are created and dropped as another Unix account and its role through sudo,
+    /// as cargo pgrx regress --runas runs createdb and dropdb; a missing role fails as createdb would.
+    /// </summary>
+    [RetryPortCollisionTestMethod]
+    [OSCondition(OperatingSystems.Linux | OperatingSystems.OSX)]
+    public async Task RegressCreatesDatabasesAsAnotherAccount()
+    {
+        CancellationToken token = context.CancellationToken;
+        string account = IntegrationEnvironment.RequireRunAsAccount();
+        // The account runs psql from the selected installation, so stage it where every account can read it.
+        await using PostgresTestInstallation owner = await PostgresTestInstallation.StageAsync(s_installation,
+            Path.Combine("/tmp", "ankus-runas-pg-" + Guid.NewGuid().ToString("N")), token);
+        string home = CreateDirectory();
+        string project = PrepareRegressionProject();
+        string suite = Path.Combine(Path.GetDirectoryName(project)!, "pg_regress");
+        await WriteRegressionCaseAsync(suite, "setup", "CREATE EXTENSION ankus_tool_probe;", "", token);
+        await WriteRegressionCaseAsync(suite, "native", "SELECT add(40, 2);", "42\n", token);
+        var cluster = new PostgresDevelopmentCluster(owner.Installation, home);
+        using PortReservation reservation = PortReservation.Create();
+        int port = reservation.Port;
+        reservation.Dispose();
+        const string Database = "regress_runas";
+        string[] options = [.. RegressionOptions(owner.Installation, home, project, port, Database), "--no-build", "--runas", account];
+        try
+        {
+            ProcessResult missing = await InvokeAsync(options, token);
+            Assert.AreNotEqual(0, missing.ExitCode, missing.StandardOutput);
+            Assert.Contains($"role \"{account}\" does not exist", missing.StandardError);
+            await using (NpgsqlConnection connection = await OpenRegressionConnectionAsync(port, "postgres", token))
+            {
+                await using var command = new NpgsqlCommand($"CREATE ROLE \"{account}\" LOGIN CREATEDB", connection);
+                await command.ExecuteNonQueryAsync(token);
+            }
+
+            ProcessResult created = await InvokeAsync(options, token);
+            Assert.AreEqual(0, created.ExitCode, created.StandardOutput + created.StandardError);
+            Assert.Contains("Created database " + Database, created.StandardOutput);
+            Assert.AreEqual(account, await ReadDatabaseOwnerAsync(port, Database, token));
+            await using (NpgsqlConnection connection = await OpenRegressionConnectionAsync(port, Database, token))
+            {
+                await using var command = new NpgsqlCommand("CREATE TABLE retained(value integer)", connection);
+                await command.ExecuteNonQueryAsync(token);
+            }
+
+            ProcessResult reset = await InvokeAsync([.. options, "--resetdb"], token);
+            Assert.AreEqual(0, reset.ExitCode, reset.StandardOutput + reset.StandardError);
+            Assert.Contains("Created database " + Database, reset.StandardOutput);
+            Assert.AreEqual(account, await ReadDatabaseOwnerAsync(port, Database, token));
+            await using (NpgsqlConnection connection = await OpenRegressionConnectionAsync(port, Database, token))
+            {
+                await using var command = new NpgsqlCommand("SELECT to_regclass('public.retained') IS NULL", connection);
+                Assert.IsTrue(Assert.IsInstanceOfType<bool>(await command.ExecuteScalarAsync(token)));
+            }
+        }
+        finally
+        {
+            await cluster.StopAsync(CancellationToken.None);
+        }
+    }
+
+    private static async Task<string> ReadDatabaseOwnerAsync(int port, string database, CancellationToken token)
+    {
+        await using NpgsqlConnection connection = await OpenRegressionConnectionAsync(port, "postgres", token);
+        await using var command = new NpgsqlCommand("SELECT pg_get_userbyid(datdba) FROM pg_database WHERE datname = $1", connection);
+        command.Parameters.AddWithValue(database);
+        return Assert.IsInstanceOfType<string>(await command.ExecuteScalarAsync(token));
+    }
+
     private string PrepareRegressionProject()
     {
         string directory = CreateDirectory();

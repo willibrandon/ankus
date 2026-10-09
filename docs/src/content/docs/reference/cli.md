@@ -551,6 +551,13 @@ and skip setup on reuse.
 file also triggers recreation. Recreation disconnects existing clients to that
 database and deletes its contents. The development server remains running afterward.
 
+On Linux and macOS, `--runas postgres` creates and drops the database as that
+account, as `cargo pgrx regress --runas` runs `createdb` and `dropdb`. Ankus runs
+`psql` through `sudo -u postgres`, connecting as the role of the same name, so
+that role owns the database. The role must exist in the development cluster and
+be allowed to create databases; the tests themselves still run as the cluster's
+`postgres` role.
+
 Tests run sequentially in ordinal filename order, with setup first when needed.
 Each file gets a separate psql session. A positional filter matches a
 case-sensitive substring of ordinary test names:

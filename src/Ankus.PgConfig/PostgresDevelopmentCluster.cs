@@ -448,7 +448,7 @@ public sealed partial class PostgresDevelopmentCluster
 
     private async Task<(int Code, string Output)> RunAsync(string executable, string[] arguments, CancellationToken token,
         bool allowDescendants = false, string? input = null, bool postgresClient = false,
-        IReadOnlyDictionary<string, string?>? environment = null)
+        IReadOnlyDictionary<string, string?>? environment = null, bool sudo = false)
     {
         token.ThrowIfCancellationRequested();
         // Windows pg_ctl passes inherited handles to its persistent server. Shell execution
@@ -461,7 +461,8 @@ public sealed partial class PostgresDevelopmentCluster
             RedirectStandardOutput = !detached,
             RedirectStandardError = !detached,
             RedirectStandardInput = !detached,
-            WorkingDirectory = _root,
+            // Another account may be unable to enter the cluster root; its commands use absolute paths.
+            WorkingDirectory = sudo ? "/" : _root,
         };
         foreach (string argument in arguments)
         {
@@ -519,7 +520,8 @@ public sealed partial class PostgresDevelopmentCluster
         {
             try
             {
-                process.Kill(entireProcessTree: true);
+                // Descendants of sudo belong to another account, so cancellation stops sudo itself.
+                process.Kill(entireProcessTree: !sudo);
             }
             catch (InvalidOperationException) when (process.HasExited)
             {

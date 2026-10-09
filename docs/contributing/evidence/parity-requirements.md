@@ -73,8 +73,10 @@ General build-property forwarding reaches project evaluation, restore and every
 related build/test invocation, including nested fixture publication, matching the
 upstream cargo-option contract. Automatic response files retain normal MSBuild
 precedence. See the [CLI guide](../../src/content/docs/reference/cli.md#pass-msbuild-properties).
-Execution-account options and privileged installation remain open. Complete
-version/platform validation is still required.
+Execution-account options (`test --runas`, `regress --runas`) and privileged
+installation (`install --sudo`) are implemented with real-account evidence on
+Linux; run-as provisioning of the remaining Unix runners and complete
+version/platform validation are still required.
 The framework also requires versioned extension SQL upgrades, custom/versioned shared-library names,
 control-file settings, dependency handling, and deterministic packaging.
 Primary author settings and native dependency/privilege behavior are implemented

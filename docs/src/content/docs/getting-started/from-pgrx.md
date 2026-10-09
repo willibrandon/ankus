@@ -171,6 +171,7 @@ the returned `PgGucSetting<T>`. See
 | Install or package the extension | `ankus install`, `ankus package` |
 | Install into a `root`-owned PostgreSQL with `cargo pgrx install --sudo` | `ankus install --sudo` (Linux and macOS) |
 | Run test servers as another account with `cargo pgrx test --runas postgres --pgdata /tmp/pgdata` | `ankus test --runas postgres --pgdata /tmp/pgdata` (Linux and macOS) |
+| Create regression databases as another account with `cargo pgrx regress --runas postgres` | `ankus regress --runas postgres` (Linux and macOS) |
 | Run SQL regression files | `ankus regress --pg 18` |
 | Name the shared library with Cargo's `[lib] name` | Set `AnkusLibraryName` |
 | Install versions side by side by omitting `module_pathname` | Set `AnkusVersionedLibrary` to `true` |
