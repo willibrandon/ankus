@@ -47,6 +47,10 @@
     <ProjectReference Include="../../samples/Ankus.Examples.Subtransactions/Ankus.Examples.Subtransactions.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../../samples/Ankus.Examples.Threads/Ankus.Examples.Threads.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../../samples/Ankus.Examples.Hooks/Ankus.Examples.Hooks.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../samples/Ankus.Examples.RewriteManip/Ankus.Examples.RewriteManip.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../samples/Ankus.Examples.Notify/Ankus.Examples.Notify.csproj" />
+    <ProjectReference Include="../../samples/Ankus.Examples.PglzInspect/Ankus.Examples.PglzInspect.csproj" />
+    <ProjectReference Include="../../samples/Ankus.Examples.WalDecoder/Ankus.Examples.WalDecoder.csproj" />
   </ItemGroup>
 
 </Project>

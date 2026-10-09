@@ -78,6 +78,15 @@ internal sealed record ExtensionCompositionInput(FunctionPipeline.MethodInputs M
             }
         }
 
+        foreach (OutputPluginPipeline.Output output in Methods.OutputPlugins)
+        {
+            yield return output.Analysis.Location;
+            foreach (GeneratorProblem problem in output.Analysis.Problems)
+            {
+                yield return problem.Location;
+            }
+        }
+
         foreach (LifecyclePipeline.LifecycleOutput output in Methods.Lifecycle)
         {
             yield return output.Analysis.Location;

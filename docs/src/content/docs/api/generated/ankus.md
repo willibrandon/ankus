@@ -110,6 +110,7 @@ Assembly: `Ankus.Runtime.dll`
 - [PgNumericPrecisionAttribute](/api/ankus.pgnumericprecisionattribute/)
 - [PgOperatorAttribute](/api/ankus.pgoperatorattribute/)
 - [PgOrderingAttribute](/api/ankus.pgorderingattribute/)
+- [PgOutputPluginAttribute](/api/ankus.pgoutputpluginattribute/)
 - [PgParameterAttribute](/api/ankus.pgparameterattribute/)
 - [PgPath](/api/ankus.pgpath/)
 - [PgPolygon](/api/ankus.pgpolygon/)

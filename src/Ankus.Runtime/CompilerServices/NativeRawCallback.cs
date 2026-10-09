@@ -40,6 +40,50 @@ public static unsafe class NativeRawCallback
             throw new PlatformNotSupportedException("The native callback does not match its generated binding representation.");
         }
 
+        ValidateIdentity(identity, T.PostgresMajor);
+    }
+
+    /// <summary>
+    /// Copies a native record address after validating the record's measured binding and the address's alignment.
+    /// </summary>
+    /// <typeparam name="T">The generated native record that the address designates.</typeparam>
+    /// <param name="argument">The live native pointer descriptor.</param>
+    /// <returns>The nonnull, aligned record address. The native caller retains ownership of its storage.</returns>
+    /// <remarks>
+    /// This raw transport contract requires an explicit unsafe context. The checks cannot prove that the address
+    /// designates a live record; use only argument storage supplied by the matching native dispatcher.
+    /// </remarks>
+    [NativeUnsafeAccess]
+    public static T* ReadRecordPointer<T>(NativeCallArgument argument) where T : unmanaged, IPgNativeType
+    {
+        int size = NativeSize<T>();
+        int alignment = T.NativeAlignment;
+        if (size == 0 || alignment <= 0 || (alignment & (alignment - 1)) != 0 ||
+            T.RuntimeIdentifier != RuntimeInformation.RuntimeIdentifier || T.AbiIdentity is not { Length: 64 } identity)
+        {
+            throw new PlatformNotSupportedException("The native callback record does not match its generated binding representation.");
+        }
+
+        ValidateIdentity(identity, T.PostgresMajor);
+        nint address = Read<nint>(argument);
+        if (address == 0)
+        {
+            throw new InvalidOperationException("The native callback received a null record address.");
+        }
+
+        if ((nuint)address % (nuint)alignment != 0)
+        {
+            throw new InvalidOperationException("The native callback record address does not satisfy its native alignment.");
+        }
+
+        return (T*)address;
+    }
+
+    /// <summary>
+    /// Checks a generated binding identity against the active native capability.
+    /// </summary>
+    private static void ValidateIdentity(string identity, int postgresMajor)
+    {
         Span<byte> bytes = stackalloc byte[64];
         if (Encoding.UTF8.GetByteCount(identity) != bytes.Length)
         {
@@ -47,7 +91,7 @@ public static unsafe class NativeRawCallback
         }
 
         Encoding.UTF8.GetBytes(identity, bytes);
-        NativeRawCall.ValidateBinding(bytes, T.PostgresMajor);
+        NativeRawCall.ValidateBinding(bytes, postgresMajor);
     }
 
     /// <summary>

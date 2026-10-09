@@ -22,7 +22,7 @@ internal sealed record BackgroundWorkerDeclaration(string Target, string EntryPo
         "float", "for", "goto", "if", "inline", "int", "long", "register", "restrict", "return", "short", "signed",
         "sizeof", "static", "struct", "switch", "typedef", "union", "unsigned", "void", "volatile", "while", "bool",
         "true", "false", "alignas", "alignof", "constexpr", "nullptr", "static_assert", "thread_local", "typeof",
-        "typeof_unqual", "Pg_magic_func", "_PG_init", "_PG_fini",
+        "typeof_unqual", "Pg_magic_func", "_PG_init", "_PG_fini", OutputPluginDeclaration.ExportName,
     };
 
     /// <summary>

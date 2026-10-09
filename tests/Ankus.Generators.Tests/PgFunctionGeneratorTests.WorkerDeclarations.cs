@@ -75,7 +75,7 @@ public sealed partial class PgFunctionGeneratorTests
 
         string longSymbol = new('a', 96);
         yield return (Export(longSymbol), "ANKUS273", "\"" + longSymbol + "\"");
-        foreach (string symbol in new[] { "for", "Pg_magic_func", "_PG_init", "_PG_fini", "ankus_worker", "pg_finfo_worker" })
+        foreach (string symbol in new[] { "for", "Pg_magic_func", "_PG_init", "_PG_fini", "_PG_output_plugin_init", "ankus_worker", "pg_finfo_worker" })
         {
             yield return (Export(symbol), "ANKUS274", "\"" + symbol + "\"");
         }

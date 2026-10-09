@@ -1,0 +1,4 @@
+comment = 'Logical decoding output plugin that captures row changes as JSON'
+relocatable = false
+superuser = true
+trusted = false

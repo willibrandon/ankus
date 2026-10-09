@@ -27,6 +27,7 @@ counterpart of each pgrx example in [pgrx examples](/reference/pgrx-examples/).
 | `extension_sql!`, `extension_sql_file!` | Assembly-level `[PgSql]`, `[PgSqlFile]` | [Custom SQL](/custom-sql/) |
 | SQL positioning references | `[PgRequires]` and `[PgBefore]` with managed declarations, or explicit IDs | [SQL dependencies](/custom-sql/) |
 | `_PG_init` | `[PgModuleLoad]` for early registration; `[PgInitialize]` for backend initialization | [Initialization](/initialization/) |
+| `#[no_mangle] extern "C-unwind" fn _PG_output_plugin_init` | `[PgOutputPlugin]` on a static method taking `OutputPluginCallbacks*` | [Logical decoding](/logical-decoding/) |
 | `pg_module_magic!` | Generated module magic; `[PgModule]` or project settings for identity | [Build settings](/reference/build-settings/#native-module-identity) |
 | `#[pg_test]` | `[PgTest]` with generated backend test cases | [Testing](/getting-started/testing/) |
 | `#[pg_bench]`, `Bencher`, `BatchSize` | `[PgBenchmark]`, `PgBencher`, `PgBenchmarkBatchSize` | [Benchmarks](/benchmarks/) |

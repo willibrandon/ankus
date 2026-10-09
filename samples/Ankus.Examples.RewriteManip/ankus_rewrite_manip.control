@@ -1,0 +1,4 @@
+comment = 'Query-tree Var manipulation through rewrite/rewriteManip.h'
+schema = 'rewrite_manip'
+relocatable = false
+superuser = false

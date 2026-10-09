@@ -1,0 +1,3 @@
+comment = 'LISTEN, NOTIFY and UNLISTEN wrappers with cache-invalidation triggers'
+relocatable = false
+superuser = false

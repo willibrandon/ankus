@@ -94,6 +94,12 @@ original backend's callbacks, even when issued by that same backend. Writes made
 by `PrePrepare` belong to the prepared transaction and become visible only if it
 is committed.
 
+The [notify sample](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.Notify)
+ports pgrx's coalesced cache invalidation. A row trigger records changed
+categories, a `PreCommit` callback sends one notification per category, an
+`Abort` callback discards them, and a `PrePrepare` callback rejects a prepared
+transaction whose categories could no longer be sent.
+
 | Event | Timing | SPI |
 |---|---|---|
 | `PreCommit` | Before commit | Yes |

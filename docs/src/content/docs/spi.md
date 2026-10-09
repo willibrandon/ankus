@@ -347,6 +347,8 @@ These functions use the server's keyword table and `quote_all_identifiers` setti
 ANKUS044 accepts these direct helper calls and locals whose reaching values remain completely quoted. It
 continues to reject an unquoted runtime value mixed into the same raw command;
 bind values separately with positional parameters, as above.
+The [PGLZ inspection sample](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.PglzInspect)
+samples a caller-selected table and column this way.
 
 Quoted fragments can also be accumulated in a loop or joined after selecting
 an actual `Spi.QuoteIdentifier` or `Spi.QuoteLiteral` method. Every dynamic

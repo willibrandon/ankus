@@ -25,11 +25,14 @@ are ordinary projects; publish and install one as described in
 | `hooks` | [`Ankus.Examples.Hooks`](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.Hooks) | Executor, parse-analysis and utility hooks installed once and chained. See [Raw values](/raw-values/#managed-native-callbacks-and-hooks). |
 | `json` | [`Ankus.Examples.Json`](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.Json) | See [JSON and UUID values](/json-and-uuid/). |
 | `memory_contexts` | [`Ankus.Examples.MemoryContexts`](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.MemoryContexts) | Scratch contexts, sets and a worker counter in `TopMemoryContext`. |
+| `notify` | [`Ankus.Examples.Notify`](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.Notify) | LISTEN/NOTIFY wrappers, a cache-invalidation trigger and invalidations coalesced at commit. See [Transaction callbacks](/transaction-callbacks/). |
 | `numeric` | [`Ankus.Examples.Numeric`](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.Numeric) | See [Numeric values](/numeric/). |
 | `operators` | [`Ankus.Examples.Operators`](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.Operators) | See [Operators and casts](/operators-and-casts/). |
+| `pglz_inspect` | [`Ankus.Examples.PglzInspect`](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.PglzInspect) | PGLZ probes, column sampling, ratio histograms and recommendations through PostgreSQL's compressor. |
 | `pgthread` | [`Ankus.Examples.Threads`](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.Threads) | Managed threads compute; only the backend thread calls PostgreSQL. |
 | `pgtrybuilder` | [`Ankus.Examples.TryCatch`](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.TryCatch) | Filtered `catch` and `finally` replace `PgTryBuilder`. |
 | `range` | [`Ankus.Examples.Ranges`](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.Ranges) | See [Ranges](/ranges/). |
+| `rewrite_manip` | [`Ankus.Examples.RewriteManip`](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.RewriteManip) | `Var` changes through `rewrite/rewriteManip.h`. See [Native declarations](/raw-values/#native-postgresql-declarations). |
 | `schemas` | [`Ankus.Examples.Schemas`](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.Schemas) | Objects in the installation, extension-owned, `public` and `pg_catalog` schemas. |
 | `shmem` | [`Ankus.Examples.SharedMemory`](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.SharedMemory) | Bounded collections, locks and an atomic in preloaded shared memory. See [Shared memory](/shared-memory/). |
 | `spi`, `spi_srf` | [`Ankus.Examples.Spi`](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.Spi) | See [SPI queries](/spi/). |
@@ -37,6 +40,7 @@ are ordinary projects; publish and install one as described in
 | `strings` | [`Ankus.Examples.Strings`](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.Strings) | |
 | `subtrans_infos` | [`Ankus.Examples.Subtransactions`](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.Subtransactions) | Transaction status, parents, nesting level and commit time. |
 | `triggers` | [`Ankus.Examples.Triggers`](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.Triggers) | See [Triggers](/triggers/). |
+| `wal_decoder` | [`Ankus.Examples.WalDecoder`](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.WalDecoder) | A logical decoding output plugin that writes changes as JSON. See [Logical decoding output plugins](/logical-decoding/). |
 
 Ankus also includes samples without a direct pgrx counterpart:
 [`Ankus.Examples.CustomScans`](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.CustomScans),
@@ -46,5 +50,5 @@ Ankus also includes samples without a direct pgrx counterpart:
 [`Ankus.Examples.Initialization`](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.Initialization).
 
 These pgrx examples do not have an Ankus counterpart yet: `bad_ideas`,
-`custom_libname`, `nostd`, `notify`, `pglz_inspect`, `postgres_type_variants`,
-`rewrite_manip`, `versioned_custom_libname_so`, `versioned_so` and `wal_decoder`.
+`custom_libname`, `nostd`, `postgres_type_variants`, `versioned_custom_libname_so`
+and `versioned_so`.

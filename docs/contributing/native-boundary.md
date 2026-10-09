@@ -88,6 +88,17 @@ retain the backend and memory helpers needed by their native host. Assembly
 identity changes invalidate managed callback symbols while authored worker
 exports remain stable.
 
+A logical decoding output plugin initializer also validates into an immutable
+invocation contract: its managed target, the generated `OutputPluginCallbacks`
+record and an assembly-specific dispatcher symbol. Its managed dispatcher,
+`_PG_output_plugin_init` export and linker entry render in a separately cached
+stage that body edits and source movement retain. The export enters managed
+code through `ankus_dispatch_native_callback`, so composition includes the
+native callback boundary whenever an initializer is selected. Composition
+reports duplicate initializers against current source trees and exports none
+of them. The dispatcher checks the record's measured binding and the table's
+alignment before calling the initializer.
+
 Initialization and module-load phase validation now also produce immutable
 invocation contracts. Their managed callback rendering is cached per canonical
 method; module-load native snapshot and error guards share that cached boundary.

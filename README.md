@@ -94,6 +94,19 @@ and shows that only the backend thread can call PostgreSQL.
 The [hooks sample](samples/Ankus.Examples.Hooks/) chains executor, parse-analysis
 and utility hooks, installing each one exactly once.
 
+The [notify sample](samples/Ankus.Examples.Notify/) wraps LISTEN, NOTIFY and
+UNLISTEN, broadcasts cache invalidations from a trigger, and coalesces bulk
+changes into one notification per category at commit.
+
+The [PGLZ inspection sample](samples/Ankus.Examples.PglzInspect/) samples a column
+and runs PostgreSQL's own compressor to recommend whether to enable PGLZ.
+
+The [rewrite manipulation sample](samples/Ankus.Examples.RewriteManip/) changes
+query-tree column references with PostgreSQL's rewriter utilities.
+
+The [WAL decoder sample](samples/Ankus.Examples.WalDecoder/) is a logical decoding
+output plugin that captures committed row changes as JSON.
+
 PostgreSQL 18 and later can report the library's name and version through
 `pg_get_loaded_modules()`. See [native module identity](docs/src/content/docs/reference/build-settings.md#native-module-identity)
 for project defaults and attribute overrides.
@@ -506,6 +519,11 @@ managed handler through a generated native function-pointer property, including
 explicit hook installation, previous-hook chaining and restoration. Variadic
 calls remain in progress.
 See [native PostgreSQL declarations](docs/src/content/docs/raw-values.md#native-postgresql-declarations).
+
+`[PgOutputPlugin]` exports a static method as `_PG_output_plugin_init`, so the
+library can serve as a logical decoding output plugin. The method receives
+PostgreSQL's callback table and assigns `[PgNativeCallback]` properties. See
+[logical decoding output plugins](docs/src/content/docs/logical-decoding.md).
 
 The [custom-scan sample](samples/Ankus.Examples.CustomScans) uses these method
 tables to trace actual sequential and index paths, child-plan execution, rescans

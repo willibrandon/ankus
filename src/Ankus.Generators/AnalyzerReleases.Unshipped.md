@@ -492,3 +492,15 @@ ANKUS511 | Ankus | Error | Duplicate generated operator signature
 ANKUS512 | Ankus | Error | Installation graph exceeds 100,000 declarations
 ANKUS513 | Ankus | Error | Installation declaration exceeds 100,000 graph entries
 ANKUS514 | Ankus | Error | Installation graph exceeds 32 MiB
+ANKUS515 | Ankus | Error | Output plugin initializer requires an ordinary method
+ANKUS516 | Ankus | Error | Output plugin initializer must be static
+ANKUS517 | Ankus | Error | Output plugin initializer must be synchronous
+ANKUS518 | Ankus | Error | Output plugin initializer cannot be generic
+ANKUS519 | Ankus | Error | Output plugin initializer requires a managed implementation
+ANKUS520 | Ankus | Error | Output plugin initializer must return void
+ANKUS521 | Ankus | Error | Output plugin initializer requires the callback table
+ANKUS522 | Ankus | Error | Output plugin initializer must be accessible
+ANKUS523 | Ankus | Error | Output plugin container must be accessible
+ANKUS524 | Ankus | Error | Output plugin initializer must support managed invocation
+ANKUS525 | Ankus | Error | Output plugin initializer has a conflicting role
+ANKUS526 | Ankus | Error | Duplicate output plugin initializer

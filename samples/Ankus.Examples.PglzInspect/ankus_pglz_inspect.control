@@ -1,0 +1,3 @@
+comment = 'pglz_inspect: PGLZ compression analysis for DBAs'
+relocatable = false
+superuser = false

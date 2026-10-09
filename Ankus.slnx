@@ -20,9 +20,12 @@
     <Project Path="samples/Ankus.Examples.Initialization/Ankus.Examples.Initialization.csproj" />
     <Project Path="samples/Ankus.Examples.Json/Ankus.Examples.Json.csproj" />
     <Project Path="samples/Ankus.Examples.MemoryContexts/Ankus.Examples.MemoryContexts.csproj" />
+    <Project Path="samples/Ankus.Examples.Notify/Ankus.Examples.Notify.csproj" />
     <Project Path="samples/Ankus.Examples.Numeric/Ankus.Examples.Numeric.csproj" />
     <Project Path="samples/Ankus.Examples.Operators/Ankus.Examples.Operators.csproj" />
+    <Project Path="samples/Ankus.Examples.PglzInspect/Ankus.Examples.PglzInspect.csproj" />
     <Project Path="samples/Ankus.Examples.Ranges/Ankus.Examples.Ranges.csproj" />
+    <Project Path="samples/Ankus.Examples.RewriteManip/Ankus.Examples.RewriteManip.csproj" />
     <Project Path="samples/Ankus.Examples.Schemas/Ankus.Examples.Schemas.csproj" />
     <Project Path="samples/Ankus.Examples.Sets/Ankus.Examples.Sets.csproj" />
     <Project Path="samples/Ankus.Examples.SharedMemory/Ankus.Examples.SharedMemory.csproj" />
@@ -32,6 +35,7 @@
     <Project Path="samples/Ankus.Examples.Threads/Ankus.Examples.Threads.csproj" />
     <Project Path="samples/Ankus.Examples.Triggers/Ankus.Examples.Triggers.csproj" />
     <Project Path="samples/Ankus.Examples.TryCatch/Ankus.Examples.TryCatch.csproj" />
+    <Project Path="samples/Ankus.Examples.WalDecoder/Ankus.Examples.WalDecoder.csproj" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/Ankus.Build/Ankus.Build.csproj" />

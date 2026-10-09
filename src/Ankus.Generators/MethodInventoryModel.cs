@@ -14,13 +14,13 @@ namespace Ankus.Generators;
 /// <param name="Trigger">Whether the row-trigger marker is present.</param>
 /// <param name="EventTrigger">Whether the event-trigger marker is present.</param>
 /// <param name="Initializer">Whether either initialization phase marker is present.</param>
-/// <param name="Worker">Whether the background-worker marker is present.</param>
+/// <param name="NativeEntry">Whether a background-worker or output-plugin marker exports the method under its own native symbol.</param>
 /// <param name="Sequence">Whether the managed result requires native iterator support.</param>
 /// <param name="RawTransport">Whether any SQL parameter requires raw datum transport.</param>
 /// <param name="Options">The optional authored ordinary-function SQL policy.</param>
 /// <param name="Location">The current method source coordinates, outside its rendering contracts.</param>
 internal sealed record MethodInventoryModel(DeclarationIdentity Identity, string Display, string Name, string Owner,
-    bool Test, bool Benchmark, bool Trigger, bool EventTrigger, bool Initializer, bool Worker, bool Sequence, bool RawTransport,
+    bool Test, bool Benchmark, bool Trigger, bool EventTrigger, bool Initializer, bool NativeEntry, bool Sequence, bool RawTransport,
     SqlDeclarationOptions? Options, GeneratorLocation? Location)
 {
     /// <summary>
@@ -37,7 +37,8 @@ internal sealed record MethodInventoryModel(DeclarationIdentity Identity, string
             PgTestDeclaration.IsTest(method), method.GetAttributes().Any(static attribute =>
                 attribute.AttributeClass?.ToDisplayString() == "Ankus.PgBenchmarkAttribute"),
             TriggerDeclaration.IsTrigger(method), EventTriggerDeclaration.IsEventTrigger(method),
-            InitializeDeclaration.IsInitializer(method), BackgroundWorkerDeclaration.IsWorker(method), SetResult.IsSequence(method.ReturnType),
+            InitializeDeclaration.IsInitializer(method),
+            BackgroundWorkerDeclaration.IsWorker(method) || OutputPluginDeclaration.IsOutputPlugin(method), SetResult.IsSequence(method.ReturnType),
             FunctionParameter.Create(method).Any(static parameter => parameter.Type?.UsesRawTransport == true),
             SqlDeclarationOptions.Read(method.GetAttributes().FirstOrDefault(static attribute =>
                 attribute.AttributeClass?.ToDisplayString() == "Ankus.PgFunctionAttribute"), compilation, cancellationToken),

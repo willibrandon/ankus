@@ -75,11 +75,11 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             .Combine(FunctionPipeline.Register(context)).Combine(TriggerPipeline.Register(context))
             .Combine(BackgroundWorkerPipeline.Register(context)).Combine(LifecyclePipeline.Register(context))
             .Combine(OperatorCastPipeline.Register(context)).Combine(PgTestPipeline.Register(context))
-            .Combine(benchmarks)
-            .Select(static (value, _) => new FunctionPipeline.MethodInputs(value.Left.Left.Left.Left.Left.Left.Left,
-                value.Left.Left.Left.Left.Left.Left.Right, value.Left.Left.Left.Left.Left.Right,
-                value.Left.Left.Left.Left.Right, value.Left.Left.Left.Right, value.Left.Left.Right,
-                value.Left.Right, value.Right));
+            .Combine(benchmarks).Combine(OutputPluginPipeline.Register(context))
+            .Select(static (value, _) => new FunctionPipeline.MethodInputs(value.Left.Left.Left.Left.Left.Left.Left.Left,
+                value.Left.Left.Left.Left.Left.Left.Left.Right, value.Left.Left.Left.Left.Left.Left.Right,
+                value.Left.Left.Left.Left.Left.Right, value.Left.Left.Left.Left.Right, value.Left.Left.Left.Right,
+                value.Left.Left.Right, value.Left.Right, value.Right));
         IncrementalValueProvider<EquatableArray<EnumPipeline.EnumOutput>> enums = EnumPipeline.Register(context);
         IncrementalValueProvider<EquatableArray<CustomTypePipeline.Output>> customTypes = CustomTypePipeline.Register(context);
         IncrementalValuesProvider<INamedTypeSymbol> datumTypes = context.SyntaxProvider.ForAttributeWithMetadataName(
@@ -258,7 +258,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         ILookup<DeclarationIdentity, TriggerPipeline.TriggerOutput> triggerModels = methodInputs.Triggers.ToLookup(static value => value.Analysis.Identity);
         ILookup<DeclarationIdentity, OperatorCastPipeline.Output> operatorModels = methodInputs.OperatorCasts.ToLookup(static value => value.Analysis.Identity);
         bool referencedCallbacks = nativeCompilation.Analysis.ReferencedCallbacks;
-        if (!referencedCallbacks && !module.Declared && references.IsEmpty && methods.IsEmpty && methodInputs.Workers.IsEmpty && methodInputs.Lifecycle.IsEmpty && schemaTypes.IsEmpty && providers.IsEmpty && customBlocks.IsEmpty && enumTypes.IsEmpty && aggregateOutputs.IsEmpty && propertyInputs.Callbacks.IsEmpty && propertyInputs.Settings.IsEmpty && !propertyInputs.RuntimeSettings && !prefixOutput.Analysis.Declared && customTypes.IsEmpty && !mappingOutput.Analysis.Declared)
+        if (!referencedCallbacks && !module.Declared && references.IsEmpty && methods.IsEmpty && methodInputs.Workers.IsEmpty && methodInputs.OutputPlugins.IsEmpty && methodInputs.Lifecycle.IsEmpty && schemaTypes.IsEmpty && providers.IsEmpty && customBlocks.IsEmpty && enumTypes.IsEmpty && aggregateOutputs.IsEmpty && propertyInputs.Callbacks.IsEmpty && propertyInputs.Settings.IsEmpty && !propertyInputs.RuntimeSettings && !prefixOutput.Analysis.Declared && customTypes.IsEmpty && !mappingOutput.Analysis.Declared)
         {
             return;
         }
@@ -343,11 +343,13 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         List<GucPipeline.Output> gucOutputs = GucPipeline.Select(propertyInputs.Settings, compilation, context);
         List<GucModel> gucs = [.. gucOutputs.Select(static output => output.Analysis.Model!)];
         List<NativeCallbackPipeline.Output> callbacks = NativeCallbackPipeline.Select(propertyInputs.Callbacks, compilation, context);
+        OutputPluginEmission? outputPlugin = OutputPluginPipeline.Select(methodInputs.OutputPlugins, compilation, context);
 
         bool hasGucHooks = gucs.Any(static guc => guc.HasHooks);
         bool hasGucCheck = gucs.Any(static guc => guc.Check is not null);
         bool hasGucShow = gucs.Any(static guc => guc.Show is not null);
-        bool hasNativeCallbacks = callbacks.Count != 0 || referencedCallbacks;
+        // The output plugin export enters managed code through the native callback boundary.
+        bool hasNativeCallbacks = callbacks.Count != 0 || referencedCallbacks || outputPlugin is not null;
         List<BackgroundWorkerPipeline.WorkerOutput> workers = BackgroundWorkerPipeline.Select(methodInputs.Workers, compilation, context);
         bool hasWorkers = workers.Count != 0;
         bool hasFunctionCallbacks = !methodInputs.Lifecycle.IsEmpty || hasWorkers || hasNativeCallbacks || !methods.IsEmpty ||
@@ -786,6 +788,8 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                 string.Concat(callbacks.Select(static callback => callback.Emission)));
         }
 
+        outputPlugin?.AppendTo(managed, native, exports);
+
         foreach (BackgroundWorkerPipeline.WorkerOutput worker in workers)
         {
             worker.Emission!.AppendTo(managed, native, exports);
@@ -795,7 +799,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         bool hasVarlenaReader = false;
         foreach (MethodInventoryModel method in methods.OrderBy(static method => method.Display, StringComparer.Ordinal))
         {
-            if (aggregateMethods.Contains(method.Identity) || method.Initializer || method.Worker)
+            if (aggregateMethods.Contains(method.Identity) || method.Initializer || method.NativeEntry)
             {
                 continue;
             }

@@ -116,7 +116,7 @@ public sealed partial class PgFunctionGeneratorTests
         GeneratorDriver driver = ModuleDriver().RunGeneratorsAndUpdateCompilation(initial, out _, out ImmutableArray<Diagnostic> errors, context.CancellationToken);
         Assert.AreEqual(role == "worker" ? "ANKUS269" : "ANKUS247", Assert.ContainsSingle(errors).Id);
         MethodInventoryModel selected = Assert.ContainsSingle(MethodInventory(driver).Where(static method => method.Name == "Host"));
-        Assert.AreEqual(role == "worker", selected.Worker);
+        Assert.AreEqual(role == "worker", selected.NativeEntry);
         Assert.AreEqual(role != "worker", selected.Initializer);
 
         driver = RunModule(driver, initial.ReplaceSyntaxTree(initial.SyntaxTrees.Single(), CSharpSyntaxTree.ParseText(
