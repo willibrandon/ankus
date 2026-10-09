@@ -169,7 +169,13 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   its run-time settings at load. Definitions now share the configuration read
   binding passed to load callbacks, so they work wherever reads do. On Linux
   18.6, the previously failing session-preload and parallel cases pass with the
-  runtime, module-load and configuration cases (**64/64**).
+  runtime, module-load and configuration cases (**64/64**). Complete Windows x64
+  suites then pass for PostgreSQL **17.11** (**14,019** total, **13,983** passed,
+  **36** skips, zero failures, **31m26.991s**) and **13.23** (same counts apart
+  from one development-cluster start that exceeded a test's five-second budget
+  on the loaded host). Three tests now give starts that must succeed the suite's
+  budget, and both affected cases pass on 13.23. Linux x64/PostgreSQL **18.6**
+  passes **14,019** total, **13,969** passed and **50** skips with zero failures.
 - Integrated three parallel milestones. Graph diagnostics: `ANKUS005` is retired.
   Its free-text cases are fixed contracts `ANKUS490`–`ANKUS514`, each reported at
   the authored value, and `ANKUS149` has a fixed message; 4,699 generator cases
