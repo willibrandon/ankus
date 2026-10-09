@@ -145,7 +145,30 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   variants. `bad_ideas` demonstrates how Ankus contains each one, and `nostd`
   maps to a minimal-runtime sample. Agents reported, on Linux/PostgreSQL 18.6:
   68 native-sample integration cases, 18 SDK-sample cases, 4,735 generator, 2,348
-  runtime, 1,285 build and 483 PgConfig cases passing. INTEGRATION_EVIDENCE
+  runtime, 1,285 build and 483 PgConfig cases passing. The integrated
+  branch, including shared tool-test builds, passes the complete suite on
+  Linux x64/PostgreSQL 18.6 (**14,177** total; **14,127** passed; 50 platform
+  skips; zero failures; **13m39s**) and on Windows x64 with PostgreSQL 13.23 and
+  17.11 running concurrently at package concurrency 20 (**14,177** total each;
+  **14,141** passed; 36 platform skips; zero failures; **25m46s**). The first
+  Windows runs found three defects, now fixed. PostgreSQL 13 does not mark the
+  PGLZ strategy globals `PGDLLIMPORT`, so a Windows extension cannot import them;
+  the sample builds PostgreSQL 13's own strategy values locally there. Its README
+  demos now expect pgrx's PostgreSQL 13 trigger advice, since column compression
+  begins in 14. Deleting a staged installation could meet `icudt67.dll` still
+  open in an exiting server, so staged installations and extension publications
+  now use the retrying PostgreSQL storage delete.
+- A rare Windows tool-test failure (`could not bind IPv4 address`) came from
+  released test ports. Windows assigns ports from one sequential counter shared by
+  listeners and outbound connections over IPv4 and IPv6, so it reissues a released
+  port only after the counter wraps. WSL's localhost relay, however, binds every
+  Linux listener's randomly chosen ephemeral port on the Windows host. The 26
+  tests that release a reservation before a command binds the port now use
+  `[RetryPortCollisionTestMethod]`. This `TestMethodAttribute` reruns an attempt
+  only when every failure reports PostgreSQL's bind collision, at most three
+  attempts, and records superseded attempts in the final result. MSTest 4.4.1's
+  `RetryBaseAttribute` requires suppressing its experimental `MSTESTEXP`
+  diagnostic, so it is not used. Direct tests cover the rerun policy.
 - Explicit scopes can now opt out of per-statement recovery, the remaining SPI
   cost difference from pgrx. `PgTransaction.RunInSubtransaction(action,
   PgSubtransactionMode.Atomic)` runs its statements directly in the scope's single
@@ -255,7 +278,12 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   runs too.
   The integration suite now writes `process-timings.log`, summarizing time per
   child-process command and cluster startup on each platform. The target is a
-  Windows test job of 15–20 minutes or less.
+  Windows test job of 15–20 minutes or less. CI **37868933710** on **7f15982**
+  passes on all three platforms. Its summary shows equal Native AOT publish means
+  on Windows and Linux (**48.2s** and **50.5s**), while a cluster start averages
+  **5.57s** on Windows against **1.09s** on Linux and **1.03s** on macOS. Its
+  Windows job (**22m17s**) overlapped two local Windows suites on the same host,
+  so **19m10s** remains the clean measurement.
 - Primary CI has failed on Windows since **a04472b**; the last green primary run
   remains **67c9cb5**. Every failure in CI **37766380749**, **37773258253**,
   **37778899670**, **37782541757**, **37785972780**, **37791387341** and

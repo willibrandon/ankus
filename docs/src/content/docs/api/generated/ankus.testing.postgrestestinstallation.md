@@ -25,7 +25,7 @@ Implements: [IAsyncDisposable](https://learn.microsoft.com/dotnet/api/system.ias
 
 ### DisposeAsync()
 
-Deletes the staged installation.
+Deletes the staged installation after the servers using it have stopped.
 
 ```csharp
 public ValueTask DisposeAsync()
@@ -34,6 +34,9 @@ public ValueTask DisposeAsync()
 Returns: [ValueTask](https://learn.microsoft.com/dotnet/api/system.threading.tasks.valuetask)
 
 A completed task after synchronous file cleanup.
+
+On Windows, a stopped server's exiting processes can briefly keep the staged executables and libraries open;
+deletion retries as [Delete(string)](/api/ankus.pgconfig.postgresserverstorage/#member-ea0d95f955a7d9d1) describes.
 
 <a id="member-d3ffa611949c5efb"></a>
 

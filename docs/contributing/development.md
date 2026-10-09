@@ -347,6 +347,16 @@ unsuccessful candidates and preserves the last socket error. An explicitly
 requested PostgreSQL port is still used exactly as requested; startup does not
 silently select a different port for it.
 
+Tool and development-cluster tests release their reservation before an `ankus`
+command or `PostgresDevelopmentCluster` binds the port, so another process can
+take it first. On Windows, WSL's localhost relay binds every Linux listener's
+randomly chosen ephemeral port on the host; Windows itself assigns ports from one
+sequential counter and does not reissue a released port until it wraps. Those
+tests use `[RetryPortCollisionTestMethod]`, which reruns the whole test with new
+ports and directories only when every failure reports PostgreSQL's bind
+collision, up to three attempts. The final result's output records each
+superseded attempt. Tests that cause collisions on purpose keep `[TestMethod]`.
+
 For a separate PostgreSQL 18 build, set `ANKUS_TEST_PG_CONFIG` to its `pg_config`
 path for the integration test process. The fixture uses that installation for
 both native publishing and cluster startup, preserving the user's registered
