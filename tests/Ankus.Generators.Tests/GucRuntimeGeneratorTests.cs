@@ -33,8 +33,8 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.Contains("#define ANKUS_GUC_RUNTIME 1", native);
         Assert.Contains("static AnkusGuc *ankus_guc_definitions[1] = { NULL };", native);
         Assert.Contains("static const int ankus_guc_count = 0;", native);
-        Assert.Contains("ankus_define_guc = ankus_guc_define_runtime;", native);
         Assert.Contains("ankus_read_guc = ankus_guc_read;", native);
+        Assert.Contains("return ankus_guc_define_runtime(name, (intptr_t) value, error);", native);
         // The guarded entry follows the read source's error capture, which it calls.
         int capture = native.IndexOf("ankus_guc_capture_error(ErrorData *data, AnkusError *error)", StringComparison.Ordinal);
         Assert.IsGreaterThanOrEqualTo(0, capture);
@@ -57,7 +57,6 @@ public sealed partial class PgFunctionGeneratorTests
         AssertGucCompilation(compilation, diagnostics);
         string native = ManifestValue(compilation, "Ankus.NativeSource");
         Assert.DoesNotContain("ANKUS_GUC_RUNTIME", native);
-        Assert.DoesNotContain("ankus_define_guc = ankus_guc_define_runtime", native);
         Assert.DoesNotContain("ankus_guc_define_runtime", native);
     }
 
@@ -85,7 +84,7 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.Contains("static const int ankus_guc_count = 1;", native);
         Assert.DoesNotContain("ankus_guc_definitions[1] = { NULL }", native);
         Assert.Contains("#define ANKUS_GUC_RUNTIME 1", native);
-        Assert.Contains("ankus_define_guc = ankus_guc_define_runtime;", native);
+        Assert.Contains("return ankus_guc_define_runtime(name, (intptr_t) value, error);", native);
         Assert.Contains("global::Ankus.CompilerServices.NativeGuc.ReadInt32(\"demo.count\")",
             string.Concat(compilation.SyntaxTrees.Select(static tree => tree.ToString())));
     }

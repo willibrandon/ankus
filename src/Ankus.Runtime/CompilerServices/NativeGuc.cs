@@ -10,6 +10,11 @@ namespace Ankus.CompilerServices;
 [EditorBrowsable(EditorBrowsableState.Never)]
 public static unsafe class NativeGuc
 {
+    /// <summary>
+    /// Selects a definition rather than a read in the native read binding; it matches ANKUS_GUC_DEFINE_KIND.
+    /// </summary>
+    private const int DefineKind = 100;
+
     private static readonly UTF8Encoding s_utf8 = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
     [ThreadStatic]
@@ -259,6 +264,44 @@ public static unsafe class NativeGuc
         finally
         {
             value.Release();
+        }
+    }
+
+    /// <summary>
+    /// Defines a run-time configuration parameter through the same route as reads: the callback's configuration binding
+    /// while a library loads, including outside a transaction, otherwise the guarded backend.
+    /// </summary>
+    /// <param name="name">The terminated UTF-8 qualified name.</param>
+    /// <param name="definition">The definition, whose text remains valid for the call.</param>
+    internal static void Define(byte[] name, NativeGucDefinition* definition)
+    {
+        NativeBorrowScope.CheckBackendAccess();
+        if (s_scopeDepth == 0)
+        {
+            NativeBackend.DefineGuc(name, definition);
+            return;
+        }
+
+        if (s_read == 0)
+        {
+            throw new InvalidOperationException("Configuration definitions are unavailable in this callback scope.");
+        }
+
+        NativeCallError error = default;
+        try
+        {
+            fixed (byte* text = name)
+            {
+                var read = (delegate* unmanaged[Cdecl]<byte*, int, NativeValue*, NativeCallError*, int>)s_read;
+                if (read(text, DefineKind, (NativeValue*)definition, &error) != 0)
+                {
+                    throw error.ToManagedException();
+                }
+            }
+        }
+        finally
+        {
+            error.Release();
         }
     }
 

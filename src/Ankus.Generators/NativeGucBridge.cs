@@ -21,6 +21,10 @@ internal static class NativeGucBridge
         #include <limits.h>
         #include <math.h>
 
+        #ifndef ANKUS_GUC_DEFINE_KIND
+        #define ANKUS_GUC_DEFINE_KIND 100
+        #endif
+
         /* PostgreSQL 19 embeds typed bodies in the generic record instead of
          * placing a generic prefix in each separately typed record. */
         #if PG_VERSION_NUM >= 190000
@@ -655,8 +659,10 @@ internal static class NativeGucBridge
     internal const string ReadBinding = """
         typedef int (*AnkusGucReadBinding)(const char *, int, AnkusValue *, AnkusError *);
         static AnkusGucReadBinding ankus_read_guc = NULL;
-        typedef int (*AnkusGucDefineBinding)(const char *, intptr_t, AnkusError *);
-        static AnkusGucDefineBinding ankus_define_guc = NULL;
+        /* Read-binding kind that defines a run-time parameter; the value argument carries its definition. */
+        #ifndef ANKUS_GUC_DEFINE_KIND
+        #define ANKUS_GUC_DEFINE_KIND 100
+        #endif
         """;
 
     /// <summary>
@@ -871,6 +877,19 @@ internal static class NativeGucBridge
         {
             if (ankus_recovery_failed(error))
                 return 1;
+
+            /* Definitions share the read binding so they work wherever reads do, including library
+             * loads outside a transaction, such as session preload and parallel worker startup. */
+            if (kind == ANKUS_GUC_DEFINE_KIND)
+            {
+        #ifdef ANKUS_GUC_RUNTIME
+                return ankus_guc_define_runtime(name, (intptr_t) value, error);
+        #else
+                error->sqlstate = ERRCODE_FEATURE_NOT_SUPPORTED;
+                strlcpy(error->message, "This extension was built without run-time configuration support", sizeof(error->message));
+                return 1;
+        #endif
+            }
 
             AnkusGuc *definition = NULL;
             for (int index = 0; index < ankus_guc_count; index++)

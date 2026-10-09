@@ -162,8 +162,14 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   cases, **24** runtime validation cases, **1,259** build cases (9 skips) and
   **78** configuration, module-load and runtime-definition integration cases pass.
   Integration covers `pg_settings` metadata, SET/SET LOCAL/RESET and rollback,
-  placeholder adoption, conflicts and postmaster context. Windows and other
-  majors remain to be verified with the next complete runs.
+  placeholder adoption, conflicts and postmaster context. The first complete
+  Windows runs (PostgreSQL 17.11 and 13.23) failed about 60 parallel-worker and
+  session-preload cases. Those contexts load the library outside a transaction,
+  where the guarded backend call is unavailable, and the test extension defines
+  its run-time settings at load. Definitions now share the configuration read
+  binding passed to load callbacks, so they work wherever reads do. On Linux
+  18.6, the previously failing session-preload and parallel cases pass with the
+  runtime, module-load and configuration cases (**64/64**).
 - Integrated three parallel milestones. Graph diagnostics: `ANKUS005` is retired.
   Its free-text cases are fixed contracts `ANKUS490`–`ANKUS514`, each reported at
   the authored value, and `ANKUS149` has a fixed message; 4,699 generator cases

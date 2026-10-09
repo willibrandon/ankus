@@ -743,7 +743,6 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                 }
 
                 registration.Insert(0, (hasBackend ? "        ankus_read_guc = ankus_guc_read;\n" : string.Empty) +
-                    (hasRuntimeGucs ? "        ankus_define_guc = ankus_guc_define_runtime;\n" : string.Empty) +
                     "        ankus_guc_prepare_encoding();\n");
             }
 

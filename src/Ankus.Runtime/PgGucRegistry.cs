@@ -260,7 +260,7 @@ public static class PgGucRegistry
             definition._unit = (int)unit;
             fixed (NativeGucDefinition* native = &definition)
             {
-                NativeBackend.DefineGuc(encodedName, native);
+                NativeGuc.Define(encodedName, native);
             }
 
             return new PgGucSetting<T>(name, definition._kind);

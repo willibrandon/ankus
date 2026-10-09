@@ -145,8 +145,8 @@ internal static class GuardedBackend
             if (request->operation == ANKUS_SPI_GUC_DEFINE)
             {
                 result->release = NULL;
-                if (ankus_define_guc != NULL)
-                    return ankus_define_guc(request->command, request->callback, error);
+                if (ankus_read_guc != NULL)
+                    return ankus_read_guc(request->command, ANKUS_GUC_DEFINE_KIND, (AnkusValue *) request->callback, error);
                 error->sqlstate = ERRCODE_FEATURE_NOT_SUPPORTED;
                 strlcpy(error->message, "This extension was built without run-time configuration support", sizeof(error->message));
                 return 1;
