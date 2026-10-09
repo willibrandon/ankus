@@ -3,7 +3,16 @@ name: CI
 on:
   push:
     branches: [main]
+    # Documentation-only commits have their own workflow and need no PostgreSQL suites.
+    paths-ignore:
+      - 'docs/src/content/**'
+      - 'docs/contributing/**'
+      - 'PROGRESS.md'
   pull_request:
+    paths-ignore:
+      - 'docs/src/content/**'
+      - 'docs/contributing/**'
+      - 'PROGRESS.md'
   workflow_dispatch:
     inputs:
       package-test-concurrency:
