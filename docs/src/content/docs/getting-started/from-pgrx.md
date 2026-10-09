@@ -31,6 +31,7 @@ counterpart of each pgrx example in [pgrx examples](/reference/pgrx-examples/).
 | `pg_module_magic!` | Generated module magic; `[PgModule]` or project settings for identity | [Build settings](/reference/build-settings/#native-module-identity) |
 | `#[pg_test]` | `[PgTest]` with generated backend test cases | [Testing](/getting-started/testing/) |
 | `#[cfg(feature = "pg_test")]` | `#if ANKUS_TESTS` | [Testing](/getting-started/testing/) |
+| `pgrx_tests::proptest::PgTestRunner` and proptest strategies | `PgPropertyRunner` and `PgGenerators` | [Property tests](/getting-started/testing/#property-tests) |
 | `#[pg_bench]`, `Bencher`, `BatchSize` | `[PgBenchmark]`, `PgBencher`, `PgBenchmarkBatchSize` | [Benchmarks](/benchmarks/) |
 
 Execution options such as volatility, parallel safety and NULL policy are enum
