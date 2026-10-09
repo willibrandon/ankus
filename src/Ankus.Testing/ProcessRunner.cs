@@ -18,6 +18,10 @@ internal static class ProcessRunner
     /// <param name="cancellationToken">Cancels and terminates the process.</param>
     /// <param name="captureOutput">Whether to redirect output rather than inherit the host's handles.</param>
     /// <param name="workingDirectory">The child process directory, or the current directory when omitted.</param>
+    /// <param name="terminateProcessTree">
+    /// Whether cancellation terminates the child's descendants too. <c>sudo</c> children belong to another account,
+    /// so cancellation terminates only <c>sudo</c> itself.
+    /// </param>
     /// <returns>The captured process result.</returns>
     internal static async Task<ProcessResult> RunAsync(
         string fileName,
@@ -25,7 +29,8 @@ internal static class ProcessRunner
         IReadOnlyDictionary<string, string?> environment,
         CancellationToken cancellationToken,
         bool captureOutput = true,
-        string? workingDirectory = null)
+        string? workingDirectory = null,
+        bool terminateProcessTree = true)
     {
         cancellationToken.ThrowIfCancellationRequested();
         using var process = new Process();
@@ -71,7 +76,7 @@ internal static class ProcessRunner
         {
             try
             {
-                process.Kill(entireProcessTree: true);
+                process.Kill(terminateProcessTree);
             }
             catch (InvalidOperationException) when (process.HasExited)
             {

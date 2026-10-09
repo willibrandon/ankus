@@ -15,6 +15,7 @@ public sealed class PostgresTestCluster : IAsyncDisposable
     private readonly PostgresTestClusterOptions _options;
     private readonly IReadOnlyDictionary<string, string?> _environment;
     private readonly PostgresTestLog _log;
+    private readonly PostgresServerAccount _account;
     private readonly Lock _shutdownLock = new();
     private Task? _shutdownTask;
 
@@ -27,16 +28,18 @@ public sealed class PostgresTestCluster : IAsyncDisposable
     {
         _options = options;
         _environment = new Dictionary<string, string?>(options.ProcessEnvironment);
+        _account = PostgresServerAccount.Create(options.RunAs ?? TestCommandContext.RunAs);
         Port = port;
         string invocation = $"{options.Installation.Version.Major}-{Environment.ProcessId}-{Guid.NewGuid():N}";
         string? session = TestCommandContext.SessionDirectory;
         DataDirectory = Path.GetFullPath(Path.Combine(TestCommandContext.DataDirectory ?? options.DataDirectoryBase, invocation));
         LogFilePath = Path.GetFullPath(Path.Combine(options.LogDirectory, $"{invocation}.log"));
-        _log = new(LogFilePath);
+        // Another account writes its server log beside the data directory it owns; reads copy it to the retained log.
+        _log = _account.Name is null ? new(LogFilePath) : new(LogFilePath, _account, DataDirectory + ".log");
         SocketDirectory = OperatingSystem.IsWindows()
             ? null
-            : session is null
-                ? Path.Combine(OperatingSystem.IsMacOS() ? "/tmp" : Path.GetTempPath(), $"ak-{Guid.NewGuid():N}")
+            : session is null || _account.Name is not null
+                ? Path.Combine(OperatingSystem.IsMacOS() || _account.Name is not null ? "/tmp" : Path.GetTempPath(), $"ak-{Guid.NewGuid():N}")
                 : Path.Combine(session, $"s-{Guid.NewGuid():N}");
     }
 
@@ -283,12 +286,12 @@ public sealed class PostgresTestCluster : IAsyncDisposable
 
     private async Task InitializeAsync(PortReservation? reservation, Action<PostgresTestCluster, PortReservation?>? beforeStart, CancellationToken cancellationToken)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(DataDirectory)!);
+        await _account.CreateDirectoryAsync(Path.GetDirectoryName(DataDirectory)!, cancellationToken).ConfigureAwait(false);
         Directory.CreateDirectory(Path.GetDirectoryName(LogFilePath)!);
         if (SocketDirectory is not null)
         {
-            Directory.CreateDirectory(SocketDirectory);
-            if (!OperatingSystem.IsWindows())
+            await _account.CreateDirectoryAsync(SocketDirectory, cancellationToken).ConfigureAwait(false);
+            if (_account.Name is null && !OperatingSystem.IsWindows())
             {
                 File.SetUnixFileMode(SocketDirectory, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
             }
@@ -300,7 +303,7 @@ public sealed class PostgresTestCluster : IAsyncDisposable
             "-L", _options.SharedDirectory ?? Installation.SharedDirectory,
         };
         arguments.AddRange(await PostgresLocale.GetInitDbArgumentsAsync(_environment, cancellationToken).ConfigureAwait(false));
-        await ProcessRunner.RunCheckedAsync(Installation.InitDbPath, arguments, _environment, cancellationToken).ConfigureAwait(false);
+        await _account.RunCheckedAsync(Installation.InitDbPath, arguments, _environment, cancellationToken).ConfigureAwait(false);
 
         var configuration = new StringBuilder();
         // Like PostgreSQL's own TAP clusters, a disposable test cluster skips fsync: crash recovery still replays the
@@ -322,7 +325,7 @@ public sealed class PostgresTestCluster : IAsyncDisposable
         configuration.AppendLine("log_destination = 'stderr'");
         configuration.AppendLine("logging_collector = off");
         configuration.AppendLine("log_line_prefix = '[%m] [%p] [%c] [%a]: '");
-        await File.WriteAllTextAsync(
+        await _account.WriteFileAsync(
             Path.Combine(DataDirectory, "postgresql.auto.conf"), configuration.ToString(), cancellationToken).ConfigureAwait(false);
 
         beforeStart?.Invoke(this, reservation);
@@ -340,7 +343,7 @@ public sealed class PostgresTestCluster : IAsyncDisposable
             startupArguments = [.. startupArguments, "-o", "-c event_source=" + _log.EventSource];
         }
 
-        await ProcessRunner.RunCheckedAsync(
+        await _account.RunCheckedAsync(
             Installation.PgCtlPath,
             startupArguments,
             _environment,
@@ -398,7 +401,7 @@ public sealed class PostgresTestCluster : IAsyncDisposable
         if (_requiresShutdown)
         {
             using var timeout = new CancellationTokenSource(_options.ShutdownTimeout);
-            ProcessResult status = await ProcessRunner.RunAsync(
+            ProcessResult status = await _account.RunAsync(
                 Installation.PgCtlPath, ["status", "-D", DataDirectory], _environment, timeout.Token).ConfigureAwait(false);
             if (status.ExitCode == 0)
             {
@@ -410,7 +413,7 @@ public sealed class PostgresTestCluster : IAsyncDisposable
                 ProcessResult? fast = null;
                 try
                 {
-                    fast = await ProcessRunner.RunAsync(
+                    fast = await _account.RunAsync(
                         Installation.PgCtlPath,
                         ["stop", "-D", DataDirectory, "-m", "fast", "-w", "-t", GetTimeoutSeconds(fastDuration)],
                         _environment,
@@ -426,14 +429,14 @@ public sealed class PostgresTestCluster : IAsyncDisposable
                     [
                         "stop", "-D", DataDirectory, "-m", "immediate", "-w", "-t", GetTimeoutSeconds(_options.ShutdownTimeout),
                     ];
-                    ProcessResult immediate = await ProcessRunner.RunAsync(
+                    ProcessResult immediate = await _account.RunAsync(
                         Installation.PgCtlPath,
                         immediateArguments,
                         _environment,
                         timeout.Token).ConfigureAwait(false);
                     if (immediate.ExitCode != 0)
                     {
-                        ProcessResult stopped = await ProcessRunner.RunAsync(
+                        ProcessResult stopped = await _account.RunAsync(
                             Installation.PgCtlPath, ["status", "-D", DataDirectory], _environment, timeout.Token).ConfigureAwait(false);
                         if (stopped.ExitCode != 3)
                         {
@@ -460,6 +463,11 @@ public sealed class PostgresTestCluster : IAsyncDisposable
         }
 
         DeleteOwnedDirectory(DataDirectory, failures);
+        if (_account.Name is not null)
+        {
+            DeleteOwnedDirectory(DataDirectory + ".log", failures);
+        }
+
         if (SocketDirectory is not null)
         {
             DeleteOwnedDirectory(SocketDirectory, failures);
@@ -479,13 +487,13 @@ public sealed class PostgresTestCluster : IAsyncDisposable
     /// <summary>
     /// Removes one stopped invocation's directory while allowing its other owned resources to be reclaimed.
     /// </summary>
-    /// <param name="path">The invocation's data or socket directory.</param>
+    /// <param name="path">The invocation's data or socket directory, or another account's native server log.</param>
     /// <param name="failures">Receives original cleanup exceptions without replacing diagnostic failures.</param>
-    private static void DeleteOwnedDirectory(string path, List<Exception> failures)
+    private void DeleteOwnedDirectory(string path, List<Exception> failures)
     {
         try
         {
-            PostgresServerStorage.Delete(path);
+            _account.DeleteDirectory(path);
         }
         catch (Exception error)
         {

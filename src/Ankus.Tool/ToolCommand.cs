@@ -214,6 +214,15 @@ internal static partial class ToolCommand
             : new Option<string?>("--destdir") { Description = "Stage files under this root, preserving PostgreSQL's installation paths." };
         command.Options.Add(from);
         command.Options.Add(destination);
+        var sudo = new Option<bool>("--sudo", "-s")
+        {
+            Description = "Copy the files into place with sudo, for installations the current account cannot write (Unix).",
+        };
+        if (!package)
+        {
+            command.Options.Add(sudo);
+        }
+
         var prefix = new Option<string?>("--prefix-dir")
         {
             Description = "Unix package asset directory within the output root; Windows retains its portable lib/share layout.",
@@ -233,6 +242,12 @@ internal static partial class ToolCommand
             if (result.GetValue(from) is not null && BuildProperties(result).Count != 0)
             {
                 throw new ArgumentException("Use either --from or --property.");
+            }
+
+            bool elevated = !package && result.GetValue(sudo);
+            if (elevated && OperatingSystem.IsWindows())
+            {
+                throw new ArgumentException("--sudo is not supported on Windows; install from an elevated terminal instead.");
             }
 
             string? prefixDirectory = package ? result.GetValue(prefix) : null;
@@ -266,8 +281,23 @@ internal static partial class ToolCommand
                 root = Path.Combine(Path.GetFullPath(source), name + "-" + installation.Label);
             }
 
-            foreach (string path in ExtensionInstaller.Install(source, installation, root, token, packageLayout: package,
-                prefixDirectory: prefixDirectory))
+            if (elevated)
+            {
+                return await ExtensionSudoInstaller.InstallAsync(source, installation, root, token);
+            }
+
+            IReadOnlyList<string> installed;
+            try
+            {
+                installed = ExtensionInstaller.Install(source, installation, root, token, packageLayout: package,
+                    prefixDirectory: prefixDirectory);
+            }
+            catch (UnauthorizedAccessException error) when (!package && !OperatingSystem.IsWindows())
+            {
+                throw new UnauthorizedAccessException(error.Message + " Add --sudo to copy the files with sudo.", error);
+            }
+
+            foreach (string path in installed)
             {
                 Console.WriteLine($"{(package ? "Packaged" : "Installed")} {path}");
             }

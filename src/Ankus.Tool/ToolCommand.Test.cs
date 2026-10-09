@@ -16,6 +16,10 @@ internal static partial class ToolCommand
         var noSchema = new Option<bool>("--no-schema") { Description = "Reuse the last successful test schema while rebuilding compatible native code." };
         var reports = new Option<string?>("--results-directory") { Description = "Test report root; each PostgreSQL major gets its own subdirectory." };
         var dataDirectory = new Option<string?>("--pgdata") { Description = "Base directory for isolated, per-invocation PostgreSQL cluster data." };
+        var runAs = new Option<string?>("--runas")
+        {
+            Description = "Initialize and run the test servers as this Unix account through sudo -u; --pgdata must be writable by it.",
+        };
         var forwarded = new Argument<string[]>("test-arguments")
         {
             Description = "Ordinary dotnet test arguments after --, including project selection, filters and report options.",
@@ -25,9 +29,24 @@ internal static partial class ToolCommand
         command.Options.Add(noSchema);
         command.Options.Add(reports);
         command.Options.Add(dataDirectory);
+        command.Options.Add(runAs);
         command.Arguments.Add(forwarded);
         command.SetAction(async (result, token) =>
         {
+            string? account = result.GetValue(runAs);
+            if (account is not null)
+            {
+                if (OperatingSystem.IsWindows())
+                {
+                    throw new ArgumentException("--runas is not supported on Windows.");
+                }
+
+                if (account.Length == 0 || account.StartsWith('-') || account.Any(static c => char.IsControl(c) || char.IsWhiteSpace(c)))
+                {
+                    throw new ArgumentException("--runas requires a Unix account name.");
+                }
+            }
+
             Dictionary<string, string> properties = TestProperties(result.GetValue(forwarded) ?? []);
             (string configuration, string[] arguments) = TestConfiguration(GetConfiguration(result),
                 result.GetResult("--configuration") is System.CommandLine.Parsing.OptionResult { Implicit: false },
@@ -73,7 +92,7 @@ internal static partial class ToolCommand
             {
                 token.ThrowIfCancellationRequested();
                 string major = installation.Version.Major.ToString(CultureInfo.InvariantCulture);
-                await using var session = new ExtensionTestCommandSession(installation, result.GetValue(dataDirectory));
+                await using var session = new ExtensionTestCommandSession(installation, result.GetValue(dataDirectory), account);
                 var fixtureProperties = new Dictionary<string, string>(properties, StringComparer.OrdinalIgnoreCase)
                 {
                     ["Configuration"] = configuration,
@@ -99,6 +118,7 @@ internal static partial class ToolCommand
                     ["ANKUS_TEST_REUSE_SCHEMA"] = result.GetValue(noSchema) ? "true" : "false",
                     ["ANKUS_TEST_SESSION_DIRECTORY"] = session.DirectoryPath,
                     ["ANKUS_TEST_DATA_DIRECTORY"] = session.DataDirectoryPath,
+                    ["ANKUS_TEST_RUNAS"] = account,
                     ["ANKUS_TEST_MSBUILD_PROPERTIES_FILE"] = propertyFile,
                 });
                 Console.WriteLine($"{installation.Label}: dotnet test exited {code}.");

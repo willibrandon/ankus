@@ -67,6 +67,23 @@ public sealed class PostgresTestClusterOptions
     } = "ankus";
 
     /// <summary>
+    /// Gets the Unix account that owns the cluster's data and runs its server through <c>sudo -u</c>, or null to use the
+    /// account running the tests.
+    /// </summary>
+    /// <remarks>
+    /// This corresponds to <c>cargo pgrx test --runas</c>; <c>ankus test --runas</c> selects it for every cluster in the
+    /// run. The account creates the data and socket directories and runs <c>initdb</c> and <c>pg_ctl</c>, so it must be
+    /// able to create directories in <see cref="DataDirectoryBase"/> and read the installation and extension files.
+    /// The server log is read back through <c>sudo</c> into <see cref="LogDirectory"/>. Windows does not support another
+    /// account.
+    /// </remarks>
+    public string? RunAs
+    {
+        get;
+        init;
+    }
+
+    /// <summary>
     /// Gets the directory where server logs remain available after cluster shutdown.
     /// </summary>
     public string LogDirectory

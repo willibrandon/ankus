@@ -15,6 +15,7 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
 {
     private readonly string _publishDirectory;
     private readonly string _dataDirectoryBase;
+    private readonly PostgresServerAccount _account;
     private readonly PostgresTestInstallation? _stagedInstallation;
     private readonly ExtensionSchema _schema;
     private readonly string _installedSchema;
@@ -26,6 +27,7 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
         PostgresTestCluster cluster,
         string publishDirectory,
         string dataDirectoryBase,
+        PostgresServerAccount account,
         PostgresTestInstallation? stagedInstallation,
         ExtensionSchema schema,
         string installedSchema,
@@ -34,6 +36,7 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
         Cluster = cluster;
         _publishDirectory = publishDirectory;
         _dataDirectoryBase = dataDirectoryBase;
+        _account = account;
         _stagedInstallation = stagedInstallation;
         _schema = schema;
         _installedSchema = installedSchema;
@@ -235,11 +238,12 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
             : Path.Combine(commandData!, invocation);
         Directory.CreateDirectory(output);
         Directory.CreateDirectory(logs);
+        PostgresServerAccount account = PostgresServerAccount.Create(TestCommandContext.RunAs);
         PostgresTestCluster? cluster = null;
         PostgresTestInstallation? stagedInstallation = null;
         try
         {
-            Directory.CreateDirectory(dataDirectoryBase);
+            await account.CreateDirectoryAsync(dataDirectoryBase, cancellationToken).ConfigureAwait(false);
             Directory.CreateDirectory(buildArtifacts);
             await using (FileStream buildLock = await LockBuildAsync(
                 Path.Combine(buildArtifacts, "publish.lock"), cancellationToken).ConfigureAwait(false))
@@ -271,7 +275,8 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
             List<string> configuration = [$"dynamic_library_path = '{searchPath}{separator}$libdir'"];
             if (installation.Version.Major >= 18)
             {
-                string scriptBase = Path.Combine(dataDirectoryBase, "share");
+                // The publication belongs to the test account even when another account owns the data directories.
+                string scriptBase = Path.Combine(output, "share");
                 PostgresExtensionFiles.Stage(output, scriptBase);
                 string controlPath = scriptBase.Replace("\\", "/", StringComparison.Ordinal).Replace("'", "''", StringComparison.Ordinal);
                 configuration.Insert(0, $"extension_control_path = '{controlPath}{separator}$system'");
@@ -310,7 +315,8 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
             command.Parameters.AddWithValue(name);
             string installedSchema = (string)(await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false)
                 ?? throw new InvalidOperationException("The test extension was not installed."));
-            return new PostgresExtensionTest(cluster, output, dataDirectoryBase, stagedInstallation, schema, installedSchema, options.IncludeTests);
+            return new PostgresExtensionTest(cluster, output, dataDirectoryBase, account, stagedInstallation, schema, installedSchema,
+                options.IncludeTests);
         }
         catch
         {
@@ -324,7 +330,7 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
                 await stagedInstallation.DisposeAsync().ConfigureAwait(false);
             }
 
-            PostgresServerStorage.Delete(dataDirectoryBase);
+            account.DeleteDirectory(dataDirectoryBase);
             PostgresServerStorage.Delete(output);
             throw;
         }
@@ -355,7 +361,7 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
             await _stagedInstallation.DisposeAsync().ConfigureAwait(false);
         }
 
-        PostgresServerStorage.Delete(_dataDirectoryBase);
+        _account.DeleteDirectory(_dataDirectoryBase);
         PostgresServerStorage.Delete(_publishDirectory);
     }
 

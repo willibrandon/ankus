@@ -357,6 +357,36 @@ ports and directories only when every failure reports PostgreSQL's bind
 collision, up to three attempts. The final result's output records each
 superseded attempt. Tests that cause collisions on purpose keep `[TestMethod]`.
 
+Run-as cases (`ankus test --runas` and `PostgresTestClusterOptions.RunAs`) start
+real servers as another Unix account, like pgrx's `--runas` job. They run when
+`ANKUS_TEST_RUNAS_ACCOUNT` names an account that `sudo -n -u ACCOUNT` reaches
+without a password, and report inconclusive otherwise. Provision an unprivileged
+account and a sudoers rule that grants only that account, never root:
+
+```console
+sudo useradd --system --user-group --home-dir /nonexistent --no-create-home --shell /usr/sbin/nologin ankus-runas
+echo "$USER ALL=(ankus-runas) NOPASSWD: ALL" | sudo tee /etc/sudoers.d/ankus-runas
+sudo chmod 0440 /etc/sudoers.d/ankus-runas && sudo visudo -cf /etc/sudoers.d/ankus-runas
+```
+
+On macOS, create the account with `dscl` instead, using an unused UID below 500:
+
+```console
+sudo dscl . -create /Groups/ankus-runas PrimaryGroupID 498
+sudo dscl . -create /Users/ankus-runas UniqueID 498
+sudo dscl . -create /Users/ankus-runas PrimaryGroupID 498
+sudo dscl . -create /Users/ankus-runas UserShell /usr/bin/false
+sudo dscl . -create /Users/ankus-runas NFSHomeDirectory /var/empty
+sudo dscl . -create /Users/ankus-runas IsHidden 1
+```
+
+The account must be able to read the PostgreSQL installation. Distribution and
+Homebrew packages are readable; a downloaded installation under a private home
+directory is not, because its binaries load libraries through an absolute
+`RUNPATH` there. CI test runs use `ankus-runas` when the runner provides it,
+create it on GitHub-hosted Linux runners, and print a warning otherwise. Grant a
+dedicated runner's account the same rule for `ankus-runas`.
+
 For a separate PostgreSQL 18 build, set `ANKUS_TEST_PG_CONFIG` to its `pg_config`
 path for the integration test process. The fixture uses that installation for
 both native publishing and cluster startup, preserving the user's registered

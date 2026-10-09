@@ -981,11 +981,68 @@ static void WriteEnvironment(string name, string value)
 
 static void RunRuntimeTests(string repositoryRoot)
 {
+    ConfigureRunAsAccount();
     using WindowsSuiteSlot? slot = WindowsSuiteSlot.Acquire();
     string integrationTestModule = "tests/Ankus.IntegrationTests/bin/Release/net10.0/Ankus.IntegrationTests.dll";
     Task integrationTests = Task.Run(() => RunTestModule(repositoryRoot, integrationTestModule));
     Task unitTests = Task.Run(() => RunUnitTestModules(repositoryRoot));
     Task.WhenAll(integrationTests, unitTests).GetAwaiter().GetResult();
+}
+
+// Like pgrx's runas job, run-as cases start servers as another account through passwordless sudo.
+// GitHub-hosted Linux runners create the account; dedicated runners are provisioned once, as the
+// contributing guide describes, and a runner without it reports the cases inconclusive with a warning.
+static void ConfigureRunAsAccount()
+{
+    const string Account = "ankus-runas";
+    if (OperatingSystem.IsWindows() || !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ANKUS_TEST_RUNAS_ACCOUNT")))
+    {
+        return;
+    }
+
+    if (!CanRunAs(Account) && OperatingSystem.IsLinux() &&
+        Environment.GetEnvironmentVariable("RUNNER_ENVIRONMENT") == "github-hosted")
+    {
+        Run("sudo", ["-n", "useradd", "--system", "--user-group", "--home-dir", "/nonexistent", "--no-create-home",
+            "--shell", "/usr/sbin/nologin", Account]);
+    }
+
+    if (CanRunAs(Account))
+    {
+        Environment.SetEnvironmentVariable("ANKUS_TEST_RUNAS_ACCOUNT", Account);
+        Console.WriteLine($"Run-as cases start servers as {Account}.");
+    }
+    else
+    {
+        Console.WriteLine($"::warning::Run-as cases are inconclusive: this runner cannot run commands as {Account} through passwordless sudo.");
+    }
+}
+
+static bool CanRunAs(string account)
+{
+    using Process process = new()
+    {
+        StartInfo = new ProcessStartInfo("sudo", ["-n", "-u", account, "--", "true"])
+        {
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            WorkingDirectory = "/",
+        },
+    };
+    try
+    {
+        process.Start();
+    }
+    catch (System.ComponentModel.Win32Exception)
+    {
+        return false;
+    }
+
+    process.StandardOutput.ReadToEnd();
+    process.StandardError.ReadToEnd();
+    process.WaitForExit();
+    return process.ExitCode == 0;
 }
 
 static void RunUnitTests(string repositoryRoot)

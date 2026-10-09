@@ -175,6 +175,53 @@ internal static class IntegrationEnvironment
     }
 
     /// <summary>
+    /// Returns the Unix account that passwordless sudo can run test servers as, or reports the test inconclusive.
+    /// </summary>
+    /// <remarks>
+    /// Like pgrx's dedicated <c>--runas</c> job, these cases need an environment where <c>sudo -n -u ACCOUNT</c>
+    /// succeeds and the account can read the selected PostgreSQL installation, such as a distribution package.
+    /// </remarks>
+    /// <returns>The account named by <c>ANKUS_TEST_RUNAS_ACCOUNT</c>.</returns>
+    internal static string RequireRunAsAccount()
+    {
+        string? account = Environment.GetEnvironmentVariable("ANKUS_TEST_RUNAS_ACCOUNT");
+        if (string.IsNullOrEmpty(account))
+        {
+            Assert.Inconclusive("Set ANKUS_TEST_RUNAS_ACCOUNT to an account that passwordless sudo can run servers as.");
+        }
+
+        return account;
+    }
+
+    /// <summary>
+    /// Creates a directory owned by another account, beneath a directory every account can write.
+    /// </summary>
+    /// <param name="account">The owning account.</param>
+    /// <param name="cancellationToken">Cancels creation.</param>
+    /// <returns>The directory's absolute path.</returns>
+    internal static async Task<string> CreateAccountDirectoryAsync(string account, CancellationToken cancellationToken)
+    {
+        string path = Path.Combine("/tmp", "ankus-runas-" + Guid.NewGuid().ToString("N"));
+        ProcessResult result = await ProcessRunner.RunAsync("sudo", ["-n", "-u", account, "--", "mkdir", "--", path],
+            new Dictionary<string, string?>(), cancellationToken, workingDirectory: "/");
+        Assert.AreEqual(0, result.ExitCode, result.StandardError);
+        return path;
+    }
+
+    /// <summary>
+    /// Deletes a directory owned by another account.
+    /// </summary>
+    /// <param name="account">The owning account.</param>
+    /// <param name="path">The directory's absolute path.</param>
+    /// <returns>A task completing after deletion.</returns>
+    internal static async Task DeleteAccountDirectoryAsync(string account, string path)
+    {
+        ProcessResult result = await ProcessRunner.RunAsync("sudo", ["-n", "-u", account, "--", "rm", "-rf", "--", path],
+            new Dictionary<string, string?>(), CancellationToken.None, workingDirectory: "/");
+        Assert.AreEqual(0, result.ExitCode, result.StandardError);
+    }
+
+    /// <summary>
     /// Publishes a host-native sample library as part of ordinary test initialization.
     /// </summary>
     /// <param name="cancellationToken">Cancels the Native AOT build.</param>

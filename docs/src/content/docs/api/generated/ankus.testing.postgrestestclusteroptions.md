@@ -121,6 +121,25 @@ public IReadOnlyDictionary<string, string?> ProcessEnvironment { get; init; }
 
 Value: [IReadOnlyDictionary&lt;string, string&gt;](https://learn.microsoft.com/dotnet/api/system.collections.generic.ireadonlydictionary-2)
 
+<a id="member-15ebaf456ee54f80"></a>
+
+### RunAs
+
+Gets the Unix account that owns the cluster's data and runs its server through <code>sudo -u</code>, or null to use the
+account running the tests.
+
+```csharp
+public string? RunAs { get; init; }
+```
+
+Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+This corresponds to <code>cargo pgrx test --runas</code>; <code>ankus test --runas</code> selects it for every cluster in the
+run. The account creates the data and socket directories and runs <code>initdb</code> and <code>pg_ctl</code>, so it must be
+able to create directories in [DataDirectoryBase](/api/ankus.testing.postgrestestclusteroptions/#member-adcdeabae203aa11) and read the installation and extension files.
+The server log is read back through <code>sudo</code> into [LogDirectory](/api/ankus.testing.postgrestestclusteroptions/#member-0b3dc492be2055ef). Windows does not support another
+account.
+
 <a id="member-d9754513fffb46d6"></a>
 
 ### SharedDirectory

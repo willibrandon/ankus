@@ -21,9 +21,11 @@ public sealed partial class ToolCommandTests
     [DataRow("forwarded-relative")]
     [DataRow("custom-data")]
     [DataRow("all-custom-data")]
+    [DataRow("runas")]
     public async Task TestCommandRunsSelectedBackendTests(string selection)
     {
         CancellationToken token = context.CancellationToken;
+        string? account = selection == "runas" ? IntegrationEnvironment.RequireRunAsAccount() : null;
         string output = await CreateTestCommandProjectAsync(token);
         string[] selected = selection switch
         {
@@ -31,58 +33,72 @@ public sealed partial class ToolCommandTests
             "explicit" => ["--pg", MajorText(), "--pg-config", s_installation.PgConfigPath],
             _ => ["--home", s_home, "--pg", MajorText()],
         };
-        string? dataBase = selection.EndsWith("custom-data", StringComparison.Ordinal) ? CreateCustomDataBase() : null;
-        string[] dataArguments = dataBase is null ? [] : ["--pgdata", dataBase];
-        string reports = Path.Combine(output, "reports with spaces");
-        string host = Path.Combine(output, "tests", "TestCommandProbe.Tests", "TestCommandProbe.Tests.csproj");
-        string forwardedOutput = Path.Combine(output, "forwarded outputs with spaces");
-        string[] configuration = selection.StartsWith("forwarded", StringComparison.Ordinal) ? [] : ["-c", "Shipping"];
-        string[] installationProperty = [];
-        if (selection == "forwarded-relative")
+        string? dataBase = selection.EndsWith("custom-data", StringComparison.Ordinal) ? CreateCustomDataBase()
+            : account is null ? null : await IntegrationEnvironment.CreateAccountDirectoryAsync(account, token);
+        string[] dataArguments = dataBase is null ? [] : account is null ? ["--pgdata", dataBase] : ["--pgdata", dataBase, "--runas", account];
+        try
         {
-            installationProperty = ["-p:AnkusPgConfigPath=" +
-                Path.GetRelativePath(Path.GetDirectoryName(host)!, s_installation.PgConfigPath)];
-        }
+            string reports = Path.Combine(output, "reports with spaces");
+            string host = Path.Combine(output, "tests", "TestCommandProbe.Tests", "TestCommandProbe.Tests.csproj");
+            string forwardedOutput = Path.Combine(output, "forwarded outputs with spaces");
+            string[] configuration = selection.StartsWith("forwarded", StringComparison.Ordinal) ? [] : ["-c", "Shipping"];
+            string[] installationProperty = [];
+            if (selection == "forwarded-relative")
+            {
+                installationProperty = ["-p:AnkusPgConfigPath=" +
+                    Path.GetRelativePath(Path.GetDirectoryName(host)!, s_installation.PgConfigPath)];
+            }
 
-        string[] outputProperty = selection.StartsWith("forwarded", StringComparison.Ordinal)
-            ? ["-p:ForwardedOutputRoot=" + forwardedOutput] : [];
-        string[] properties = selection is "all" or "all-custom-data"
-            ? ["-p:Configuration=Shipping", "-p:ForwardedFixtureProperty=enabled"]
-            : ["-p:Configuration=Shipping", "-p:AnkusPostgresMajor=" + MajorText(),
-                "-p:ForwardedFixtureProperty=enabled", .. installationProperty, .. outputProperty];
-        ProcessResult result = await PackageProcessRunner.RunAsync(s_tool,
-            ["test", .. selected, .. configuration, .. dataArguments, "--results-directory", reports, "--", "--project", host,
-                "--report-trx", "--report-trx-filename", "selected.trx", "--filter",
-                "FullyQualifiedName~ConfigurationAndVersionReachBackend|FullyQualifiedName~DeclaredTestsExecuteInPostgres",
-                "--configuration", "Shipping", .. properties],
-            s_environment, token, workingDirectory: output);
-        Assert.AreEqual(0, result.ExitCode, result.StandardOutput + result.StandardError);
-        Assert.Contains(s_postgresKey + ": dotnet test exited 0.", result.StandardOutput);
-        string report = Path.Combine(reports, s_postgresKey, "selected.trx");
-        XDocument trx = XDocument.Load(report);
-        XNamespace ns = "http://microsoft.com/schemas/VisualStudio/TeamTest/2010";
-        Dictionary<string, string> outcomes = trx.Descendants(ns + "UnitTestResult").ToDictionary(
-            item => item.Attribute("testName")!.Value, item => item.Attribute("outcome")!.Value);
-        Assert.HasCount(3, outcomes);
-        Assert.AreEqual("Passed", outcomes["ConfigurationAndVersionReachBackend"]);
-        Assert.AreEqual("Passed", outcomes["TestCommandProbe.BackendChecks.AdditionInsidePostgres()"]);
-        Assert.AreEqual("Passed", outcomes["TestCommandProbe.BackendChecks.ExpectedFailure()"]);
-        string session = await File.ReadAllTextAsync(Path.Combine(TestCommandHostDirectory(output, "Shipping"), "session-path.txt"), token);
-        Assert.IsFalse(Directory.Exists(session), "Command-owned data, sockets and publication must be removed.");
-        string actualData = await File.ReadAllTextAsync(Path.Combine(TestCommandHostDirectory(output, "Shipping"), "data-path.txt"), token);
-        Assert.IsFalse(Directory.Exists(actualData));
-        if (dataBase is not null)
-        {
-            Assert.StartsWith(dataBase + Path.DirectorySeparatorChar, actualData);
-            Assert.IsEmpty(Directory.GetDirectories(dataBase));
-            Assert.AreEqual("preserve custom parent", await File.ReadAllTextAsync(Path.Combine(dataBase, "unrelated.txt"), token));
-        }
+            string[] outputProperty = selection.StartsWith("forwarded", StringComparison.Ordinal)
+                ? ["-p:ForwardedOutputRoot=" + forwardedOutput] : [];
+            string[] properties = selection is "all" or "all-custom-data"
+                ? ["-p:Configuration=Shipping", "-p:ForwardedFixtureProperty=enabled"]
+                : ["-p:Configuration=Shipping", "-p:AnkusPostgresMajor=" + MajorText(),
+                    "-p:ForwardedFixtureProperty=enabled", .. installationProperty, .. outputProperty];
+            ProcessResult result = await PackageProcessRunner.RunAsync(s_tool,
+                ["test", .. selected, .. configuration, .. dataArguments, "--results-directory", reports, "--", "--project", host,
+                    "--report-trx", "--report-trx-filename", "selected.trx", "--filter",
+                    "FullyQualifiedName~ConfigurationAndVersionReachBackend|FullyQualifiedName~DeclaredTestsExecuteInPostgres",
+                    "--configuration", "Shipping", .. properties],
+                s_environment, token, workingDirectory: output);
+            Assert.AreEqual(0, result.ExitCode, result.StandardOutput + result.StandardError);
+            Assert.Contains(s_postgresKey + ": dotnet test exited 0.", result.StandardOutput);
+            string report = Path.Combine(reports, s_postgresKey, "selected.trx");
+            XDocument trx = XDocument.Load(report);
+            XNamespace ns = "http://microsoft.com/schemas/VisualStudio/TeamTest/2010";
+            Dictionary<string, string> outcomes = trx.Descendants(ns + "UnitTestResult").ToDictionary(
+                item => item.Attribute("testName")!.Value, item => item.Attribute("outcome")!.Value);
+            Assert.HasCount(3, outcomes);
+            Assert.AreEqual("Passed", outcomes["ConfigurationAndVersionReachBackend"]);
+            Assert.AreEqual("Passed", outcomes["TestCommandProbe.BackendChecks.AdditionInsidePostgres()"]);
+            Assert.AreEqual("Passed", outcomes["TestCommandProbe.BackendChecks.ExpectedFailure()"]);
+            string session = await File.ReadAllTextAsync(Path.Combine(TestCommandHostDirectory(output, "Shipping"), "session-path.txt"), token);
+            Assert.IsFalse(Directory.Exists(session), "Command-owned data, sockets and publication must be removed.");
+            string actualData = await File.ReadAllTextAsync(Path.Combine(TestCommandHostDirectory(output, "Shipping"), "data-path.txt"), token);
+            Assert.IsFalse(Directory.Exists(actualData));
+            if (dataBase is not null)
+            {
+                Assert.StartsWith(dataBase + Path.DirectorySeparatorChar, actualData);
+                Assert.IsEmpty(Directory.GetDirectories(dataBase));
+                if (account is null)
+                {
+                    Assert.AreEqual("preserve custom parent", await File.ReadAllTextAsync(Path.Combine(dataBase, "unrelated.txt"), token));
+                }
+            }
 
-        Assert.IsNotEmpty(Directory.GetFiles(Path.Combine(output, "src", "TestCommandProbe", "bin", "ankus-test-logs"), "*.log"));
-        if (selection.StartsWith("forwarded", StringComparison.Ordinal))
+            Assert.IsNotEmpty(Directory.GetFiles(Path.Combine(output, "src", "TestCommandProbe", "bin", "ankus-test-logs"), "*.log"));
+            if (selection.StartsWith("forwarded", StringComparison.Ordinal))
+            {
+                Assert.IsNotEmpty(Directory.GetFiles(Path.Combine(forwardedOutput, "TestCommandProbe"), "*", SearchOption.AllDirectories));
+                Assert.IsNotEmpty(Directory.GetFiles(Path.Combine(forwardedOutput, "TestCommandProbe.Tests"), "*", SearchOption.AllDirectories));
+            }
+        }
+        finally
         {
-            Assert.IsNotEmpty(Directory.GetFiles(Path.Combine(forwardedOutput, "TestCommandProbe"), "*", SearchOption.AllDirectories));
-            Assert.IsNotEmpty(Directory.GetFiles(Path.Combine(forwardedOutput, "TestCommandProbe.Tests"), "*", SearchOption.AllDirectories));
+            if (account is not null)
+            {
+                await IntegrationEnvironment.DeleteAccountDirectoryAsync(account, dataBase!);
+            }
         }
     }
 

@@ -129,6 +129,57 @@ public sealed class PostgresTestClusterTests(TestContext context)
     }
 
     /// <summary>
+    /// A cluster can run as another Unix account through sudo, as cargo pgrx test --runas does: that account owns the
+    /// data, socket and native log, runs the server, and the retained log is read back after its storage is removed.
+    /// </summary>
+    [TestMethod]
+    [OSCondition(OperatingSystems.Linux | OperatingSystems.OSX)]
+    public async Task ClusterRunsAsAnotherAccount()
+    {
+        CancellationToken token = context.CancellationToken;
+        string account = IntegrationEnvironment.RequireRunAsAccount();
+        PostgresTestClusterOptions defaults = await IntegrationEnvironment.CreateOptionsAsync(token);
+        string dataBase = await IntegrationEnvironment.CreateAccountDirectoryAsync(account, token);
+        try
+        {
+            PostgresTestCluster cluster = await PostgresTestCluster.StartAsync(new PostgresTestClusterOptions
+            {
+                Installation = defaults.Installation,
+                DataDirectoryBase = dataBase,
+                LogDirectory = defaults.LogDirectory,
+                StartupTimeout = defaults.StartupTimeout,
+                RunAs = account,
+            }, token);
+            await using (cluster)
+            {
+                Assert.StartsWith(dataBase + "/", cluster.DataDirectory);
+                Assert.StartsWith("/tmp/ak-", cluster.SocketDirectory);
+                await using NpgsqlConnection connection = await cluster.OpenConnectionAsync(token);
+                await using var command = new NpgsqlCommand("SELECT pg_backend_pid(), current_setting('data_directory')", connection);
+                await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(token);
+                Assert.IsTrue(await reader.ReadAsync(token));
+                int backend = reader.GetInt32(0);
+                Assert.AreEqual(cluster.DataDirectory, reader.GetString(1));
+                ProcessResult owner = await ProcessRunner.RunAsync("ps", ["-o", "user=", "-p",
+                    backend.ToString(System.Globalization.CultureInfo.InvariantCulture)], new Dictionary<string, string?>(), token);
+                Assert.AreEqual(account, owner.StandardOutput.Trim());
+                Assert.IsFalse(File.Exists(Path.Combine(cluster.DataDirectory, "PG_VERSION")), "The data directory is private to the account.");
+                Assert.Contains("database system is ready to accept connections", cluster.ReadServerLog());
+            }
+
+            Assert.IsFalse(Directory.Exists(cluster.DataDirectory));
+            Assert.IsFalse(File.Exists(cluster.DataDirectory + ".log"));
+            Assert.IsFalse(Directory.Exists(cluster.SocketDirectory));
+            Assert.IsEmpty(Directory.GetFileSystemEntries(dataBase));
+            Assert.Contains("database system is shut down", await File.ReadAllTextAsync(cluster.LogFilePath, token));
+        }
+        finally
+        {
+            await IntegrationEnvironment.DeleteAccountDirectoryAsync(account, dataBase);
+        }
+    }
+
+    /// <summary>
     /// Verifies multiple clusters in one process have independent ports and data, and disposal stops only the owned server.
     /// </summary>
     [TestMethod]

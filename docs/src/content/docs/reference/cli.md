@@ -102,6 +102,25 @@ concurrent test runs. Cleanup removes only that child after stopping its servers
 the parent and unrelated contents remain. Unix sockets stay in a separate short
 temporary path, so a long data-directory path does not exceed the socket limit.
 
+On Linux and macOS, add `--runas` to initialize and run the test servers as
+another account, as `cargo pgrx test --runas` does:
+
+```console
+ankus test --pg 18 --runas postgres --pgdata /tmp/pgdata
+```
+
+Ankus runs `initdb`, `pg_ctl` and the directory and file operations for the
+server through `sudo -u postgres`, so `sudo` may ask for your password. That
+account creates the invocation's data directory beneath `--pgdata`, which it
+must be able to write; without `--pgdata`, the data goes beneath `/tmp`. The
+account must also be able to read the PostgreSQL installation, as with a
+distribution's packages. A downloaded installation under a private home
+directory is not readable by another account. Your tests still connect over
+loopback TCP as the cluster's own superuser, and server logs are copied back to
+`bin/ankus-test-logs/` through `sudo`. Unlike `cargo pgrx test --runas`, the
+command never writes into the PostgreSQL installation, so it needs no root
+access. `--runas` is not supported on Windows.
+
 After an ordinary run has published the extension, add `--no-schema` to retain
 that installation SQL while rebuilding native code. This also retains the
 matching embedded schema graph; changes to SQL blocks wait until the next run
@@ -731,6 +750,21 @@ The library goes to `pg_config --pkglibdir`. The primary control goes to the
 `extension` subdirectory of `pg_config --sharedir`. SQL and secondary controls
 use that directory unless the primary declares a custom [SQL directory](/reference/build-settings/#sql-directories).
 The command requires write access to the selected destinations.
+
+When those directories belong to another account, such as a distribution's
+`root`-owned PostgreSQL package, add `--sudo` (or `-s`) on Linux or macOS:
+
+```console
+ankus install --pg 18 --sudo
+```
+
+Ankus builds and validates the files as your account in a temporary directory,
+then runs `sudo cp` and `sudo mv` for each file, so `sudo` may ask for your
+password. Each file is copied beside its destination and renamed into place, so
+a running server never loads a partly written library. Missing directories are
+created with `sudo mkdir -p`, and the control file is installed last. If a
+`sudo` command fails, installation stops with its exit code. Windows does not
+support `--sudo`; run the command from an elevated terminal instead.
 
 To stage those files under a separate root while preserving the installation
 paths, add `--destdir staging`.

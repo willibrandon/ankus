@@ -77,6 +77,23 @@ internal static class TestCommandContext
     }
 
     /// <summary>
+    /// Gets the Unix account selected with ankus test --runas, or null for the account running the tests.
+    /// </summary>
+    internal static string? RunAs
+    {
+        get
+        {
+            string? account = Environment.GetEnvironmentVariable("ANKUS_TEST_RUNAS");
+            if (account is not null && SessionDirectory is null)
+            {
+                throw new InvalidOperationException("ANKUS_TEST_RUNAS requires an ankus test command session.");
+            }
+
+            return account;
+        }
+    }
+
+    /// <summary>
     /// Gets the command-owned temporary root, or null outside ankus test.
     /// </summary>
     internal static string? SessionDirectory
