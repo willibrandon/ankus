@@ -230,10 +230,11 @@ public sealed class PgBenchmarkTests
             Assert.AreEqual(2d, document.RootElement.GetProperty("config").GetProperty("noise_threshold").GetDouble());
         }
 
-        PgJsonb result = PgBenchmarkRunner.Run(definition, null, static bencher => bencher.Iterate(static () => 42), null,
+        PgJsonb result = PgBenchmarkRunner.Run(definition, null, static bencher => bencher.Iterate(MeasuredWork), null,
             static action => action());
         using JsonDocument resultDocument = result.Parse();
-        Assert.AreEqual("ok", resultDocument.RootElement.GetProperty("status").GetString());
+        Assert.AreEqual("ok", resultDocument.RootElement.GetProperty("status").GetString(),
+            resultDocument.RootElement.TryGetProperty("error_text", out JsonElement error) ? error.GetString() : null);
         Assert.AreEqual(10, resultDocument.RootElement.GetProperty("samples").GetArrayLength());
         string? samplingMode = resultDocument.RootElement.GetProperty("sampling_mode").GetString();
         Assert.IsTrue(samplingMode is "linear" or "flat");
@@ -299,12 +300,6 @@ public sealed class PgBenchmarkTests
         Assert.AreEqual(0.95, comparison.GetProperty("mean").GetProperty("confidence_level").GetDouble(), 0.000_001);
         Assert.IsTrue(double.IsFinite(comparison.GetProperty("median").GetProperty("point_estimate").GetDouble()));
         Assert.IsFalse(string.IsNullOrWhiteSpace(comparison.GetProperty("summary").GetString()));
-
-        static int MeasuredWork()
-        {
-            Thread.SpinWait(1_000);
-            return PgBenchmark.BlackBox(42);
-        }
     }
 
     /// <summary>
@@ -599,5 +594,16 @@ public sealed class PgBenchmarkTests
         return lower == upper
             ? ordered[lower]
             : ordered[lower] + (ordered[upper] - ordered[lower]) * (position - lower);
+    }
+
+    /// <summary>
+    /// Takes long enough per iteration that no sample can round to zero ticks, which Criterion rejects, on a coarse
+    /// Windows stopwatch.
+    /// </summary>
+    /// <returns>A value the optimizer must keep.</returns>
+    private static int MeasuredWork()
+    {
+        Thread.SpinWait(1_000);
+        return PgBenchmark.BlackBox(42);
     }
 }
