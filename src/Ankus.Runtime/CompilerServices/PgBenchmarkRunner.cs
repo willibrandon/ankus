@@ -16,6 +16,8 @@ namespace Ankus.CompilerServices;
 /// <param name="resampleCount">The statistical resample count.</param>
 /// <param name="noiseThreshold">The relative noise threshold.</param>
 /// <param name="significanceLevel">The comparison significance level.</param>
+/// <param name="throughput">The unit of work one iteration performs, if reported.</param>
+/// <param name="throughputPerIteration">The amount of work one iteration performs, or zero.</param>
 [EditorBrowsable(EditorBrowsableState.Never)]
 public sealed class PgBenchmarkConfiguration(
     int sampleSize,
@@ -23,7 +25,9 @@ public sealed class PgBenchmarkConfiguration(
     int warmupTimeMilliseconds,
     int resampleCount,
     double noiseThreshold,
-    double significanceLevel)
+    double significanceLevel,
+    PgBenchmarkThroughput throughput = PgBenchmarkThroughput.None,
+    long throughputPerIteration = 0)
 {
     /// <summary>
     /// Gets the number of measurement samples, which is at least ten.
@@ -54,6 +58,16 @@ public sealed class PgBenchmarkConfiguration(
     /// Gets the comparison significance level, between zero and one.
     /// </summary>
     public double SignificanceLevel { get; } = significanceLevel;
+
+    /// <summary>
+    /// Gets the unit of work one iteration performs, or <see cref="PgBenchmarkThroughput.None"/>.
+    /// </summary>
+    public PgBenchmarkThroughput Throughput { get; } = throughput;
+
+    /// <summary>
+    /// Gets the positive amount of work one iteration performs when a throughput is reported, otherwise zero.
+    /// </summary>
+    public long ThroughputPerIteration { get; } = throughputPerIteration;
 }
 
 /// <summary>
@@ -212,7 +226,9 @@ public static class PgBenchmarkRunner
         if (configuration.SampleSize < 10 || configuration.MeasurementTimeMilliseconds <= 0 ||
             configuration.WarmupTimeMilliseconds <= 0 || configuration.ResampleCount <= 0 ||
             !double.IsFinite(configuration.NoiseThreshold) || configuration.NoiseThreshold < 0 ||
-            !double.IsFinite(configuration.SignificanceLevel) || configuration.SignificanceLevel is <= 0 or >= 1)
+            !double.IsFinite(configuration.SignificanceLevel) || configuration.SignificanceLevel is <= 0 or >= 1 ||
+            configuration.Throughput is < PgBenchmarkThroughput.None or > PgBenchmarkThroughput.Elements ||
+            (configuration.Throughput == PgBenchmarkThroughput.None ? configuration.ThroughputPerIteration != 0 : configuration.ThroughputPerIteration <= 0))
         {
             throw new InvalidOperationException("The generated benchmark configuration is invalid.");
         }
@@ -840,6 +856,23 @@ public static class PgBenchmarkRunner
         writer.WriteNumber("noise_threshold", configuration.NoiseThreshold);
         writer.WriteNumber("significance_level", configuration.SignificanceLevel);
         writer.WriteEndObject();
+        if (configuration.Throughput == PgBenchmarkThroughput.None)
+        {
+            writer.WriteNull("throughput");
+        }
+        else
+        {
+            // pgrx keeps Criterion's throughput kinds in lowercase with the amount of work per iteration.
+            writer.WriteStartObject("throughput");
+            writer.WriteString("kind", configuration.Throughput switch
+            {
+                PgBenchmarkThroughput.Bytes => "bytes",
+                PgBenchmarkThroughput.BytesDecimal => "bytesdecimal",
+                _ => "elements",
+            });
+            writer.WriteNumber("value", configuration.ThroughputPerIteration);
+            writer.WriteEndObject();
+        }
     }
 
     private static string TransactionName(PgBenchmarkTransactionMode mode)

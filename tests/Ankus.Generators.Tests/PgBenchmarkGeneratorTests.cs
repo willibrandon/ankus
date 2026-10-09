@@ -100,6 +100,29 @@ public sealed partial class PgFunctionGeneratorTests
     }
 
     /// <summary>
+    /// A benchmark's throughput reaches its configuration, and benchmarks without one keep the shorter form.
+    /// </summary>
+    [TestMethod]
+    public void BenchmarkThroughputReachesTheConfiguration()
+    {
+        (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate("""
+            public static class Benchmarks
+            {
+                [Ankus.PgBenchmark(Throughput = Ankus.PgBenchmarkThroughput.Elements, ThroughputPerIteration = 4096)]
+                public static void Copy(Ankus.PgBencher bencher) => bencher.Iterate(static () => 1 + 2);
+            }
+            """, options: new BenchmarkOptions(true, string.Empty));
+
+        Assert.IsEmpty(diagnostics);
+        Assert.IsEmpty(compilation.GetDiagnostics(context.CancellationToken)
+            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error));
+        string dispatchers = compilation.SyntaxTrees.Single(static tree => tree.FilePath.EndsWith("ExtensionDispatchers.g.cs", StringComparison.Ordinal))
+            .GetText(context.CancellationToken).ToString();
+        Assert.Contains("new global::Ankus.CompilerServices.PgBenchmarkConfiguration(100, 5000, 3000, 100000, 0.01, 0.05, " +
+            "(global::Ankus.PgBenchmarkThroughput)3, 4096L)", dispatchers);
+    }
+
+    /// <summary>
     /// Rejects unsupported benchmark shapes, setup methods and role conflicts with dedicated diagnostics.
     /// </summary>
     /// <param name="source">The invalid declaration source.</param>
@@ -109,6 +132,9 @@ public sealed partial class PgFunctionGeneratorTests
     [DataRow("public static class B { [Ankus.PgBenchmark] public static void Run() { } }", "ANKUS130")]
     [DataRow("public static class B { [Ankus.PgBenchmark(Setup = \"Missing\")] public static void Run(Ankus.PgBencher b) { } }", "ANKUS131")]
     [DataRow("public static class B { [Ankus.PgBenchmark(WarmupTimeMilliseconds = 0)] public static void Run(Ankus.PgBencher b) { } }", "ANKUS132")]
+    [DataRow("public static class B { [Ankus.PgBenchmark(Throughput = Ankus.PgBenchmarkThroughput.Bytes)] public static void Run(Ankus.PgBencher b) { } }", "ANKUS132")]
+    [DataRow("public static class B { [Ankus.PgBenchmark(ThroughputPerIteration = 8)] public static void Run(Ankus.PgBencher b) { } }", "ANKUS132")]
+    [DataRow("public static class B { [Ankus.PgBenchmark(Throughput = (Ankus.PgBenchmarkThroughput)9, ThroughputPerIteration = 8)] public static void Run(Ankus.PgBencher b) { } }", "ANKUS132")]
     [DataRow("public static class B { [Ankus.PgBenchmark, Ankus.PgFunction] public static void Run(Ankus.PgBencher b) { } }", "ANKUS133")]
     public void RejectsInvalidBenchmarkContracts(string source, string diagnostic)
     {

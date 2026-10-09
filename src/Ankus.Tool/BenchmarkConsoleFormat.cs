@@ -34,6 +34,15 @@ internal static class BenchmarkConsoleFormat
     }
 
     /// <summary>
+    /// Formats the message printed to standard error before pausing for debugger attachment.
+    /// </summary>
+    /// <param name="seconds">The pause in whole seconds.</param>
+    /// <returns>The message without a trailing newline.</returns>
+    internal static string Waiting(int seconds)
+        => string.Create(CultureInfo.InvariantCulture,
+            $"     Waiting {seconds} {(seconds == 1 ? "second" : "seconds")} before starting benchmarks");
+
+    /// <summary>
     /// Formats the group summary printed after all benchmarks ran.
     /// </summary>
     /// <param name="group">The run group.</param>
@@ -94,7 +103,14 @@ internal static class BenchmarkConsoleFormat
         bool hasMean = estimates.TryGetValue("mean", out JsonElement mean);
         if (hasSlope || hasMean)
         {
-            text.Append(s_indent).AppendLine("time:   " + Interval(hasSlope ? slope : mean));
+            JsonElement primary = hasSlope ? slope : mean;
+            text.Append(s_indent).AppendLine("time:   " + Interval(primary));
+            if (result.TryGetProperty("throughput", out JsonElement throughput) && throughput.ValueKind == JsonValueKind.Object)
+            {
+                text.Append(s_indent).AppendLine("thrpt:  " + Throughput(throughput.GetProperty("kind").GetString()!,
+                    throughput.GetProperty("value").GetDouble(), primary.GetProperty("point_estimate_ns").GetDouble(),
+                    OptionalNumber(primary, "ci_lower_bound_ns"), OptionalNumber(primary, "ci_upper_bound_ns")));
+            }
         }
 
         if (result.TryGetProperty("comparison", out JsonElement comparison) && comparison.ValueKind == JsonValueKind.Object)
@@ -162,11 +178,50 @@ internal static class BenchmarkConsoleFormat
     }
 
     /// <summary>
+    /// Formats the rate of work implied by a time estimate, as pgrx and Criterion do: the longest time gives the lowest
+    /// rate, so the interval runs from the upper time bound to the lower one, in units chosen from the point estimate.
+    /// </summary>
+    /// <param name="kind"><c>bytes</c>, <c>bytesdecimal</c> or <c>elements</c>.</param>
+    /// <param name="perIteration">The work one iteration performs.</param>
+    /// <param name="point">The estimate's point in nanoseconds.</param>
+    /// <param name="lower">The interval's lower bound in nanoseconds, if any.</param>
+    /// <param name="upper">The interval's upper bound in nanoseconds, if any.</param>
+    /// <returns>The rate or interval of rates.</returns>
+    internal static string Throughput(string kind, double perIteration, double point, double? lower, double? upper)
+    {
+        if (point <= 0 || !double.IsFinite(point))
+        {
+            return "invalid throughput";
+        }
+
+        double typical = perIteration * (1e9 / point);
+        (double scale, string unit) = kind switch
+        {
+            "bytes" => Scale(typical, 1024, "B/s", "KiB/s", "MiB/s", "GiB/s"),
+            "bytesdecimal" => Scale(typical, 1000, "B/s", "KB/s", "MB/s", "GB/s"),
+            "elements" => Scale(typical, 1000, "elem/s", "Kelem/s", "Melem/s", "Gelem/s"),
+            _ => (1, "ops/s"),
+        };
+        string Rate(double time)
+            => time <= 0 || !double.IsFinite(time) ? "invalid throughput" : Number(perIteration * (1e9 / time) / scale, signed: false) + " " + unit;
+        return lower is double low && upper is double high ? "[" + Rate(high) + " " + Rate(point) + " " + Rate(low) + "]" : Rate(point);
+    }
+
+    /// <summary>
     /// Formats a signed percentage, as pgrx does.
     /// </summary>
     /// <param name="percent">The percentage.</param>
     /// <returns>The signed value with a percent sign.</returns>
     internal static string Percent(double percent) => Number(percent, signed: true) + "%";
+
+    private static (double Scale, string Unit) Scale(double perSecond, double step, string one, string thousand, string million, string billion)
+        => perSecond < step ? (1, one)
+            : perSecond < step * step ? (step, thousand)
+            : perSecond < step * step * step ? (step * step, million)
+            : (step * step * step, billion);
+
+    private static double? OptionalNumber(JsonElement element, string name)
+        => element.TryGetProperty(name, out JsonElement value) && value.ValueKind == JsonValueKind.Number ? value.GetDouble() : null;
 
     /// <summary>
     /// Formats an estimate with its confidence interval when present.

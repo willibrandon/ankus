@@ -1,6 +1,7 @@
 using System.CommandLine;
 using System.Diagnostics;
 using System.Globalization;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
@@ -143,14 +144,22 @@ internal static partial class ToolCommand
             await using BenchmarkSqlSession sql = await BenchmarkSqlSession.StartAsync(installation.PsqlPath, connection, token);
             if (reportOnly)
             {
-                return await ReportBenchmarksAsync(sql, extension, result.GetValue(filter), jsonOutput, token);
+                return await ReportBenchmarksAsync(sql, benchmarkDatabase, extension, result.GetValue(filter), jsonOutput, token);
             }
 
             await EnsureBenchmarkStoreAsync(sql, token);
-            string drop = "DROP EXTENSION IF EXISTS " + QuoteIdentifier(extension) +
-                (result.GetValue(cascade) ? " CASCADE" : string.Empty) + ";\n";
-            await sql.ExecuteAsync(drop + "CREATE EXTENSION " + QuoteIdentifier(extension) +
-                (result.GetValue(cascade) ? " CASCADE" : string.Empty) + ";\n", token);
+            string cascadeClause = result.GetValue(cascade) ? " CASCADE" : string.Empty;
+            try
+            {
+                _ = await sql.ExecuteAsync("DROP EXTENSION IF EXISTS " + QuoteIdentifier(extension) + cascadeClause + ";\n", token);
+            }
+            catch (InvalidOperationException error) when (cascadeClause.Length == 0)
+            {
+                throw new InvalidOperationException("Failed to drop extension '" + extension + "' before the benchmark refresh. " +
+                    "Rerun with `ankus bench --cascade` to drop the objects that depend on it.", error);
+            }
+
+            _ = await sql.ExecuteAsync("CREATE EXTENSION " + QuoteIdentifier(extension) + cascadeClause + ";\n", token);
             List<BenchmarkDescriptor> benchmarks = await DiscoverBenchmarksAsync(sql, result.GetValue(filter), token);
             if (result.GetValue(list))
             {
@@ -167,11 +176,11 @@ internal static partial class ToolCommand
                 throw new InvalidOperationException("No benchmarks were discovered in the benches schema.");
             }
 
-            string groupName = result.GetValue(group) ?? await DefaultBenchmarkGroupAsync(sql, selection.Project, token);
+            BenchmarkGitMetadata git = await CollectGitMetadataAsync(selection.Project, token);
+            string groupName = result.GetValue(group) ?? await DefaultBenchmarkGroupAsync(sql, git.Commit, token);
             string? compareGroup = await ResolveBenchmarkComparisonAsync(sql, result.GetValue(compare),
                 groupName, selection.Configuration, token);
-            long runGroup = await InsertBenchmarkGroupAsync(sql, groupName, compareGroup,
-                extension, selection.Configuration, token);
+            long runGroup = await InsertBenchmarkGroupAsync(sql, groupName, compareGroup, extension, selection, git, token);
             string backendPid = (await sql.ExecuteAsync("SELECT pg_backend_pid();\n", token)).Trim();
             Stream attachmentOutput = jsonOutput ? Console.OpenStandardError() : Console.OpenStandardOutput();
             byte[] attachmentAnnouncement = Encoding.UTF8.GetBytes("Benchmark backend PID: " + backendPid + Environment.NewLine);
@@ -180,6 +189,8 @@ internal static partial class ToolCommand
 
             if (waitSeconds != 0)
             {
+                await Console.Error.WriteLineAsync(BenchmarkConsoleFormat.Waiting(waitSeconds));
+                await Console.Error.FlushAsync(token);
                 await Task.Delay(TimeSpan.FromSeconds(waitSeconds), token);
             }
 
@@ -339,6 +350,15 @@ internal static partial class ToolCommand
                 benchmark_name text NOT NULL,
                 result jsonb NOT NULL
             );
+            ALTER TABLE ankus_bench.run_group
+                ADD COLUMN IF NOT EXISTS extension_version text,
+                ADD COLUMN IF NOT EXISTS command_line text,
+                ADD COLUMN IF NOT EXISTS dotnet_sdk_version text,
+                ADD COLUMN IF NOT EXISTS tool_version text,
+                ADD COLUMN IF NOT EXISTS git_commit text,
+                ADD COLUMN IF NOT EXISTS git_branch text,
+                ADD COLUMN IF NOT EXISTS git_dirty boolean NOT NULL DEFAULT false,
+                ADD COLUMN IF NOT EXISTS git_describe text;
             """, token);
 
     private static async Task<List<BenchmarkDescriptor>> DiscoverBenchmarksAsync(
@@ -379,17 +399,30 @@ internal static partial class ToolCommand
         string group,
         string? compareGroup,
         string extension,
-        string configuration,
+        ExtensionSelection selection,
+        BenchmarkGitMetadata git,
         CancellationToken token)
     {
-        string statement = "INSERT INTO ankus_bench.run_group (group_name, compare_group_name, extension_name, configuration, " +
-            "postgres_version, runtime_identifier, pg_settings) SELECT " + TextExpression(group) + ", " +
-            (compareGroup is null ? "NULL" : TextExpression(compareGroup)) + ", " + TextExpression(extension) + ", " +
-            TextExpression(configuration) + ", current_setting('server_version'), " + TextExpression(RuntimeInformation.RuntimeIdentifier) +
-            ", (SELECT jsonb_object_agg(name, setting ORDER BY name) FROM pg_catalog.pg_settings) RETURNING id;\n";
+        string tool = typeof(BenchmarkHistoryReport).Assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "unknown";
+        string? sdk = await CommandOutputAsync("dotnet", ["--version"], Path.GetDirectoryName(selection.Project), token);
+        // Each setting keeps its unit, source and boot value, so reports can find the settings that differ from defaults.
+        string statement = "INSERT INTO ankus_bench.run_group (group_name, compare_group_name, extension_name, extension_version, " +
+            "configuration, postgres_version, runtime_identifier, pg_settings, command_line, dotnet_sdk_version, tool_version, " +
+            "git_commit, git_branch, git_dirty, git_describe) SELECT " + TextExpression(group) + ", " + NullableText(compareGroup) +
+            ", " + TextExpression(extension) + ", (SELECT extversion FROM pg_catalog.pg_extension WHERE extname = " +
+            TextExpression(extension) + "), " + TextExpression(selection.Configuration) + ", current_setting('server_version'), " +
+            TextExpression(RuntimeInformation.RuntimeIdentifier) +
+            ", (SELECT jsonb_object_agg(name, jsonb_build_object('setting', setting, 'unit', unit, 'source', source, " +
+            "'sourcefile', sourcefile, 'boot_val', boot_val, 'reset_val', reset_val) ORDER BY name) FROM pg_catalog.pg_settings), " +
+            TextExpression(Environment.CommandLine) + ", " + NullableText(sdk) + ", " + TextExpression(tool) + ", " +
+            NullableText(git.Commit) + ", " + NullableText(git.Branch) + ", " + (git.Dirty ? "true" : "false") + ", " +
+            NullableText(git.Describe) + " RETURNING id;\n";
         string value = (await sql.ExecuteAsync(statement, token)).Trim();
         return long.Parse(value, NumberStyles.None, CultureInfo.InvariantCulture);
     }
+
+    private static string NullableText(string? value) => value is null ? "NULL" : TextExpression(value);
 
     /// <summary>
     /// Loads the compared group's latest run of a benchmark, or the reason no comparison is possible, as
@@ -429,6 +462,7 @@ internal static partial class ToolCommand
 
     private static async Task<int> ReportBenchmarksAsync(
         BenchmarkSqlSession sql,
+        string database,
         string extension,
         string? filter,
         bool json,
@@ -443,62 +477,122 @@ internal static partial class ToolCommand
         }
 
         string condition = filter is null ? string.Empty : " AND r.benchmark_name LIKE '%' || " + TextExpression(filter) + " || '%'";
-        string rows = await sql.ExecuteAsync(
-            "SELECT jsonb_build_object('group_name', g.group_name, 'compare_group_name', g.compare_group_name, " +
-            "'created_at', g.created_at, 'benchmark_name', r.benchmark_name, 'result', r.result)::text " +
-            "FROM ankus_bench.benchmark_run AS r JOIN ankus_bench.run_group AS g ON g.id = r.group_id " +
-            "WHERE g.extension_name = " + TextExpression(extension) + condition +
-            " ORDER BY g.created_at DESC, r.id LIMIT 10;\n", token);
-        string[] entries = rows.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (entries.Length == 0)
-        {
-            throw new InvalidOperationException(filter is null
-                ? "No benchmark history is available in the selected database."
-                : "No benchmark history matches '" + filter + "'.");
-        }
-
         if (json)
         {
-            Console.WriteLine("[" + string.Join(",", entries) + "]");
-        }
-        else
-        {
-            foreach (string entry in entries)
+            string rows = await sql.ExecuteAsync(
+                "SELECT jsonb_build_object('group_name', g.group_name, 'compare_group_name', g.compare_group_name, " +
+                "'created_at', g.created_at, 'benchmark_name', r.benchmark_name, 'result', r.result)::text " +
+                "FROM ankus_bench.benchmark_run AS r JOIN ankus_bench.run_group AS g ON g.id = r.group_id " +
+                "WHERE g.extension_name = " + TextExpression(extension) + condition +
+                " ORDER BY g.created_at DESC, r.id LIMIT 10;\n", token);
+            string[] entries = rows.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (entries.Length == 0)
             {
-                using JsonDocument document = JsonDocument.Parse(entry);
-                JsonElement root = document.RootElement;
-                Console.Write(BenchmarkConsoleFormat.Format(
-                    root.GetProperty("group_name").GetString() + "  " + root.GetProperty("benchmark_name").GetString(), root.GetProperty("result")));
+                throw NoHistory(filter);
             }
+
+            Console.WriteLine("[" + string.Join(",", entries) + "]");
+            return 0;
         }
 
+        // The primary estimate is the slope when the sampling plan produced one, otherwise the mean. As in pgrx, a
+        // group's settings are those whose value or unit differs from PostgreSQL's defaults; groups recorded before
+        // sources were kept have none to compare.
+        string history = await sql.ExecuteAsync(
+            "SELECT jsonb_build_object('benchmark', r.benchmark_name, 'group_id', g.id, 'group_name', g.group_name, " +
+            "'succeeded', r.result->>'status' = 'ok', 'point', COALESCE(" +
+            "(SELECT (e->>'point_estimate_ns')::float8 FROM jsonb_array_elements(r.result->'estimates') AS e WHERE e->>'estimate_kind' = 'slope' LIMIT 1), " +
+            "(SELECT (e->>'point_estimate_ns')::float8 FROM jsonb_array_elements(r.result->'estimates') AS e WHERE e->>'estimate_kind' = 'mean' LIMIT 1)), " +
+            "'configuration', g.configuration, 'major', split_part(g.postgres_version, '.', 1), 'runtime', g.runtime_identifier, " +
+            "'settings', CASE WHEN EXISTS (SELECT 1 FROM jsonb_each(g.pg_settings) AS s WHERE jsonb_typeof(s.value) = 'object') " +
+            "THEN COALESCE((SELECT jsonb_object_agg(s.key, jsonb_build_object('setting', s.value->'setting', 'unit', s.value->'unit')) FROM jsonb_each(g.pg_settings) AS s " +
+            "WHERE jsonb_typeof(s.value) = 'object' AND (s.value->>'source' IS DISTINCT FROM 'default' OR s.value->>'sourcefile' IS NOT NULL " +
+            "OR s.value->>'setting' IS DISTINCT FROM s.value->>'boot_val')), '{}'::jsonb)::text END)::text " +
+            "FROM ankus_bench.benchmark_run AS r JOIN ankus_bench.run_group AS g ON g.id = r.group_id " +
+            "WHERE g.extension_name = " + TextExpression(extension) + condition +
+            " ORDER BY r.benchmark_name, g.created_at, r.id;\n", token);
+        var runs = new List<BenchmarkHistoryRun>();
+        foreach (string line in history.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            using JsonDocument document = JsonDocument.Parse(line);
+            JsonElement root = document.RootElement;
+            JsonElement point = root.GetProperty("point");
+            JsonElement settings = root.GetProperty("settings");
+            runs.Add(new BenchmarkHistoryRun(root.GetProperty("benchmark").GetString()!, root.GetProperty("group_id").GetInt64(),
+                root.GetProperty("group_name").GetString()!, root.GetProperty("succeeded").GetBoolean(),
+                point.ValueKind == JsonValueKind.Number ? point.GetDouble() : null, root.GetProperty("configuration").GetString()!,
+                root.GetProperty("major").GetString()!, root.GetProperty("runtime").GetString()!,
+                settings.ValueKind == JsonValueKind.String ? settings.GetString() : null));
+        }
+
+        if (runs.Count == 0)
+        {
+            throw NoHistory(filter);
+        }
+
+        Console.Write(BenchmarkHistoryReport.Format(database, filter, runs));
         return 0;
     }
 
+    private static InvalidOperationException NoHistory(string? filter)
+        => new(filter is null
+            ? "No benchmark history is available in the selected database."
+            : "No benchmark history matches '" + filter + "'.");
+
     private static async Task<string> DefaultBenchmarkGroupAsync(
         BenchmarkSqlSession sql,
-        string project,
+        string? commit,
         CancellationToken token)
     {
-        string? github = Environment.GetEnvironmentVariable("GITHUB_SHA");
-        string commit;
-        if (string.IsNullOrWhiteSpace(github))
-        {
-            using var output = new MemoryStream();
-            int code = await ToolProcess.RunAsync("git", ["rev-parse", "--short", "HEAD"], token,
-                outputStream: output, workingDirectory: Path.GetDirectoryName(project));
-            commit = code == 0 ? Encoding.UTF8.GetString(output.ToArray()).Trim() : string.Empty;
-        }
-        else
-        {
-            commit = github;
-        }
-
-        string suffix = commit.Length == 0 ? "nogit" : commit[..Math.Min(7, commit.Length)];
+        string suffix = commit is null ? "nogit" : commit[..Math.Min(7, commit.Length)];
         string timestamp = (await sql.ExecuteAsync(
             "SELECT to_char(clock_timestamp(), 'YYYYMMDD_HH24MISS');\n", token)).Trim();
         return timestamp + "_" + suffix;
     }
+
+    /// <summary>
+    /// Reads the project's Git state as pgrx records it, using the commit GitHub Actions is building when set.
+    /// </summary>
+    private static async Task<BenchmarkGitMetadata> CollectGitMetadataAsync(string project, CancellationToken token)
+    {
+        string? directory = Path.GetDirectoryName(project);
+        string? github = Environment.GetEnvironmentVariable("GITHUB_SHA");
+        string? commit = string.IsNullOrWhiteSpace(github) ? await CommandOutputAsync("git", ["rev-parse", "HEAD"], directory, token) : github;
+        string? branch = await CommandOutputAsync("git", ["rev-parse", "--abbrev-ref", "HEAD"], directory, token);
+        string? describe = await CommandOutputAsync("git", ["describe", "--always", "--dirty", "--tags"], directory, token);
+        string? status = await CommandOutputAsync("git", ["status", "--porcelain", "--untracked-files=no"], directory, token);
+        return new BenchmarkGitMetadata(commit, branch, describe, !string.IsNullOrEmpty(status));
+    }
+
+    /// <summary>
+    /// Runs a command for its trimmed output, or returns null when it cannot start, fails or prints nothing.
+    /// </summary>
+    private static async Task<string?> CommandOutputAsync(string executable, string[] arguments, string? directory, CancellationToken token)
+    {
+        using var output = new MemoryStream();
+        int code;
+        try
+        {
+            code = await ToolProcess.RunAsync(executable, arguments, token, outputStream: output, workingDirectory: directory,
+                errorStream: Stream.Null);
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            return null;
+        }
+
+        string text = Encoding.UTF8.GetString(output.ToArray()).Trim();
+        return code == 0 && text.Length != 0 ? text : null;
+    }
+
+    /// <summary>
+    /// The Git state recorded with a run group.
+    /// </summary>
+    /// <param name="Commit">The full commit hash, or null outside Git.</param>
+    /// <param name="Branch">The branch name, or <c>HEAD</c> when detached.</param>
+    /// <param name="Describe">The <c>git describe --always --dirty --tags</c> output.</param>
+    /// <param name="Dirty">Whether tracked files have uncommitted changes.</param>
+    private sealed record BenchmarkGitMetadata(string? Commit, string? Branch, string? Describe, bool Dirty);
 
     private static async Task<string?> ResolveBenchmarkComparisonAsync(
         BenchmarkSqlSession sql,

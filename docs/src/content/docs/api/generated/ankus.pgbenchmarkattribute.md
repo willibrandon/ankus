@@ -104,6 +104,34 @@ public double SignificanceLevel { get; set; }
 
 Value: [double](https://learn.microsoft.com/dotnet/api/system.double)
 
+<a id="member-3e862f1300c16e73"></a>
+
+### Throughput
+
+Gets or sets the unit of the work one iteration performs, from which results report a throughput.
+
+```csharp
+public PgBenchmarkThroughput Throughput { get; set; }
+```
+
+Value: [PgBenchmarkThroughput](/api/ankus.pgbenchmarkthroughput/)
+
+Set [ThroughputPerIteration](/api/ankus.pgbenchmarkattribute/#member-cdf86b6982d72b56) with it. The rate is the work divided by the primary time estimate,
+with its confidence interval, as Criterion reports it.
+
+<a id="member-cdf86b6982d72b56"></a>
+
+### ThroughputPerIteration
+
+Gets or sets the positive number of bytes or elements one iteration processes when
+[Throughput](/api/ankus.pgbenchmarkattribute/#member-3e862f1300c16e73) is set; otherwise zero.
+
+```csharp
+public long ThroughputPerIteration { get; set; }
+```
+
+Value: [long](https://learn.microsoft.com/dotnet/api/system.int64)
+
 <a id="member-18a2ad6afb24e4cb"></a>
 
 ### Transaction

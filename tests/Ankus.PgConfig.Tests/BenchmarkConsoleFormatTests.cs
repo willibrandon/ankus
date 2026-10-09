@@ -107,4 +107,37 @@ public sealed class BenchmarkConsoleFormatTests
     [DataRow(-150.0, "-150.0%")]
     public void PercentagesKeepTheirSign(double percent, string expected)
         => Assert.AreEqual(expected, BenchmarkConsoleFormat.Percent(percent));
+
+    /// <summary>
+    /// The pause before benchmarks names its duration with a singular or plural unit, as pgrx's
+    /// <c>format_wait_duration_uses_singular_and_plural_units</c> checks.
+    /// </summary>
+    [TestMethod]
+    public void WaitingMessageUsesSingularAndPluralUnits()
+    {
+        Assert.AreEqual("     Waiting 1 second before starting benchmarks", BenchmarkConsoleFormat.Waiting(1));
+        Assert.AreEqual("     Waiting 2 seconds before starting benchmarks", BenchmarkConsoleFormat.Waiting(2));
+    }
+
+    /// <summary>
+    /// Throughput divides the work per iteration by the time estimate, so the slowest time bounds the lowest rate, as
+    /// pgrx's <c>throughput_interval_uses_time_estimate_to_compute_rate</c> and
+    /// <c>throughput_without_interval_uses_decimal_units_when_requested</c> check.
+    /// </summary>
+    [TestMethod]
+    public void ThroughputUsesTheTimeEstimateToComputeRates()
+    {
+        Assert.AreEqual("[887.78 MiB/s 976.56 MiB/s 1085.07 MiB/s]", BenchmarkConsoleFormat.Throughput("bytes", 1024, 1_000, 900, 1_100));
+        Assert.AreEqual("2.5 MB/s", BenchmarkConsoleFormat.Throughput("bytesdecimal", 5_000, 2_000_000, null, null));
+        Assert.AreEqual("500.0 Kelem/s", BenchmarkConsoleFormat.Throughput("elements", 1, 2_000, null, null));
+        Assert.AreEqual("invalid throughput", BenchmarkConsoleFormat.Throughput("bytes", 1, 0, null, null));
+        using JsonDocument result = JsonDocument.Parse("""
+            {"status":"ok","throughput":{"kind":"elements","value":100},"estimates":[
+              {"estimate_kind":"mean","point_estimate_ns":1000,"ci_lower_bound_ns":800,"ci_upper_bound_ns":1250}],
+             "comparison":null}
+            """);
+        Assert.AreEqual(string.Join(Environment.NewLine, "bench", s_indent + "time:   [800.0 ns 1.0 us 1.25 us]",
+            s_indent + "thrpt:  [80.0 Melem/s 100.0 Melem/s 125.0 Melem/s]", s_indent + "mean:   [800.0 ns 1.0 us 1.25 us]",
+            string.Empty, string.Empty), BenchmarkConsoleFormat.Format("bench", result.RootElement));
+    }
 }

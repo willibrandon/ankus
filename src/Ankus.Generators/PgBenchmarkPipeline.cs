@@ -94,6 +94,8 @@ internal static class PgBenchmarkPipeline
         int resamples = AttributeValues.Get(benchmark, "ResampleCount", 100_000);
         double noise = AttributeValues.Get(benchmark, "NoiseThreshold", 0.01);
         double significance = AttributeValues.Get(benchmark, "SignificanceLevel", 0.05);
+        int throughput = AttributeValues.Get(benchmark, "Throughput", 0);
+        long throughputPerIteration = AttributeValues.Get(benchmark, "ThroughputPerIteration", 0L);
         if (transaction is < 0 or > 2)
         {
             return Invalid("Transaction");
@@ -129,6 +131,16 @@ internal static class PgBenchmarkPipeline
             return Invalid("SignificanceLevel");
         }
 
+        if (throughput is < 0 or > 3)
+        {
+            return Invalid("Throughput");
+        }
+
+        if (throughput == 0 ? throughputPerIteration != 0 : throughputPerIteration <= 0)
+        {
+            return Invalid("ThroughputPerIteration");
+        }
+
         string display = method.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
         using SHA256 hash = SHA256.Create();
         byte[] digest = hash.ComputeHash(Encoding.UTF8.GetBytes(method.ContainingAssembly.Name + ":" + display));
@@ -137,7 +149,7 @@ internal static class PgBenchmarkPipeline
         string describeName = runName + "_describe";
         return new(display, Target(method), setupTarget, setupName, runName, describeName,
             PgFunctionGenerator.GetCallbackName(method, runName), PgFunctionGenerator.GetCallbackName(method, describeName),
-            transaction, sampleSize, measurement, warmup, resamples, noise, significance);
+            transaction, sampleSize, measurement, warmup, resamples, noise, significance, throughput, throughputPerIteration);
 
         Model? Invalid(string option)
         {
@@ -189,7 +201,9 @@ internal static class PgBenchmarkPipeline
         int WarmupTimeMilliseconds,
         int ResampleCount,
         double NoiseThreshold,
-        double SignificanceLevel);
+        double SignificanceLevel,
+        int Throughput,
+        long ThroughputPerIteration);
 
     /// <summary>
     /// Retains one benchmark and its separately located diagnostics.

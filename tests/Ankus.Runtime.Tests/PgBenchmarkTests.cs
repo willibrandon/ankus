@@ -229,6 +229,25 @@ public sealed class PgBenchmarkTests
             Assert.AreEqual("shared", document.RootElement.GetProperty("transaction_mode").GetString());
             Assert.AreEqual(10, document.RootElement.GetProperty("config").GetProperty("sample_size").GetInt32());
             Assert.AreEqual(2d, document.RootElement.GetProperty("config").GetProperty("noise_threshold").GetDouble());
+            Assert.AreEqual(JsonValueKind.Null, document.RootElement.GetProperty("throughput").ValueKind);
+        }
+
+        var throughputDefinition = new PgBenchmarkDefinition("benches", "Extension.Benchmarks.Copy()", "ankus_bench_copy", null,
+            PgBenchmarkTransactionMode.Shared, "Benchmarks.cs", 23, new(10, 1, 1, 100, 0.01, 0.05, PgBenchmarkThroughput.BytesDecimal, 4096));
+        using (JsonDocument document = PgBenchmarkRunner.Describe(throughputDefinition).Parse())
+        {
+            JsonElement throughput = document.RootElement.GetProperty("throughput");
+            Assert.AreEqual("bytesdecimal", throughput.GetProperty("kind").GetString());
+            Assert.AreEqual(4096, throughput.GetProperty("value").GetInt64());
+        }
+
+        using (JsonDocument invalid = PgBenchmarkRunner.Run(new PgBenchmarkDefinition("benches", "Extension.Benchmarks.Invalid()",
+            "ankus_bench_invalid", null, PgBenchmarkTransactionMode.Shared, "Benchmarks.cs", 29,
+            new(10, 1, 1, 100, 0.01, 0.05, PgBenchmarkThroughput.Elements, 0)), null, static bencher => bencher.Iterate(MeasuredWork), null,
+            static action => action()).Parse())
+        {
+            Assert.AreEqual("failed", invalid.RootElement.GetProperty("status").GetString());
+            Assert.AreEqual("The generated benchmark configuration is invalid.", invalid.RootElement.GetProperty("error_text").GetString());
         }
 
         PgJsonb result = PgBenchmarkRunner.Run(definition, null, static bencher => bencher.Iterate(MeasuredWork), null,

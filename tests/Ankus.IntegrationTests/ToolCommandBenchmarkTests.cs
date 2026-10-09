@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using Ankus.PgConfig;
 using Ankus.Testing;
@@ -57,6 +58,8 @@ public sealed partial class ToolCommandTests
             Assert.Contains("Bench group " + Group + Environment.NewLine, run.StandardOutput);
             Assert.MatchesRegex(@"    Result (\d+) total, \1 ok, 0 failed", run.StandardOutput);
             Assert.Contains(new string(' ', 28) + "time:   [", run.StandardOutput);
+            Assert.MatchesRegex(@"\n {28}time:   \[[^\n]*\r?\n {28}thrpt:  \[\d+\.\d+ [KMG]?elem/s \d+\.\d+ [KMG]?elem/s \d+\.\d+ [KMG]?elem/s\]",
+                run.StandardOutput);
             Assert.Contains(new string(' ', 28) + "mean:   [", run.StandardOutput);
             Assert.Contains("] std. dev. [", run.StandardOutput);
             Assert.Contains(new string(' ', 28) + "median: [", run.StandardOutput);
@@ -137,6 +140,7 @@ public sealed partial class ToolCommandTests
                     string output = await standardOutput;
                     Assert.AreEqual(0, process.ExitCode, output + await standardError);
                     Assert.Contains("Benchmark backend PID: " + backendPid.ToString(CultureInfo.InvariantCulture), output);
+                    Assert.Contains("     Waiting 10 seconds before starting benchmarks" + Environment.NewLine, await standardError);
                     Assert.Contains(new string(' ', 28) + "change: [", output);
                     Assert.Contains("   Compared " + Group + Environment.NewLine, output);
                     Assert.Contains("Missing From Current Run" + Environment.NewLine + "  " + InsertBenchmark, output);
@@ -213,6 +217,122 @@ public sealed partial class ToolCommandTests
             Assert.IsNotNull(errorText);
             Assert.Contains("division by zero", errorText);
 
+            // Automatic comparison skips failed groups and groups from another build configuration. Marking a group as
+            // Debug stands in for publishing a Debug benchmark build. A database-level setting and --postgresql-conf
+            // are non-default settings, so the next run is marked as drifted.
+            await using (Npgsql.NpgsqlConnection connection = BenchmarkConnection(connectionString, "ankus_tool_probe_benches"))
+            {
+                await connection.OpenAsync(token);
+                await using var command = new Npgsql.NpgsqlCommand("""
+                    SELECT string_agg(group_name || '=' || status, ',' ORDER BY id) FROM ankus_bench.run_group;
+                    UPDATE ankus_bench.run_group SET configuration = 'Debug' WHERE group_name = 'new-benchmark';
+                    ALTER DATABASE ankus_tool_probe_benches SET work_mem = '8MB';
+                    """, connection);
+                Assert.AreEqual(Group + "=completed,persistent-session=completed,comparison=completed,new-benchmark=completed,failure=failed",
+                    await command.ExecuteScalarAsync(token));
+            }
+
+            // Without --group-name, the group is named for the time and the project's commit. The run also records
+            // the branch, describe output and whether tracked files have uncommitted changes.
+            var git = new Dictionary<string, string?>(s_environment) { ["GITHUB_SHA"] = null };
+            string[] identity = ["-c", "user.name=Ankus", "-c", "user.email=ankus@example.invalid", "-c", "commit.gpgsign=false"];
+            await File.WriteAllTextAsync(Path.Combine(benchmarkDirectory, "notes.txt"), "first", token);
+            (await PackageProcessRunner.RunAsync("git", ["init", "-q", "-b", "main"], git, token, workingDirectory: benchmarkDirectory))
+                .EnsureSuccess("git", ["init"]);
+            (await PackageProcessRunner.RunAsync("git", ["add", "notes.txt"], git, token, workingDirectory: benchmarkDirectory))
+                .EnsureSuccess("git", ["add"]);
+            (await PackageProcessRunner.RunAsync("git", [.. identity, "commit", "-q", "--no-verify", "-m", "Benchmark history"], git, token,
+                workingDirectory: benchmarkDirectory)).EnsureSuccess("git", ["commit"]);
+            ProcessResult head = await PackageProcessRunner.RunAsync("git", ["rev-parse", "HEAD"], git, token, workingDirectory: benchmarkDirectory);
+            head.EnsureSuccess("git", ["rev-parse"]);
+            string commit = head.StandardOutput.Trim();
+            await File.WriteAllTextAsync(Path.Combine(benchmarkDirectory, "notes.txt"), "changed", token);
+            ProcessResult tunedRun = await PackageProcessRunner.RunAsync(s_tool,
+                ["bench", "SuccessAddNumeric", .. options, "--no-build", "--postgresql-conf", "random_page_cost=1.5"],
+                git, token, workingDirectory: s_root);
+            Assert.AreEqual(0, tunedRun.ExitCode, tunedRun.StandardOutput + tunedRun.StandardError);
+            Assert.Contains("   Compared comparison" + Environment.NewLine, tunedRun.StandardOutput);
+            Match named = DefaultBenchmarkGroup().Match(tunedRun.StandardOutput);
+            Assert.IsTrue(named.Success, tunedRun.StandardOutput);
+            Assert.AreEqual(commit[..7], named.Groups["commit"].Value);
+            string tuned = named.Groups[1].Value;
+            ProcessResult textReport = await InvokeAsync(["bench", .. options, "--report"], token);
+            Assert.AreEqual(0, textReport.ExitCode, textReport.StandardOutput + textReport.StandardError);
+            string reportText = textReport.StandardOutput;
+            string newLine = Environment.NewLine;
+            Assert.StartsWith("Bench history report" + newLine + "  Database ankus_tool_probe_benches" + newLine +
+                "     Scope last 10 groups per benchmark" + newLine + newLine, reportText);
+            const string FailureBenchmark = "Ankus.Examples.Hello.BenchmarkProbe.Failure(Ankus.PgBencher)";
+            Assert.Contains(newLine + FailureBenchmark + newLine +
+                "  no successful baseline has been recorded for this benchmark yet" + newLine +
+                "  no successful runs to display" + newLine + "  1 failed run omitted from the last 10 groups" + newLine, reportText);
+            Assert.Contains(newLine + AddNumericBenchmark + newLine + "  baseline: " + Group + " (", reportText);
+            Assert.MatchesRegex(@"\n  integration-benchmark +\|#+ *\| \d+\.\d+ (ps|ns|us|ms|s) \(baseline\)\r?\n", reportText);
+            Assert.MatchesRegex(@"\n  comparison +\|#+ *\| \d+\.\d+ (ps|ns|us|ms|s) \([+-]\d+\.\d+%\)\r?\n", reportText);
+            Assert.MatchesRegex(@"\n  " + tuned + @"\* +\|#+ *\| \d+\.\d+ (ps|ns|us|ms|s) \([+-]\d+\.\d+%\)\r?\n" +
+                @"  \* broad drift vs baseline in: pg_settings\r?\n", reportText);
+            Assert.MatchesRegex(@"\n  new-benchmark\* +\|#+ *\| \d+\.\d+ (ps|ns|us|ms|s) \([+-]\d+\.\d+%\)\r?\n" +
+                @"  \* broad drift vs baseline in: configuration\r?\n", reportText);
+            ProcessResult filteredReport = await InvokeAsync(["bench", "Failure", .. options, "--report"], token);
+            Assert.AreEqual(0, filteredReport.ExitCode, filteredReport.StandardOutput + filteredReport.StandardError);
+            Assert.Contains("    Filter Failure" + newLine + newLine + FailureBenchmark + newLine, filteredReport.StandardOutput);
+            Assert.DoesNotContain(AddNumericBenchmark, filteredReport.StandardOutput);
+            await using (Npgsql.NpgsqlConnection connection = BenchmarkConnection(connectionString, "ankus_tool_probe_benches"))
+            {
+                await connection.OpenAsync(token);
+                await using var command = new Npgsql.NpgsqlCommand("""
+                    SELECT concat_ws('|', git_commit, git_branch, git_dirty, git_describe, extension_version,
+                        tool_version IS NOT NULL, dotnet_sdk_version IS NOT NULL,
+                        command_line LIKE '%bench%SuccessAddNumeric%', pg_settings->'work_mem'->>'setting',
+                        pg_settings->'work_mem'->>'unit', pg_settings->'work_mem'->>'source', pg_settings->'work_mem'->>'boot_val',
+                        pg_settings->'random_page_cost'->>'setting', pg_settings->'random_page_cost'->>'source')
+                    FROM ankus_bench.run_group WHERE group_name = $1
+                    """, connection);
+                command.Parameters.AddWithValue(tuned);
+                Assert.AreEqual(commit + "|main|t|" + commit[..7] + "-dirty|0.1.0|t|t|t|8192|kB|database|4096|1.5|configuration file",
+                    await command.ExecuteScalarAsync(token));
+                await using var dependency = new Npgsql.NpgsqlCommand("""
+                    DO $$
+                    BEGIN
+                        EXECUTE format('CREATE VIEW public.benchmark_dependency AS SELECT benches.%I() AS descriptor',
+                            (SELECT p.proname FROM pg_catalog.pg_proc AS p JOIN pg_catalog.pg_namespace AS n ON n.oid = p.pronamespace
+                             WHERE n.nspname = 'benches' AND p.proname LIKE 'ankus_bench_%_describe' ORDER BY 1 LIMIT 1));
+                    END
+                    $$
+                    """, connection);
+                _ = await dependency.ExecuteNonQueryAsync(token);
+            }
+
+            // A dependent object blocks the refresh unless --cascade drops it. A group where some benchmarks fail is
+            // partial, and --resetdb discards retained history.
+            ProcessResult blocked = await InvokeAsync(["bench", "SuccessAddNumeric", .. options, "--group-name", "blocked", "--no-build"], token);
+            Assert.AreNotEqual(0, blocked.ExitCode);
+            Assert.Contains("Rerun with `ankus bench --cascade` to drop the objects that depend on it.", blocked.StandardError);
+            ProcessResult cascaded = await InvokeAsync(["bench", .. options, "--group-name", "cascaded", "--cascade", "--no-build"], token);
+            Assert.AreEqual(1, cascaded.ExitCode, cascaded.StandardOutput + cascaded.StandardError);
+            Assert.MatchesRegex(@"    Result 3 total, 2 ok, 1 failed", cascaded.StandardOutput);
+            await using (Npgsql.NpgsqlConnection connection = BenchmarkConnection(connectionString, "ankus_tool_probe_benches"))
+            {
+                await connection.OpenAsync(token);
+                await using var command = new Npgsql.NpgsqlCommand("""
+                    SELECT concat_ws('|', pg_catalog.to_regclass('public.benchmark_dependency') IS NULL,
+                        (SELECT string_agg(status, ',') FROM ankus_bench.run_group WHERE group_name IN ('blocked', 'cascaded')))
+                    """, connection);
+                Assert.AreEqual("t|partial", await command.ExecuteScalarAsync(token));
+            }
+
+            ProcessResult reset = await InvokeAsync(
+                ["bench", "SuccessAddNumeric", .. options, "--group-name", "fresh", "--resetdb", "--no-build"], token);
+            Assert.AreEqual(0, reset.ExitCode, reset.StandardOutput + reset.StandardError);
+            Assert.DoesNotContain("   Compared ", reset.StandardOutput);
+            ProcessResult resetReport = await InvokeAsync(["bench", .. options, "--report", "--json"], token);
+            Assert.AreEqual(0, resetReport.ExitCode, resetReport.StandardOutput + resetReport.StandardError);
+            using (JsonDocument retained = JsonDocument.Parse(resetReport.StandardOutput))
+            {
+                JsonElement only = Assert.ContainsSingle(retained.RootElement.EnumerateArray());
+                Assert.AreEqual("fresh", only.GetProperty("group_name").GetString());
+            }
+
             ProcessResult listed = await InvokeAsync(["bench", "Success", .. options, "--no-build", "--list"], token);
             Assert.AreEqual(0, listed.ExitCode, listed.StandardOutput + listed.StandardError);
             Assert.Contains(InsertBenchmark + " [", listed.StandardOutput);
@@ -235,6 +355,9 @@ public sealed partial class ToolCommandTests
             await cluster.StopAsync(CancellationToken.None);
         }
     }
+
+    [GeneratedRegex(@"Bench group (\d{8}_\d{6}_(?<commit>[0-9a-f]{7}))\r?\n", RegexOptions.CultureInvariant)]
+    private static partial Regex DefaultBenchmarkGroup();
 
     private static Npgsql.NpgsqlConnection BenchmarkConnection(
         string libpqConnection,

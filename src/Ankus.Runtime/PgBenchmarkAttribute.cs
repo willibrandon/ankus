@@ -78,4 +78,27 @@ public sealed class PgBenchmarkAttribute : Attribute
         get;
         set;
     } = 0.05;
+
+    /// <summary>
+    /// Gets or sets the unit of the work one iteration performs, from which results report a throughput.
+    /// </summary>
+    /// <remarks>
+    /// Set <see cref="ThroughputPerIteration"/> with it. The rate is the work divided by the primary time estimate,
+    /// with its confidence interval, as Criterion reports it.
+    /// </remarks>
+    public PgBenchmarkThroughput Throughput
+    {
+        get;
+        set;
+    }
+
+    /// <summary>
+    /// Gets or sets the positive number of bytes or elements one iteration processes when
+    /// <see cref="Throughput"/> is set; otherwise zero.
+    /// </summary>
+    public long ThroughputPerIteration
+    {
+        get;
+        set;
+    }
 }

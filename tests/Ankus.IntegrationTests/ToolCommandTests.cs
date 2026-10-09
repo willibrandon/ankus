@@ -201,7 +201,8 @@ public sealed partial class ToolCommandTests(TestContext context)
                 /// </summary>
                 /// <param name="bencher">The PostgreSQL benchmark timing boundary.</param>
                 [PgBenchmark(SampleSize = 10, MeasurementTimeMilliseconds = 1,
-                    WarmupTimeMilliseconds = 1, ResampleCount = 10)]
+                    WarmupTimeMilliseconds = 1, ResampleCount = 10,
+                    Throughput = PgBenchmarkThroughput.Elements, ThroughputPerIteration = 2)]
                 public static void SuccessAddNumeric(PgBencher bencher)
                 {
                     PgNumeric left = PgNumeric.Parse("123.45");

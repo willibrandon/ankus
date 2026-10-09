@@ -1155,6 +1155,11 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                     benchmark.ResampleCount.ToString(CultureInfo.InvariantCulture),
                     benchmark.NoiseThreshold.ToString("R", CultureInfo.InvariantCulture),
                     benchmark.SignificanceLevel.ToString("R", CultureInfo.InvariantCulture),
+                    .. benchmark.Throughput == 0 ? Array.Empty<string>() :
+                    [
+                        "(global::Ankus.PgBenchmarkThroughput)" + benchmark.Throughput.ToString(CultureInfo.InvariantCulture),
+                        benchmark.ThroughputPerIteration.ToString(CultureInfo.InvariantCulture) + "L",
+                    ],
                 ]) + ")",
             ]) + ")";
         string setup = benchmark.SetupTarget is null ? "null" : "static () => " + benchmark.SetupTarget + "()";

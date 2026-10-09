@@ -74,11 +74,33 @@ group ran benchmarks that this run did not, the summary lists them under
 `--list` discovers benchmarks without measuring them. Each run gets a timestamp
 and Git commit group name unless `--group-name` supplies one. By default, results
 compare with the latest retained group from the same build configuration.
-`--compare-group` selects a named group instead. `--report` reads recent retained
-results without rebuilding. Add `--json` to a report for machine-readable output.
+`--compare-group` selects a named group instead.
+
+`--report` reads retained history without rebuilding. Each benchmark gets a section
+showing its ten most recent groups against its first successful run:
+
+```console
+Bench history report
+  Database acme_benches
+     Scope last 10 groups per benchmark
+
+Benchmarks.AddNumeric(Ankus.PgBencher)
+  baseline: 20261008_181204_805783b (183.02 ns)
+  20261008_181204_805783b  |############################| 183.02 ns (baseline)
+  20261009_121530_ac6486e* |########################### | 176.4 ns (-3.6171%)
+  * broad drift vs baseline in: pg_settings
+```
+
+A `*` marks a group whose build configuration, PostgreSQL major version, runtime
+identifier or non-default server settings differ from the baseline's, so its change
+may not come from your code. Failed runs and runs without an estimate are counted
+under the section instead of drawn. Each group also records its Git commit and the
+tool version. Add `--json` to a report for the raw results of the latest ten runs.
 
 The default database is `<extension>_benches`. Use `--database` to select another
-name and `--resetdb` to recreate it. The runner owns an `ankus_bench` schema in
+name and `--resetdb` to recreate it, which discards retained history. Each run
+recreates the extension; add `--cascade` when your own objects in that database
+depend on it. The runner owns an `ankus_bench` schema in
 that database for history. Extension setup and measured mutations execute inside
 an enclosing transaction that is always rolled back; retained results are written
 after that rollback.
@@ -112,6 +134,18 @@ internal static void Prepare()
 
 `Setup` identifies one accessible synchronous static parameterless `void` method.
 It runs once before warmup and is outside measured intervals.
+
+Set `Throughput` and `ThroughputPerIteration` to report a rate as well as a time,
+as Criterion's `Throughput` does. The amount is the work one iteration performs:
+
+```csharp
+[PgBenchmark(Throughput = PgBenchmarkThroughput.Bytes, ThroughputPerIteration = 8_192)]
+public static void Compress(PgBencher bencher) => bencher.Iterate(() => Compressor.Run(Page));
+```
+
+Results then print a `thrpt:` line under the time, such as
+`thrpt:  [887.78 MiB/s 976.56 MiB/s 1085.07 MiB/s]`. `Bytes` uses binary units,
+`BytesDecimal` decimal ones such as MB/s, and `Elements` counts elem/s.
 
 The default `Shared` transaction mode measures work in the benchmark's enclosing
 transaction. `SubtransactionPerBatch` adds one internal subtransaction around
