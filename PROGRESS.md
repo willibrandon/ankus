@@ -158,7 +158,15 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   report inconclusive elsewhere. CI test runs use `ankus-runas` when the runner
   provides it, create it on GitHub-hosted Linux runners and warn otherwise. The
   primary Linux runner is provisioned; the macOS ARM64 and version runners remain
-  to be provisioned.
+  to be provisioned. The complete suite passes on Linux x64/PostgreSQL 18.6 with
+  every run-as case running (**14,184** total; **14,133** passed; 51 platform
+  skips; zero failures; **14m25s**) and on Windows x64 with PostgreSQL 13.23 and
+  17.11 concurrently at package concurrency 20 (**14,184** total each; **14,142**
+  passed; 42 skips; zero failures; **26m**). That Windows run also covers a fix for
+  a reload test that read `config_exec_params` while the postmaster renamed it.
+- CI **37879843859** on **3abfca8** passes on all three platforms; its Windows test
+  job takes **17m50s**, within the 15–20 minute target (Linux **14m37s**, macOS
+  **16m01s**).
 
 - Every pgrx example now has an Ankus counterpart. `notify`, `rewrite_manip`,
   `pglz_inspect` (all 24 pgrx tests in the backend) and `wal_decoder` are ported,
