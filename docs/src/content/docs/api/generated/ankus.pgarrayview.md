@@ -169,6 +169,25 @@ Value: [uint](https://learn.microsoft.com/dotnet/api/system.uint32)
 
 ## Methods
 
+<a id="member-5c1f99c55c8b088e"></a>
+
+### DangerousGetNullBitmap()
+
+Borrows the array's native SQL NULL bitmap, as pgrx's <code>RawArray::nulls</code> does.
+
+```csharp
+public ReadOnlySpan<byte> DangerousGetNullBitmap()
+```
+
+Returns: [ReadOnlySpan&lt;byte&gt;](https://learn.microsoft.com/dotnet/api/system.readonlyspan-1)
+
+One bit per element in row-major order, least significant bit first, where a set bit marks a present value; empty
+when the array stores no bitmap.
+
+PostgreSQL stores a bitmap only when the array was built with SQL NULL elements. Lifetime checks occur when
+acquiring the span; stop using it before any backend call, owner expiry, callback exit or thread change. Copy the
+bytes to managed storage when they must outlive this native borrow.
+
 <a id="member-42cb84a72dc1a207"></a>
 
 ### DangerousGetSpan&lt;T&gt;()

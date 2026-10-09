@@ -95,6 +95,25 @@ public sealed class RuneTests(TestContext context)
             }, context.CancellationToken);
 
     /// <summary>
+    /// Verifies a set of Runes returns one varchar row per scalar value, keeping surrogate pairs whole.
+    /// </summary>
+    [TestMethod]
+    public Task RuneSetsReturnOneRowPerScalarValue()
+        => PostgresFixture.Cluster.RunInTransactionAsync(nameof(RuneSetsReturnOneRowPerScalarValue),
+            async (connection, transaction, token) =>
+            {
+                await using var command = new NpgsqlCommand("""
+                    SELECT array_agg(c ORDER BY n),
+                           (SELECT pg_typeof(c)::text FROM datatype.rune_characters('a') AS c)
+                      FROM datatype.rune_characters('aßℝ💣e' || chr(769)) WITH ORDINALITY AS r(c, n)
+                    """, connection, transaction);
+                await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(token);
+                Assert.IsTrue(await reader.ReadAsync(token));
+                Assert.AreSequenceEqual(["a", "ß", "ℝ", "💣", "e", "\u0301"], reader.GetFieldValue<string[]>(0));
+                Assert.AreEqual("character varying", reader.GetString(1));
+            }, context.CancellationToken);
+
+    /// <summary>
     /// Verifies SPI reads Rune from any character-text column, and SQL NULL or no rows as a nullable Rune.
     /// </summary>
     /// <param name="sql">The query.</param>

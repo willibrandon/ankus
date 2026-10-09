@@ -137,6 +137,22 @@ public static class CompositeFunctions
         => value.Get<int?>("age");
 
     /// <summary>
+    /// Builds a composite whose fields hold a composite and an array of composites, as pgrx's
+    /// <c>test_array_of_composite_type</c> sets them in code.
+    /// </summary>
+    /// <returns>A pack led by Nami with two members and a NULL member row.</returns>
+    [PgFunction(Requires = ["composite-types"])]
+    [return: PgCompositeType("pack", Schema = "tuple_values")]
+    public static PgHeapTuple TuplePackBuild()
+    {
+        PgHeapTuple pack = PgTupleDescriptor.Load("tuple_values.pack").CreateTuple();
+        pack.Set("leader", TupleCreate("Nami", 3));
+        pack.Set("members", PgTupleDescriptor.Load("tuple_values.dog").CreateArray([TupleCreate("Brandy", 1), null, TupleCreate("Ada", 2)]));
+        pack.Set("tag", "built");
+        return pack;
+    }
+
+    /// <summary>
     /// Casts one named composite to another by building the target, as pgrx's <c>castdog_to_castcat</c> does.
     /// </summary>
     /// <param name="value">The source composite.</param>

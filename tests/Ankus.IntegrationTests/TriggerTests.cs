@@ -347,6 +347,24 @@ public sealed class TriggerTests(TestContext context)
         });
 
     /// <summary>
+    /// Opens the trigger's relation from its OID inside the trigger, as pgrx's <c>before_insert_metadata_safe</c> reads
+    /// the relation's name and namespace.
+    /// </summary>
+    [TestMethod]
+    public Task TriggersOpenTheirRelationFromItsOid()
+        => Run(nameof(TriggersOpenTheirRelationFromItsOid), async (connection, transaction, token) =>
+        {
+            await SetupRows(connection, transaction, token);
+            await Execute(connection, transaction, """
+                CREATE TRIGGER relation BEFORE INSERT ON trigger_values.rows FOR EACH ROW EXECUTE FUNCTION trigger_values.trigger_action('relation');
+                """, token);
+            Assert.AreEqual(1, await Execute(connection, transaction, Change("INSERT"), token));
+            Assert.AreEqual("trigger_values.rows:True", await Scalar<string>(connection, transaction,
+                "SELECT detail FROM trigger_values.events WHERE detail IS NOT NULL", token));
+            Assert.AreEqual("1:10:old|2:20:new", await StoredRows(connection, transaction, token));
+        });
+
+    /// <summary>
     /// Unwinds a cancelled native SPI call through the managed trigger, rolls back its audit, and runs a new callback.
     /// </summary>
     [TestMethod]

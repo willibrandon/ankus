@@ -343,7 +343,8 @@ public sealed class CompositeDatumTests(TestContext context)
             }, context.CancellationToken);
 
     /// <summary>
-    /// Executes pgrx's composite default and variadic cases and an installed composite-to-composite cast in the backend.
+    /// Executes pgrx's composite default and variadic cases, an installed composite-to-composite cast, and a composite
+    /// whose array-of-composite field is set in code.
     /// </summary>
     [TestMethod]
     public Task CompositeDefaultsVariadicsAndCastsExecute()
@@ -361,7 +362,9 @@ public sealed class CompositeDatumTests(TestContext context)
                            pg_typeof((ROW('Nami', 3)::tuple_values.dog)::tuple_values.other_dog) = 'tuple_values.other_dog'::regtype,
                            (SELECT castcontext::text || castmethod::text FROM pg_cast
                              WHERE castsource = 'tuple_values.dog'::regtype AND casttarget = 'tuple_values.other_dog'::regtype),
-                           (NULL::tuple_values.dog)::tuple_values.other_dog IS NULL
+                           (NULL::tuple_values.dog)::tuple_values.other_dog IS NULL,
+                           tuple_values.tuple_pack_build()::text = ROW(ROW('Nami', 3)::tuple_values.dog,
+                               ARRAY[ROW('Brandy', 1), NULL, ROW('Ada', 2)]::tuple_values.dog[], 'built')::tuple_values.pack::text
                     """, connection, transaction);
                 await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(token);
                 Assert.IsTrue(await reader.ReadAsync(token));
@@ -375,6 +378,7 @@ public sealed class CompositeDatumTests(TestContext context)
                 Assert.IsTrue(reader.GetBoolean(7));
                 Assert.AreEqual("ef", reader.GetString(8));
                 Assert.IsTrue(reader.GetBoolean(9));
+                Assert.IsTrue(reader.GetBoolean(10));
             }, context.CancellationToken);
 
     /// <summary>

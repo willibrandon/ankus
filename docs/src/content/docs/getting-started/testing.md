@@ -168,7 +168,9 @@ the function schema; otherwise the fixture uses the installed extension schema,
 including a schema supplied by its control file.
 
 Normal `dotnet publish` excludes test functions. The fixture explicitly sets
-`AnkusIncludeTests=true` only when `IncludeTests` is enabled. Other test hosts
+`AnkusIncludeTests=true` only when `IncludeTests` is enabled, which also defines
+the `ANKUS_TESTS` compilation symbol. Put SQL functions that only backend tests
+call inside `#if ANKUS_TESTS`, as pgrx code uses `#[cfg(feature = "pg_test")]`. Other test hosts
 can consume the same framework-neutral catalog and fixture. Use
 [`[PgBenchmark]` and `ankus bench`](/benchmarks/) for measured backend work.
 

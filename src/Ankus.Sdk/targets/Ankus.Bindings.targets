@@ -38,6 +38,9 @@
           BeforeTargets="BeforeCompile;CoreCompile" DependsOnTargets="_ResolveAnkusPostgresSelection">
     <PropertyGroup>
       <DefineConstants>$(DefineConstants);ANKUS_PG$(AnkusPostgresMajor)</DefineConstants>
+      <!-- Like pgrx's pg_test feature, these let code exist only in test or benchmark publications. -->
+      <DefineConstants Condition="'$(AnkusIncludeTests)' == 'true'">$(DefineConstants);ANKUS_TESTS</DefineConstants>
+      <DefineConstants Condition="'$(AnkusIncludeBenchmarks)' == 'true'">$(DefineConstants);ANKUS_BENCHMARKS</DefineConstants>
     </PropertyGroup>
   </Target>
 

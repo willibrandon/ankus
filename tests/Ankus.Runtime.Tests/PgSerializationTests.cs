@@ -602,6 +602,163 @@ public sealed class PgSerializationTests
     }
 
     /// <summary>
+    /// UUIDs use System.Text.Json's lowercase text and a CBOR UUID (tag 37) holding 16 bytes in network order.
+    /// </summary>
+    [TestMethod]
+    public void GuidsUseJsonTextAndTaggedCborBytes()
+    {
+        var codec = new ScalarCodec<Guid>(static (ref reader) => reader.ReadGuid(), static (writer, item) => writer.WriteGuid(item));
+        var value = Guid.Parse("00112233-4455-6677-8899-aabbccddeeff");
+        Assert.AreEqual("\"00112233-4455-6677-8899-aabbccddeeff\"", codec.Format(value));
+        Assert.AreEqual(value, codec.Parse("\"00112233-4455-6677-8899-AABBCCDDEEFF\""));
+        Assert.AreEqual("D8255000112233445566778899AABBCCDDEEFF", Convert.ToHexString(Encode(codec, value)));
+        Assert.AreEqual(value, codec.Read(Convert.FromHexString("D8255000112233445566778899AABBCCDDEEFF")));
+        Assert.AreEqual("22P03", Assert.ThrowsExactly<PgException>(() => codec.Read(Convert.FromHexString("5000112233445566778899AABBCCDDEEFF"))).SqlState);
+        Assert.AreEqual("22P03", Assert.ThrowsExactly<PgException>(() => codec.Read(Convert.FromHexString("D8254F00112233445566778899AABBCCDDEE"))).SqlState);
+        Assert.AreEqual("22P02", Assert.ThrowsExactly<PgException>(() => codec.Parse("\"{00112233-4455-6677-8899-aabbccddeeff}\"")).SqlState);
+    }
+
+    /// <summary>
+    /// Dates use <c>yyyy-MM-dd</c> text, tagged as a CBOR full-date (tag 1004), across the whole DateOnly range.
+    /// </summary>
+    /// <param name="text">The canonical date text.</param>
+    [TestMethod]
+    [DataRow("0001-01-01")]
+    [DataRow("2026-10-09")]
+    [DataRow("9999-12-31")]
+    public void DatesUseFullDateText(string text)
+    {
+        var codec = new ScalarCodec<DateOnly>(static (ref reader) => reader.ReadDateOnly(), static (writer, item) => writer.WriteDateOnly(item));
+        DateOnly value = DateOnly.ParseExact(text, "yyyy-MM-dd", CultureInfo.InvariantCulture);
+        Assert.AreEqual("\"" + text + "\"", codec.Format(value));
+        Assert.AreEqual(value, codec.Parse("\"" + text + "\""));
+        string hex = "D903EC6A" + Convert.ToHexString(Encoding.ASCII.GetBytes(text));
+        Assert.AreEqual(hex, Convert.ToHexString(Encode(codec, value)));
+        Assert.AreEqual(value, codec.Read(Convert.FromHexString(hex)));
+    }
+
+    /// <summary>
+    /// Dates reject other spellings, a missing full-date tag and non-string tokens.
+    /// </summary>
+    /// <param name="json">The rejected JSON.</param>
+    [TestMethod]
+    [DataRow("\"2026-1-9\"")]
+    [DataRow("\"2026-10-09T00:00:00\"")]
+    [DataRow("\"20261009\"")]
+    [DataRow("20261009")]
+    public void DatesRejectOtherSpellings(string json)
+    {
+        var codec = new ScalarCodec<DateOnly>(static (ref reader) => reader.ReadDateOnly(), static (writer, item) => writer.WriteDateOnly(item));
+        Assert.AreEqual("22P02", Assert.ThrowsExactly<PgException>(() => codec.Parse(json)).SqlState);
+        Assert.AreEqual("22P03", Assert.ThrowsExactly<PgException>(() => codec.Read(Convert.FromHexString("6A323032362D31302D3039"))).SqlState);
+    }
+
+    /// <summary>
+    /// Times of day and durations use System.Text.Json's constant format with seven fractional digits when present.
+    /// </summary>
+    /// <param name="ticks">The duration in ticks.</param>
+    /// <param name="text">The constant-format text.</param>
+    [TestMethod]
+    [DataRow(0L, "00:00:00")]
+    [DataRow(450_000_000_000L, "12:30:00")]
+    [DataRow(5_000_000L, "00:00:00.5000000")]
+    [DataRow(863_999_999_999L, "23:59:59.9999999")]
+    public void TimesOfDayUseConstantText(long ticks, string text)
+    {
+        var codec = new ScalarCodec<TimeOnly>(static (ref reader) => reader.ReadTimeOnly(), static (writer, item) => writer.WriteTimeOnly(item));
+        var value = new TimeOnly(ticks);
+        Assert.AreEqual("\"" + text + "\"", codec.Format(value));
+        Assert.AreEqual(value, codec.Parse("\"" + text + "\""));
+        Assert.AreEqual(value, codec.Read(Encode(codec, value)));
+        Assert.AreEqual((0x60 + text.Length).ToString("X2", CultureInfo.InvariantCulture) + Convert.ToHexString(Encoding.ASCII.GetBytes(text)),
+            Convert.ToHexString(Encode(codec, value)));
+    }
+
+    /// <summary>
+    /// A time of day rejects negative values and values of a day or more.
+    /// </summary>
+    /// <param name="json">The rejected JSON.</param>
+    [TestMethod]
+    [DataRow("\"-00:00:01\"")]
+    [DataRow("\"1.00:00:00\"")]
+    [DataRow("\"24:00:00\"")]
+    [DataRow("\"noon\"")]
+    public void TimesOfDayRejectValuesOutsideOneDay(string json)
+    {
+        var codec = new ScalarCodec<TimeOnly>(static (ref reader) => reader.ReadTimeOnly(), static (writer, item) => writer.WriteTimeOnly(item));
+        Assert.AreEqual("22P02", Assert.ThrowsExactly<PgException>(() => codec.Parse(json)).SqlState);
+    }
+
+    /// <summary>
+    /// Durations keep their sign, days and ticks across the whole TimeSpan range.
+    /// </summary>
+    /// <param name="ticks">The duration in ticks.</param>
+    /// <param name="text">The constant-format text.</param>
+    [TestMethod]
+    [DataRow(long.MinValue, "-10675199.02:48:05.4775808")]
+    [DataRow(-10_000_000L, "-00:00:01")]
+    [DataRow(937_840_050_000L, "1.02:03:04.0050000")]
+    [DataRow(long.MaxValue, "10675199.02:48:05.4775807")]
+    public void DurationsUseConstantText(long ticks, string text)
+    {
+        var codec = new ScalarCodec<TimeSpan>(static (ref reader) => reader.ReadTimeSpan(), static (writer, item) => writer.WriteTimeSpan(item));
+        var value = new TimeSpan(ticks);
+        Assert.AreEqual("\"" + text + "\"", codec.Format(value));
+        Assert.AreEqual(value, codec.Parse("\"" + text + "\""));
+        Assert.AreEqual(value, codec.Read(Encode(codec, value)));
+    }
+
+    /// <summary>
+    /// Dates and times keep their kind: JSON uses System.Text.Json's trimmed ISO 8601 text and binary storage the
+    /// round-trip <c>O</c> text.
+    /// </summary>
+    [TestMethod]
+    public void DateTimesKeepTheirKind()
+    {
+        var codec = new ScalarCodec<DateTime>(static (ref reader) => reader.ReadDateTime(), static (writer, item) => writer.WriteDateTime(item));
+        DateTime utc = new DateTime(2026, 10, 9, 1, 2, 3, DateTimeKind.Utc).AddTicks(4_567_890);
+        Assert.AreEqual("\"2026-10-09T01:02:03.456789Z\"", codec.Format(utc));
+        DateTime parsed = codec.Parse(codec.Format(utc));
+        Assert.AreEqual(utc, parsed);
+        Assert.AreEqual(DateTimeKind.Utc, parsed.Kind);
+        var unspecified = new DateTime(2026, 10, 9, 1, 2, 3, DateTimeKind.Unspecified);
+        Assert.AreEqual("\"2026-10-09T01:02:03\"", codec.Format(unspecified));
+        Assert.AreEqual(DateTimeKind.Unspecified, codec.Parse(codec.Format(unspecified)).Kind);
+        foreach (DateTime value in new[] { utc, unspecified, DateTime.MinValue, DateTime.MaxValue, new DateTime(2026, 10, 9, 1, 2, 3, DateTimeKind.Local) })
+        {
+            DateTime stored = codec.Read(Encode(codec, value));
+            Assert.AreEqual(value.Ticks, stored.Ticks);
+            Assert.AreEqual(value.Kind, stored.Kind);
+        }
+
+        Assert.AreEqual("78" + "1C" + Convert.ToHexString(Encoding.ASCII.GetBytes("2026-10-09T01:02:03.4567890Z")),
+            Convert.ToHexString(Encode(codec, utc)));
+    }
+
+    /// <summary>
+    /// Offsets survive System.Text.Json text and a CBOR date/time string (tag 0) exactly.
+    /// </summary>
+    [TestMethod]
+    public void DateTimeOffsetsKeepTheirOffset()
+    {
+        var codec = new ScalarCodec<DateTimeOffset>(static (ref reader) => reader.ReadDateTimeOffset(),
+            static (writer, item) => writer.WriteDateTimeOffset(item));
+        DateTimeOffset value = new DateTimeOffset(2026, 10, 9, 1, 2, 3, TimeSpan.FromMinutes(330)).AddTicks(5_000_000);
+        Assert.AreEqual("\"2026-10-09T01:02:03.5+05:30\"", codec.Format(value));
+        foreach (DateTimeOffset item in new[] { value, DateTimeOffset.MinValue, DateTimeOffset.MaxValue, value.ToOffset(TimeSpan.FromHours(-14)) })
+        {
+            DateTimeOffset parsed = codec.Parse(codec.Format(item));
+            Assert.AreEqual(item.Ticks, parsed.Ticks);
+            Assert.AreEqual(item.Offset, parsed.Offset);
+            byte[] stored = Encode(codec, item);
+            Assert.AreEqual((byte)0xC0, stored[0]);
+            DateTimeOffset read = codec.Read(stored);
+            Assert.AreEqual(item.Ticks, read.Ticks);
+            Assert.AreEqual(item.Offset, read.Offset);
+        }
+    }
+
+    /// <summary>
     /// Materializes one independently owned binary payload from the public codec contract.
     /// </summary>
     private static byte[] Encode<T>(PgTypeCodec<T> codec, T value)

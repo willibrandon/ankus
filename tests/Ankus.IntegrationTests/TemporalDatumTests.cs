@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using Npgsql;
 
 namespace Ankus.IntegrationTests;
@@ -136,6 +137,87 @@ public sealed class TemporalDatumTests(TestContext context)
                         '1999-12-31 23:59:59.999997', '2000-01-01 05:30:00.000004+05:30', '1 mon -2 days 3 microseconds')
                     """, connection, transaction);
                 Assert.AreEqual("-1|1|2|19817|-3|4|1|-2|3", await command.ExecuteScalarAsync(token));
+            }, context.CancellationToken);
+
+    /// <summary>
+    /// Seeded random raw values survive every exchange path and a text-literal round trip with exact native storage, as
+    /// pgrx's temporal property tests require. Half of the values cover the whole raw range, saturated to infinity or
+    /// wrapped as pgrx does; the other half stay finite.
+    /// </summary>
+    /// <param name="type">The temporal type.</param>
+    [TestMethod]
+    [DataRow("date")]
+    [DataRow("time")]
+    [DataRow("timetz")]
+    [DataRow("timestamp")]
+    [DataRow("timestamptz")]
+    public Task SeededTemporalValuesRoundTripExactly(string type)
+        => PostgresFixture.Cluster.RunInTransactionAsync(nameof(SeededTemporalValuesRoundTripExactly),
+            async (connection, transaction, token) =>
+            {
+                const int count = 256;
+                var random = new Random(20261009);
+                long[] first = new long[count];
+                int[] second = new int[count];
+                string[] expected = new string[count];
+                for (int index = 0; index < count; index++)
+                {
+                    bool wide = index % 2 == 0;
+                    byte[] bytes;
+                    switch (type)
+                    {
+                        case "date":
+                            long days = wide ? random.NextInt64(int.MinValue, (long)int.MaxValue + 1) : random.NextInt64(-2_451_545, 2_145_031_949);
+                            int stored = days < -2_451_545 ? int.MinValue : days >= 2_145_031_949 ? int.MaxValue : (int)days;
+                            first[index] = stored;
+                            bytes = new byte[4];
+                            BinaryPrimitives.WriteInt32BigEndian(bytes, stored);
+                            break;
+                        case "time":
+                        case "timetz":
+                            long micros = wide ? random.NextInt64(long.MinValue, long.MaxValue) % 86_400_000_001 : random.NextInt64(0, 86_400_000_001);
+                            first[index] = micros < 0 ? micros + 86_400_000_001 : micros;
+                            second[index] = random.Next(-57_599, 57_600);
+                            bytes = new byte[type == "time" ? 8 : 12];
+                            BinaryPrimitives.WriteInt64BigEndian(bytes, first[index]);
+                            if (type == "timetz")
+                            {
+                                BinaryPrimitives.WriteInt32BigEndian(bytes.AsSpan(8), -second[index]);
+                            }
+
+                            break;
+                        default:
+                            const long minimum = -211_813_488_000_000_000;
+                            const long end = 9_223_371_331_200_000_000;
+                            long instant = wide ? random.NextInt64(long.MinValue, long.MaxValue) : random.NextInt64(minimum, end);
+                            first[index] = instant < minimum ? long.MinValue : instant >= end ? long.MaxValue : instant;
+                            bytes = new byte[8];
+                            BinaryPrimitives.WriteInt64BigEndian(bytes, first[index]);
+                            break;
+                    }
+
+                    expected[index] = Convert.ToHexStringLower(bytes);
+                }
+
+                string construct = type switch
+                {
+                    "date" => "datatype.date_from_days(first::integer)",
+                    "time" => "datatype.time_from_micros(first)",
+                    "timetz" => "datatype.timetz_from_parts(first, second)",
+                    _ => $"datatype.{type}_from_micros(first)",
+                };
+                await using var command = new NpgsqlCommand($"""
+                    SELECT count(*) FILTER (WHERE encode({type}_send(value), 'hex') = expected
+                               AND encode({type}_send((value::text)::{type}), 'hex') = expected
+                               AND (SELECT bool_and(encode({type}_send(datatype.exchange_{type}(value, mode)), 'hex') = expected)
+                                      FROM generate_series(0, 6) mode))
+                      FROM unnest($1::bigint[], $2::integer[], $3::text[]) AS input(first, second, expected),
+                           LATERAL (SELECT {construct} AS value) constructed
+                    """, connection, transaction);
+                command.Parameters.AddWithValue(first);
+                command.Parameters.AddWithValue(second);
+                command.Parameters.AddWithValue(expected);
+                Assert.AreEqual((long)count, await command.ExecuteScalarAsync(token));
             }, context.CancellationToken);
 
     /// <summary>

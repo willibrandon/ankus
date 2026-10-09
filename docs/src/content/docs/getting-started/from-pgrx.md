@@ -30,6 +30,7 @@ counterpart of each pgrx example in [pgrx examples](/reference/pgrx-examples/).
 | `#[no_mangle] extern "C-unwind" fn _PG_output_plugin_init` | `[PgOutputPlugin]` on a static method taking `OutputPluginCallbacks*` | [Logical decoding](/logical-decoding/) |
 | `pg_module_magic!` | Generated module magic; `[PgModule]` or project settings for identity | [Build settings](/reference/build-settings/#native-module-identity) |
 | `#[pg_test]` | `[PgTest]` with generated backend test cases | [Testing](/getting-started/testing/) |
+| `#[cfg(feature = "pg_test")]` | `#if ANKUS_TESTS` | [Testing](/getting-started/testing/) |
 | `#[pg_bench]`, `Bencher`, `BatchSize` | `[PgBenchmark]`, `PgBencher`, `PgBenchmarkBatchSize` | [Benchmarks](/benchmarks/) |
 
 Execution options such as volatility, parallel safety and NULL policy are enum
@@ -57,7 +58,7 @@ passed through. A nullable result can return SQL NULL.
 | `&str`, `String` | `string`; checked native borrowing through `PgTextView` |
 | `char` | `Rune` as `varchar` |
 | `Vec<u8>` / `bytea` | `byte[]`; `PgByteaView` for borrowed bytes |
-| SQL arrays | `T[]` for vectors, `PgArray<T>` for explicit shape, `PgArrayView<T>` for checked borrowing |
+| SQL arrays | `T[]` for vectors, `PgArray<T>` for explicit shape, `PgArrayView<T>` for checked borrowing, `CreateFlatArray<T>` for `FlatArray` |
 | `Json`, `JsonB` | `PgJson`, `PgJsonb` |
 | `AnyNumeric` | `PgNumeric` |
 | PostgreSQL date/time values | `PgDate`, `PgTime`, `PgTimestamp`, `PgTimestampTz`, `PgTimeTz`, `PgInterval` |

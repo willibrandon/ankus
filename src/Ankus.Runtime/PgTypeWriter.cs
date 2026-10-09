@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Buffers.Binary;
 using System.ComponentModel;
 using System.Formats.Cbor;
+using System.Globalization;
 using System.Text.Json;
 
 namespace Ankus;
@@ -176,6 +177,103 @@ public sealed class PgTypeWriter : IDisposable
         else
         {
             _json!.WriteNumberValue(value);
+        }
+    }
+
+    /// <summary>
+    /// Writes a UUID as System.Text.Json's lowercase text, or as a CBOR UUID (tag 37) holding its 16 bytes in network order.
+    /// </summary>
+    /// <param name="value">The value.</param>
+    public void WriteGuid(Guid value)
+    {
+        if (_cbor is not null)
+        {
+            Span<byte> bytes = stackalloc byte[16];
+            _ = value.TryWriteBytes(bytes, bigEndian: true, out _);
+            _cbor.WriteTag(PgSerializationTags.Uuid);
+            _cbor.WriteByteString(bytes);
+        }
+        else
+        {
+            _json!.WriteStringValue(value);
+        }
+    }
+
+    /// <summary>
+    /// Writes a date as <c>yyyy-MM-dd</c>, tagged as a CBOR full-date (tag 1004) in binary storage.
+    /// </summary>
+    /// <param name="value">The value.</param>
+    public void WriteDateOnly(DateOnly value)
+    {
+        string text = value.ToString("O", CultureInfo.InvariantCulture);
+        if (_cbor is not null)
+        {
+            _cbor.WriteTag(PgSerializationTags.FullDate);
+            _cbor.WriteTextString(text);
+        }
+        else
+        {
+            _json!.WriteStringValue(text);
+        }
+    }
+
+    /// <summary>
+    /// Writes a time of day in System.Text.Json's constant format, <c>HH:mm:ss</c> with seven fractional digits when present.
+    /// </summary>
+    /// <param name="value">The value.</param>
+    public void WriteTimeOnly(TimeOnly value) => WriteText(value.ToTimeSpan().ToString("c", CultureInfo.InvariantCulture));
+
+    /// <summary>
+    /// Writes a duration in System.Text.Json's constant format, <c>[-][d.]hh:mm:ss[.fffffff]</c>.
+    /// </summary>
+    /// <param name="value">The value.</param>
+    public void WriteTimeSpan(TimeSpan value) => WriteText(value.ToString("c", CultureInfo.InvariantCulture));
+
+    /// <summary>
+    /// Writes a date and time with its kind: System.Text.Json's ISO 8601 text, or round-trip <c>O</c> text in binary storage.
+    /// </summary>
+    /// <param name="value">The value.</param>
+    public void WriteDateTime(DateTime value)
+    {
+        if (_cbor is not null)
+        {
+            _cbor.WriteTextString(value.ToString("O", CultureInfo.InvariantCulture));
+        }
+        else
+        {
+            _json!.WriteStringValue(value);
+        }
+    }
+
+    /// <summary>
+    /// Writes a date and time with its offset: System.Text.Json's ISO 8601 text, or a CBOR date/time string (tag 0).
+    /// </summary>
+    /// <param name="value">The value.</param>
+    public void WriteDateTimeOffset(DateTimeOffset value)
+    {
+        if (_cbor is not null)
+        {
+            _cbor.WriteDateTimeOffset(value);
+        }
+        else
+        {
+            _json!.WriteStringValue(value);
+        }
+    }
+
+    /// <summary>
+    /// Writes ASCII text produced by a framework formatter as a JSON or CBOR string.
+    /// </summary>
+    /// <param name="value">The text.</param>
+    private void WriteText(string value)
+    {
+        if (_cbor is not null)
+        {
+            _cbor.WriteTextString(value);
+        }
+        else
+        {
+            _json!.WriteStringValue(value);
         }
     }
 

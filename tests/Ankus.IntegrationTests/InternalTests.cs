@@ -163,6 +163,15 @@ public sealed partial class AggregateTests
         });
 
     /// <summary>
+    /// Value-type payloads read back by value with their exact type, and another type is rejected.
+    /// </summary>
+    [TestMethod]
+    public Task InternalValuePayloadsKeepTheirExactType()
+        => Run(nameof(InternalValuePayloadsKeepTheirExactType), async (connection, transaction, token) =>
+            Assert.AreEqual("5|6|True|Internal state contains System.Int32, not System.Int64.",
+                await Scalar<string>(connection, transaction, "SELECT internal_values.internal_value_payloads()", token)));
+
+    /// <summary>
     /// Rejects managed reads of native pointers without dereferencing them and recovers in the same process.
     /// </summary>
     [TestMethod]

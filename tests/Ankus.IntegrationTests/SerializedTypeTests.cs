@@ -232,6 +232,60 @@ public sealed partial class SerializedTypeTests(TestContext context)
     /// <summary>
     /// Executes an exact typed scalar with fixture cancellation.
     /// </summary>
+    /// <summary>
+    /// Seeded random data with unsigned 64-bit, text and date-list members survives table storage, compression,
+    /// arrays with a NULL element and every exchange path, as pgrx's random round trips require.
+    /// </summary>
+    [TestMethod]
+    public Task SeededRandomDataSurvivesStorageArraysAndExchange()
+        => PostgresFixture.Cluster.RunInTransactionAsync(nameof(SeededRandomDataSurvivesStorageArraysAndExchange),
+            async (connection, transaction, token) =>
+            {
+                await using var command = new NpgsqlCommand("""
+                    CREATE TEMP TABLE random_rows (seed integer, value serialized_values.random_data, values serialized_values.random_data[]);
+                    INSERT INTO random_rows
+                    SELECT seed, serialized_values.random_data_create(seed), serialized_values.random_data_array(seed)
+                      FROM generate_series(1, 40) seed;
+                    SELECT count(*) FILTER (WHERE serialized_values.random_data_matches(value, seed)
+                                              AND serialized_values.random_data_array_matches(values, seed)),
+                           bool_or(pg_column_size(value) > 2000),
+                           bool_or(pg_column_size(values) < octet_length(values::text)),
+                           (SELECT bool_and(serialized_values.random_data_matches(
+                                       serialized_values.serialized_random_data(serialized_values.random_data_create(seed), mode), seed))
+                              FROM generate_series(1, 5) seed, generate_series(0, 7) mode)
+                      FROM random_rows
+                    """, connection, transaction);
+                await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(token);
+                Assert.IsTrue(await reader.ReadAsync(token));
+                Assert.AreEqual(40L, reader.GetInt64(0));
+                Assert.IsTrue(reader.GetBoolean(1));
+                Assert.IsTrue(reader.GetBoolean(2));
+                Assert.IsTrue(reader.GetBoolean(3));
+            }, context.CancellationToken);
+
+    /// <summary>
+    /// The extreme unsigned value, date bounds and every framework value member keep System.Text.Json's text through
+    /// each exchange path.
+    /// </summary>
+    /// <param name="mode">The direct or SPI ownership path.</param>
+    [TestMethod]
+    [DataRow(0)]
+    [DataRow(1)]
+    [DataRow(2)]
+    [DataRow(3)]
+    [DataRow(4)]
+    [DataRow(5)]
+    [DataRow(6)]
+    [DataRow(7)]
+    public async Task FrameworkValueMembersKeepTheirText(int mode)
+    {
+        await using NpgsqlConnection connection = await PostgresFixture.Cluster.OpenConnectionAsync(context.CancellationToken);
+        const string random = """{"I":18446744073709551615,"S":"","A":["0001-01-01","9999-12-31"]}""";
+        const string moment = """{"Id":"00112233-4455-6677-8899-aabbccddeeff","Day":"2026-10-09","Time":"23:59:59.9999999","Stamp":"2026-10-09T01:02:03.456789Z","Instant":"2026-10-09T01:02:03.5+05:30","Duration":"-1.02:03:04.0050000","Optional":null}""";
+        Assert.AreEqual(random, await Scalar<string>(connection, $"SELECT serialized_values.serialized_random_data('{random}', {mode})::text"));
+        Assert.AreEqual(moment, await Scalar<string>(connection, $"SELECT serialized_values.serialized_moment('{moment}', {mode})::text"));
+    }
+
     private async Task<T> Scalar<T>(NpgsqlConnection connection, string sql)
     {
         await using var command = new NpgsqlCommand(sql, connection);

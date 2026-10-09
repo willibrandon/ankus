@@ -12,6 +12,40 @@ public static class ArrayFunctions
     public static PgArray<int?>? ArrayInt(PgArray<int?>? value, int mode) => Exchange(value, mode);
 
     /// <summary>
+    /// Sums a copied array with checked arithmetic, as pgrx's <c>sum_array</c> traps an <c>i32</c> overflow.
+    /// </summary>
+    /// <param name="values">The integers; SQL NULL elements count as zero.</param>
+    /// <returns>The sum.</returns>
+    [PgFunction]
+    public static int SumArrayChecked(int?[] values)
+    {
+        int sum = 0;
+        foreach (int? value in values)
+        {
+            sum = checked(sum + (value ?? 0));
+        }
+
+        return sum;
+    }
+
+    /// <summary>
+    /// Sums a borrowed array with checked arithmetic, as pgrx's borrowed <c>sum_array</c> does.
+    /// </summary>
+    /// <param name="values">The integers; SQL NULL elements count as zero.</param>
+    /// <returns>The sum.</returns>
+    [PgFunction]
+    public static int SumArrayViewChecked(PgArrayView<int?> values)
+    {
+        int sum = 0;
+        foreach (int? value in values)
+        {
+            sum = checked(sum + (value ?? 0));
+        }
+
+        return sum;
+    }
+
+    /// <summary>
     /// Exchanges Boolean arrays.
     /// </summary>
     [PgFunction]

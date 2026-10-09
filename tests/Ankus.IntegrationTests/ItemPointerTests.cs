@@ -10,6 +10,20 @@ namespace Ankus.IntegrationTests;
 public sealed class ItemPointerTests(TestContext context)
 {
     /// <summary>
+    /// The generated binding of PostgreSQL's static inline <c>itemptr_encode</c> runs in the backend and agrees with the
+    /// managed index key, as pgrx's <c>test_static_inline_fns</c> requires.
+    /// </summary>
+    /// <param name="block">The block number.</param>
+    /// <param name="offset">The line pointer offset.</param>
+    /// <param name="expected">The 48-bit key.</param>
+    [TestMethod]
+    [DataRow(7274718L, 333, "476755919181")]
+    [DataRow(0L, 1, "1")]
+    [DataRow(4294967295L, 65535, "281474976710655")]
+    public Task InlineItemPointerBindingRunsInTheBackend(long block, int offset, string expected)
+        => CheckAsync($"SELECT array_to_string(datatype.item_pointer_encode_binding({block}, {offset}), '|')", expected + "|" + expected);
+
+    /// <summary>
     /// Exact emitted native code releases failed acquisitions and thousands of individually freed, reset or transferred values.
     /// </summary>
     /// <param name="mode">The native failure or release path.</param>

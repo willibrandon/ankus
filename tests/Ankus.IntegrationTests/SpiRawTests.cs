@@ -129,6 +129,7 @@ public sealed class SpiRawTests(TestContext context)
     [DataRow("SELECT NULL::int", 5, "<null>")]
     [DataRow("SELECT NULL::int", 0, "InvalidOperationException")]
     [DataRow("SELECT 42::bigint", 0, "InvalidCastException")]
+    [DataRow("SELECT false", 6, "InvalidCastException:An SPI value of type 'System.Boolean' cannot be read as 'System.String'.")]
     [DataRow("SELECT 1/0", 0, "22012")]
     public Task ManagedConversionsAndErrorsRecover(string sql, int kind, string expected)
         => PostgresFixture.Cluster.RunInTransactionAsync(nameof(ManagedConversionsAndErrorsRecover), async (connection, transaction, token) =>

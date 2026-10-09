@@ -13,6 +13,29 @@ public static class InternalFunctions
     private static int s_deserializes;
 
     /// <summary>
+    /// Stores value-type payloads, as pgrx's <c>internal_insert</c> stores an <c>i32</c>, and reads them back by value
+    /// with their exact type.
+    /// </summary>
+    /// <returns>Both payloads, whether the state is managed, and the message for a read with another type.</returns>
+    [PgFunction]
+    public static string InternalValuePayloads()
+    {
+        PgInternal first = PgInternal.Create(5);
+        PgInternal second = PgInternal.Create(6);
+        string mismatch;
+        try
+        {
+            mismatch = first.Get<long>().ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+        catch (InvalidCastException exception)
+        {
+            mismatch = exception.Message;
+        }
+
+        return $"{first.Get<int>()}|{second.Get<int>()}|{first.IsManaged}|{mismatch}";
+    }
+
+    /// <summary>
     /// Clears observations before an independent backend test.
     /// </summary>
     [PgFunction]

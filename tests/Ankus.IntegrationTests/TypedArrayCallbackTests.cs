@@ -41,11 +41,34 @@ public sealed partial class BorrowedArrayTests
     {
         await using NpgsqlConnection connection = await PostgresFixture.Cluster.OpenConnectionAsync(context.CancellationToken);
         Assert.AreEqual(3, await Scalar<int>(connection, "SELECT borrowed_arrays.typed_array_required(ARRAY[0,7,19])"));
+        Assert.AreEqual(3, await Scalar<int>(connection, "SELECT borrowed_arrays.typed_count_true(ARRAY[true, true, false, true])"));
+        Assert.AreEqual(0, await Scalar<int>(connection, "SELECT borrowed_arrays.typed_count_true('{}'::boolean[])"));
         Assert.IsTrue(await Scalar<bool>(connection, "SELECT borrowed_arrays.typed_array_required(NULL::integer[]) IS NULL"));
         PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => Scalar<object>(connection,
             "SELECT borrowed_arrays.typed_array_required(ARRAY[0,NULL,19])"));
         Assert.AreEqual("38000", error.SqlState);
         Assert.AreEqual("SQL NULL array cells cannot be represented by 'System.Int32'. Use a nullable element type.", error.MessageText);
+        await AssertTypedCallbackOwnersReleased(connection);
+    }
+
+    /// <summary>
+    /// Flat arrays built in place return with their element type, shape and bounds, as pgrx's <c>read_array_back</c>
+    /// builds a <c>FlatArray</c>, and every fixed-size element type keeps its exact values.
+    /// </summary>
+    [TestMethod]
+    public async Task FlatArraysBuildInPlaceAndReturn()
+    {
+        await using NpgsqlConnection connection = await PostgresFixture.Cluster.OpenConnectionAsync(context.CancellationToken);
+        Assert.AreEqual("{0,1,4,9,16}|integer[]", await Scalar<string>(connection,
+            "SELECT borrowed_arrays.flat_array_squares(5)::text || '|' || pg_typeof(borrowed_arrays.flat_array_squares(5))::text"));
+        Assert.AreEqual("{}", await Scalar<string>(connection, "SELECT borrowed_arrays.flat_array_squares(0)::text"));
+        Assert.AreEqual(1000, await Scalar<int>(connection, "SELECT cardinality(borrowed_arrays.flat_array_squares(1000))"));
+        Assert.AreEqual("[-1:0][5:7]={{9223372036854775807,9223372036854775806,9223372036854775805}," +
+            "{9223372036854775804,9223372036854775803,9223372036854775802}}",
+            await Scalar<string>(connection, "SELECT borrowed_arrays.flat_array_grid()::text"));
+        Assert.AreEqual("{A,z}:\"char\"[]|{-32768,32767}:smallint[]|{4294967295}:oid[]|{-0.5,Infinity}:real[]|" +
+            "{0,1.5,NaN}:double precision[]|{t,f,t}:boolean[]",
+            await Scalar<string>(connection, "SELECT borrowed_arrays.flat_array_element_types()"));
         await AssertTypedCallbackOwnersReleased(connection);
     }
 

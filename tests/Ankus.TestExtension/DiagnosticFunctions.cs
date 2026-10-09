@@ -10,6 +10,28 @@ public static class DiagnosticFunctions
     private static PgException? s_error;
 
     /// <summary>
+    /// Reports whether a backend ERROR raised beneath a managed call carries its managed stack trace, as pgrx's
+    /// <c>test_postgres_error_contains_backtrace</c> checks for its Rust backtrace.
+    /// </summary>
+    /// <returns>The SQLSTATE and whether the trace names the failing backend call and this method.</returns>
+    [PgFunction]
+    public static string DiagnosticStackTrace()
+    {
+        try
+        {
+            using PgRelation relation = PgRelation.Open(0);
+            return "opened";
+        }
+        catch (PgException exception)
+        {
+            string trace = exception.StackTrace ?? string.Empty;
+            // Native AOT may inline the public wrapper; the guarded backend call keeps its own frame.
+            return exception.SqlState + "|" + trace.Contains("OpenRelation", StringComparison.Ordinal) + "|" +
+                trace.Contains(nameof(DiagnosticStackTrace), StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>
     /// Catches and retains a PostgreSQL exception, then performs another native allocation before returning.
     /// </summary>
     /// <param name="sql">The failing command.</param>

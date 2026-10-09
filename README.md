@@ -299,6 +299,7 @@ The generator uses these type mappings:
 | `PgItemPointer` | `tid` (physical tuple location) |
 | `float`, `double` | `real`, `double precision` |
 | `string` | `text` |
+| `Rune` | `varchar` holding one Unicode scalar value |
 | `byte[]` | `bytea` |
 | `PgTextView`, `PgByteaView` | `text`, `bytea` with checked native borrowing |
 | `Guid` | `uuid` |
@@ -363,6 +364,8 @@ Use `[PgType]` on a record, class, struct, or enum for a PostgreSQL base type.
 Ankus generates its own serializer with CBOR storage, JSON text I/O, and direct
 constructor/member access compatible with Native AOT. Nested records, nullable
 members, arrays, lists, and string-keyed dictionaries retain their declared shape.
+`Guid`, `DateOnly`, `TimeOnly`, `DateTime`, `DateTimeOffset` and `TimeSpan` members
+use System.Text.Json's text formats.
 
 Use `[JsonDerivedType]` and optional `[JsonPolymorphic]` to declare tagged variants
 with their concrete types and inherited state preserved in both formats.

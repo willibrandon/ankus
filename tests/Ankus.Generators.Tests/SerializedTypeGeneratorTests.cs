@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Runtime.Loader;
 using System.Text.Json;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 
 namespace Ankus.Generators.Tests;
 
@@ -56,6 +57,29 @@ public sealed partial class PgFunctionGeneratorTests
                 System.Convert.ToHexString(bytes.WrittenSpan), codec.Format(decoded) };
             """);
         Assert.AreSequenceEqual(["-9223372036854775808", "héllo 😀", "A2664E756D626572182A6454657874F6", "{\"Number\":42,\"Text\":null}"], actual);
+    }
+
+    /// <summary>
+    /// Generated members of the framework value types System.Text.Json writes as strings keep its text and round trip
+    /// through storage, including nullable members and lists.
+    /// </summary>
+    [TestMethod]
+    public void DefaultSerializedFrameworkValuesUseSystemTextJsonText()
+    {
+        const string json = "{\"Id\":\"00112233-4455-6677-8899-aabbccddeeff\",\"Day\":\"2026-10-09\",\"Time\":\"12:30:00\"," +
+            "\"Stamp\":\"2026-10-09T01:02:03Z\",\"Instant\":\"2026-10-09T01:02:03+05:30\",\"Duration\":\"1.02:03:04\"," +
+            "\"Optional\":null,\"Days\":[\"0001-01-01\",\"9999-12-31\"]}";
+        string[] actual = RunSerializedProbe<string[]>("""
+            [Ankus.PgType] public sealed record Value(System.Guid Id, System.DateOnly Day, System.TimeOnly Time, System.DateTime Stamp,
+                System.DateTimeOffset Instant, System.TimeSpan Duration, System.Guid? Optional, System.Collections.Generic.List<System.DateOnly> Days);
+            """, $$"""
+            Value value = codec.Parse({{SymbolDisplay.FormatLiteral(json, quote: true)}});
+            var bytes = new System.Buffers.ArrayBufferWriter<byte>();
+            codec.Write(value, bytes);
+            Value stored = codec.Read(bytes.WrittenSpan);
+            return new[] { codec.Format(value), codec.Format(stored), stored.Stamp.Kind.ToString(), stored.Instant.Offset.ToString() };
+            """);
+        Assert.AreSequenceEqual([json, json, "Utc", "05:30:00"], actual);
     }
 
     /// <summary>
@@ -431,6 +455,8 @@ public sealed partial class PgFunctionGeneratorTests
     [TestMethod]
     [DataRow("[Ankus.PgType] public sealed record Value(object Item);", "ANKUS450")]
     [DataRow("[Ankus.PgType] public sealed record Value(System.Uri Item);", "ANKUS450")]
+    [DataRow("[Ankus.PgType] public sealed record Value(System.Version Item);", "ANKUS450")]
+    [DataRow("[Ankus.PgType] public sealed record Value(System.Half Item);", "ANKUS450")]
     [DataRow("[Ankus.PgType] public sealed record Value(int[,] Items);", "ANKUS446")]
     [DataRow("[Ankus.PgType] public sealed record Value(System.Collections.Generic.Dictionary<int,string> Items);", "ANKUS448")]
     [DataRow("[Ankus.PgType] public sealed record Value(Abstract Item); public abstract class Abstract;", "ANKUS447")]

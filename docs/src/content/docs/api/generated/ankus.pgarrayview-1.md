@@ -189,6 +189,20 @@ Value: [uint](https://learn.microsoft.com/dotnet/api/system.uint32)
 
 ## Methods
 
+<a id="member-8c41cf7f80956cbc"></a>
+
+### DangerousGetNullBitmap()
+
+Borrows the array's native SQL NULL bitmap, with the lifetime rules of [DangerousGetNullBitmap()](/api/ankus.pgarrayview/#member-5c1f99c55c8b088e).
+
+```csharp
+public ReadOnlySpan<byte> DangerousGetNullBitmap()
+```
+
+Returns: [ReadOnlySpan&lt;byte&gt;](https://learn.microsoft.com/dotnet/api/system.readonlyspan-1)
+
+One bit per element, least significant bit first, set for a present value; empty without a bitmap.
+
 <a id="member-1556de38e155abf6"></a>
 
 ### Dispose()

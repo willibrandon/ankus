@@ -23,7 +23,7 @@ Set extension properties in your project file:
 | `EnableDefaultAnkusVersionControlFiles` | Enabled | Includes `sql/<extension>--<version>.control` files; set to `false` for explicit items only |
 | `AnkusPostgresMajor` | `18` | Selects the server headers used to compile the native wrapper |
 | `AnkusPgConfigPath` | Registered or discovered installation | Selects an exact `pg_config`; the tool sets this automatically |
-| `AnkusIncludeTests` | Disabled | Includes `[PgTest]` native exports and installation SQL; the testing fixture enables it for declared backend tests |
+| `AnkusIncludeTests` | Disabled | Includes `[PgTest]` native exports and installation SQL and defines `ANKUS_TESTS`; the testing fixture enables it for declared backend tests |
 | `AnkusReuseSchema` | `false` | Reuses the last successful installation SQL and matching metadata for this target and publication mode while recompiling native code; missing or incompatible saved declarations fail explicitly |
 | `AnkusClangPath` | `clang` on Linux/macOS; `clang-cl.exe` on Windows | Selects LLVM Clang 20 or later for native declaration discovery |
 | `AnkusLibClangPath` | Matching library from the selected Clang installation | Selects `libclang` when it is installed separately |
@@ -318,6 +318,11 @@ changes between server versions:
 Build a separate native library against each target major's headers. A runtime
 version check cannot make references to absent fields or different native
 signatures compile; select that source at compile time.
+
+Test publications also define `ANKUS_TESTS`, and benchmark publications define
+`ANKUS_BENCHMARKS`. Code inside `#if ANKUS_TESTS`, such as a helper function that
+only backend tests call, is compiled into test publications and left out of
+ordinary ones, as pgrx's `pg_test` feature does.
 
 Binding reuse checks file contents and current compiler inputs. Identical SDK
 generator files can share generated sources across package directories. Native

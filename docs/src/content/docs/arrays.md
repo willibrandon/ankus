@@ -422,8 +422,42 @@ element. Read a segment with `new Guid(bytes.Slice(index * 16, 16), bigEndian:
 true)`. `DangerousGetSpan<Guid>()` is rejected because a .NET `Guid` has a
 different native memory layout.
 
-Both methods validate ownership when acquiring the span. The span itself cannot
+`DangerousGetNullBitmap()` exposes PostgreSQL's SQL NULL bitmap: one bit per
+element in row-major order, least significant bit first, set for a present value.
+It is empty when the array stores no bitmap, which PostgreSQL omits for arrays
+built without NULL elements.
+
+These methods validate ownership when acquiring the span. The span itself cannot
 check later lifetime changes. Finish reading it before making another backend
 call, disposing the view, resetting or deleting its source owner, leaving its
 callback, or switching threads. Use `ToArray()` while the borrow is valid to
 retain an independent managed copy.
+
+## Building arrays in place
+
+`PgMemoryContext.CreateFlatArray<T>()` allocates a zeroed PostgreSQL array of
+`sbyte` (`"char"`), `short`, `int`, `long`, `uint` (`oid`), `float`, `double` or
+`bool` directly in a memory context, like pgrx's `FlatArray::new_zeroed_in`. Fill
+it through `DangerousGetSpan()` and return it as a `PgArrayView<T>`:
+
+```csharp
+[PgFunction]
+public static PgArrayView<int> Squares(int count)
+{
+    PgFlatArray<int> array = PgMemoryContext.Current.CreateFlatArray<int>([count]);
+    Span<int> cells = array.DangerousGetSpan();
+    for (int index = 0; index < cells.Length; index++)
+    {
+        cells[index] = index * index;
+    }
+
+    return new PgArrayView<int>(array.Datum);
+}
+```
+
+Pass no lengths for an empty array, and optional lower bounds for each dimension.
+Every element is present; build arrays with SQL NULL elements with `PgArray<T>`,
+because PostgreSQL does not store NULL elements. A zero-length dimension, more
+than six dimensions, more than 134,217,727 elements or more than PostgreSQL's
+1 GB allocation limit is rejected before anything is allocated. The array lives
+until its memory context resets or is deleted.

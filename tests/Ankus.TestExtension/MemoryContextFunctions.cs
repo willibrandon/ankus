@@ -236,7 +236,8 @@ public static class MemoryContextFunctions
     /// <summary>
     /// Resolves native roots and verifies owned context appearance and disappearance in PostgreSQL statistics.
     /// </summary>
-    /// <returns>The parent identities and native inventory counts.</returns>
+    /// <returns>The parent identities, including the current context's parent as pgrx's <c>parent</c> test checks, and native
+    /// inventory counts.</returns>
     [PgFunction]
     public static string MemoryNativeInventory()
     {
@@ -254,7 +255,7 @@ public static class MemoryContextFunctions
         bool grew = owner.GetAllocatedBytes() > size;
         owner.Dispose();
         long after = Spi.ExecuteScalar<long>("SELECT count(*) FROM ankus_test_memory.contexts WHERE ident = 'Ankus inventory probe'");
-        return $"{top.Parent is null}|{parent}|{currentSelector}|{transaction}|{borrowed}|{before}|{after}|{grew}";
+        return $"{top.Parent is null}|{current.Parent is not null}|{parent}|{currentSelector}|{transaction}|{borrowed}|{before}|{after}|{grew}";
     }
 
     /// <summary>

@@ -96,6 +96,29 @@ public sealed class ArrayDatumTests(TestContext context)
             }, context.CancellationToken);
 
     /// <summary>
+    /// A million-element array whose checked sum overflows fails with the managed overflow and the backend continues,
+    /// as pgrx's <c>sum_array</c> overflow tests require of copied and borrowed arrays.
+    /// </summary>
+    /// <param name="function">The copied or borrowed summing function.</param>
+    [TestMethod]
+    [DataRow("sum_array_checked")]
+    [DataRow("sum_array_view_checked")]
+    public async Task MillionElementOverflowFailsAndRecovers(string function)
+    {
+        CancellationToken token = context.CancellationToken;
+        await using NpgsqlConnection connection = await PostgresFixture.Cluster.OpenConnectionAsync(token);
+        int backend = connection.ProcessID;
+        await using var command = new NpgsqlCommand(
+            $"SELECT datatype.{function}(array_agg(s)) FROM generate_series(1, 1000000) s", connection);
+        PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => command.ExecuteScalarAsync(token));
+        Assert.AreEqual(PostgresErrorCodes.ExternalRoutineException, error.SqlState);
+        Assert.AreEqual("Arithmetic operation resulted in an overflow.", error.MessageText);
+        command.CommandText = $"SELECT datatype.{function}(array_agg(s)) FROM generate_series(1, 65535) s";
+        Assert.AreEqual(2147450880, await command.ExecuteScalarAsync(token));
+        Assert.AreEqual(backend, connection.ProcessID);
+    }
+
+    /// <summary>
     /// Checks vector mappings and exact ordinary .NET element adapters inside Native AOT.
     /// </summary>
     /// <param name="mode">The ownership path.</param>

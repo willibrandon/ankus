@@ -110,6 +110,8 @@ public sealed partial class PgFunctionGeneratorTests(TestContext context)
     [DataRow("public static System.Uri WrongResult() => new(\"https://example.com\");", "ANKUS039")]
     [DataRow("public static int WrongArgument(System.Uri value) => 1;", "ANKUS040")]
     [DataRow("public static int[][] Nested(int[][] value) => value;", "ANKUS039")]
+    [DataRow("public static int NestedArgument(int[][] value) => value.Length;", "ANKUS040")]
+    [DataRow("public static int NestedPgArray(Ankus.PgArray<Ankus.PgArray<int>> value) => value.Count;", "ANKUS040")]
     [DataRow("public static int[,] Rectangular(int[,] value) => value;", "ANKUS039")]
     [DataRow("public static Ankus.PgArray<Ankus.PgArray<int>> Nested(Ankus.PgArray<Ankus.PgArray<int>> value) => value;", "ANKUS039")]
     [DataRow("public static Ankus.PgArray<byte> ByteElements(Ankus.PgArray<byte> value) => value;", "ANKUS039")]

@@ -94,6 +94,35 @@ public static class AggregateFunctions
     }
 
     /// <summary>
+    /// Sums integers in a custom type declared in another schema, as pgrx's <c>demo_sum_state</c> keeps its state type
+    /// in a <c>pg_schema</c> module.
+    /// </summary>
+    [PgAggregate(Name = "demo_sum_state", Requires = ["aggregate-support", "custom.number"])]
+    public sealed class DemoSumState : IPgAggregate<CustomTypeFunctions.Number?, int>,
+        IPgFinalizingAggregate<CustomTypeFunctions.Number?, ValueTuple, int>
+    {
+        /// <summary>
+        /// Adds one value to the custom state, starting from SQL NULL.
+        /// </summary>
+        /// <param name="context">The aggregate call.</param>
+        /// <param name="state">The running sum, or SQL NULL before the first row.</param>
+        /// <param name="value">The value to add.</param>
+        /// <returns>The new running sum.</returns>
+        public static CustomTypeFunctions.Number? Transition(PgAggregateContext context, CustomTypeFunctions.Number? state, int value)
+            => new CustomTypeFunctions.Number(checked((state?.Value ?? 0) + value));
+
+        /// <summary>
+        /// Reads the sum, or zero when no row was aggregated.
+        /// </summary>
+        /// <param name="context">The aggregate call.</param>
+        /// <param name="state">The running sum, or SQL NULL.</param>
+        /// <param name="arguments">No direct arguments.</param>
+        /// <returns>The sum.</returns>
+        public static int Final(PgAggregateContext context, CustomTypeFunctions.Number? state, ValueTuple arguments)
+            => checked((int)(state?.Value ?? 0));
+    }
+
+    /// <summary>
     /// Adds nullable inputs to an explicit zero state.
     /// </summary>
     [PgAggregate(Name = "sum_values", InitialCondition = "0", Requires = ["aggregate-support"])]

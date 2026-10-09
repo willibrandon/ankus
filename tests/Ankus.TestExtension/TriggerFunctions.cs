@@ -76,6 +76,13 @@ public static class TriggerFunctions
                 });
                 Audit(context, recovery);
                 return row;
+            case "relation":
+                using (PgRelation relation = PgRelation.Open(context.RelationOid))
+                {
+                    Audit(context, relation.NamespaceName + "." + relation.Name + ":" + (relation.Oid == context.RelationOid));
+                }
+
+                return row;
             case "nested":
                 Spi.Execute("INSERT INTO trigger_values.child VALUES (90,900,'inner')");
                 Audit(context, "after nested:" + Spi.ExecuteScalar<int>("SELECT 42"));

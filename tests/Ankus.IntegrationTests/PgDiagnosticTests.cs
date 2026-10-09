@@ -48,6 +48,17 @@ public sealed class PgDiagnosticTests(TestContext context)
     }
 
     /// <summary>
+    /// A backend ERROR caught in managed code carries a stack trace naming the failing backend call and the catching method.
+    /// </summary>
+    [TestMethod]
+    public async Task BackendErrorsCarryTheirManagedStackTrace()
+    {
+        await using NpgsqlConnection connection = await PostgresFixture.Cluster.OpenConnectionAsync(context.CancellationToken);
+        await using var command = new NpgsqlCommand("SELECT datatype.diagnostic_stack_trace()", connection);
+        Assert.AreEqual("XX000|True|True", await command.ExecuteScalarAsync(context.CancellationToken));
+    }
+
+    /// <summary>
     /// Verifies SPI positions identify characters in the internal query rather than bytes or UTF-16 code units.
     /// </summary>
     [TestMethod]

@@ -201,9 +201,14 @@ public sealed class PglzInspectExampleTests(TestContext context)
             var builder = new NpgsqlConnectionStringBuilder(administrator.ConnectionString) { Database = database, Pooling = false };
             await using var connection = new NpgsqlConnection(builder.ConnectionString);
             await connection.OpenAsync(token);
-            await ExecuteAsync(connection, null, """
+            // PostgreSQL 19 stores new values with LZ4 when it is available; compare against PGLZ storage.
+            string compression = PostgresFixture.Cluster.Installation.Version.Major >= 14
+                ? "ALTER TABLE accents ALTER COLUMN v SET COMPRESSION pglz;"
+                : string.Empty;
+            await ExecuteAsync(connection, null, $"""
                 CREATE EXTENSION ankus_pglz_inspect;
                 CREATE TABLE accents (v text);
+                {compression}
                 INSERT INTO accents SELECT repeat('é', 3000) FROM generate_series(1, 3);
                 """, token);
             Assert.AreEqual("3,3000,t", await ScalarAsync<string>(connection, null, """

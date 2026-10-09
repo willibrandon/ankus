@@ -14,6 +14,24 @@ public static unsafe class ItemPointerFunctions
     public static PgItemPointer? ItemPointerEcho(PgItemPointer? value) => value;
 
     /// <summary>
+    /// Calls PostgreSQL's static inline <c>itemptr_encode</c> through its generated binding, as pgrx's
+    /// <c>test_static_inline_fns</c> does, beside the managed index key.
+    /// </summary>
+    /// <param name="block">The block number.</param>
+    /// <param name="offset">The line pointer offset.</param>
+    /// <returns>The native key and the managed key.</returns>
+    [PgFunction]
+    public static long[] ItemPointerEncodeBinding(long block, int offset)
+    {
+        var native = new Ankus.Postgres.ItemPointerData
+        {
+            ip_blkid = new Ankus.Postgres.BlockIdData { bi_hi = checked((ushort)(block >> 16)), bi_lo = checked((ushort)(block & 0xFFFF)) },
+            ip_posid = checked((ushort)offset),
+        };
+        return [Ankus.Postgres.NativeMethods.itemptr_encode(&native), new PgItemPointer(checked((uint)block), checked((ushort)offset)).ToIndexKey()];
+    }
+
+    /// <summary>
     /// Copies a required location through a strict scalar declaration.
     /// </summary>
     [PgFunction]

@@ -24,6 +24,20 @@ public static partial class BorrowedArrayFunctions
     public static PgDatum ArrayViewFirstCell(PgArrayView value) => value[0];
 
     /// <summary>
+    /// Formats the borrowed SQL NULL bitmap as pgrx's <c>display_get_arr_nullbitmap</c> does, and through the typed view.
+    /// </summary>
+    /// <param name="value">An integer array.</param>
+    /// <returns>Each bitmap byte in binary, or empty text when the array stores no bitmap, for both views.</returns>
+    [PgFunction]
+    public static string ArrayViewNullBitmap(PgArrayView value)
+    {
+        string untyped = string.Join(',', value.DangerousGetNullBitmap().ToArray().Select(static bits => "0b" + Convert.ToString(bits, 2).PadLeft(8, '0')));
+        using var typed = new PgArrayView<int?>(value.Datum);
+        string fromTyped = string.Join(',', typed.DangerousGetNullBitmap().ToArray().Select(static bits => "0b" + Convert.ToString(bits, 2).PadLeft(8, '0')));
+        return untyped + "|" + fromTyped;
+    }
+
+    /// <summary>
     /// Captures views without disposing them so a later callback can observe automatic invalidation.
     /// </summary>
     /// <param name="value">The directly borrowed input.</param>

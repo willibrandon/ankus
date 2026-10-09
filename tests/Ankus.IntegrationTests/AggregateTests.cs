@@ -54,6 +54,24 @@ public sealed partial class AggregateTests(TestContext context)
         });
 
     /// <summary>
+    /// An aggregate keeps its state in a custom type from another schema, as pgrx's <c>aggregate_demo_custom_state</c>
+    /// does, and an empty input finalizes to zero.
+    /// </summary>
+    [TestMethod]
+    public Task CustomStateFromAnotherSchemaSums()
+        => Run(nameof(CustomStateFromAnotherSchemaSums), async (connection, transaction, token) =>
+        {
+            Assert.AreEqual(4, await Scalar<int>(connection, transaction,
+                "SELECT aggregate_values.demo_sum_state(value) FROM unnest(ARRAY[1, 1, 2]) AS value", token));
+            Assert.AreEqual(0, await Scalar<int>(connection, transaction,
+                "SELECT aggregate_values.demo_sum_state(value) FROM unnest('{}'::integer[]) AS value", token));
+            Assert.AreEqual("custom_values.number", await Scalar<string>(connection, transaction, """
+                SELECT aggtranstype::regtype::text FROM pg_aggregate
+                WHERE aggfnoid = 'aggregate_values.demo_sum_state(integer)'::regprocedure
+                """, token));
+        });
+
+    /// <summary>
     /// Strict transition dispatch seeds state once and skips rows containing any NULL input.
     /// </summary>
     [TestMethod]

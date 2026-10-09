@@ -365,6 +365,43 @@ Returns: <code>PgContextValue&lt;T&gt;</code>
 
 The context-owned value.
 
+<a id="member-2cbaed05afc8ec35"></a>
+
+### CreateFlatArray&lt;T&gt;(ReadOnlySpan&lt;int&gt;, ReadOnlySpan&lt;int&gt;)
+
+Allocates a zeroed flat array of fixed-size scalars in this context, as pgrx's <code>FlatArray::new_zeroed_in</code> does.
+
+```csharp
+public PgFlatArray<T> CreateFlatArray<T>(ReadOnlySpan<int> lengths, ReadOnlySpan<int> lowerBounds = default) where T : unmanaged
+```
+
+Type parameters:
+
+`T`
+
+The element: sbyte (<code>"char"</code>), short, int, long, uint (<code>oid</code>), float, double or bool.
+
+Parameters:
+
+`lengths` — [ReadOnlySpan&lt;int&gt;](https://learn.microsoft.com/dotnet/api/system.readonlyspan-1)
+
+The length of each dimension; none creates an empty array.
+
+`lowerBounds` — [ReadOnlySpan&lt;int&gt;](https://learn.microsoft.com/dotnet/api/system.readonlyspan-1)
+
+The lower bound of each dimension, or none for one-based dimensions.
+
+Returns: <code>PgFlatArray&lt;T&gt;</code>
+
+The array, filled with zero and living until this context resets or is deleted.
+
+Exceptions:
+
+- [NotSupportedException](https://learn.microsoft.com/dotnet/api/system.notsupportedexception): T is not a supported fixed-size scalar.
+- [ArgumentException](https://learn.microsoft.com/dotnet/api/system.argumentexception): The lower bounds do not match the dimensions.
+- [ArgumentOutOfRangeException](https://learn.microsoft.com/dotnet/api/system.argumentoutofrangeexception): There are more than six dimensions, a dimension is not positive, a bound overflows, or the array exceeds
+PostgreSQL's element or allocation limit.
+
 <a id="member-12ca1b6e7696b9f5"></a>
 
 ### DangerousAdoptBox&lt;T&gt;(void*, bool, nuint)

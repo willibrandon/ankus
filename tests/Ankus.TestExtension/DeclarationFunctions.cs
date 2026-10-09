@@ -76,6 +76,12 @@ public static class DeclarationFunctions
     public static string DeclarationOptionalText(string? value = null) => value ?? "got default of null";
 
     /// <summary>
+    /// Takes a parameter whose SQL name matches the function's, as pgrx's <c>same_name</c> does.
+    /// </summary>
+    [PgFunction]
+    public static string SameName(string sameName) => sameName;
+
+    /// <summary>
     /// Casts a signed-byte numeric default to PostgreSQL's internal char type.
     /// </summary>
     [PgFunction]

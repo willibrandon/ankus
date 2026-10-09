@@ -66,6 +66,7 @@ Assembly: `Ankus.Runtime.dll`
 - [PgEventTriggerContext](/api/ankus.pgeventtriggercontext/)
 - [PgException](/api/ankus.pgexception/)
 - [PgFixedKeyComparer](/api/ankus.pgfixedkeycomparer/)
+- [PgFlatArray&lt;T&gt;](/api/ankus.pgflatarray-1/)
 - [PgFunctionAttribute](/api/ankus.pgfunctionattribute/)
 - [PgFunctionCallOptions](/api/ankus.pgfunctioncalloptions/)
 - [PgFunctionContext](/api/ankus.pgfunctioncontext/)

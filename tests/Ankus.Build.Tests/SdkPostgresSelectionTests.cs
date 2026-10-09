@@ -58,6 +58,84 @@ public sealed class SdkPostgresSelectionTests(TestContext context)
         => AssertSelectionAsync(development: true, string.Empty, project, targets, pgConfig, string.Empty, expected, specified);
 
     /// <summary>
+    /// Test and benchmark publications define <c>ANKUS_TESTS</c> and <c>ANKUS_BENCHMARKS</c> for conditional compilation, as
+    /// pgrx's <c>pg_test</c> feature does; ordinary builds define neither.
+    /// </summary>
+    /// <param name="includeTests">The AnkusIncludeTests value, or empty.</param>
+    /// <param name="includeBenchmarks">The AnkusIncludeBenchmarks value, or empty.</param>
+    /// <param name="expected">The defined symbols, separated by commas.</param>
+    [TestMethod]
+    [DataRow("", "", "")]
+    [DataRow("false", "false", "")]
+    [DataRow("true", "", "ANKUS_TESTS")]
+    [DataRow("True", "false", "ANKUS_TESTS")]
+    [DataRow("", "true", "ANKUS_BENCHMARKS")]
+    public async Task TestAndBenchmarkPublicationsDefineTheirSymbols(string includeTests, string includeBenchmarks, string expected)
+    {
+        CancellationToken token = context.CancellationToken;
+        string directory = Directory.CreateTempSubdirectory("ankus-sdk-symbols-").FullName;
+        try
+        {
+            (string sdk, string root) = await CreateWorkspaceAsync(directory, token);
+            string path = Path.Combine(root, "Extension.csproj");
+            new XDocument(new XElement("Project",
+                new XElement("Import", new XAttribute("Project", Path.Combine(sdk, "Sdk", "Sdk.props"))),
+                new XElement("PropertyGroup", new XElement("TargetFramework", "net10.0"), new XElement("AnkusPostgresMajor", "17")),
+                new XElement("Import", new XAttribute("Project", Path.Combine(sdk, "Sdk", "Sdk.targets"))))).Save(path);
+            List<string> arguments = ["msbuild", path, "-nologo", "-nodeReuse:false", "-target:_AddAnkusPostgresDefineConstants",
+                "-getProperty:DefineConstants"];
+            if (includeTests.Length != 0)
+            {
+                arguments.Add("-property:AnkusIncludeTests=" + includeTests);
+            }
+
+            if (includeBenchmarks.Length != 0)
+            {
+                arguments.Add("-property:AnkusIncludeBenchmarks=" + includeBenchmarks);
+            }
+
+            string output = await NativeBindingLayoutCommand.RunProcessAsync("dotnet", arguments, root, token);
+            string[] symbols = output.Trim().Split(';', StringSplitOptions.RemoveEmptyEntries);
+            Assert.Contains("ANKUS_PG17", symbols);
+            Assert.AreSequenceEqual(expected.Split(',', StringSplitOptions.RemoveEmptyEntries),
+                [.. symbols.Where(static symbol => symbol is "ANKUS_TESTS" or "ANKUS_BENCHMARKS")]);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// Copies the packaged SDK and pins the test's .NET SDK for an isolated extension project.
+    /// </summary>
+    /// <param name="directory">The test-owned directory.</param>
+    /// <param name="token">Cancels the file writes.</param>
+    /// <returns>The copied SDK directory and the extension project's directory.</returns>
+    private static async Task<(string Sdk, string Root)> CreateWorkspaceAsync(string directory, CancellationToken token)
+    {
+        string source = Path.Combine(AppContext.BaseDirectory, "AnkusSdk");
+        string sdk = Path.Combine(directory, "sdk");
+        foreach (string file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
+        {
+            string target = Path.Combine(sdk, Path.GetRelativePath(source, file));
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            File.Copy(file, target);
+        }
+
+        // Packing supplies this file; the selection does not depend on the package version.
+        await File.WriteAllTextAsync(Path.Combine(sdk, "Sdk", "Ankus.Version.props"),
+            "<Project><PropertyGroup><AnkusVersion>0.0.0-test</AnkusVersion></PropertyGroup></Project>", token);
+        string root = Directory.CreateDirectory(Path.Combine(directory, "extension")).FullName;
+        string? version = Assert.ContainsSingle(typeof(SdkPostgresSelectionTests).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>()
+            .Where(static metadata => metadata.Key == "AnkusTestSdkVersion")).Value;
+        Assert.IsNotNull(version);
+        await File.WriteAllTextAsync(Path.Combine(root, "global.json"),
+            JsonSerializer.Serialize(new { sdk = new { version, rollForward = "disable", allowPrerelease = false } }), token);
+        return (sdk, root);
+    }
+
+    /// <summary>
     /// Creates an extension with the requested authored values, then checks the built selection and the ankus tool's
     /// evaluation-only view of the same project.
     /// </summary>
@@ -77,24 +155,7 @@ public sealed class SdkPostgresSelectionTests(TestContext context)
         string directory = Directory.CreateTempSubdirectory("ankus-sdk-selection-").FullName;
         try
         {
-            string source = Path.Combine(AppContext.BaseDirectory, "AnkusSdk");
-            string sdk = Path.Combine(directory, "sdk");
-            foreach (string file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
-            {
-                string target = Path.Combine(sdk, Path.GetRelativePath(source, file));
-                Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-                File.Copy(file, target);
-            }
-
-            // Packing supplies this file; the selection does not depend on the package version.
-            await File.WriteAllTextAsync(Path.Combine(sdk, "Sdk", "Ankus.Version.props"),
-                "<Project><PropertyGroup><AnkusVersion>0.0.0-test</AnkusVersion></PropertyGroup></Project>", token);
-            string root = Directory.CreateDirectory(Path.Combine(directory, "extension")).FullName;
-            string? version = Assert.ContainsSingle(typeof(SdkPostgresSelectionTests).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>()
-                .Where(static metadata => metadata.Key == "AnkusTestSdkVersion")).Value;
-            Assert.IsNotNull(version);
-            await File.WriteAllTextAsync(Path.Combine(root, "global.json"),
-                JsonSerializer.Serialize(new { sdk = new { version, rollForward = "disable", allowPrerelease = false } }), token);
+            (string sdk, string root) = await CreateWorkspaceAsync(directory, token);
 
             // Isolate the SDK default from CI's environment selection before any authored value.
             new XDocument(new XElement("Project",

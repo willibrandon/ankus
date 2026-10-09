@@ -131,7 +131,8 @@ internal sealed class DefaultTypeSerializer(INamedTypeSymbol root, IAssemblySymb
             SpecialType.System_Double => "Double",
             SpecialType.System_Decimal => "Decimal",
             SpecialType.System_String => "String",
-            _ => null,
+            SpecialType.System_DateTime => "DateTime",
+            _ => FrameworkPrimitive(type),
         };
         if (node.Primitive is not null)
         {
@@ -414,6 +415,17 @@ internal sealed class DefaultTypeSerializer(INamedTypeSymbol root, IAssemblySymb
                 SourceLocation(type.Locations.FirstOrDefault(), usage));
         }
     }
+
+    /// <summary>
+    /// Names the framework value types that System.Text.Json writes as strings and generated storage supports directly.
+    /// </summary>
+    /// <param name="type">The member or element type.</param>
+    /// <returns>The reader and writer operation, or null for another type.</returns>
+    private static string? FrameworkPrimitive(ITypeSymbol type)
+        => type is INamedTypeSymbol { Arity: 0, ContainingNamespace: { Name: "System", ContainingNamespace.IsGlobalNamespace: true } } named &&
+            named.Name is "Guid" or "DateOnly" or "TimeOnly" or "TimeSpan" or "DateTimeOffset"
+            ? named.Name
+            : null;
 
     /// <summary>
     /// Includes inherited state once, honoring overrides and rejecting hidden serialized members.

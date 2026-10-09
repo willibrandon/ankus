@@ -130,6 +130,50 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
 
 ## Active validation and work
 
+- Generated custom-type storage now serializes `Guid`, `DateOnly`, `TimeOnly`,
+  `DateTime`, `DateTimeOffset` and `TimeSpan` members, as System.Text.Json does
+  and as pgrx's serde storage does for its date type. JSON text uses
+  System.Text.Json's formats; CBOR uses the registered UUID (37), full-date (1004)
+  and date/time (0) tags where they exist. Runtime tests pin the bytes and text
+  and reject other spellings; seeded pgrx `RandomData` values with unsigned
+  64-bit and date-list members survive table storage, compression, arrays and
+  every exchange path in the backend.
+- `PgMemoryContext.CreateFlatArray<T>` builds a zeroed PostgreSQL array of a
+  fixed-size scalar in place, the counterpart of pgrx's `FlatArray::new_zeroed_in`;
+  it rejects zero-length dimensions, more than six dimensions and PostgreSQL's
+  element and 1 GB allocation limits before allocating. `PgArrayView` and
+  `PgArrayView<T>` expose the native SQL NULL bitmap like pgrx's `RawArray::nulls`.
+  With these, every case in pgrx's unit-test corpus maps to a passing Ankus test,
+  a documented difference or a Rust-specific guarantee.
+- More of pgrx's unit tests now run in the backend: a backend ERROR's managed
+  stack trace, seeded temporal round trips checked against `*_send` bytes, the
+  installed signature matrix read back from `pg_proc`, a typed
+  `PgArrayView<bool>`, a trigger opening its relation, an array-of-composite
+  field set in code, the current memory context's parent, an untracked worker's
+  termination, a parameter named like its function and a test-only function
+  under `#if ANKUS_TESTS`. Test publications define `ANKUS_TESTS` and benchmark
+  publications `ANKUS_BENCHMARKS`, like pgrx's `pg_test` feature. A generator
+  test compiles every declaration kind beside types named `System`, `Ankus`,
+  `Spi` and other names generated code uses. SPI conversion errors now name the
+  source value's type.
+- **805783b** passes complete Windows x64 suites on PostgreSQL 17.11 (**14,312**
+  total; **14,270** passed; 42 skips; zero failures; **40m** while the machine also
+  ran CI and Linux) and Linux x64 on PostgreSQL 18.6 with run-as (**14,261** passed;
+  51 skips; zero failures; **43m**). Its PostgreSQL 13.23 Windows run failed only
+  the benchmark payload test: a constant-time routine could measure zero ticks on
+  Windows's 100 ns stopwatch under load. **10c1391** gives that test measurable work.
+  **5b72b18** also passes Linux x64 on PostgreSQL 18.6 with run-as (**14,203**
+  passed; 51 skips; **17m**) and CI
+  ([37909292198](https://github.com/willibrandon/ankus/actions/runs/37909292198):
+  Linux 25m, Windows 29m, macOS 15m while sharing hosts with local validation).
+  The version matrix rerun with the socket fix
+  ([37909296064](https://github.com/willibrandon/ankus/actions/runs/37909296064))
+  passes PostgreSQL 13 through 17; 16 and 17 had failed on the socket path, and 13
+  and 14 took **70m** on the flex runners. PostgreSQL 19 failed one pglz sample
+  case: its beta defaults `default_toast_compression` to LZ4 when built with it,
+  so the stored size no longer matched the PGLZ estimate. That case now sets the
+  column to PGLZ on PostgreSQL 14 and later.
+
 - `System.Text.Rune` maps to `varchar`, as Rust's `char` does in pgrx. Generated
   arguments, results, `Rune[]` and `PgArray<Rune?>` (`varchar[]`), SPI parameters,
   cells and edited rows all carry the scalar value as character text, and returned

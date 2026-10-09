@@ -408,7 +408,7 @@ public sealed class MappedArrayTests(TestContext context)
             (0, "ARRAY[7,-777,99]", "P8521|mapped array reader failed|later element|replace the sentinel"),
             (1, "ARRAY[value]", "P8512|typed factory failed|lazy result|use another mapping"),
             (0, "'[0:1]={7,11}'::integer[]", "InvalidOperationException|Use PgArray<T> to preserve dimensions and lower bounds, or ToArray() to explicitly flatten them."),
-            (3, "ARRAY[value],value::bigint", "InvalidCastException|The SPI value cannot be read as 'System.Int32'."),
+            (3, "ARRAY[value],value::bigint", "InvalidCastException|An SPI value of type 'System.Int64' cannot be read as 'System.Int32'."),
         })
         {
             await Reset(connection);

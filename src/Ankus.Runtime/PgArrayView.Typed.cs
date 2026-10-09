@@ -99,6 +99,12 @@ public sealed class PgArrayView<T> : IReadOnlyList<T>, IPgArrayView
     public ReadOnlySpan<int> Lengths => _view.Lengths;
 
     /// <summary>
+    /// Borrows the array's native SQL NULL bitmap, with the lifetime rules of <see cref="PgArrayView.DangerousGetNullBitmap"/>.
+    /// </summary>
+    /// <returns>One bit per element, least significant bit first, set for a present value; empty without a bitmap.</returns>
+    public ReadOnlySpan<byte> DangerousGetNullBitmap() => _view.DangerousGetNullBitmap();
+
+    /// <summary>
     /// Gets the copied PostgreSQL lower bounds.
     /// </summary>
     public ReadOnlySpan<int> LowerBounds => _view.LowerBounds;

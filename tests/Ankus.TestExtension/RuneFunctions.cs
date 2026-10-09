@@ -67,6 +67,14 @@ public static class RuneFunctions
     public static Rune[] ReverseRunes(Rune[] values) => [.. values.Reverse()];
 
     /// <summary>
+    /// Returns each Unicode scalar value of the text as a row, keeping surrogate pairs whole.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <returns>One character per row.</returns>
+    [PgFunction]
+    public static IEnumerable<Rune> RuneCharacters(string text) => text.EnumerateRunes();
+
+    /// <summary>
     /// Reads the first cell of a query as a nullable Rune.
     /// </summary>
     /// <param name="sql">A query returning one character-text column.</param>

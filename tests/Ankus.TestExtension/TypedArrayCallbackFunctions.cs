@@ -65,6 +65,89 @@ public static partial class BorrowedArrayFunctions
     public static int TypedArrayRequired(PgArrayView<int> value) => value.Count;
 
     /// <summary>
+    /// Builds a flat array of squares in place, reads it back through a view as pgrx's <c>read_array_back</c> does, and
+    /// returns it.
+    /// </summary>
+    /// <param name="count">The number of elements; zero builds an empty array.</param>
+    /// <returns>The squares of 0 through count - 1.</returns>
+    [PgFunction]
+    public static PgArrayView<int> FlatArraySquares(int count)
+    {
+        PgFlatArray<int> array = PgMemoryContext.Current.CreateFlatArray<int>(count == 0 ? [] : [count]);
+        Span<int> cells = array.DangerousGetSpan();
+        for (int index = 0; index < cells.Length; index++)
+        {
+            cells[index] = index * index;
+        }
+
+        var view = new PgArrayView<int>(array.Datum);
+        int position = 0;
+        foreach (int value in view)
+        {
+            if (value != position * position)
+            {
+                throw new InvalidOperationException("The flat array did not read back its own values.");
+            }
+
+            position++;
+        }
+
+        return position == count ? view : throw new InvalidOperationException("The flat array read back the wrong count.");
+    }
+
+    /// <summary>
+    /// Builds a two-dimensional flat bigint array with explicit lower bounds.
+    /// </summary>
+    /// <returns>A 2 by 3 array starting at [-1][5] counting down from the largest bigint.</returns>
+    [PgFunction]
+    public static PgArrayView<long> FlatArrayGrid()
+    {
+        PgFlatArray<long> array = PgMemoryContext.Current.CreateFlatArray<long>([2, 3], [-1, 5]);
+        Span<long> cells = array.DangerousGetSpan();
+        for (int index = 0; index < cells.Length; index++)
+        {
+            cells[index] = long.MaxValue - index;
+        }
+
+        return new PgArrayView<long>(array.Datum);
+    }
+
+    /// <summary>
+    /// Builds flat arrays of each remaining element type and formats them through SPI.
+    /// </summary>
+    /// <returns>The PostgreSQL text of the "char", smallint, oid, real, double precision and boolean arrays.</returns>
+    [PgFunction]
+    public static string FlatArrayElementTypes()
+    {
+        PgMemoryContext context = PgMemoryContext.Current;
+        PgFlatArray<sbyte> chars = context.CreateFlatArray<sbyte>([2]);
+        chars.DangerousGetSpan()[0] = 65;
+        chars.DangerousGetSpan()[1] = 122;
+        PgFlatArray<short> shorts = context.CreateFlatArray<short>([2]);
+        shorts.DangerousGetSpan()[0] = short.MinValue;
+        shorts.DangerousGetSpan()[1] = short.MaxValue;
+        PgFlatArray<uint> oids = context.CreateFlatArray<uint>([1]);
+        oids.DangerousGetSpan()[0] = uint.MaxValue;
+        PgFlatArray<float> singles = context.CreateFlatArray<float>([2]);
+        singles.DangerousGetSpan()[0] = -0.5f;
+        singles.DangerousGetSpan()[1] = float.PositiveInfinity;
+        PgFlatArray<double> doubles = context.CreateFlatArray<double>([3]);
+        doubles.DangerousGetSpan()[1] = 1.5;
+        doubles.DangerousGetSpan()[2] = double.NaN;
+        PgFlatArray<bool> flags = context.CreateFlatArray<bool>([3]);
+        flags.DangerousGetSpan()[0] = true;
+        flags.DangerousGetSpan()[2] = true;
+        return string.Join('|', new[] { chars.Datum, shorts.Datum, oids.Datum, singles.Datum, doubles.Datum, flags.Datum }
+            .Select(static datum => Spi.ExecuteScalar<string>("SELECT $1::text || ':' || pg_typeof($1)::text", SpiParameter.Create(datum))));
+    }
+
+    /// <summary>
+    /// Counts true cells of a borrowed boolean array, as pgrx's <c>borrow_count_true</c> does.
+    /// </summary>
+    [PgFunction]
+    public static int TypedCountTrue(PgArrayView<bool> values) => values.Count(static value => value);
+
+    /// <summary>
     /// Returns a separately selected native array to exercise exact declared-result identity checking.
     /// </summary>
     [PgFunction]

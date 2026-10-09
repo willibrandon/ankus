@@ -56,7 +56,7 @@ public sealed class MemoryContextTests(TestContext context)
     [TestMethod]
     public Task NativeInventoryProvesOwnedAndBorrowedContextLifetimes()
         => CheckAsync(nameof(NativeInventoryProvesOwnedAndBorrowedContextLifetimes),
-            "SELECT datatype.memory_native_inventory()", "True|True|True|True|True|1|0|True");
+            "SELECT datatype.memory_native_inventory()", "True|True|True|True|True|True|1|0|True");
 
     /// <summary>
     /// Destructive resets cannot reclaim active native callback storage or its ancestors after a managed context switch.

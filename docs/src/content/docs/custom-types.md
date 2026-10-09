@@ -63,6 +63,13 @@ The default serializer supports:
   decimal scale, including the scale of zero, is retained. JSON decimal input that would
   require rounding is rejected. A `decimal` with zero magnitude and its sign bit
   set is rejected because CBOR decimal fractions cannot preserve that sign bit.
+- `Guid`, `DateOnly`, `TimeOnly`, `DateTime`, `DateTimeOffset` and `TimeSpan`,
+  written as strings in System.Text.Json's formats: lowercase `D` for a `Guid`,
+  `yyyy-MM-dd` for a date, the constant `hh:mm:ss[.fffffff]` form for a time or
+  duration, and ISO 8601 for a `DateTime`, with its kind, or a `DateTimeOffset`,
+  with its offset. CBOR stores a `Guid` as a tagged 16-byte UUID (tag 37), a date
+  as a tagged full-date (tag 1004) and a `DateTimeOffset` as a tagged date/time
+  string (tag 0). A time of day must be under 24 hours.
 - Enums as case-sensitive strings. Undefined numeric values and unnamed flag
   combinations are rejected.
 - One-dimensional arrays, `List<T>`, and `Dictionary<string, T>`, nested with

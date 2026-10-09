@@ -323,6 +323,94 @@ public ref struct PgTypeReader
     }
 
     /// <summary>
+    /// Reads a UUID from System.Text.Json's text, or from a CBOR UUID (tag 37) of exactly 16 bytes in network order.
+    /// </summary>
+    /// <returns>The value.</returns>
+    public Guid ReadGuid()
+    {
+        if (_cbor is not null)
+        {
+            ExpectTag(PgSerializationTags.Uuid);
+            byte[] bytes = _cbor.ReadByteString();
+            return bytes.Length == 16 ? new Guid(bytes, bigEndian: true) : throw new FormatException("A CBOR UUID holds exactly 16 bytes.");
+        }
+
+        Guid value = _json.GetGuid();
+        Next();
+        return value;
+    }
+
+    /// <summary>
+    /// Reads a date written exactly as <c>yyyy-MM-dd</c>, tagged as a CBOR full-date (tag 1004) in binary storage.
+    /// </summary>
+    /// <returns>The value.</returns>
+    public DateOnly ReadDateOnly()
+    {
+        if (_cbor is not null)
+        {
+            ExpectTag(PgSerializationTags.FullDate);
+        }
+
+        return DateOnly.TryParseExact(ReadString(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateOnly value)
+            ? value
+            : throw new FormatException("Expected a date in yyyy-MM-dd form.");
+    }
+
+    /// <summary>
+    /// Reads a time of day in the constant format, rejecting negative values and values of a day or more.
+    /// </summary>
+    /// <returns>The value.</returns>
+    public TimeOnly ReadTimeOnly()
+    {
+        TimeSpan value = ReadTimeSpan();
+        return value >= TimeSpan.Zero && value < TimeSpan.FromDays(1)
+            ? new TimeOnly(value.Ticks)
+            : throw new FormatException("A time of day must be at least zero and less than one day.");
+    }
+
+    /// <summary>
+    /// Reads a duration in the constant format, <c>[-][d.]hh:mm:ss[.fffffff]</c>.
+    /// </summary>
+    /// <returns>The value.</returns>
+    public TimeSpan ReadTimeSpan()
+        => TimeSpan.TryParseExact(ReadString(), "c", CultureInfo.InvariantCulture, out TimeSpan value)
+            ? value
+            : throw new FormatException("Expected a duration in the constant [-][d.]hh:mm:ss[.fffffff] form.");
+
+    /// <summary>
+    /// Reads a date and time with its kind from System.Text.Json's ISO 8601 text, or from round-trip <c>O</c> text in binary storage.
+    /// </summary>
+    /// <returns>The value.</returns>
+    public DateTime ReadDateTime()
+    {
+        if (_cbor is not null)
+        {
+            return DateTime.TryParseExact(_cbor.ReadTextString(), "O", CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind,
+                out DateTime stored) ? stored : throw new FormatException("Expected a round-trip date and time.");
+        }
+
+        DateTime value = _json.GetDateTime();
+        Next();
+        return value;
+    }
+
+    /// <summary>
+    /// Reads a date and time with its offset from System.Text.Json's ISO 8601 text, or from a CBOR date/time string (tag 0).
+    /// </summary>
+    /// <returns>The value.</returns>
+    public DateTimeOffset ReadDateTimeOffset()
+    {
+        if (_cbor is not null)
+        {
+            return _cbor.ReadDateTimeOffset();
+        }
+
+        DateTimeOffset value = _json.GetDateTimeOffset();
+        Next();
+        return value;
+    }
+
+    /// <summary>
     /// Reads an owned Unicode string and rejects null.
     /// </summary>
     /// <returns>The value.</returns>
@@ -646,6 +734,17 @@ public ref struct PgTypeReader
     /// Advances after a complete JSON token.
     /// </summary>
     private void Next() => _hasJsonToken = _json.Read();
+
+    /// <summary>
+    /// Consumes the semantic tag that identifies a CBOR value's representation.
+    /// </summary>
+    private readonly void ExpectTag(CborTag tag)
+    {
+        if (_cbor!.ReadTag() != tag)
+        {
+            throw new FormatException("The CBOR value does not carry its expected semantic tag.");
+        }
+    }
 
     /// <summary>
     /// Requires the structural token selected by the generated contract.

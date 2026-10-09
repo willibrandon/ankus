@@ -244,7 +244,7 @@ public sealed class MappedResultTests(TestContext context)
             (0, "'null-result'::text", "InvalidOperationException|A datum reader returned null for a present PostgreSQL value."),
             (1, "value", "P8512|typed factory failed|lazy result|use another mapping"),
             (2, "value", "FormatException|ordinary typed factory failed"),
-            (4, "value,value::bigint", "InvalidCastException|The SPI value cannot be read as 'System.Int32'."),
+            (4, "value,value::bigint", "InvalidCastException|An SPI value of type 'System.Int64' cannot be read as 'System.Int32'."),
         })
         {
             await Execute(connection, "TRUNCATE mapped_result_writes");

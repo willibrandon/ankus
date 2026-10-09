@@ -175,7 +175,7 @@ public sealed partial class ToolCommandTests
             Assert.AreEqual("Started|Stopped", await command.ExecuteScalarAsync(token));
         }
 
-        Assert.AreEqual("Untracked|Untracked|Started", await PackageGucScalarAsync(connection, "SELECT worker_untracked()"));
+        Assert.AreEqual("Untracked|Untracked|Started|Untracked|Stopped", await PackageGucScalarAsync(connection, "SELECT worker_untracked()"));
         PostgresException lossy = await Assert.ThrowsExactlyAsync<PostgresException>(() =>
             PackageGucScalarAsync(connection, "SELECT worker_text_boundary(0, 'worker π')"));
         Assert.AreEqual("38000", lossy.SqlState);
@@ -721,7 +721,11 @@ public sealed partial class ToolCommandTests
                         PgBackgroundWorkerState startup = worker.WaitForStartup();
                         PgBackgroundWorkerStatus shutdown = worker.WaitForShutdown();
                         WaitUntil(() => worker.GetState().Status == PgBackgroundWorkerStatus.Started);
-                        return startup.Status + "|" + shutdown + "|" + worker.GetState().Status;
+                        PgBackgroundWorkerStatus started = worker.GetState().Status;
+                        worker.Terminate();
+                        PgBackgroundWorkerStatus terminated = worker.WaitForShutdown();
+                        WaitUntil(() => worker.GetState().Status == PgBackgroundWorkerStatus.Stopped);
+                        return startup.Status + "|" + shutdown + "|" + started + "|" + terminated + "|" + worker.GetState().Status;
                     }
                     finally
                     {

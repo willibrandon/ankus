@@ -26,7 +26,7 @@ internal static class SpiTemporal
             DateTimeOffset stamp when target == typeof(PgTimestampTz) || target == typeof(PgTimestampTz?) =>
                 PgTimestampTz.FromDateTimeOffset(stamp),
             TimeSpan span when target == typeof(PgInterval) || target == typeof(PgInterval?) => PgInterval.FromTimeSpan(span),
-            _ => throw new InvalidCastException($"The SPI value cannot be read as '{target}'."),
+            _ => throw new InvalidCastException($"An SPI value of type '{value.GetType()}' cannot be read as '{target}'."),
         };
     }
 }

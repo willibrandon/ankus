@@ -66,12 +66,14 @@ public static class SpiRawFunctions
                 3 => Convert.ToHexString(value.Read<byte[]>()),
                 4 => BitConverter.DoubleToInt64Bits(value.Read<double>()).ToString("X16", CultureInfo.InvariantCulture),
                 5 => value.Read<int?>()?.ToString(CultureInfo.InvariantCulture) ?? "<null>",
+                6 => value.Read<string>(),
                 _ => throw new ArgumentOutOfRangeException(nameof(kind)),
             };
         }
         catch (Exception exception) when (exception is PgException or InvalidCastException or InvalidOperationException)
         {
-            text = exception is PgException postgres ? postgres.SqlState : exception.GetType().Name;
+            text = exception is PgException postgres ? postgres.SqlState :
+                kind == 6 ? exception.GetType().Name + ":" + exception.Message : exception.GetType().Name;
         }
 
         return text + "|" + Spi.ExecuteScalar<int>("SELECT 42").ToString(CultureInfo.InvariantCulture);

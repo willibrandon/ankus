@@ -32,6 +32,28 @@ public sealed partial class PgArrayView
     }
 
     /// <summary>
+    /// Borrows the array's native SQL NULL bitmap, as pgrx's <c>RawArray::nulls</c> does.
+    /// </summary>
+    /// <returns>
+    /// One bit per element in row-major order, least significant bit first, where a set bit marks a present value; empty
+    /// when the array stores no bitmap.
+    /// </returns>
+    /// <remarks>
+    /// PostgreSQL stores a bitmap only when the array was built with SQL NULL elements. Lifetime checks occur when
+    /// acquiring the span; stop using it before any backend call, owner expiry, callback exit or thread change. Copy the
+    /// bytes to managed storage when they must outlive this native borrow.
+    /// </remarks>
+    public unsafe ReadOnlySpan<byte> DangerousGetNullBitmap()
+    {
+        // ArrayType is a 4-byte varlena header, ndim, dataoffset and elemtype; the dimensions, lower bounds and the
+        // optional bitmap follow. The borrowed datum is always a flat array with a 4-byte header.
+        byte* array = (byte*)_datum.DangerousGetBits();
+        int rank = *(int*)(array + 4);
+        int dataOffset = *(int*)(array + 8);
+        return dataOffset == 0 ? [] : new ReadOnlySpan<byte>(array + 16 + (8 * rank), (Count + 7) / 8);
+    }
+
+    /// <summary>
     /// Borrows the contiguous network-order bytes of an array without SQL NULL UUID elements.
     /// </summary>
     /// <returns>Exactly sixteen bytes per UUID in row-major order.</returns>

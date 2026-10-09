@@ -69,7 +69,32 @@ public sealed partial class ToolCommandTests
 
                 [PgTest(IgnoreReason = "Explicit discovery probe")]
                 public static void Ignored() => throw new InvalidOperationException("Ignored test was executed.");
+
+                [PgTest]
+                public static void CallsTestOnlyFunction()
+                {
+                    if (Spi.ExecuteScalar<int>("SELECT \"Case Schema\".test_only_answer()") != 42)
+                    {
+                        throw new InvalidOperationException("The test-only function was not published.");
+                    }
+                }
             }
+
+            #if ANKUS_TESTS
+            public static class TestOnlyFunctions
+            {
+                [PgFunction]
+                public static int TestOnlyAnswer() => 42;
+            }
+            #endif
+
+            #if ANKUS_NONEXISTENT
+            public static class MissingFunctions
+            {
+                [PgFunction]
+                public static int Missing(NonexistentType value) => 0;
+            }
+            #endif
 
             [PgSchema(" ")]
             public static partial class SchemaChecks
@@ -204,12 +229,13 @@ public sealed partial class ToolCommandTests
         Assert.AreEqual("Passed", outcomes["BackendProbe.BackendChecks.ExpectedFailure()"]);
         Assert.AreEqual("Passed", outcomes["BackendProbe.BackendChecks.QuotedExpectedFailure()"]);
         Assert.AreEqual("Passed", outcomes["BackendProbe.SchemaChecks.ReadsBackend()"]);
+        Assert.AreEqual("Passed", outcomes["BackendProbe.BackendChecks.CallsTestOnlyFunction()"]);
         Assert.AreEqual("NotExecuted", outcomes["BackendProbe.BackendChecks.Ignored()"]);
         Assert.AreEqual("Failed", outcomes["BackendProbe.BackendChecks.WrongError()"]);
         Assert.AreEqual("Failed", outcomes["BackendProbe.BackendChecks.MissingError()"]);
         XElement counters = report.Descendants(ns + "Counters").Single();
-        Assert.AreEqual("11", counters.Attribute("total")!.Value);
-        Assert.AreEqual("8", counters.Attribute("passed")!.Value);
+        Assert.AreEqual("12", counters.Attribute("total")!.Value);
+        Assert.AreEqual("9", counters.Attribute("passed")!.Value);
         Assert.AreEqual("2", counters.Attribute("failed")!.Value);
         Assert.IsEmpty(Directory.GetDirectories(Path.Combine(extensionRoot, "bin", "ankus-test-publish")));
     }

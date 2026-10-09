@@ -22,12 +22,14 @@ analogue; the .NET guarantee is named).
 
 ## Summary
 
-Most cases are covered, often with more boundary values than pgrx uses. The cases
-added on 2026-10-09 close the safety-relevant gaps: PostgreSQL errors raised by
-SPI inside set-returning functions, ordinary exceptions from callbacks PostgreSQL
-invokes, configuration check rejection for every setting type, lock release
-during managed unwinding, and range reconstruction from bounds. The remaining
-gaps and partials are listed at the end, ranked by importance.
+Most cases are covered, often with more boundary values than pgrx uses. Cases
+added on 2026-10-09 close every gap and partial: SPI errors inside set-returning
+functions, exceptions from callbacks PostgreSQL invokes, configuration checks,
+lock release during unwinding, range reconstruction, `Rune` as `varchar`, message
+domains, lazy logging, composite defaults, variadics and casts, TOAST input to
+set functions, worker SPI after termination, seeded temporal and serialized
+round trips, the installed signature matrix and flat arrays built in place.
+Deliberate differences are documented where users meet them.
 
 ## Datum types
 
@@ -122,14 +124,14 @@ gaps and partials are listed at the end, ranked by importance.
 | fcinfo: test_takes_i16/i32/i64/bool/f32/f64/i8, strings, options, void, tuple | Covered | IT DatumConversionTests ScalarValuesPreservePostgresRepresentation, RealPreservesBitPattern, DoublePreservesBitPattern, NullableContractsPreserveNullAndEmpty, GreetingUsesGeneratedTextConversion; IT SetReturningTests TableColumnsPreserveNamesTypesAndValues |
 | fcinfo: test_takes_char | Added | IT RuneTests RunesRoundTripAsVarchar (`🚨` row) |
 | fcinfo: test_panics | Covered | IT ErrorsExampleTests ErrorsSamplePreservesDiagnosticsAndRecovery |
-| fcinfo: test_same_name | Gap (minor) | No function has a parameter named like itself |
+| fcinfo: test_same_name | Added | IT FunctionDeclarationTests SqlDispatchHonorsDeclarations: `same_name(same_name text)` called by position and by name |
 | fcinfo: test_null_strict_type, test_null_error_type | Covered | IT CustomTextTypeTests CustomTextNullInputOptionsPreserveSqlNull |
 | fcinfo: make_idea_happy, test_add_two_numbers | Rust-specific | A `[PgFunction]` method remains an ordinary static method |
 | default_arg_value: negative, positive and specified defaults | Covered | IT FunctionDeclarationTests SqlDispatchHonorsDeclarations |
 | default_arg_value: test_option_default_argument | Added | IT FunctionDeclarationTests SqlDispatchHonorsDeclarations: `int? = null` and `string? = null`, omitted, supplied and NULL |
 | variadic: test_func_with_variadic_array_args | Covered | IT ArrayDatumTests ParamsArraysDeclareSqlVariadicFunctions |
 | pg_extern: immutable, security invoker/definer, overridden SQL, anyelement, name | Covered | IT FunctionDeclarationTests CatalogRetainsPlannerAndArgumentContracts, SecurityModeControlsPrivilegesAndRestoresContext; IT SqlGenerationTests; IT PolymorphicTests; IT PlannerSupportTests |
-| pg_extern: test_create_or_replace | Partial | Re-applying a definition is covered (GeneratedReplacementPreservesDependentObjects); replacing a different earlier definition within one install is not |
+| pg_extern: test_create_or_replace | Added | IT FunctionDeclarationTests SqlDispatchHonorsDeclarations: a `CreateOrReplace` function replaces a SQL function that installation SQL created earlier, and another creates a new function; re-applying a definition: GeneratedReplacementPreservesDependentObjects |
 
 ## SPI, sets, tuples, relations and lists
 
@@ -188,21 +190,21 @@ gaps and partials are listed at the end, ranked by importance.
 | pgrx test | Status | Ankus evidence |
 | --- | --- | --- |
 | array_tests: enum, int, bigint, bool, NULL counting, optional and defaulted arrays, deny-null iteration | Covered | IT EnumDatumTests EnumOwnershipPathsPreserveIdentity; IT ArrayExampleTests; IT ArrayDatumTests ArraysPreserveBinaryValuesAcrossOwners, LossyArrayConversionsRaiseManagedErrors |
-| array_tests and array_borrowed: *_overflow (one million elements) | Partial | Mid-iteration failure is covered (IT ArrayJsonTests AnyArrayJsonIterationRejectsNullAndRecovers); a one-million-element input with checked overflow is not |
+| array_tests and array_borrowed: *_overflow (one million elements) | Added | IT ArrayDatumTests MillionElementOverflowFailsAndRecovers: a checked sum over one million copied or borrowed elements fails with the managed overflow and the same backend then sums 65,535 elements; mid-iteration failure: IT ArrayJsonTests AnyArrayJsonIterationRejectsNullAndRecovers |
 | array JSON serialization (empty, all NULL, Unicode, large, i32, date, timestamp, json, deny-null) | Covered | IT JsonExampleTests JsonTextSamplePreservesCells, JsonTextSamplePreservesEveryLargeCaseValue; IT ArrayJsonTests ArrayJsonPreservesExactUpstreamValues, RequiredArrayJsonRejectsNullCellsAndRecovers |
 | text array returns, zero-length results, slices passed to SPI, data pointers, ranks, copies | Covered | IT ArrayExampleTests; IT ArrayDatumTests VectorsAndDotnetElementsUseExactConversions, ShapeAndIndexingMatchPostgresSubscripts; IT BorrowedArrayTests; IT BorrowedArraySliceTests |
-| test_display_get_arr_nullbitmap (owned and borrowed) | Partial | `HasNulls` and per-cell NULLs are covered; the raw bitmap is not exposed |
+| test_display_get_arr_nullbitmap (owned and borrowed) | Added | `PgArrayView.DangerousGetNullBitmap` and the typed view borrow the bitmap (IT BorrowedArrayCallbackTests BorrowedArraysExposeTheirNullBitmap, including two bitmap bytes and two dimensions); `HasNulls` and per-cell NULLs are covered elsewhere |
 | cstring arrays, numeric slices, slices with NULL, point arrays, text arrays and iterators | Covered | IT CStringTests CStringArraysPreserveShapeAndCellBytes; IT BorrowedArraySliceTests BorrowedArraySlicesRejectAndRecover; IT GeometryDatumTests; IT BorrowedArrayTests BorrowedArrayIteratorsAdvanceIndependently |
-| array_borrowed: read_array_back, error_cases | Partial | No API allocates and mutates a native array in a memory context; shape limits are covered (RT PgArrayTests ShapeValidationRejectsOnlyInvalidBoundsAndCounts) but an over-size array is not |
-| array_borrowed: borrow_test_count_true | Partial | Raw borrowed bool cells are covered; a typed `PgArrayView<bool>` read is not |
+| array_borrowed: read_array_back, error_cases | Added | `PgMemoryContext.CreateFlatArray<T>` is the counterpart of `FlatArray::new_zeroed_in`: IT TypedArrayCallbackTests FlatArraysBuildInPlaceAndReturn fills, reads back and returns flat arrays of every fixed-size element type, two dimensions and lower bounds; RT PgFlatArrayTests LimitsAreCheckedBeforeAllocation rejects too many elements, a zero-length dimension, too many bytes and too many dimensions before allocating |
+| array_borrowed: borrow_test_count_true | Added | IT TypedArrayCallbackTests GeneratedTypedArraysEnforceNullCellContracts counts true cells through a generated `PgArrayView<bool>` argument |
 | anyarray, anyelement and anynumeric arguments | Covered | IT PolymorphicTests ArrayCopiesAndBuiltinCallsPreserveValues, ScalarValuesPreserveResolvedTypes; IT ArrayJsonTests AnyArrayJsonIterationPreservesNativeWords; IT NumericTests |
 | zero_datum_edge_cases (zero and false are values, not NULL) | Covered | IT BorrowedArrayTests BorrowedArrayCellsShareNativeStorage; IT DatumConversionTests; IT SpiRawTests CopySurvivesDisposalAndExpiresWithDestination. The pair-of-booleans datum array is Rust-specific. |
 | borrow_datum (eight `BorrowDatum` clones) | Rust-specific | Values are passed by copy; the same values are covered by IT DatumConversionTests and IT CStringTests |
-| from_into_datum: test_incompatible_datum_returns_error | Partial | Type mismatches are rejected (IT SpiRawTests ManagedConversionsAndErrorsRecover); the message text is not asserted |
+| from_into_datum: test_incompatible_datum_returns_error | Added | IT SpiRawTests ManagedConversionsAndErrorsRecover reads a boolean datum as `string` and asserts the message naming both types |
 | from_into_datum: test_cstring_roundtrip, null_string_is_none | Covered | IT CStringTests; IT SpiRawTests; IT BorrowedBufferTests |
 | roundtrip_tests: scalars, geometry, numeric, temporal, uuid, complex and their arrays | Covered | IT DatumConversionTests; IT TransactionIdTests; IT GeometryDatumTests; IT NumericTests; IT TemporalDatumTests; IT ExtendedDatumTests; IT DatumMappingTests MappedFixedStoragePreservesEveryComponentAndOwner; IT MappedArrayTests; IT ArrayDatumTests |
 | roundtrip_tests: test_rt_char_0 to _7, test_rt_array_char | Different | The values pass (IT RuneTests RunesRoundTripAsVarchar, RunesSurviveEverySpiPath); text that is not one scalar value fails (TextThatIsNotOneScalarValueIsRejected) where pgrx takes the first character. Documented in the text guide. |
-| roundtrip_tests: test_rt_random_data, test_rt_array_random_data | Partial | Serialized types are covered (IT SerializedTypeTests); unsigned 64-bit and date-list members and large payloads are not |
+| roundtrip_tests: test_rt_random_data, test_rt_array_random_data | Added | IT SerializedTypeTests SeededRandomDataSurvivesStorageArraysAndExchange: seeded `RandomData(ulong, string, List<DateOnly>)` with up to 1,000 characters and dates, stored in a table, compressed, in arrays with a NULL element and through every exchange path; FrameworkValueMembersKeepTheirText covers `ulong.MaxValue` and the date bounds |
 
 ## Errors, logging, configuration, memory and workers
 
@@ -212,7 +214,7 @@ gaps and partials are listed at the end, ranked by importance.
 | --- | --- | --- |
 | test_we_dont_blow_out_errdata_stack_size | Covered | IT PgDiagnosticTests RepeatedFailuresReleaseDiagnosticContexts (1,000 caught errors) |
 | test_panic_in_extern_c_fn, test_pg_try_execute_with_crash, _crash_ignore, _crash_rethrow | Added | IT NativeFieldCallbackTests NativeFieldCallbackErrorsUnwindAndRecover (an ordinary exception from a callback PostgreSQL invokes becomes 38000 with its message) and OrdinaryCallbackExceptionsCanBeCaughtAcrossTheNativeFrame (caught from a subtransaction, then SPI continues) |
-| test_postgres_error_contains_backtrace, test_postgres_error_runs_drop_and_has_backtrace | Partial | Cleanup during a backend error is covered (IT NativeFieldCallbackTests; IT UnrecoveredErrorTests RawErrorsRequireRollback); the managed stack trace of a backend-raised `PgException` is not asserted |
+| test_postgres_error_contains_backtrace, test_postgres_error_runs_drop_and_has_backtrace | Added | IT PgDiagnosticTests BackendErrorsCarryTheirManagedStackTrace (a caught backend ERROR's stack trace names the failing backend call and the catching method); cleanup during a backend error: IT NativeFieldCallbackTests, IT UnrecoveredErrorTests RawErrorsRequireRollback |
 | pg_try builder success, error, rethrow, ignore and finally cases | Covered | IT TryCatchExampleTests TryCatchSampleRecoversFromBackendErrors, TryCatchSampleTrapsManagedExceptions, TryCatchSampleRethrowsSelectedErrors; IT PgLogTests ErrorUnwindsAndRemainsCatchable |
 | test_pg_try_throw_different_error, test_pg_try_finally_with_catch_rethrow, test_drop variants | Rust-specific | C# `try`, `catch`, `finally` and `using`; replacing a caught backend error keeps the original (IT UnrecoveredErrorTests) |
 | test_drop_with_panic_no_catch | Covered | IT BadIdeasExampleTests BadIdeasSampleConvertsManagedFailuresToErrors |
@@ -239,16 +241,16 @@ gaps and partials are listed at the end, ranked by importance.
 | pgrx test | Status | Ankus evidence |
 | --- | --- | --- |
 | memcxt: test_leak_and_drop, _with_panic, switch_to_should_switch_back_on_panic, highly_aligned_type | Covered | IT MemoryAllocationTests; IT MemoryCallbackTests; IT MemoryContextTests NestedScopesRestoreAfterFailureAndAllowDeletionRetry |
-| memcxt: parent | Partial | The top context's missing parent is covered in the backend; `Current.Parent` only against a fixture |
+| memcxt: parent | Added | IT MemoryContextTests: in the backend the top context has no parent and the current context has one |
 | memcxt: owned-context drops and allocator tests | Rust-specific | Scoped `Run`; Rust's `allocator_api` |
 | shmem: lock with elog, release on drop, spinlock | Covered | IT ToolCommandSharedMemoryTests SharedMemoryLocksPreserveValuesAcrossBackendsAndFailures; RT PgLwLockTests; IT ToolCommandSpinLockTests |
 | shmem: test_lock_is_released_on_unwind | Added | IT ToolCommandSharedMemoryTests (`shared_unwind`: a guard released by managed unwinding without a transaction abort, observed from a second backend) |
 | bgworker: untracked worker, transaction return, slot exhaustion | Covered | IT ToolCommandBackgroundWorkerTests BackgroundWorkersRegisterAndShareState; IT ToolCommandWorkerConnectionTests |
 | bgworker: test_dynamic_bgworker | Added | IT ToolCommandBackgroundWorkerTests BackgroundWorkersRegisterAndShareState: after termination ends the wait loop, the worker commits an update the launching backend reads |
-| bgworker: untracked termination handle | Partial | Terminate-then-wait on an untracked worker is checked only against a fixture |
+| bgworker: untracked termination handle | Added | IT ToolCommandBackgroundWorkerTests: waiting on an untracked worker after termination reports Untracked, and the worker stops |
 | xact_callback, xid64 | Covered | IT TransactionCallbackTests RollbackRunsAbortAndClearsCommitRegistrations; IT TransactionIdTests |
 | internal: get-or-insert | Covered | IT InternalTests InternalFunctionStateSurvivesCallbacksAndReleasesAtQueryEnd |
-| internal: internal_insert | Partial | A value-type payload is not asserted |
+| internal: internal_insert | Added | IT InternalTests InternalValuePayloadsKeepTheirExactType: `int` payloads read back by value and a read as `long` is rejected; Ankus state is immutable, so a second value is new state rather than an in-place insert |
 
 ## Types, triggers, schemas, aggregates and declarations
 
@@ -258,29 +260,27 @@ gaps and partials are listed at the end, ranked by importance.
 | postgres_type: test_my_enum_type | Different | A raw-layout root enum is rejected (ANKUS436); enums are allowed as fields |
 | postgres_type: test_call_with_null, test_call_with_enum_null | Added | IT CustomTextTypeTests NullableCustomTextParametersReceiveSqlNull: the methods run on NULL for a custom-text record and enum, and neither function is strict |
 | trigger tests | Covered | IT TriggerTests; IT TriggerLifecycleTests; IT SqlGenerationTests CustomSqlTriggerFunctionsExecuteAndRecover; GT PgTriggerGenerationTests |
-| trigger: before_insert_metadata_safe | Partial | Trigger metadata is covered; opening the relation from `RelationOid` inside a trigger is not |
+| trigger: before_insert_metadata_safe | Added | IT TriggerTests TriggersOpenTheirRelationFromItsOid; other metadata: IT TriggerTests |
 | schema tests | Covered | IT SchemasExampleTests; IT FunctionDeclarationTests; IT TypedArrayCallbackTests; GT SqlGenerationGeneratorTests; IT SqlGenerationTests; IT DeclarationSqlTests |
 | aggregate: sum, moving window, shared implementation, percentile, anyelement | Covered | IT AggregateTests; IT SharedTypedAggregateTests; IT AggregatePercentileSampleTests; IT PolymorphicAggregateTests |
-| aggregate: aggregate_demo_custom_state | Partial | Same-schema custom-type state and cross-schema composite state are covered; a custom type from another schema is not |
+| aggregate: aggregate_demo_custom_state | Added | IT AggregateTests CustomStateFromAnotherSchemaSums: the state is `custom_values.number` for an aggregate in `aggregate_values`; same-schema custom state and cross-schema composite state are covered elsewhere |
 | aggregate: aggregate_first_json, aggregate_first_jsonb | Added | IT AggregateTests JsonStatesKeepTheFirstValue (state type, strict, immutable and parallel-safe transition in the catalog) |
 | type_ident tests | Rust-specific | Compiler type identity; GT ManagedTypeIdentityTests, PgFunctionGeneratorTests, PgEnumGenerationTests |
 | pg_cast: explicit, assignment and implicit casts and catalog flags | Covered | IT OperatorCastTests |
 | pg_cast: assert_composite_cast_exists | Added | IT CompositeDatumTests CompositeDefaultsVariadicsAndCastsExecute installs and runs an explicit function cast between two composite types, including strict NULL |
 | struct_type and complex tests | Covered | IT DatumMappingTests MappedFixedStoragePreservesEveryComponentAndOwner |
 | postgres_type_variants_smoke | Covered | IT TypeVariantsExampleTests |
-| sql_translatable_signature: nested arrays | Partial | The return diagnostic is asserted (ANKUS039); the argument-only case is not |
-| sql_translatable_signature: signature matrix | Partial | Checked at generator level; installed catalog signatures are not read back |
-| proptests (eight temporal round trips) | Partial | Boundary values on every path are covered; seeded random generation is not |
+| sql_translatable_signature: nested arrays | Added | GT PgFunctionGeneratorTests UnsupportedSignaturesAreRejected: ANKUS039 for a nested result and ANKUS040 for nested vector and `PgArray` arguments |
+| sql_translatable_signature: signature matrix | Added | IT SignatureMatrixTests InstalledSignaturesMatchTheTypeMatrix reads 38 installed identity, set and table signatures back from `pg_proc` |
+| proptests (eight temporal round trips) | Added | IT TemporalDatumTests SeededTemporalValuesRoundTripExactly: 256 seeded values per type, half saturated or wrapped across the raw range as pgrx does, through seven exchange paths and a text literal, checked against the `*_send` bytes |
 | operator, pgbox, oid, enum, attribute, name, long-name tests | Covered | IT OperatorCastTests; IT CompositeDatumTests; IT NativeBoxTests; IT OidTests; IT EnumDatumTests; IT ToolCommandBackendTests; IT SchemasExampleTests; GT PgBackendTestDeclarationTests |
-| composite_type: test_array_of_composite_type | Partial | Arrays of composites from SQL are covered; setting such a field in code is not |
-| cfg_tests | Partial | Backend-test exports and compile constants are covered; a test-only compile symbol is not |
-| bindings_of_inline_fn | Partial | The value is checked in managed code; the generated `itemptr_encode` binding is not called in the backend |
-| pgrx_module_qualification | Partial | Generated code uses `global::` names; there is no whole-surface shadowing compile test |
+| composite_type: test_array_of_composite_type | Added | IT CompositeDatumTests CompositeDefaultsVariadicsAndCastsExecute sets a composite field and an array-of-composite field with a NULL row in code |
+| cfg_tests | Added | Test publications define `ANKUS_TESTS` and benchmark publications `ANKUS_BENCHMARKS` (BT SdkPostgresSelectionTests TestAndBenchmarkPublicationsDefineTheirSymbols); IT ToolCommandBackendTests calls a function compiled only under `#if ANKUS_TESTS` from a backend test, beside code under an undefined symbol that names a missing type |
+| bindings_of_inline_fn | Added | IT ItemPointerTests InlineItemPointerBindingRunsInTheBackend calls the generated binding of the static inline `itemptr_encode` in the backend and compares it with `PgItemPointer.ToIndexKey` |
+| pgrx_module_qualification | Added | GT PgFunctionGeneratorTests DeclarationsCompileBesideShadowingTypeNames: every declaration kind compiles beside types named `System`, `Ankus`, `Spi`, `Exception` and other names generated code uses |
 | pg_guard, lifetime and derive_pgtype_lifetimes (compile-only) | Rust-specific | Callback boundaries (GT NativeCallbackGeneratorTests) and borrowed views (IT BorrowedBufferTests, BorrowedBufferResultTests, CStringResultTests) |
 | issue1134 | Covered | IT AggregateOrderingTests HypotheticalRankMatchesNativeMultipleKeysAndNullRows |
 
 ## Remaining gaps and partials
 
-Ranked by importance. Deliberate differences are documented where users meet them.
-
-1. Smaller cases: the managed stack trace of a backend error, value-type `PgInternal` payloads, conversion-mismatch messages, raw array bitmaps, an over-size array, serialized `ulong` and date-list members, the installed signature matrix, seeded temporal round trips, the `itemptr_encode` binding in the backend, a whole-surface shadowing compile test, a test-only compile symbol and a parameter named like its function.
+None. Every case is covered, added, a documented difference or Rust-specific.

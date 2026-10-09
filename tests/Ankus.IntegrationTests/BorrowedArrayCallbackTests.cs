@@ -40,6 +40,22 @@ public sealed partial class BorrowedArrayTests
     }
 
     /// <summary>
+    /// The borrowed SQL NULL bitmap matches pgrx's <c>test_display_get_arr_nullbitmap</c> through both array views.
+    /// </summary>
+    /// <param name="array">The input array.</param>
+    /// <param name="expected">Each bitmap byte in binary for the untyped and typed views.</param>
+    [TestMethod]
+    [DataRow("ARRAY[1,NULL,3,NULL,5]", "0b00010101|0b00010101")]
+    [DataRow("ARRAY[1,2,3,4,5]", "|")]
+    [DataRow("ARRAY[NULL,2,3,4,5,6,7,8,9]", "0b11111110,0b00000001|0b11111110,0b00000001")]
+    [DataRow("'{{1,NULL},{NULL,4}}'::integer[]", "0b00001001|0b00001001")]
+    public async Task BorrowedArraysExposeTheirNullBitmap(string array, string expected)
+    {
+        await using NpgsqlConnection connection = await PostgresFixture.Cluster.OpenConnectionAsync(context.CancellationToken);
+        Assert.AreEqual(expected, await Scalar<string>(connection, $"SELECT borrowed_arrays.array_view_null_bitmap({array})"));
+    }
+
+    /// <summary>
     /// Later and nested callbacks cannot revive expired inputs, and forgotten cursors are automatically released.
     /// </summary>
     [TestMethod]
