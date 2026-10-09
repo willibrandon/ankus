@@ -303,7 +303,12 @@ public sealed partial class ToolCommandTests
     public async Task TestCommandPreservesRunnerExitAndCleansAbandonedCluster(bool customData)
     {
         CancellationToken token = context.CancellationToken;
-        string output = await CreateTestCommandProjectAsync(token);
+        // Both storage partitions run the same host; the second reuses the first's build.
+        string host = TestCommandHostDirectory("", "Debug");
+        using ReusableProjectLease lease = await AcquireReusableProjectAsync("abandoned cluster", CreateAbandonedClusterProjectAsync,
+            [Path.Combine(host, "abandoned-data.txt"), Path.Combine(host, "abandoned-pid.txt"), Path.Combine(host, "abandoned-session.txt"),
+                Path.Combine(host, "retained logs"), "abandoned reports", "sibling logs"], token);
+        string output = lease.Directory;
         string? dataBase = customData ? CreateCustomDataBase() : null;
         string[] dataArguments = dataBase is null ? [] : ["--pgdata", dataBase];
         await using PostgresTestCluster? sibling = dataBase is null ? null : await PostgresTestCluster.StartAsync(new PostgresTestClusterOptions
@@ -313,33 +318,6 @@ public sealed partial class ToolCommandTests
             LogDirectory = Path.Combine(output, "sibling logs"),
         }, token);
         string hostRoot = Path.Combine(output, "tests", "TestCommandProbe.Tests");
-        await File.WriteAllTextAsync(Path.Combine(hostRoot, "AbandonedTests.cs"), """
-            using Ankus.PgConfig;
-            using Ankus.Testing;
-            using Microsoft.VisualStudio.TestTools.UnitTesting;
-            namespace TestCommandProbe.Tests;
-            [TestClass]
-            public sealed class AbandonedTests(TestContext context)
-            {
-                [TestMethod]
-                public async Task AbandonsCluster()
-                {
-                    Assert.AreEqual("Debug", typeof(AbandonedTests).Assembly.GetCustomAttributes(typeof(System.Reflection.AssemblyConfigurationAttribute), false)
-                        .Cast<System.Reflection.AssemblyConfigurationAttribute>().Single().Configuration);
-                    PostgresInstallation installation = await PostgresInstallation.CreateAsync(Environment.GetEnvironmentVariable("ANKUS_TEST_PG_CONFIG")!, context.CancellationToken);
-                    PostgresTestCluster cluster = await PostgresTestCluster.StartAsync(new PostgresTestClusterOptions
-                    {
-                        Installation = installation,
-                        LogDirectory = "retained logs",
-                    }, context.CancellationToken);
-                    await File.WriteAllTextAsync("abandoned-data.txt", cluster.DataDirectory, context.CancellationToken);
-                    await File.WriteAllTextAsync("abandoned-pid.txt", (await File.ReadAllLinesAsync(Path.Combine(cluster.DataDirectory, "postmaster.pid"), context.CancellationToken))[0], context.CancellationToken);
-                    await File.WriteAllTextAsync("abandoned-session.txt", Environment.GetEnvironmentVariable("ANKUS_TEST_SESSION_DIRECTORY")!, context.CancellationToken);
-                    // Abrupt termination bypasses the cluster's normal ProcessExit cleanup.
-                    System.Diagnostics.Process.GetCurrentProcess().Kill();
-                }
-            }
-            """, token);
         string reports = Path.Combine(output, "abandoned reports");
         ProcessResult result = await PackageProcessRunner.RunAsync(s_tool,
             ["test", "--home", s_home, "--all", .. dataArguments, "--results-directory", reports, "--", "--filter", "FullyQualifiedName~AbandonsCluster"],
@@ -368,6 +346,46 @@ public sealed partial class ToolCommandTests
     }
 
     /// <summary>
+    /// Generates the selection probe with a host test that abandons its cluster by terminating the host abruptly.
+    /// </summary>
+    /// <param name="parent">The class-owned directory that receives the solution.</param>
+    /// <param name="token">Cancels generation and writes.</param>
+    /// <returns>The generated solution directory.</returns>
+    private static async Task<string> CreateAbandonedClusterProjectAsync(string parent, CancellationToken token)
+    {
+        string output = await CreateTestCommandProjectAsync(parent, token);
+        string hostRoot = Path.Combine(output, "tests", "TestCommandProbe.Tests");
+        await File.WriteAllTextAsync(Path.Combine(hostRoot, "AbandonedTests.cs"), """
+            using Ankus.PgConfig;
+            using Ankus.Testing;
+            using Microsoft.VisualStudio.TestTools.UnitTesting;
+            namespace TestCommandProbe.Tests;
+            [TestClass]
+            public sealed class AbandonedTests(TestContext context)
+            {
+                [TestMethod]
+                public async Task AbandonsCluster()
+                {
+                    Assert.AreEqual("Debug", typeof(AbandonedTests).Assembly.GetCustomAttributes(typeof(System.Reflection.AssemblyConfigurationAttribute), false)
+                        .Cast<System.Reflection.AssemblyConfigurationAttribute>().Single().Configuration);
+                    PostgresInstallation installation = await PostgresInstallation.CreateAsync(Environment.GetEnvironmentVariable("ANKUS_TEST_PG_CONFIG")!, context.CancellationToken);
+                    PostgresTestCluster cluster = await PostgresTestCluster.StartAsync(new PostgresTestClusterOptions
+                    {
+                        Installation = installation,
+                        LogDirectory = "retained logs",
+                    }, context.CancellationToken);
+                    await File.WriteAllTextAsync("abandoned-data.txt", cluster.DataDirectory, context.CancellationToken);
+                    await File.WriteAllTextAsync("abandoned-pid.txt", (await File.ReadAllLinesAsync(Path.Combine(cluster.DataDirectory, "postmaster.pid"), context.CancellationToken))[0], context.CancellationToken);
+                    await File.WriteAllTextAsync("abandoned-session.txt", Environment.GetEnvironmentVariable("ANKUS_TEST_SESSION_DIRECTORY")!, context.CancellationToken);
+                    // Abrupt termination bypasses the cluster's normal ProcessExit cleanup.
+                    System.Diagnostics.Process.GetCurrentProcess().Kill();
+                }
+            }
+            """, token);
+        return output;
+    }
+
+    /// <summary>
     /// Terminating the owning command stops its active host and PostgreSQL server before removing session storage.
     /// </summary>
     /// <param name="customData">Whether command-owned cluster data lives beneath a custom parent.</param>
@@ -378,31 +396,12 @@ public sealed partial class ToolCommandTests
     public async Task TestCommandCancellationStopsCluster(bool customData)
     {
         CancellationToken token = context.CancellationToken;
-        string output = await CreateTestCommandProjectAsync(token);
-        await File.WriteAllTextAsync(Path.Combine(output, "tests", "TestCommandProbe.Tests", "CancellationTests.cs"), """
-            using Ankus.PgConfig;
-            using Ankus.Testing;
-            using Microsoft.VisualStudio.TestTools.UnitTesting;
-            namespace TestCommandProbe.Tests;
-            [TestClass]
-            public sealed class CancellationTests(TestContext context)
-            {
-                [TestMethod]
-                public async Task WaitsForCommandCancellation()
-                {
-                    PostgresInstallation installation = await PostgresInstallation.CreateAsync(Environment.GetEnvironmentVariable("ANKUS_TEST_PG_CONFIG")!, context.CancellationToken);
-                    await using PostgresTestCluster cluster = await PostgresTestCluster.StartAsync(new PostgresTestClusterOptions
-                    {
-                        Installation = installation,
-                        LogDirectory = "retained logs",
-                    }, context.CancellationToken);
-                    string serverId = (await File.ReadAllLinesAsync(Path.Combine(cluster.DataDirectory, "postmaster.pid"), context.CancellationToken))[0];
-                    await File.WriteAllLinesAsync("cancellation-pending.txt", [Environment.GetEnvironmentVariable("ANKUS_TEST_SESSION_DIRECTORY")!, serverId, cluster.DataDirectory, Environment.GetEnvironmentVariable("ANKUS_TEST_DATA_DIRECTORY")!], context.CancellationToken);
-                    File.Move("cancellation-pending.txt", "cancellation-ready.txt");
-                    await Task.Delay(Timeout.InfiniteTimeSpan, context.CancellationToken);
-                }
-            }
-            """, token);
+        // Both storage partitions run the same host; the second reuses the first's build.
+        string host = TestCommandHostDirectory("", "Debug");
+        using ReusableProjectLease lease = await AcquireReusableProjectAsync("command cancellation", CreateCancellationProjectAsync,
+            [Path.Combine(host, "cancellation-pending.txt"), Path.Combine(host, "cancellation-ready.txt"), Path.Combine(host, "retained logs")],
+            token);
+        string output = lease.Directory;
         string? dataBase = customData ? CreateCustomDataBase() : null;
         string[] dataArguments = dataBase is null ? [] : ["--pgdata", dataBase];
         using var process = new Process
@@ -506,6 +505,42 @@ public sealed partial class ToolCommandTests
         }
     }
 
+    /// <summary>
+    /// Generates the selection probe with a host test that waits for its owning command to be cancelled.
+    /// </summary>
+    /// <param name="parent">The class-owned directory that receives the solution.</param>
+    /// <param name="token">Cancels generation and writes.</param>
+    /// <returns>The generated solution directory.</returns>
+    private static async Task<string> CreateCancellationProjectAsync(string parent, CancellationToken token)
+    {
+        string output = await CreateTestCommandProjectAsync(parent, token);
+        await File.WriteAllTextAsync(Path.Combine(output, "tests", "TestCommandProbe.Tests", "CancellationTests.cs"), """
+            using Ankus.PgConfig;
+            using Ankus.Testing;
+            using Microsoft.VisualStudio.TestTools.UnitTesting;
+            namespace TestCommandProbe.Tests;
+            [TestClass]
+            public sealed class CancellationTests(TestContext context)
+            {
+                [TestMethod]
+                public async Task WaitsForCommandCancellation()
+                {
+                    PostgresInstallation installation = await PostgresInstallation.CreateAsync(Environment.GetEnvironmentVariable("ANKUS_TEST_PG_CONFIG")!, context.CancellationToken);
+                    await using PostgresTestCluster cluster = await PostgresTestCluster.StartAsync(new PostgresTestClusterOptions
+                    {
+                        Installation = installation,
+                        LogDirectory = "retained logs",
+                    }, context.CancellationToken);
+                    string serverId = (await File.ReadAllLinesAsync(Path.Combine(cluster.DataDirectory, "postmaster.pid"), context.CancellationToken))[0];
+                    await File.WriteAllLinesAsync("cancellation-pending.txt", [Environment.GetEnvironmentVariable("ANKUS_TEST_SESSION_DIRECTORY")!, serverId, cluster.DataDirectory, Environment.GetEnvironmentVariable("ANKUS_TEST_DATA_DIRECTORY")!], context.CancellationToken);
+                    File.Move("cancellation-pending.txt", "cancellation-ready.txt");
+                    await Task.Delay(Timeout.InfiniteTimeSpan, context.CancellationToken);
+                }
+            }
+            """, token);
+        return output;
+    }
+
     private static void AssertServerExited(int processId)
     {
         try
@@ -535,9 +570,18 @@ public sealed partial class ToolCommandTests
     private static string TestCommandHostDirectory(string project, string configuration)
         => Path.Combine(project, "tests", "TestCommandProbe.Tests", "bin", configuration, "net10.0");
 
-    private async Task<string> CreateTestCommandProjectAsync(CancellationToken token)
+    private Task<string> CreateTestCommandProjectAsync(CancellationToken token)
+        => CreateTestCommandProjectAsync(CreateDirectory(), token);
+
+    /// <summary>
+    /// Generates the selection probe beneath a case-owned or class-owned directory.
+    /// </summary>
+    /// <param name="parent">The directory that receives the generated solution.</param>
+    /// <param name="token">Cancels generation and writes.</param>
+    /// <returns>The generated solution directory.</returns>
+    private static async Task<string> CreateTestCommandProjectAsync(string parent, CancellationToken token)
     {
-        string output = Path.Combine(CreateDirectory(), "test command project");
+        string output = Path.Combine(parent, "test command project");
         (await InvokeAsync(["new", "TestCommandProbe", "-o", output], token)).EnsureSuccess(s_tool, ["new"]);
         string buildFile = Path.Combine(output, "Directory.Build.props");
         XDocument build = XDocument.Load(buildFile);

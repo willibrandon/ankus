@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Ankus.PgConfig;
 using Ankus.Testing;
 using Npgsql;
@@ -51,6 +52,13 @@ public sealed partial class ToolCommandTests
         byte[] originalSql = await File.ReadAllBytesAsync(setup, token);
         byte[] originalExpected = await File.ReadAllBytesAsync(setupOutput, token);
         await WriteRegressionCaseAsync(suite, "addition", "SELECT add(17, 25);", "42\n", token);
+        // The tool and installed template generate byte-identical solutions, so each distinct tree is built once.
+        // Every case installs that publication into its own staged server and runs its own regression lifecycle.
+        string relativeProject = Path.GetRelativePath(output, project);
+        SharedOutput build = await GetSharedOutputAsync(ContentKey(output, "ankus", "build", relativeProject),
+            shared => BuildSharedExtensionAsync(CopySharedSnapshot(output), relativeProject, shared), token);
+        CopyFiles(build.Directory, Path.Combine(Path.GetDirectoryName(project)!, "bin", "ankus", s_postgresKey,
+            RuntimeInformation.RuntimeIdentifier, "Release"));
 
         await using PostgresTestInstallation owner = await PostgresTestInstallation.StageAsync(s_installation, CreateDirectory(), token);
         string home = CreateDirectory();
@@ -61,7 +69,7 @@ public sealed partial class ToolCommandTests
         string[] options = RegressionOptions(owner.Installation, home, project, port);
         try
         {
-            ProcessResult initial = await InvokeAsync(options, token);
+            ProcessResult initial = await InvokeAsync([.. options, "--no-build"], token);
             Assert.AreEqual(0, initial.ExitCode, initial.StandardOutput + initial.StandardError);
             Assert.Contains("Created database " + expectedName + "_regress", initial.StandardOutput);
             Assert.Contains("Selected 2 tests; skipped 0.", initial.StandardOutput);
@@ -88,5 +96,24 @@ public sealed partial class ToolCommandTests
         {
             await cluster.StopAsync(CancellationToken.None);
         }
+    }
+
+    /// <summary>
+    /// Builds a generated extension through the installed tool in class-owned storage.
+    /// </summary>
+    /// <param name="solution">The class-owned copy of the generated solution.</param>
+    /// <param name="relativeProject">The extension project beneath the solution.</param>
+    /// <param name="token">Cancels the class-owned build.</param>
+    /// <returns>The project's default Release publication and the build result.</returns>
+    private static async Task<SharedOutput> BuildSharedExtensionAsync(string solution, string relativeProject, CancellationToken token)
+    {
+        string project = Path.Combine(solution, relativeProject);
+        string[] arguments = ["build", "--home", s_home, "--pg", MajorText(), "--project", project];
+        ProcessResult result = await PackageProcessRunner.RunAsync(s_tool, arguments, s_environment, token, workingDirectory: s_root);
+        result.EnsureSuccess(s_tool, arguments);
+        string publication = Path.Combine(Path.GetDirectoryName(project)!, "bin", "ankus", s_postgresKey,
+            RuntimeInformation.RuntimeIdentifier, "Release");
+        Assert.AreEqual(s_installation.Version.Major, PublishedExtension.Read(publication).PostgresMajor);
+        return new SharedOutput(publication, result);
     }
 }

@@ -169,7 +169,11 @@ The complete suite also publishes independent installed-package consumers in
 temporary directories. Allow disk space for concurrent native builds. On Linux,
 if `/tmp` is a small RAM-backed filesystem, set `TMPDIR` for the test process to
 a directory on a disk-backed filesystem outside the checkout. Test consumers
-must not inherit repository build files or Git context. Build outputs and NuGet extraction
+must not inherit repository build files or Git context. They are created beside
+the checkout, or beneath `RUNNER_TEMP` when it is set. For a checkout nested in
+another repository, such as a worktree inside the main checkout, set
+`RUNNER_TEMP` to a short directory outside both checkouts; PostgreSQL Unix
+socket paths beneath it must stay within 107 bytes. Build outputs and NuGet extraction
 need that capacity even though the fixture removes its temporary directories
 after the run. A full temporary filesystem is a failed prerequisite, not a
 reason to skip consumer tests.
@@ -181,6 +185,19 @@ terminal-error and recovery checks. The class fixture
 owns the publication until every case finishes; cancellation of one case stops
 that case's wait without interrupting another case's build. Tests of publishing,
 source edits and cold package restore continue to own separate projects.
+
+Other installed-tool cases share work only when their inputs are identical. The
+two extension search-path schemas read one publication and one rejected
+relocatable publication. The tool and the installed template generate
+byte-identical non-worker solutions, so framework-template and regression
+scaffolding cases hash every generated file and run each distinct tree's
+`dotnet test` or `ankus build` once in class-owned storage. Worker templates
+carry distinct shared-memory names and still run separately. Regression cases
+copy the shared publication into their own projects and run with `--no-build`
+against their own servers. Cases whose rows differ only at run time, such as
+fixture storage, abandoned clusters and command cancellation, reuse one generated
+project and rebuild it incrementally; the evidence each run asserts is removed
+before reuse. Build, property-forwarding and diagnostic cases keep fresh projects.
 
 On Windows, the .NET 10 test harness drains each redirected child-process pipe
 on a dedicated reader thread. Those pipes use synchronous handles; reading them

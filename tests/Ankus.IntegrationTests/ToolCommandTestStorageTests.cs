@@ -38,8 +38,51 @@ public sealed partial class ToolCommandTests
     public async Task PackagedExtensionFixtureUsesCustomDataDirectory(bool relative)
     {
         CancellationToken token = context.CancellationToken;
-        string output = await CreateTestCommandProjectAsync(token);
+        // Both path forms run the same host and extension; the second reuses the first's build and publication.
+        string host = TestCommandHostDirectory("", "Debug");
+        using ReusableProjectLease lease = await AcquireReusableProjectAsync("custom fixture storage", CreateStorageProjectAsync,
+            [Path.Combine(host, "direct-storage.txt"), "direct reports", Path.Combine("src", "TestCommandProbe", "bin", "ankus-test-logs")],
+            token);
+        string output = lease.Directory;
         string dataBase = CreateCustomDataBase();
+        string hostRoot = Path.Combine(output, "tests", "TestCommandProbe.Tests");
+        string execution = TestCommandHostDirectory(output, "Debug");
+        var environment = new Dictionary<string, string?>(s_environment)
+        {
+            ["TEST_DATA_PARENT"] = relative ? Path.GetRelativePath(execution, dataBase) : dataBase,
+            ["ANKUS_TEST_PG_CONFIG"] = s_installation.PgConfigPath,
+            ["ANKUS_TEST_POSTGRES_MAJOR"] = null,
+            ["ANKUS_TEST_SESSION_DIRECTORY"] = null,
+            ["ANKUS_TEST_DATA_DIRECTORY"] = null,
+        };
+        string reports = Path.Combine(output, "direct reports");
+        ProcessResult result = await PackageProcessRunner.RunAsync("dotnet",
+            ["test", "--project", Path.Combine(hostRoot, "TestCommandProbe.Tests.csproj"),
+                "-p:AnkusPostgresMajor=" + MajorText(), "-p:AnkusPgConfigPath=" + s_installation.PgConfigPath,
+                "--filter", "FullyQualifiedName~DirectFixtureUsesSelectedStorage", "--report-trx", "--report-trx-filename", "storage.trx", "--results-directory", reports],
+            environment, token, workingDirectory: output);
+        Assert.AreEqual(0, result.ExitCode, result.StandardOutput + result.StandardError);
+        XNamespace ns = "http://microsoft.com/schemas/VisualStudio/TeamTest/2010";
+        XElement outcome = Assert.ContainsSingle(XDocument.Load(Path.Combine(reports, "storage.trx")).Descendants(ns + "UnitTestResult"));
+        Assert.AreEqual("DirectFixtureUsesSelectedStorage", outcome.Attribute("testName")!.Value);
+        Assert.AreEqual("Passed", outcome.Attribute("outcome")!.Value);
+        string[] evidence = await File.ReadAllLinesAsync(Path.Combine(execution, "direct-storage.txt"), token);
+        Assert.IsFalse(Directory.Exists(evidence[0]));
+        AssertServerExited(int.Parse(evidence[1], CultureInfo.InvariantCulture));
+        Assert.IsEmpty(Directory.GetDirectories(dataBase));
+        Assert.AreEqual("preserve custom parent", await File.ReadAllTextAsync(Path.Combine(dataBase, "unrelated.txt"), token));
+        Assert.IsNotEmpty(Directory.GetFiles(Path.Combine(output, "src", "TestCommandProbe", "bin", "ankus-test-logs"), "*.log"));
+    }
+
+    /// <summary>
+    /// Generates the selection probe with a fixture whose data parent comes from the host's environment.
+    /// </summary>
+    /// <param name="parent">The class-owned directory that receives the solution.</param>
+    /// <param name="token">Cancels generation and writes.</param>
+    /// <returns>The generated solution directory.</returns>
+    private static async Task<string> CreateStorageProjectAsync(string parent, CancellationToken token)
+    {
+        string output = await CreateTestCommandProjectAsync(parent, token);
         string hostRoot = Path.Combine(output, "tests", "TestCommandProbe.Tests");
         string backendFile = Path.Combine(hostRoot, "BackendTests.cs");
         string backend = await File.ReadAllTextAsync(backendFile, token);
@@ -70,31 +113,6 @@ public sealed partial class ToolCommandTests
                 }
             }
             """, token);
-        string execution = TestCommandHostDirectory(output, "Debug");
-        var environment = new Dictionary<string, string?>(s_environment)
-        {
-            ["TEST_DATA_PARENT"] = relative ? Path.GetRelativePath(execution, dataBase) : dataBase,
-            ["ANKUS_TEST_PG_CONFIG"] = s_installation.PgConfigPath,
-            ["ANKUS_TEST_POSTGRES_MAJOR"] = null,
-            ["ANKUS_TEST_SESSION_DIRECTORY"] = null,
-            ["ANKUS_TEST_DATA_DIRECTORY"] = null,
-        };
-        string reports = Path.Combine(output, "direct reports");
-        ProcessResult result = await PackageProcessRunner.RunAsync("dotnet",
-            ["test", "--project", Path.Combine(hostRoot, "TestCommandProbe.Tests.csproj"),
-                "-p:AnkusPostgresMajor=" + MajorText(), "-p:AnkusPgConfigPath=" + s_installation.PgConfigPath,
-                "--filter", "FullyQualifiedName~DirectFixtureUsesSelectedStorage", "--report-trx", "--report-trx-filename", "storage.trx", "--results-directory", reports],
-            environment, token, workingDirectory: output);
-        Assert.AreEqual(0, result.ExitCode, result.StandardOutput + result.StandardError);
-        XNamespace ns = "http://microsoft.com/schemas/VisualStudio/TeamTest/2010";
-        XElement outcome = Assert.ContainsSingle(XDocument.Load(Path.Combine(reports, "storage.trx")).Descendants(ns + "UnitTestResult"));
-        Assert.AreEqual("DirectFixtureUsesSelectedStorage", outcome.Attribute("testName")!.Value);
-        Assert.AreEqual("Passed", outcome.Attribute("outcome")!.Value);
-        string[] evidence = await File.ReadAllLinesAsync(Path.Combine(execution, "direct-storage.txt"), token);
-        Assert.IsFalse(Directory.Exists(evidence[0]));
-        AssertServerExited(int.Parse(evidence[1], CultureInfo.InvariantCulture));
-        Assert.IsEmpty(Directory.GetDirectories(dataBase));
-        Assert.AreEqual("preserve custom parent", await File.ReadAllTextAsync(Path.Combine(dataBase, "unrelated.txt"), token));
-        Assert.IsNotEmpty(Directory.GetFiles(Path.Combine(output, "src", "TestCommandProbe", "bin", "ankus-test-logs"), "*.log"));
+        return output;
     }
 }

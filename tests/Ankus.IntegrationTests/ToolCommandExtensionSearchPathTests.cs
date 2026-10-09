@@ -18,14 +18,9 @@ public sealed partial class ToolCommandTests
     {
         CancellationToken token = context.CancellationToken;
         string directory = CreateDirectory();
-        string project = await CreateControlProjectAsync(directory, token, "ankus_extension_path");
-        XDocument definition = XDocument.Load(project);
-        definition.Root!.Add(new XElement("PropertyGroup", new XElement("AnkusIncludeTests", true)));
-        definition.Save(project);
-        await File.WriteAllTextAsync(Path.Combine(directory, "Functions.cs"), ExtensionSearchPathSource, token);
-        await File.WriteAllTextAsync(Path.Combine(directory, "author settings.control"), "comment = 'extension search path'", token);
-        string output = Path.Combine(directory, "published");
-        PublishedExtension publication = await PublishControlProbeAsync(project, output, token);
+        SharedOutput shared = await GetSharedPublicationAsync(s_extensionSearchPathPublication, token);
+        string output = shared.Directory;
+        PublishedExtension publication = PublishedExtension.Read(output);
         string library = Path.Combine(output, publication.Library);
         ExtensionSchema schema = ExtensionSchema.Read(library);
         Assert.IsFalse(schema.Relocatable);
@@ -107,11 +102,35 @@ public sealed partial class ToolCommandTests
         Assert.AreEqual(backend, await SqlPackageScalarAsync<int>(connection, "SELECT pg_backend_pid()"));
         await ExecuteSqlPackageAsync(connection, "DROP EXTENSION ankus_extension_path");
         Assert.AreEqual(42, await SqlPackageScalarAsync<int>(connection, $"SELECT answer FROM {quoted}.owned_value"));
-        await File.WriteAllTextAsync(Path.Combine(directory, "author settings.control"), "relocatable = true", token);
-        ProcessResult invalid = await RunDotnetAsync(["publish", project, "-c", "Release", "-r", System.Runtime.InteropServices.RuntimeInformation.RuntimeIdentifier,
+        Assert.AreNotEqual(0, shared.Result.ExitCode);
+        Assert.Contains("Control parameter 'relocatable' cannot be true", shared.Result.StandardOutput + shared.Result.StandardError);
+    }
+
+    /// <summary>
+    /// Publishes the search-path probe once, then proves that the same project rejects a relocatable control file.
+    /// </summary>
+    /// <param name="directory">The class-owned project directory.</param>
+    /// <param name="token">Cancels the fixture's compilation.</param>
+    /// <returns>The immutable publication and the rejected relocatable publication's result.</returns>
+    /// <remarks>
+    /// Both installation-schema cases only read the publication. The rejected publication writes only its own
+    /// output directory, and its diagnostic depends on the project rather than on either case's schema.
+    /// </remarks>
+    private static async Task<SharedOutput> PublishExtensionSearchPathAsync(string directory, CancellationToken token)
+    {
+        string project = await CreateControlProjectAsync(directory, token, "ankus_extension_path");
+        XDocument definition = XDocument.Load(project);
+        definition.Root!.Add(new XElement("PropertyGroup", new XElement("AnkusIncludeTests", true)));
+        definition.Save(project);
+        await File.WriteAllTextAsync(Path.Combine(directory, "Functions.cs"), ExtensionSearchPathSource, token);
+        string control = Path.Combine(directory, "author settings.control");
+        await File.WriteAllTextAsync(control, "comment = 'extension search path'", token);
+        string output = Path.Combine(directory, "published");
+        await PublishControlProbeAsync(project, output, token);
+        await File.WriteAllTextAsync(control, "relocatable = true", token);
+        ProcessResult rejected = await RunDotnetAsync(["publish", project, "-c", "Release", "-r", System.Runtime.InteropServices.RuntimeInformation.RuntimeIdentifier,
             "-o", Path.Combine(directory, "rejected"), "-p:AnkusPostgresMajor=" + MajorText(), "-p:AnkusPgConfigPath=" + s_installation.PgConfigPath], token);
-        Assert.AreNotEqual(0, invalid.ExitCode);
-        Assert.Contains("Control parameter 'relocatable' cannot be true", invalid.StandardOutput + invalid.StandardError);
+        return new SharedOutput(output, rejected);
     }
 
     /// <summary>

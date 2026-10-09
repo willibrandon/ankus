@@ -101,10 +101,14 @@ public sealed partial class ToolCommandTests
             }
             """, token);
         await RestoreConsumerToolAsync(output, environment, token);
-        ProcessResult tests = await PackageProcessRunner.RunAsync("dotnet", ["test", "--report-trx",
-            "-p:AnkusPostgresMajor=" + MajorText()], environment, token, workingDirectory: output);
-        tests.EnsureSuccess("dotnet", ["test"]);
-        XDocument report = XDocument.Load(Directory.GetFiles(output, "*.trx", SearchOption.AllDirectories).Single());
+        // The tool and installed template generate byte-identical non-worker solutions; worker
+        // templates differ in their shared-memory identities. Each distinct tree runs once.
+        string[] test = ["test", "--report-trx", "-p:AnkusPostgresMajor=" + MajorText()];
+        SharedOutput run = await GetSharedOutputAsync(ContentKey(output, ["dotnet", .. test]),
+            shared => TestSharedSolutionAsync(CopySharedSnapshot(output), test, environment, shared), token);
+        string solution = run.Directory;
+        run.Result.EnsureSuccess("dotnet", ["test"]);
+        XDocument report = XDocument.Load(Directory.GetFiles(solution, "*.trx", SearchOption.AllDirectories).Single());
         XNamespace ns = "http://microsoft.com/schemas/VisualStudio/TeamTest/2010";
         XElement counters = report.Descendants(ns + "Counters").Single();
         Assert.AreEqual(worker ? "9" : "8", counters.Attribute("total")!.Value);
@@ -127,9 +131,25 @@ public sealed partial class ToolCommandTests
             Assert.ContainsSingle(names.Where(static name => name.Contains("WorkerRunsInAnotherPostgresProcess", StringComparison.Ordinal)));
         }
 
-        Assert.IsFalse(Directory.Exists(Path.Combine(extensionDirectory, "bin", "ankus-test-pgdata")));
-        Assert.IsEmpty(Directory.GetDirectories(Path.Combine(extensionDirectory, "bin", "ankus-test-publish")));
-        Assert.IsNotEmpty(Directory.GetFiles(Path.Combine(extensionDirectory, "bin", "ankus-test-logs"), "*.log"));
+        string testedExtension = Path.Combine(solution, "src", Name);
+        Assert.IsFalse(Directory.Exists(Path.Combine(testedExtension, "bin", "ankus-test-pgdata")));
+        Assert.IsEmpty(Directory.GetDirectories(Path.Combine(testedExtension, "bin", "ankus-test-publish")));
+        Assert.IsNotEmpty(Directory.GetFiles(Path.Combine(testedExtension, "bin", "ankus-test-logs"), "*.log"));
+    }
+
+    /// <summary>
+    /// Runs a generated solution's tests in class-owned storage so every case with the same files reads one result.
+    /// </summary>
+    /// <param name="solution">The class-owned copy of the generated solution.</param>
+    /// <param name="arguments">The dotnet test arguments that form part of the content key.</param>
+    /// <param name="environment">The consumer's process environment.</param>
+    /// <param name="token">Cancels the class-owned run.</param>
+    /// <returns>The tested solution and its runner result.</returns>
+    private static async Task<SharedOutput> TestSharedSolutionAsync(string solution, string[] arguments,
+        IReadOnlyDictionary<string, string?> environment, CancellationToken token)
+    {
+        ProcessResult result = await PackageProcessRunner.RunAsync("dotnet", arguments, environment, token, workingDirectory: solution);
+        return new SharedOutput(solution, result);
     }
 
     /// <summary>
