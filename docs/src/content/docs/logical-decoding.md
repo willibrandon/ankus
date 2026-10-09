@@ -81,9 +81,10 @@ decoding context. Installing the extension's files is enough;
 backends load the plugin for the SQL slot functions, and a WAL sender loads it
 for `START_REPLICATION` on a logical replication connection.
 
-PostgreSQL releases with the `output_plugin_libraries` setting, including the
-current minor releases, load only the output plugins it lists, for every role.
-Its default lists only `pgoutput` and `test_decoding`. A DBA adds a trusted
+PostgreSQL 14.24, 15.19, 16.15, 17.11, 18.6, 19 and later minor releases load
+only the output plugins listed in `output_plugin_libraries`, for every role,
+including superusers. PostgreSQL 13 has no such setting. Its default lists only
+`pgoutput` and `test_decoding`. A DBA adds a trusted
 library and reloads the configuration:
 
 ```ini

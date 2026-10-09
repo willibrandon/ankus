@@ -15,9 +15,9 @@ startup, begin, change, commit and shutdown callbacks.
 ## Requirements
 
 Logical decoding needs `wal_level = logical`, which takes effect after a
-restart. PostgreSQL releases with the `output_plugin_libraries` setting, which
-include the current minor releases, also load only output plugins that the DBA
-trusts, for every role including superusers. Add the library to that list and
+restart. PostgreSQL 14.24, 15.19, 16.15, 17.11, 18.6, 19 and later minor
+releases also load only output plugins listed in `output_plugin_libraries`, for
+every role including superusers. Add the library to that list and
 reload the configuration:
 
 ```ini
