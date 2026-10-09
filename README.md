@@ -173,7 +173,8 @@ report options after `--`. See [test command options](docs/src/content/docs/refe
 
 Use `[PgBenchmark]` with `PgBencher` and run `ankus bench --pg 18` to measure
 extension code inside PostgreSQL. Benchmark entry points remain outside normal
-publications. See [benchmarks](docs/src/content/docs/benchmarks.md) and the
+publications. `ankus bench --report` shows each benchmark's history against its
+first run. See [benchmarks](docs/src/content/docs/benchmarks.md) and the
 [benchmark sample](samples/Ankus.Examples.Benchmarks/Benchmarks.cs).
 
 For scripts, `ankus info path 18`, `ankus info pg-config 18` and
@@ -190,6 +191,9 @@ Declare `[PgTest]` methods to run C# checks inside PostgreSQL. The generated
 catalog exposes individual cases to ordinary test discovery, including exact
 expected errors and explicit ignore reasons. Test publications opt in; normal
 publications exclude these SQL functions. See [backend tests](docs/src/content/docs/getting-started/testing.md#declare-tests-inside-the-extension).
+Inside one, `PgPropertyRunner` checks a condition against generated inputs and
+shrinks a failing input, including one that raises a PostgreSQL error. See
+[property tests](docs/src/content/docs/getting-started/testing.md#property-tests).
 
 Use `SearchPath = ["pg_catalog", PgSearchPath.ExtensionSchema, "pg_temp"]` on
 `PgFunction` or `PgTest` to resolve names inside the extension's installation

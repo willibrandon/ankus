@@ -130,6 +130,14 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
 
 ## Active validation and work
 
+- **2b841a3** passes the complete Linux x64 suite on PostgreSQL 18.6 with run-as
+  (**14,442** total; **14,391** passed; 51 skips; zero failures; **41m03s**). Its
+  Windows x64 suites on PostgreSQL 17.11 and 13.23, run concurrently at package
+  concurrency 20 (**14,443** total each; **14,397** passed; 44 skips; **38m25s**
+  and **36m34s**), failed only the bench test's cleanup: Git marks the object files
+  of the repository that test creates read-only, and Windows would not delete
+  them. **f1a6895** removes that repository with its attributes cleared, and the
+  bench test then passes on both majors.
 - `PgPropertyRunner` and `PgGenerators` port pgrx's `PgTestRunner`: a property
   runs against 256 generated inputs inside the backend, each in its own
   subtransaction, so a PostgreSQL error is a failing input whose work rolls back
@@ -167,7 +175,11 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   all three at once. Its primary CI
   ([37933668208](https://github.com/willibrandon/ankus/actions/runs/37933668208))
   passes Linux x64 on 18 (18m), Windows x64 on 17 (21m) and macOS ARM64 on 18
-  (16m). The platform version run on **10c1391**
+  (16m). Its PostgreSQL 19 beta 4 rerun
+  ([37934631721](https://github.com/willibrandon/ankus/actions/runs/37934631721))
+  passes Linux x64 with the PGLZ sample fix (**14,410** total; **14,359** passed;
+  51 skips; zero failures; 25m job), completing PostgreSQL 13 through 17 and 19
+  on the version matrix after 5b72b18's run. The platform version run on **10c1391**
   ([37917953859](https://github.com/willibrandon/ankus/actions/runs/37917953859))
   passes macOS ARM64 on PostgreSQL 15 (23m) and 16 (21m) and Windows x64 on 13
   (1h11m). Windows x64 on 18 failed two cleanups that deleted a cluster directory

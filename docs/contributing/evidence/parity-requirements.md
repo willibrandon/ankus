@@ -213,8 +213,8 @@ Required test-source inventory:
 The [pgrx unit-test mapping](pgrx-test-mapping.md) maps all 539 cases in
 `pgrx-unit-tests/src/tests/` to named Ankus tests or a recorded reason; none
 remain open. The [tooling test mapping](pgrx-tooling-test-mapping.md) maps 203
-compile-fail, testing-framework, benchmark and `cargo-pgrx/tests/` cases with
-its remaining gaps ranked. The inline unit-test corpus still needs the same source-case
+compile-fail, testing-framework, benchmark and `cargo-pgrx/tests/` cases; none
+remain open. The inline unit-test corpus still needs the same source-case
 mapping.
 
 ### Release evidence requirements
