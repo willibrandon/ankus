@@ -275,8 +275,11 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
             List<string> configuration = [$"dynamic_library_path = '{searchPath}{separator}$libdir'"];
             if (installation.Version.Major >= 18)
             {
-                // The publication belongs to the test account even when another account owns the data directories.
-                string scriptBase = Path.Combine(output, "share");
+                // Keep these paths short: PostgreSQL on Windows cannot open files beyond MAX_PATH. Another account owns
+                // the data directories, so its staging goes in the command session, which only ankus test --runas uses.
+                string scriptBase = account.Name is null
+                    ? Path.Combine(dataDirectoryBase, "share")
+                    : Path.Combine(session!, "share", invocation);
                 PostgresExtensionFiles.Stage(output, scriptBase);
                 string controlPath = scriptBase.Replace("\\", "/", StringComparison.Ordinal).Replace("'", "''", StringComparison.Ordinal);
                 configuration.Insert(0, $"extension_control_path = '{controlPath}{separator}$system'");

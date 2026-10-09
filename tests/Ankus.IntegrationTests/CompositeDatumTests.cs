@@ -404,13 +404,36 @@ public sealed class CompositeDatumTests(TestContext context)
     [DataRow(4, "ArgumentOutOfRangeException")]
     [DataRow(5, "InvalidCastException")]
     [DataRow(6, "InvalidCastException")]
+    [DataRow(7, "ArgumentException")]
+    [DataRow(8, "none")]
+    [DataRow(9, "InvalidCastException")]
     public Task InvalidTupleOperationsLeaveExistingCellsIntact(int scenario, string exception)
         => PostgresFixture.Cluster.RunInTransactionAsync(nameof(InvalidTupleOperationsLeaveExistingCellsIntact),
             async (connection, transaction, token) =>
             {
                 await using var command = new NpgsqlCommand("SELECT tuple_values.tuple_access_failure(ROW('Ada',3)::tuple_values.dog,$1)", connection, transaction);
                 command.Parameters.AddWithValue(scenario);
-                Assert.AreEqual($"{exception}:Ada:3", await command.ExecuteScalarAsync(token));
+                // As in pgrx, a typed read of a NULL cell yields null without checking the requested type (scenario 8).
+                Assert.AreEqual(exception == "none" ? "no error" : $"{exception}:Ada:3", await command.ExecuteScalarAsync(token));
+            }, context.CancellationToken);
+
+    /// <summary>
+    /// Loading a descriptor for a type that does not exist fails with PostgreSQL's undefined-object error, as pgrx's
+    /// missing-type test requires, and the same backend then loads an existing type.
+    /// </summary>
+    [TestMethod]
+    public Task MissingTypeDescriptorFailsAndRecovers()
+        => PostgresFixture.Cluster.RunInTransactionAsync(nameof(MissingTypeDescriptorFailsAndRecovers),
+            async (connection, transaction, token) =>
+            {
+                await transaction.SaveAsync("missing_type", token);
+                await using var command = new NpgsqlCommand("SELECT tuple_values.tuple_load_by_name('definitely_not_existing')", connection, transaction);
+                PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => command.ExecuteScalarAsync(token));
+                Assert.AreEqual(PostgresErrorCodes.UndefinedObject, error.SqlState);
+                Assert.AreEqual("type \"definitely_not_existing\" does not exist", error.MessageText);
+                await transaction.RollbackAsync("missing_type", token);
+                command.CommandText = "SELECT tuple_values.tuple_load_by_name('tuple_values.dog')";
+                Assert.AreEqual(2, await command.ExecuteScalarAsync(token));
             }, context.CancellationToken);
 
     /// <summary>

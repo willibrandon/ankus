@@ -337,7 +337,9 @@ public static partial class GucFunctions
     /// <param name="source">The native configuration source.</param>
     /// <returns>The accepted value and source bytes.</returns>
     internal static PgGucCheckResult<bool> CheckBoolean(bool value, PgGucSource source)
-        => new(Control == "normalize" ? !value : value, new PgGucExtra([(byte)source]));
+        => value && Rejection("Boolean") is PgGucCheckError error
+            ? new(error)
+            : new(Control == "normalize" ? !value : value, new PgGucExtra([(byte)source]));
 
     /// <summary>
     /// Observes Boolean assignment and its prior native value.
@@ -362,8 +364,10 @@ public static partial class GucFunctions
     /// <param name="source">The native configuration source.</param>
     /// <returns>The accepted value and source bytes.</returns>
     internal static PgGucCheckResult<double> CheckReal(double value, PgGucSource source)
-        => new(Control == "normalize_nan" ? double.NaN : Control == "normalize" ? Math.Round(value) : value,
-            new PgGucExtra([(byte)source]));
+        => value > 100 && Rejection("real") is PgGucCheckError error
+            ? new(error)
+            : new(Control == "normalize_nan" ? double.NaN : Control == "normalize" ? Math.Round(value) : value,
+                new PgGucExtra([(byte)source]));
 
     /// <summary>
     /// Observes real assignment and its prior native value.
@@ -395,6 +399,11 @@ public static partial class GucFunctions
             throw new InvalidOperationException("Text check received an unknown native GUC source.");
         }
 
+        if (value == "rejected" && Rejection("text") is PgGucCheckError error)
+        {
+            return new(error);
+        }
+
         return new(Control == "unrepresentable" ? "🐘" : value?.Trim(), value is null ? null : new PgGucExtra(Encoding.UTF8.GetBytes(value)));
     }
 
@@ -421,7 +430,22 @@ public static partial class GucFunctions
     /// <param name="source">The native configuration source.</param>
     /// <returns>The accepted enum and source bytes.</returns>
     internal static PgGucCheckResult<GucMode> CheckMode(GucMode value, PgGucSource source)
-        => new(Control == "normalize" ? GucMode.Fast : value, new PgGucExtra([(byte)source]));
+        => value == GucMode.Fast && Rejection("mode") is PgGucCheckError error
+            ? new(error)
+            : new(Control == "normalize" ? GucMode.Fast : value, new PgGucExtra([(byte)source]));
+
+    /// <summary>
+    /// Returns the rejection a <c>reject-</c> control selects, or null to accept.
+    /// </summary>
+    /// <param name="type">The setting type named in custom diagnostics.</param>
+    /// <returns>PostgreSQL's standard message, a custom message with detail, a custom message with hint, or null.</returns>
+    private static PgGucCheckError? Rejection(string type) => Control switch
+    {
+        "reject-default" => new PgGucCheckError(),
+        "reject-message" => new PgGucCheckError($"Rejected {type}.", $"{type} detail"),
+        "reject-hint" => new PgGucCheckError($"Rejected {type}.", hint: $"Choose another {type}."),
+        _ => null,
+    };
 
     /// <summary>
     /// Observes enum assignment before native storage changes.

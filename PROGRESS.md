@@ -130,6 +130,30 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
 
 ## Active validation and work
 
+- Every test case in pgrx's `pgrx-unit-tests/src/tests/` (539 cases, 63 files)
+  is now mapped to a named Ankus test, a deliberate difference or a Rust-specific
+  reason in the [pgrx unit-test mapping](docs/contributing/evidence/pgrx-test-mapping.md).
+  Most cases were already covered, often with more boundary values. New backend
+  cases close the safety-relevant gaps: SPI errors inside set-returning functions
+  before and during streaming and materialization (exact SQLSTATE and message,
+  cleanup once, the backend reruns the function, and a caught error continues
+  the set); ordinary exceptions from a callback PostgreSQL invokes, uncaught and
+  caught from a subtransaction; configuration check rejection for bool, real,
+  string and enum settings with PostgreSQL's standard and custom diagnostics;
+  LWLock release during managed unwinding without an abort; range reconstruction
+  from bounds and daterange infinity, missing-bound and empty edges; omitted
+  trailing defaults by name and by OID; the default call collation; missing
+  types, unknown tuple fields and non-composite reads; cursor argument counts and
+  parse errors; utility-statement metadata; and nested domains. Three behaviors
+  changed: a blank function name now fails with PostgreSQL's 42602 as a malformed
+  name does, a non-nullable read of an empty result says the query returned no
+  rows instead of reporting SQL NULL, and PostgreSQL 18 test staging on Windows
+  returns to its short path after the run-as change had moved it past MAX_PATH.
+  That last regression appeared in a complete Windows x64/PostgreSQL 18.6 run
+  (**14,184** total; **14,141** passed; one failure; **15m41s**). The ranked
+  remaining gaps include `Rune` to `varchar`, an `ereport` message domain, JSON
+  aggregate states and background-worker SPI after termination.
+
 - cargo-pgrx's account and privilege options are ported. `ankus install --sudo`
   stages the publication as the current account, then runs `sudo cp` beside each
   destination and `sudo mv` into place, control file last. Unlike pgrx's in-place

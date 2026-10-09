@@ -54,7 +54,7 @@ public sealed class SpiResult : IReadOnlyList<SpiRow>
     {
         if (Count == 0)
         {
-            return SpiRow.Convert<T>(null);
+            return SpiRow.ConvertMissing<T>();
         }
 
         if (ordinal >= Columns.Count)

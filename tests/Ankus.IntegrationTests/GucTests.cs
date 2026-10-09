@@ -259,6 +259,45 @@ public sealed class GucTests(TestContext context)
     }
 
     /// <summary>
+    /// Check hooks of every type reject with PostgreSQL's standard message, a custom message and detail, or a custom
+    /// message and hint, as pgrx's per-type check tests require, and a rejected value is never assigned.
+    /// </summary>
+    /// <param name="control">The rejection form the hooks return.</param>
+    [TestMethod]
+    [DataRow("reject-default")]
+    [DataRow("reject-message")]
+    [DataRow("reject-hint")]
+    public async Task CheckRejectionsCoverEveryType(string control)
+    {
+        await using NpgsqlConnection connection = await OpenAsync();
+        await ExecuteAsync(connection, $"SET ankus_guc.control = '{control}'");
+        await ScalarAsync(connection, "SELECT datatype.guc_events(true)");
+        foreach ((string name, string value, string type, string native) in new[]
+        {
+            ("ankus_guc.hook_bool", "on", "Boolean", "1"),
+            ("ankus_guc.hook_real", "150.5", "real", "150.5"),
+            ("ankus_guc.hook_text", "rejected", "text", "\"rejected\""),
+            ("ankus_guc.hook_mode", "fast", "mode", "\"fast\""),
+        })
+        {
+            object? before = await ScalarAsync(connection, $"SELECT current_setting('{name}')");
+            PostgresException error = await FailureAsync(connection, $"SET {name} = '{value}'");
+            Assert.AreEqual("22023", error.SqlState, name);
+            Assert.AreEqual(control == "reject-default" ? $"invalid value for parameter \"{name}\": {native}" : $"Rejected {type}.",
+                error.MessageText);
+            Assert.AreEqual(control == "reject-message" ? $"{type} detail" : null, error.Detail, name);
+            Assert.AreEqual(control == "reject-hint" ? $"Choose another {type}." : null, error.Hint, name);
+            Assert.AreEqual(before, await ScalarAsync(connection, $"SELECT current_setting('{name}')"), name);
+        }
+
+        string events = (string)(await ScalarAsync(connection, "SELECT datatype.guc_events(true)"))!;
+        foreach (string assigned in new[] { "bool:", "real:", "text:", "mode:" })
+        {
+            Assert.DoesNotContain(assigned, events);
+        }
+    }
+
+    /// <summary>
     /// Restoration calls assign with the old owned extra without calling check again.
     /// </summary>
     [TestMethod]

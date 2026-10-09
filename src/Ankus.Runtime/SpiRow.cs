@@ -138,6 +138,17 @@ public sealed class SpiRow
     }
 
     /// <summary>
+    /// Reads an empty result: nullable types receive null, as for SQL NULL, and other types fail without implying a NULL cell.
+    /// </summary>
+    /// <typeparam name="T">The expected managed type.</typeparam>
+    /// <returns>Null for a nullable type.</returns>
+    /// <exception cref="InvalidOperationException">The type cannot represent a missing row.</exception>
+    internal static T ConvertMissing<T>()
+        => default(T) is null
+            ? default!
+            : throw new InvalidOperationException("The query returned no rows; read a nullable type to treat an empty result as SQL NULL.");
+
+    /// <summary>
     /// Converts a managed cell while preserving the distinction between SQL NULL and a default value.
     /// </summary>
     /// <typeparam name="T">The expected managed type.</typeparam>

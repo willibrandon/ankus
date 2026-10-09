@@ -10,6 +10,39 @@ namespace Ankus.IntegrationTests;
 public sealed class RangeDatumTests(TestContext context)
 {
     /// <summary>
+    /// A received range rebuilt from its emptiness, bounds and inclusivity is identical to the original, keeping
+    /// infinite values distinct from absent bounds and preserving bracket types, as pgrx's bounds round trips require.
+    /// </summary>
+    /// <param name="function">The rebuilding function's subtype.</param>
+    /// <param name="type">The SQL range type.</param>
+    /// <param name="literal">The range literal.</param>
+    [TestMethod]
+    [DataRow("int", "int4range", "'[1,10)'")]
+    [DataRow("int", "int4range", "'empty'")]
+    [DataRow("int", "int4range", "'(,)'")]
+    [DataRow("long", "int8range", "'(,9223372036854775807)'")]
+    [DataRow("numeric", "numrange", "'[1.2300,2.450]'")]
+    [DataRow("numeric", "numrange", "'(-1.5,)'")]
+    [DataRow("timestamp", "tsrange", "'[2000-01-01 00:00:00.000001,infinity)'")]
+    [DataRow("date", "daterange", "'[2000-01-01,2000-01-01)'")]
+    [DataRow("date", "daterange", "'(-infinity,2000-01-01)'")]
+    [DataRow("date", "daterange", "'(2000-01-01,infinity)'")]
+    [DataRow("date", "daterange", "'(-infinity,infinity)'")]
+    [DataRow("date", "daterange", "'[-infinity,infinity]'")]
+    [DataRow("date", "daterange", "'(,2000-01-01)'")]
+    [DataRow("date", "daterange", "'[2000-01-01,)'")]
+    [DataRow("date", "daterange", "'(,)'")]
+    [DataRow("date", "daterange", "NULL")]
+    public Task RangesRebuiltFromBoundsAreIdentical(string function, string type, string literal)
+        => PostgresFixture.Cluster.RunInTransactionAsync(nameof(RangesRebuiltFromBoundsAreIdentical), async (connection, transaction, token) =>
+        {
+            await using var command = new NpgsqlCommand(
+                $"SELECT range_send(datatype.range_{function}_rebuild(({literal})::{type})) IS NOT DISTINCT FROM range_send(({literal})::{type})",
+                connection, transaction);
+            Assert.IsTrue(Assert.IsInstanceOfType<bool>(await command.ExecuteScalarAsync(token)));
+        }, context.CancellationToken);
+
+    /// <summary>
     /// Every supported bound alias and array representation retains the backend binary value through eight ownership paths.
     /// </summary>
     [TestMethod]
@@ -26,6 +59,14 @@ public sealed class RangeDatumTests(TestContext context)
     [DataRow("date", "daterange", "range_send", "'[-infinity,infinity]'")]
     [DataRow("date", "daterange", "range_send", "'[4713-01-01 BC,5874897-12-31)'")]
     [DataRow("date", "daterange", "range_send", "NULL")]
+    [DataRow("date", "daterange", "range_send", "'[2000-01-01,2000-01-01)'")]
+    [DataRow("date", "daterange", "range_send", "'(-infinity,2000-01-01)'")]
+    [DataRow("date", "daterange", "range_send", "'(2000-01-01,infinity)'")]
+    [DataRow("date", "daterange", "range_send", "'(-infinity,infinity)'")]
+    [DataRow("date", "daterange", "range_send", "'(,2000-01-01)'")]
+    [DataRow("date", "daterange", "range_send", "'[2000-01-01,)'")]
+    [DataRow("date", "daterange", "range_send", "'(,)'")]
+    [DataRow("numeric", "numrange", "range_send", "'[10.5,10.5)'")]
     [DataRow("timestamp", "tsrange", "range_send", "'[2000-01-01 00:00:00.000001,294276-12-31 23:59:59.999999]'")]
     [DataRow("timestamp", "tsrange", "range_send", "NULL")]
     [DataRow("timestamp_tz", "tstzrange", "range_send", "'[2024-01-01 01:02:03+05:30,infinity]'")]

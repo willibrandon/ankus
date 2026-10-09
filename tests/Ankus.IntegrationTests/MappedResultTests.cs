@@ -60,7 +60,9 @@ public sealed class MappedResultTests(TestContext context)
         {
             PostgresException absent = await Assert.ThrowsExactlyAsync<PostgresException>(() => Probe<int>(connection, "required", surface, sql));
             Assert.AreEqual("38000", absent.SqlState);
-            Assert.AreEqual("SQL NULL cannot be read as a non-nullable managed value.", absent.MessageText);
+            Assert.AreEqual(sql == "SELECT NULL::integer"
+                ? "SQL NULL cannot be read as a non-nullable managed value."
+                : "The query returned no rows; read a nullable type to treat an empty result as SQL NULL.", absent.MessageText);
         }
 
         Assert.AreEqual("0|0|0|0|0|0", await Counts(connection));

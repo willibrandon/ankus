@@ -30,6 +30,36 @@ public static class RangeFunctions
     public static PgRange<PgDate>? RangeDate(PgRange<PgDate>? value, int mode) => ArrayFunctions.Exchange(value, mode);
 
     /// <summary>
+    /// Rebuilds a received integer range from its bounds, as pgrx's round trips through <c>Range::new</c> do.
+    /// </summary>
+    [PgFunction]
+    public static PgRange<int>? RangeIntRebuild(PgRange<int>? value) => Rebuild(value);
+
+    /// <summary>
+    /// Rebuilds a received bigint range from its bounds.
+    /// </summary>
+    [PgFunction]
+    public static PgRange<long>? RangeLongRebuild(PgRange<long>? value) => Rebuild(value);
+
+    /// <summary>
+    /// Rebuilds a received numeric range from its bounds, retaining scale and special values.
+    /// </summary>
+    [PgFunction]
+    public static PgRange<PgNumeric>? RangeNumericRebuild(PgRange<PgNumeric>? value) => Rebuild(value);
+
+    /// <summary>
+    /// Rebuilds a received date range from its bounds, keeping infinite values distinct from absent bounds.
+    /// </summary>
+    [PgFunction]
+    public static PgRange<PgDate>? RangeDateRebuild(PgRange<PgDate>? value) => Rebuild(value);
+
+    /// <summary>
+    /// Rebuilds a received timestamp range from its bounds.
+    /// </summary>
+    [PgFunction]
+    public static PgRange<PgTimestamp>? RangeTimestampRebuild(PgRange<PgTimestamp>? value) => Rebuild(value);
+
+    /// <summary>
     /// Exchanges full-range timestamps and explicit infinity bounds.
     /// </summary>
     [PgFunction]
@@ -284,4 +314,11 @@ public static class RangeFunctions
         PgRange<T> b = PgRange.Parse<T>(right);
         return [a.Contains(a.Lower!.Value), a.Contains(b), a.Overlaps(b), a.IsAdjacentTo(b)];
     }
+
+    /// <summary>
+    /// Constructs a new range from another range's emptiness, bounds and inclusivity.
+    /// </summary>
+    private static PgRange<T>? Rebuild<T>(PgRange<T>? value)
+        where T : struct
+        => value is null ? null : value.IsEmpty ? new PgRange<T>() : new PgRange<T>(value.Lower, value.Upper, value.LowerInclusive, value.UpperInclusive);
 }

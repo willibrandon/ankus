@@ -112,7 +112,7 @@ internal readonly struct SpiScalarResult(SpiResult? managed, SpiRawResult? raw, 
 
         if (raw.Count == 0 || (allowMissing && raw.Columns.Count == 0))
         {
-            return PgDatumRegistry.FindArray(typeof(T)) is not null ? default! : SpiRow.Convert<T>(null);
+            return PgDatumRegistry.FindArray(typeof(T)) is not null ? default! : raw.Count == 0 ? SpiRow.ConvertMissing<T>() : SpiRow.Convert<T>(null);
         }
 
         if (ordinal >= raw.Columns.Count)

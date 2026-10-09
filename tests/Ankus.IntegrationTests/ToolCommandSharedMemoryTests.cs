@@ -88,6 +88,9 @@ public sealed partial class ToolCommandTests
             Assert.AreEqual(expected + 1, await PackageGucScalarAsync(first, $"SELECT shared_write({expected + 1})"));
         }
 
+        // A guard released only by transaction abort would make the second acquisition fail with 55006.
+        Assert.AreEqual(61L, await PackageGucScalarAsync(first, "SELECT shared_unwind(61)"));
+        Assert.AreEqual("61|18446744073709551615|1|2", await PackageGucScalarAsync(second, "SELECT shared_snapshot()"));
         Assert.AreEqual(71L, await PackageGucScalarAsync(first, "SELECT shared_forget(71)"));
         Assert.AreEqual("71|18446744073709551615|1|2", await PackageGucScalarAsync(second, "SELECT shared_snapshot()"));
         Assert.AreEqual("disposed", await PackageGucScalarAsync(first, "SELECT shared_expired()"));
@@ -630,6 +633,23 @@ public sealed partial class ToolCommandTests
                 using PgLwLockExclusiveGuard<SharedState> guard = State.Exclusive();
                 guard.Value = guard.Value with { Count = value };
                 return guard.Value.Count;
+            }
+
+            [PgFunction]
+            public static long SharedUnwind(long value)
+            {
+                try
+                {
+                    using PgLwLockExclusiveGuard<SharedState> guard = State.Exclusive();
+                    guard.Value = guard.Value with { Count = value };
+                    throw new InvalidOperationException("Unwinding releases the shared lock.");
+                }
+                catch (InvalidOperationException)
+                {
+                }
+
+                using PgLwLockExclusiveGuard<SharedState> again = State.Exclusive();
+                return again.Value.Count;
             }
 
             [PgFunction]

@@ -22,7 +22,11 @@ public static unsafe partial class NativeFieldCallbackFunctions
     /// <summary>
     /// Assigns and reads a native method table, then invokes its exact callback signature over owned native storage.
     /// </summary>
-    /// <param name="mode">Zero for success, one for managed failure, two for native failure, three for caught native failure.</param>
+    /// <param name="mode">
+    /// Zero for success, one for managed failure, two for native failure, three for caught native failure, four for an
+    /// ordinary exception and five for an ordinary exception the caller catches from a subtransaction after it crosses
+    /// the native frame.
+    /// </param>
     /// <returns>The shared state mutation and preserved callback and result addresses.</returns>
     [PgFunction]
     public static string NativeFieldCallbackRoundtrip(int mode)
@@ -43,6 +47,21 @@ public static unsafe partial class NativeFieldCallbackFunctions
             using PgNativeBox<CustomScanState> state = owner.CreateBox(value);
             using PgNativeBox<CustomExecMethods> methods = owner.CreateBox(new CustomExecMethods { ExecCustomScan = Execute });
             CustomExecMethods_ExecCustomScanCallback callback = methods.Value.ExecCustomScan;
+            if (mode == 5)
+            {
+                // A subtransaction rolls the callback's error back, so the backend is usable after the catch.
+                CustomScanState* scan = (CustomScanState*)state.DangerousGetPointer();
+                try
+                {
+                    PgTransaction.RunInSubtransaction(() => _ = callback.Invoke(scan));
+                }
+                catch (Exception error)
+                {
+                    s_caught = Spi.ExecuteScalar<int>("SELECT 6 * 7") == 42;
+                    return $"{error.GetType().Name}|{(error as PgException)?.SqlState}|{error.Message}";
+                }
+            }
+
             TupleTableSlot* first = callback.Invoke((CustomScanState*)state.DangerousGetPointer());
             TupleTableSlot* second = methods.Value.ExecCustomScan.Invoke((CustomScanState*)state.DangerousGetPointer());
             return $"{state.Value.flags}|{first == slot.DangerousGetPointer()}|{second == first}|" +
@@ -73,6 +92,11 @@ public static unsafe partial class NativeFieldCallbackFunctions
             if (s_mode == 1)
             {
                 throw new PgException("P7511", "managed field callback failure", "field callback detail", "field callback hint");
+            }
+
+            if (s_mode is 4 or 5)
+            {
+                throw new InvalidOperationException("ordinary field callback failure");
             }
 
             if (s_mode is 2 or 3)

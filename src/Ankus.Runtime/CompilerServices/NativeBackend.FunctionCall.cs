@@ -270,7 +270,7 @@ public static unsafe partial class NativeBackend
         bool exactResult = false, bool arrayElement = false)
     {
         CheckAccess();
-        byte[] encoded = oid == 0 ? EncodeCommand(name!) : [];
+        byte[] encoded = oid == 0 ? EncodeFunctionName(name!) : [];
         byte[] defaults = new byte[arguments.Length];
         var parameters = new SpiParameter[arguments.Length];
         for (int index = 0; index < arguments.Length; index++)
@@ -309,5 +309,22 @@ public static unsafe partial class NativeBackend
                 ReleaseResult(&result);
             }
         }
+    }
+
+    /// <summary>
+    /// Encodes a function name for PostgreSQL's own parser, which reports blank and malformed names alike as invalid
+    /// name syntax, as pgrx reports both as invalid identifiers.
+    /// </summary>
+    /// <param name="name">The optionally qualified SQL name.</param>
+    /// <returns>The null-terminated UTF-8 name.</returns>
+    private static byte[] EncodeFunctionName(string name)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        if (name.Contains('\0', StringComparison.Ordinal))
+        {
+            throw new ArgumentException("Function names cannot contain a zero character.", nameof(name));
+        }
+
+        return EncodeUtf8(name);
     }
 }

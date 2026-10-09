@@ -241,6 +241,14 @@ public static class CompositeFunctions
     }
 
     /// <summary>
+    /// Loads a row descriptor by name, failing as PostgreSQL does for a type that does not exist.
+    /// </summary>
+    /// <param name="name">The type name.</param>
+    /// <returns>The loaded type's attribute count.</returns>
+    [PgFunction(Requires = ["composite-types"])]
+    public static int TupleLoadByName(string name) => PgTupleDescriptor.Load(name).Attributes.Count;
+
+    /// <summary>
     /// Returns the precise exception type from rejected accesses while checking the tuple remains intact.
     /// </summary>
     [PgFunction(Requires = ["composite-types"])]
@@ -270,6 +278,15 @@ public static class CompositeFunctions
                     break;
                 case 6:
                     PgTupleDescriptor.Load("tuple_values.pack").CreateTuple().Set("leader", PgTupleDescriptor.Load("tuple_values.other_dog").CreateTuple());
+                    break;
+                case 7:
+                    value.Set("missing", "x");
+                    break;
+                case 8:
+                    _ = PgTupleDescriptor.Load("tuple_values.dog").CreateTuple().Get<int?>("name");
+                    break;
+                case 9:
+                    _ = Spi.ExecuteScalar<PgHeapTuple>("SELECT 1");
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(scenario));

@@ -189,17 +189,11 @@ All example directories in `pgrx-examples/` require a corresponding working .NET
 - Build/tooling/constraints: `bad_ideas`, `benching`, `custom_libname`, `nostd`, `versioned_custom_libname_so`,
   `versioned_so`. Rust-specific mechanisms require an explicit idiomatic .NET capability mapping and tests.
 
-The `samples/Ankus.Examples.Hello`, `samples/Ankus.Examples.Enums`, `samples/Ankus.Examples.Operators`,
-`samples/Ankus.Examples.Sets`, `samples/Ankus.Examples.Composites`,
-`samples/Ankus.Examples.Ranges` and `samples/Ankus.Examples.Errors` samples are
-validated. Full example parity is pending.
-
-The `samples/Ankus.Examples.Spi` sample combines `spi` and `spi_srf`. Its nine
-published-native cases and complete composed suites pass on Linux x64 and macOS
-ARM64/PostgreSQL 18.6, and Windows x64/PostgreSQL 17.11. Primary CI
-[37084745267](https://github.com/willibrandon/ankus/actions/runs/37084745267)
-confirms all three platforms on `0ddc6e9`. Other sample and platform requirements
-remain open.
+Every directory above has a corresponding sample under `samples/` with backend
+integration tests; the [pgrx examples reference](../../src/content/docs/reference/pgrx-examples.md)
+maps each one, including the idiomatic .NET mapping of the Rust-specific
+`bad_ideas` and `nostd` scenarios. Complete supported-version and platform
+evidence for every sample remains required.
 
 Required test-source inventory:
 
@@ -216,8 +210,10 @@ Required test-source inventory:
 - Inline unit tests in runtime, macro, SQL graph, binding-generation, and configuration crates; SQL and expected-output
   fixtures in the examples and regression-command paths.
 
-The passing Ankus tests verify the implemented milestones, not this entire corpus. Each family still needs
-source-case-level mapping to named .NET tests and any additional boundary cases introduced by AOT/native interop.
+The [pgrx unit-test mapping](pgrx-test-mapping.md) maps all 539 cases in
+`pgrx-unit-tests/src/tests/` to named Ankus tests or a recorded reason, with the
+remaining gaps ranked. The framework, benchmark, `cargo-pgrx/tests/` and inline
+unit-test corpora still need the same source-case mapping.
 
 ### Release evidence requirements
 

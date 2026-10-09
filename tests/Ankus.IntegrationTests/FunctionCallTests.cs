@@ -87,6 +87,7 @@ public sealed class FunctionCallTests(TestContext context)
     [DataRow("pg_catalog.ankus_missing_function", 0, "42883")]
     [DataRow("pg_catalog.generate_series", 2, "42809")]
     [DataRow("pg_catalog.sum", 0, "42809")]
+    [DataRow("", 1, "42602")]
     public async Task InvalidCallsFailBeforeExecutionAndRecover(string name, int mode, string sqlState)
     {
         CancellationToken token = context.CancellationToken;
@@ -175,6 +176,33 @@ public sealed class FunctionCallTests(TestContext context)
     }
 
     /// <summary>
+    /// Omitting only trailing defaulted arguments fills them, as pgrx's unspecified-default calls do; a STRICT function
+    /// whose omitted argument defaults to NULL returns NULL without running; omitting a required argument fails.
+    /// </summary>
+    /// <param name="byOid">Whether to resolve by exact catalog identity, which fills defaults separately.</param>
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task OmittedTrailingDefaultsAreFilledAndRequiredArgumentsAreNot(bool byOid)
+    {
+        CancellationToken token = context.CancellationToken;
+        await using NpgsqlConnection connection = await PostgresFixture.Cluster.OpenConnectionAsync(token);
+        await ExecuteAsync(connection, """
+            CREATE FUNCTION pg_temp.trailing(integer, integer DEFAULT 10) RETURNS integer LANGUAGE sql AS 'SELECT $1*100+$2';
+            CREATE FUNCTION pg_temp.strict_null(integer DEFAULT NULL) RETURNS integer LANGUAGE plpgsql STRICT
+                AS 'BEGIN RAISE EXCEPTION ''must not run''; END';
+            """, token);
+        string oid = byOid ? "'pg_temp.trailing(integer,integer)'::regprocedure::oid" : "0::oid";
+        Assert.AreEqual(710, await ScalarAsync<int>(connection, $"SELECT datatype.call_integer('pg_temp.trailing',{oid},7,0)", token));
+        string strictOid = byOid ? "'pg_temp.strict_null(integer)'::regprocedure::oid" : "0::oid";
+        Assert.AreEqual(DBNull.Value, await ScalarAsync<object>(connection,
+            $"SELECT datatype.call_integer('pg_temp.strict_null',{strictOid},NULL,1)", token));
+        PostgresException missing = await ErrorAsync(connection, $"SELECT datatype.call_integer('pg_temp.trailing',{oid},NULL,1)", token);
+        Assert.AreEqual(byOid ? "22023" : "42883", missing.SqlState, missing.MessageText);
+        Assert.AreEqual(42, await ScalarAsync<int>(connection, "SELECT datatype.call_integer('pg_catalog.abs',0,-42,0)", token));
+    }
+
+    /// <summary>
     /// Preserves quoted names, overload selection, and the active search path without treating names as SQL.
     /// </summary>
     [TestMethod]
@@ -238,6 +266,8 @@ public sealed class FunctionCallTests(TestContext context)
         string collation = await ScalarAsync<string>(connection, "SELECT '\"C\"'::regcollation::oid::text", token);
         Assert.AreEqual(collation, await ScalarAsync<string>(connection, $"SELECT datatype.call_text('datatype.call_collation',{oid},'value','\"C\"'::regcollation::oid)", token));
         Assert.AreEqual("0", await ScalarAsync<string>(connection, $"SELECT datatype.call_text('datatype.call_collation',{oid},'value',0)", token));
+        Assert.AreEqual("100", await ScalarAsync<string>(connection, $"SELECT datatype.call_text('datatype.call_collation',{oid},'value',NULL)", token),
+            "Without an explicit collation, calls use the database default collation, as pgrx's do.");
         await ExecuteAsync(connection, "CREATE FUNCTION pg_temp.echo(text) RETURNS text LANGUAGE sql AS 'SELECT $1'", token);
         string echoOid = byOid ? "'pg_temp.echo(text)'::regprocedure::oid" : "0::oid";
         Assert.AreEqual(string.Concat(Enumerable.Repeat("héllo 🐘", 10000)), await ScalarAsync<string>(connection,
