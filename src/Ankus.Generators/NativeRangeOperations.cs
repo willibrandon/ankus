@@ -63,7 +63,7 @@ internal static class NativeRangeOperations
                     if (request->result_context != 0)
                         ankus_datum_context(request->result_context, request->result_generation);
                     getTypeInputInfo(output, &function, &parameter);
-                    datum = OidInputFunctionCall(function, TextDatumGetCString(ankus_parameter_datum(argument)), parameter, -1);
+                    datum = ankus_oid_input_call(function, TextDatumGetCString(ankus_parameter_datum(argument)), parameter, -1);
                     ankus_scalar_result(request, result, datum, false, output);
                     return;
                 }

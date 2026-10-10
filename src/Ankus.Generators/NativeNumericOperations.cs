@@ -24,8 +24,7 @@ internal static class NativeNumericOperations
         static Datum
         ankus_numeric_parse(PG_FUNCTION_ARGS)
         {
-            return DirectFunctionCall3(numeric_in, CStringGetDatum(TextDatumGetCString(PG_GETARG_DATUM(0))),
-                ObjectIdGetDatum(InvalidOid), Int32GetDatum(-1));
+            return ankus_input_call(numeric_in, TextDatumGetCString(PG_GETARG_DATUM(0)), InvalidOid, -1);
         }
 
         static Datum

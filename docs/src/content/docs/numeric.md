@@ -92,12 +92,14 @@ inside managed code.
 Parsing and arithmetic require the active PostgreSQL backend thread. A native
 error must propagate to PostgreSQL or roll back before more backend work. To
 handle it and continue, catch it outside `PgTransaction.RunInSubtransaction`.
-`TryParse` performs that recovery internally before returning false for invalid
-input. Text access, comparison, hashing, and exact .NET conversions also work
-outside PostgreSQL.
+`TryParse` returns false for invalid input without leaving an error pending: on
+PostgreSQL 16 and later through PostgreSQL's soft input errors, and on earlier
+majors by rolling back an internal subtransaction. Text access, comparison,
+hashing, and exact .NET conversions also work outside PostgreSQL.
 
 In transaction callbacks and parallel operations before PostgreSQL 17, native
-input errors must propagate because independent rollback is unavailable. See
+input errors must propagate because independent rollback is unavailable.
+`TryParse` still returns false there on PostgreSQL 16 and later. See
 [error recovery](/reference/execution/#errors).
 
 ## .NET conversions and SPI

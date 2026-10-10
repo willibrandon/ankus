@@ -12,13 +12,13 @@ internal static class NativeNetworkOperations
         static Datum
         ankus_inet_parse(PG_FUNCTION_ARGS)
         {
-            return DirectFunctionCall1(inet_in, CStringGetDatum(TextDatumGetCString(PG_GETARG_DATUM(0))));
+            return ankus_input_call(inet_in, TextDatumGetCString(PG_GETARG_DATUM(0)), InvalidOid, -1);
         }
 
         static Datum
         ankus_cidr_parse(PG_FUNCTION_ARGS)
         {
-            return DirectFunctionCall1(cidr_in, CStringGetDatum(TextDatumGetCString(PG_GETARG_DATUM(0))));
+            return ankus_input_call(cidr_in, TextDatumGetCString(PG_GETARG_DATUM(0)), InvalidOid, -1);
         }
 
         static const AnkusScalarFunction ankus_network_functions[] = {

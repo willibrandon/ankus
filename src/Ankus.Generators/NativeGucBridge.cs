@@ -944,6 +944,7 @@ internal static class NativeGucBridge
             MemoryContext caller = CurrentMemoryContext;
             MemoryContext volatile work = NULL;
             volatile int status = 0;
+            AnkusPendingError *volatile pending = ankus_pending_error_save();
             PG_TRY();
             {
                 PG_TRY();
@@ -983,6 +984,10 @@ internal static class NativeGucBridge
             MemoryContextSwitchTo(caller);
             if (work != NULL)
                 MemoryContextDelete(work);
+            if (status != 0)
+                ankus_pending_error_restore(pending);
+            else
+                ankus_pending_error_release(pending);
             return status;
         }
         """;
@@ -1114,11 +1119,13 @@ internal static class NativeGucBridge
             uint32 shared_held_before = ankus_shared_held_count;
             uint32 cancel_holdoff = QueryCancelHoldoffCount;
             volatile int status = 0;
+            volatile bool flushed = false;
             if (operation == 1 && level >= 0 && level < 10)
             {
                 HOLD_INTERRUPTS();
             }
 
+            AnkusPendingError *volatile pending = ankus_pending_error_save();
             PG_TRY();
             {
                 PG_TRY();
@@ -1141,6 +1148,7 @@ internal static class NativeGucBridge
                     MemoryContextSwitchTo(caller);
                     ErrorData *data = ankus_copy_error_data();
                     FlushErrorState();
+                    flushed = true;
                     ankus_guc_capture_error(data, error);
                     ankus_recovery_record(error, false);
                     ankus_free_error_data(data);
@@ -1158,6 +1166,10 @@ internal static class NativeGucBridge
             MemoryContextSwitchTo(caller);
             if (work != NULL)
                 MemoryContextDelete(work);
+            if (flushed)
+                ankus_pending_error_restore(pending);
+            else
+                ankus_pending_error_release(pending);
             InterruptHoldoffCount = ankus_shared_restore_interrupts(interrupt_holdoff, shared_held_before);
             QueryCancelHoldoffCount = cancel_holdoff;
             return status;
@@ -1467,6 +1479,9 @@ internal static class NativeGucBridge
             MemoryContext caller = CurrentMemoryContext;
             MemoryContext volatile work = NULL;
             AnkusGucFrame *volatile frame = NULL;
+            /* Transaction abort rolls settings back through assign hooks, sometimes while a
+             * caller's error is still pending. */
+            AnkusPendingError *volatile pending = ankus_pending_error_save();
             PG_TRY();
             {
                 PG_TRY();
@@ -1494,6 +1509,10 @@ internal static class NativeGucBridge
                     FlushErrorState();
                     data->elevel = frame == NULL || frame->error.report_level == 0 ? FATAL :
                         ankus_log_level(frame->error.report_level - 1);
+                    /* A report below ERROR returns here, so the caller's error must be pending again first. */
+                    AnkusPendingError *restored = pending;
+                    pending = NULL;
+                    ankus_pending_error_restore(restored);
                     ThrowErrorData(data);
                 }
                 PG_END_TRY();
@@ -1505,6 +1524,7 @@ internal static class NativeGucBridge
                     ankus_guc_frame_release(frame);
                 if (work != NULL)
                     MemoryContextDelete(work);
+                ankus_pending_error_release(pending);
             }
             PG_END_TRY();
         }

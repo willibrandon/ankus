@@ -137,8 +137,11 @@ public sealed partial class ToolCommandTests
                 using var reader = new StreamReader(stream);
                 identity = (await reader.ReadToEndAsync(token)).ReplaceLineEndings("\n").Split('\n');
             }
-            catch (FileNotFoundException)
+            catch (Exception error) when (error is FileNotFoundException ||
+                (OperatingSystem.IsWindows() && error is UnauthorizedAccessException or IOException))
             {
+                // The new postmaster has not written its file yet. On Windows the old file also denies access while it
+                // is pending deletion, and PostgreSQL may hold it while replacing it.
                 identity = [];
             }
 

@@ -16,6 +16,7 @@ internal static class NativeErrorBridge
         #include "catalog/namespace.h"
         #include "lib/stringinfo.h"
         #include "mb/pg_wchar.h"
+        #include "storage/ipc.h"
         #if PG_VERSION_NUM < 140000
         #include "postmaster/postmaster.h"
         #include "tcop/tcopprot.h"
@@ -104,6 +105,154 @@ internal static class NativeErrorBridge
             data->context_domain = NULL;
             data->message_id = NULL;
             FreeErrorData(data);
+        }
+
+        /* An error PostgreSQL is still handling while Ankus code runs. */
+        typedef struct AnkusPendingError
+        {
+            MemoryContext context;
+            ErrorData *data;
+            MemoryContextCallback cleanup;
+        } AnkusPendingError;
+
+        static void
+        ankus_pending_error_delete(void *argument)
+        {
+            MemoryContextDelete((MemoryContext) argument);
+        }
+
+        static void ankus_free_error_report(void *context);
+
+        /* Holds the probe's own error, so flushing it never resets the real ErrorContext. */
+        static MemoryContext ankus_error_probe_context;
+
+        /* Releases what finished reports left in ErrorContext once no error is pending, as
+         * PostgreSQL 19 does after an outermost report, so later calls take the empty-context
+         * fast path. Memory that a caller still uses there, a child context or a reset callback
+         * other than Ankus's own report cleanup, keeps the context as it is. */
+        static void
+        ankus_release_finished_reports(MemoryContext caller)
+        {
+            if (caller == ErrorContext || ErrorContext->firstchild != NULL)
+                return;
+
+            for (MemoryContextCallback *callback = ErrorContext->reset_cbs; callback != NULL; callback = callback->next)
+            {
+                if (callback->func != ankus_free_error_report && callback->func != ankus_pending_error_delete)
+                    return;
+            }
+
+            MemoryContextReset(ErrorContext);
+        }
+
+        /* A caller's PG_CATCH may clean up before PG_RE_THROW, as logical replication's
+         * apply worker does with AbortOutOfAnyTransaction, so Ankus callbacks can run while
+         * its error is still on PostgreSQL's error stack. FlushErrorState empties the whole
+         * stack, and PostgreSQL offers no way to remove only the newest entry. A guarded
+         * call that catches its own error there would discard the caller's, and the caller's
+         * re-throw would report "errstart was not called". Copy such an error first, so it
+         * can be pushed back once the guarded failure has been flushed. */
+        static AnkusPendingError *
+        ankus_pending_error_save(void)
+        {
+            /* Every flush resets ErrorContext, and a pending error keeps its text there, so an
+             * empty ErrorContext proves that none is pending without raising a probe error. An
+             * ERROR inside a critical section, with ExitOnAnyError or during process exit
+             * would escalate, and none may be raised while ErrorContext itself is being reset,
+             * so those callers are left unprotected. */
+            if (ankus_memory_error_cleanup || MemoryContextIsEmpty(ErrorContext) || CritSectionCount > 0 ||
+                ExitOnAnyError || proc_exit_inprogress)
+                return NULL;
+
+            MemoryContext caller = CurrentMemoryContext;
+            MemoryContext error_context = ErrorContext;
+            uint32 interrupt_holdoff = InterruptHoldoffCount;
+            uint32 cancel_holdoff = QueryCancelHoldoffCount;
+            MemoryContext volatile context = NULL;
+            AnkusPendingError *volatile pending = NULL;
+            ErrorData *volatile data = NULL;
+            PG_TRY();
+            {
+                if (ankus_error_probe_context == NULL)
+                    ankus_error_probe_context = AllocSetContextCreate(TopMemoryContext, "Ankus error probe", ALLOCSET_SMALL_SIZES);
+                /* Errors raised from here on, the probe's own included, are built in the probe
+                 * context. Flushing them then resets only that context, and a pending error's
+                 * text and any memory a caller keeps beneath ErrorContext stay intact. */
+                ErrorContext = ankus_error_probe_context;
+                context = AllocSetContextCreate(TopMemoryContext, "Ankus pending error", ALLOCSET_SMALL_SIZES);
+                MemoryContextSwitchTo(context);
+                pending = palloc0(sizeof(AnkusPendingError));
+                /* With no pending error, CopyErrorData raises "errstart was not called". Its
+                 * report never runs, so the caller's context callbacks need not format one. */
+                error_context_stack = NULL;
+                data = ankus_copy_error_data();
+            }
+            PG_CATCH();
+            {
+                FlushErrorState();
+                data = NULL;
+            }
+            PG_END_TRY();
+            ErrorContext = error_context;
+            /* A caught ERROR clears the holdoff counts that the caller, such as transaction
+             * abort, still relies on. */
+            InterruptHoldoffCount = interrupt_holdoff;
+            QueryCancelHoldoffCount = cancel_holdoff;
+            MemoryContextSwitchTo(caller);
+            if (data == NULL)
+            {
+                if (context != NULL)
+                    MemoryContextDelete(context);
+                ankus_release_finished_reports(caller);
+                return NULL;
+            }
+
+            /* ReThrowError restores only ERROR. A lower level is mid-report in a log hook, and
+             * a terminal level is already ending the process. */
+            if (data->elevel != ERROR)
+            {
+                MemoryContextDelete(context);
+                return NULL;
+            }
+
+            pending->context = context;
+            pending->data = data;
+            return pending;
+        }
+
+        /* Pushes a saved error back after the guarded failure that caught it was flushed. */
+        static void
+        ankus_pending_error_restore(AnkusPendingError *pending)
+        {
+            if (pending == NULL)
+                return;
+
+            MemoryContext caller = CurrentMemoryContext;
+            PG_TRY();
+            {
+                /* ReThrowError pushes the copy as the newest stack entry and long-jumps here. */
+                ReThrowError(pending->data);
+            }
+            PG_CATCH();
+            {
+                /* The caller's error is pending again, exactly as it was copied. */
+            }
+            PG_END_TRY();
+            MemoryContextSwitchTo(caller);
+            /* The restored entry keeps pointers to the copy's file, function and domain names,
+             * which ReThrowError treats as constants, so the copy lives until the caller's
+             * handler flushes the error. */
+            pending->cleanup.func = ankus_pending_error_delete;
+            pending->cleanup.arg = pending->context;
+            MemoryContextRegisterResetCallback(ErrorContext, &pending->cleanup);
+        }
+
+        /* Discards a saved error after a guarded call that left the error stack untouched. */
+        static void
+        ankus_pending_error_release(AnkusPendingError *pending)
+        {
+            if (pending != NULL)
+                MemoryContextDelete(pending->context);
         }
 
         """;

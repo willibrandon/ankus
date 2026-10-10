@@ -1,9 +1,12 @@
 /* Appended to actual selected-header call bodies by NativeRawCallFixtureCompiler. */
 #include "fmgr.h"
+#include "access/xact.h"
+#include "executor/spi.h"
 #include "miscadmin.h"
 #include "storage/lwlock.h"
 #include "utils/memutils.h"
 #include "utils/builtins.h"
+#include "utils/resowner.h"
 
 PG_MODULE_MAGIC;
 PGDLLEXPORT Datum ankus_test_raw_call_address(PG_FUNCTION_ARGS);
@@ -28,6 +31,8 @@ PGDLLEXPORT Datum ankus_test_log_prefix_active(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ankus_test_log_prefix_active);
 PGDLLEXPORT Datum ankus_test_log_prefix_restore(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(ankus_test_log_prefix_restore);
+PGDLLEXPORT Datum ankus_test_pending_error_cleanup(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(ankus_test_pending_error_cleanup);
 
 static bool raw_holdoffs_saved = false;
 static uint32 raw_interrupt_holdoff;
@@ -277,4 +282,34 @@ ankus_test_raw_call_lock_held(PG_FUNCTION_ARGS)
 {
     (void) fcinfo;
     PG_RETURN_BOOL(raw_error_lock_initialized && LWLockHeldByMe(&raw_error_lock));
+}
+
+/* Like logical replication's apply worker, rolls back while its own error is still
+ * pending, so subtransaction abort callbacks run before that error is re-thrown. */
+Datum
+ankus_test_pending_error_cleanup(PG_FUNCTION_ARGS)
+{
+    char *command = text_to_cstring(PG_GETARG_TEXT_PP(0));
+    MemoryContext context = CurrentMemoryContext;
+    ResourceOwner owner = CurrentResourceOwner;
+
+    BeginInternalSubTransaction(NULL);
+    PG_TRY();
+    {
+        if (SPI_connect() != SPI_OK_CONNECT)
+            elog(ERROR, "SPI_connect failed");
+        if (SPI_execute(command, false, 0) < 0)
+            elog(ERROR, "SPI_execute failed");
+        SPI_finish();
+        ereport(ERROR, (errcode(ERRCODE_RAISE_EXCEPTION), errmsg("pending failure survives cleanup")));
+    }
+    PG_CATCH();
+    {
+        RollbackAndReleaseCurrentSubTransaction();
+        MemoryContextSwitchTo(context);
+        CurrentResourceOwner = owner;
+        PG_RE_THROW();
+    }
+    PG_END_TRY();
+    PG_RETURN_VOID();
 }

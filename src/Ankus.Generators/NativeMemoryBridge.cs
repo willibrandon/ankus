@@ -1760,7 +1760,8 @@ internal static class NativeMemoryBridge
             uint32 interrupt_holdoff = InterruptHoldoffCount;
             uint32 shared_held_before = ankus_shared_held_count;
             uint32 cancel_holdoff = QueryCancelHoldoffCount;
-            int status = 0;
+            volatile int status = 0;
+            AnkusPendingError *volatile pending = ankus_pending_error_save();
             PG_TRY();
             {
                 ankus_memory_execute(api, request, result, recovered);
@@ -1802,6 +1803,10 @@ internal static class NativeMemoryBridge
                 PG_END_TRY();
             }
             PG_END_TRY();
+            if (status != 0)
+                ankus_pending_error_restore(pending);
+            else
+                ankus_pending_error_release(pending);
             if (status != 0 || (request->operation != ANKUS_MEMORY_NATIVE_CALL && request->operation != ANKUS_MEMORY_SHARED &&
                 request->operation != ANKUS_MEMORY_SPIN))
             {

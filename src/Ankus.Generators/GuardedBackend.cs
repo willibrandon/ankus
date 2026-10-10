@@ -119,10 +119,24 @@ internal static class GuardedBackend
             /* Successful built-in operations avoid a per-call subtransaction. Catalog
              * lookup and value conversion can still acquire transaction resources;
              * a caught ERROR requires real rollback before further backend work. */
-            bool input_recovery = request->recover_input && request->scalar_operation == 0 &&
+        #if PG_VERSION_NUM >= 160000
+            /* PostgreSQL 16 input functions report invalid text without raising, so TryParse of a
+             * built-in type needs no subtransaction, and also works where none may start, such as
+             * in transaction callbacks and parallel workers. */
+            bool soft_input = request->recover_input && request->scalar_operation == 0 &&
+                (numeric || temporal || network || geometry || (range && ankus_uses_builtin_range(request)));
+        #else
+            bool soft_input = false;
+        #endif
+            bool input_recovery = !soft_input && request->recover_input && request->scalar_operation == 0 &&
                 (numeric || temporal || network || geometry || (range && ankus_uses_builtin_range(request))) &&
                 !direct_spi && transaction_frame == NULL;
-            bool lightweight = !input_recovery && (numeric || temporal || network || geometry ||
+            /* Without a log hook, a report below ERROR runs only PostgreSQL's own formatting and
+             * client-encoding conversion. Neither holds a resource when it fails, so the report
+             * needs no subtransaction and its failure is still recovered. */
+            bool light_report = reporting && request->log_level >= 0 && request->log_level < 10 && emit_log_hook == NULL;
+            volatile bool report_started = false;
+            bool lightweight = !input_recovery && (numeric || temporal || network || geometry || light_report ||
                 (range && ankus_uses_builtin_range(request)) || (datum && request->scalar_operation == 6));
             bool direct = quote || reporting || temporal || numeric || network || geometry || range || enumeration || tuple ||
                 transaction_callbacks || transaction_id || datum || function_context || function_call || custom_type || datum_type || array || lookup || relation || subtransaction;
@@ -176,6 +190,7 @@ internal static class GuardedBackend
 
             /* Error recovery itself is guarded: it must not jump over the managed caller. */
             MemoryContext recovery_context = ankus_memory_contains(ErrorContext, caller_context) ? ErrorContext : caller_context;
+            AnkusPendingError *volatile pending = ankus_pending_error_save();
             PG_TRY();
             {
                 PG_TRY();
@@ -292,6 +307,18 @@ internal static class GuardedBackend
                             MemoryContextSwitchTo(operation_context);
                         }
 
+                    #if PG_VERSION_NUM >= 160000
+                        if (soft_input)
+                        {
+                            /* The operation context releases it with the rest of the parse. */
+                            ErrorSaveContext *soft_context = palloc0(sizeof(ErrorSaveContext));
+                            soft_context->type = T_ErrorSaveContext;
+                            soft_context->details_wanted = true;
+                            ankus_soft_input_raised = false;
+                            ankus_soft_input = soft_context;
+                        }
+                    #endif
+
                         if (request->operation != ANKUS_SPI_CLOSE_SESSION)
                         {
                             if (subtransaction)
@@ -337,6 +364,7 @@ internal static class GuardedBackend
                             }
                             else if (reporting)
                             {
+                                report_started = light_report;
                                 ankus_report(request->diagnostic, ankus_log_level(request->log_level));
                                 code = 0;
                             }
@@ -458,6 +486,9 @@ internal static class GuardedBackend
                             }
                         }
 
+                    #if PG_VERSION_NUM >= 160000
+                        ankus_soft_input = NULL;
+                    #endif
                         if (operation_context != NULL)
                         {
                             MemoryContextSwitchTo(CurTransactionContext);
@@ -509,6 +540,18 @@ internal static class GuardedBackend
                     data = ankus_copy_error_data();
                     FlushErrorState();
                     bool recovered = false;
+                #if PG_VERSION_NUM >= 160000
+                    /* A soft input failure was raised after its input function returned, so there
+                     * is nothing to roll back. */
+                    ankus_soft_input = NULL;
+                    recovered = ankus_soft_input_raised;
+                    ankus_soft_input_raised = false;
+                #endif
+                    if (report_started)
+                        recovered = true;
+                    /* Such a failure left no state behind, so it stays recovered even where
+                     * subtransactions are unavailable, as in a parallel worker before 17. */
+                    bool clean = recovered;
                     while (GetCurrentTransactionNestLevel() > caller_nest_level)
                     {
                         RollbackAndReleaseCurrentSubTransaction();
@@ -543,7 +586,8 @@ internal static class GuardedBackend
                     }
 
                     ankus_capture_error(data, error);
-                    ankus_recovery_record(error, recovered);
+                    if (!clean)
+                        ankus_recovery_record(error, recovered);
                     /* A failure rolled back by this operation's own subtransaction, such as a
                      * nested recoverable scope, does not fail the enclosing direct frame. */
                     if (transaction_direct_spi && !recovered)
@@ -570,6 +614,10 @@ internal static class GuardedBackend
                 ereport(FATAL, (errmsg("Unable to recover PostgreSQL state after a guarded SPI failure")));
             }
             PG_END_TRY();
+            if (status != 0)
+                ankus_pending_error_restore(pending);
+            else
+                ankus_pending_error_release(pending);
             InterruptHoldoffCount = ankus_shared_restore_interrupts(interrupt_holdoff, shared_held_before);
             QueryCancelHoldoffCount = cancel_holdoff;
             return status;

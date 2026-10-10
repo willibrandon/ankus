@@ -201,15 +201,22 @@ outside a recoverable subtransaction remains pending even if managed code
 catches its exception. Ankus blocks further backend work and raises the original
 error when managed cleanup has unwound. Use
 [`PgTransaction.RunInSubtransaction`](/transaction-callbacks/#recoverable-work)
-for operations that need rollback and recovery. `TryParse` helpers perform
-that rollback internally before returning false for invalid input. Native scalar
-JSON converters also roll back input errors before wrapping them in `JsonException`.
+for operations that need rollback and recovery. `TryParse` helpers return false
+for invalid input without leaving an error pending. For built-in numeric, date and
+time, network, geometry and range types on PostgreSQL 16 and later they use
+PostgreSQL's soft input errors, which need no rollback; otherwise they roll back an
+internal subtransaction first. As with PostgreSQL's `pg_input_is_valid`, only
+invalid input counts there: a hard error such as running out of memory still
+throws and remains pending. Native scalar JSON converters also roll back input
+errors before wrapping them in `JsonException`.
 
 PostgreSQL forbids independent rollback inside transaction callbacks and parallel
 operations before version 17. Valid input remains usable when the invocation phase
 permits backend value calls. Native invalid-input errors propagate as `PgException`
 and remain pending until PostgreSQL aborts. `TryParse` cannot return false for an unrecovered native error,
-and a JSON converter cannot turn it into a catchable `JsonException`.
+and a JSON converter cannot turn it into a catchable `JsonException`. From
+PostgreSQL 16, `TryParse` of the built-in types above still returns false there,
+because a soft input error needs no rollback.
 
 Query cancellation, `Fatal` and `Panic` remain pending across managed catches
 and subtransaction rollback. Handle them for cleanup, without treating the

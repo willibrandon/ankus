@@ -10,7 +10,8 @@ namespace Ankus.IntegrationTests;
 public sealed class ValueInputRecoveryTests(TestContext context)
 {
     /// <summary>
-    /// Successful TryParse remains usable, and a caught input ERROR still rejects the transaction.
+    /// Successful TryParse remains usable. Before PostgreSQL 16 a caught input ERROR still rejects the transaction, since
+    /// callbacks cannot roll it back; from 16, invalid input is a soft error, TryParse returns false and the commit succeeds.
     /// </summary>
     /// <param name="family">The native value family.</param>
     /// <param name="text">The independently expected valid value.</param>
@@ -28,6 +29,7 @@ public sealed class ValueInputRecoveryTests(TestContext context)
         int backend = connection.ProcessID;
         await using var command = new NpgsqlCommand("CREATE TEMP TABLE callback_input_writes(value integer)", connection);
         await command.ExecuteNonQueryAsync(token);
+        bool soft = PostgresFixture.Cluster.Installation.Version.Major >= 16;
         for (int index = 0; index < 2; index++)
         {
             bool invalid = index != 0;
@@ -41,7 +43,7 @@ public sealed class ValueInputRecoveryTests(TestContext context)
                 command.Parameters.AddWithValue(family);
                 command.Parameters.AddWithValue(invalid);
                 await command.ExecuteNonQueryAsync(token);
-                if (invalid)
+                if (invalid && !soft)
                 {
                     failure = await Assert.ThrowsExactlyAsync<PostgresException>(() => transaction.CommitAsync(token));
                     Assert.AreEqual(state, failure.SqlState);
@@ -56,9 +58,10 @@ public sealed class ValueInputRecoveryTests(TestContext context)
             command.Parameters.Clear();
             command.CommandText = "SELECT datatype.value_input_callback_snapshot()";
             string[] observed = Assert.IsInstanceOfType<string[]>(await command.ExecuteScalarAsync(token));
-            Assert.AreSequenceEqual(invalid ? [state, failure!.MessageText, "caught"] : ["True", text, "returned"], observed);
+            Assert.AreSequenceEqual(!invalid ? ["True", text, "returned"] : soft ? ["False", string.Empty, "returned"] :
+                [state, failure!.MessageText, "caught"], observed);
             command.CommandText = "SELECT sum(value) FROM callback_input_writes";
-            Assert.AreEqual(42L, await command.ExecuteScalarAsync(token));
+            Assert.AreEqual(invalid && soft ? 84L : 42L, await command.ExecuteScalarAsync(token));
             command.CommandText = "SELECT pg_backend_pid()";
             Assert.AreEqual(backend, await command.ExecuteScalarAsync(token));
         }
@@ -68,11 +71,12 @@ public sealed class ValueInputRecoveryTests(TestContext context)
 public sealed partial class GucParallelTests
 {
     /// <summary>
-    /// Actual workers parse valid values on every supported major and recover invalid input only when rollback is supported.
+    /// Actual workers parse valid values on every supported major and recover invalid input from PostgreSQL 16, whose soft
+    /// input errors need no rollback.
     /// </summary>
     /// <param name="family">The native value family.</param>
     /// <param name="text">The independently expected valid text.</param>
-    /// <param name="state">The invalid-input SQLSTATE where parallel rollback is unavailable.</param>
+    /// <param name="state">The invalid-input SQLSTATE before PostgreSQL 16.</param>
     [TestMethod]
     [DataRow("numeric", "42", "22P02")]
     [DataRow("temporal", "2024-02-29", "22007")]
@@ -89,7 +93,7 @@ public sealed partial class GucParallelTests
                 bool invalid = index != 0;
                 string expression = $"datatype.value_input_parallel(value % 2, '{family}', {(invalid ? "true" : "false")})";
                 await transaction.SaveAsync("input_recovery", token);
-                if (invalid && connection.PostgreSqlVersion.Major < 17)
+                if (invalid && connection.PostgreSqlVersion.Major < 16)
                 {
                     PostgresException failure = await Assert.ThrowsExactlyAsync<PostgresException>(() =>
                         ReadGroupsAsync(connection, transaction, expression, token));

@@ -40,7 +40,9 @@ public sealed class NativeValueOwnershipTests(TestContext context)
             {
                 bool cancel = (mode & 1) != 0;
                 bool recoverInput = (mode & 2) != 0;
-                bool recovered = recoverInput && family < 5;
+                // From PostgreSQL 16, input recovery relies on soft input errors and opens no subtransaction, so an
+                // injected hard fault is not recovered, as pg_input_is_valid does not recover one either.
+                bool recovered = recoverInput && family < 5 && PostgresFixture.Cluster.Installation.Version.Major < 16;
                 command.CommandText = "SELECT tests.value_ownership($1,$2,$3,$4)";
                 command.Parameters.Clear();
                 command.Parameters.AddWithValue(family);

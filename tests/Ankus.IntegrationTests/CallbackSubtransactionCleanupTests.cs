@@ -17,6 +17,29 @@ public sealed partial class CallbackSubtransactionCleanupTests(TestContext conte
         """;
 
     /// <summary>
+    /// A caller that rolls back while its error is still pending, as logical replication's apply worker does, re-throws
+    /// that error after an abort callback catches a backend error of its own: a LATIN1 client cannot receive the
+    /// callback's warning.
+    /// </summary>
+    [TestMethod]
+    public async Task CaughtCallbackErrorKeepsCallersPendingError()
+    {
+        CancellationToken token = context.CancellationToken;
+        await using NpgsqlConnection connection = await PostgresFixture.Cluster.OpenConnectionAsync(token);
+        await using var command = new NpgsqlCommand(
+            "SET client_encoding=LATIN1; BEGIN; SELECT datatype.transaction_callback_register_caught_abort_error()", connection);
+        await command.ExecuteNonQueryAsync(token);
+        command.CommandText = "SELECT tests.pending_error_cleanup('SELECT 1')";
+        PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => command.ExecuteNonQueryAsync(token));
+        Assert.AreEqual("P0001", error.SqlState);
+        Assert.AreEqual("pending failure survives cleanup", error.MessageText);
+        command.CommandText = "ROLLBACK";
+        await command.ExecuteNonQueryAsync(token);
+        command.CommandText = "SELECT datatype.transaction_callback_caught_abort_error()";
+        Assert.AreEqual("22P05", await command.ExecuteScalarAsync(token));
+    }
+
+    /// <summary>
     /// Iterator failures retain their primary diagnostics and release ownership before the exception handler resumes.
     /// </summary>
     /// <param name="openCursor">Whether the iterator retains a cursor alongside its prepared plan.</param>
@@ -304,6 +327,58 @@ public sealed partial class CallbackSubtransactionCleanupTests(TestContext conte
             (int)PgLogLevel.Fatal, write: false);
 
     /// <summary>
+    /// An emit_log_hook that raises ERROR while a terminal cleanup report is written cannot make it recoverable: PostgreSQL
+    /// promotes the hook's error to the pending FATAL, so the backend still exits, reporting the hook's error.
+    /// </summary>
+    [TestMethod]
+    public Task CleanupTerminalReportKeepsFatalWhenLogHookFails()
+        => AssertTerminalCleanupAsync(FormattableString.Invariant($"datatype.memory_callback_prepare_terminal({(int)PgLogLevel.Fatal})"),
+            (int)PgLogLevel.Fatal, write: false, failingReport: true);
+
+    /// <summary>
+    /// When building the complete terminal cleanup report fails, the backend still ends with the requested severity,
+    /// SQLSTATE and message: FATAL after a read-only commit and PANIC after a durable one, whose write survives recovery.
+    /// </summary>
+    /// <param name="write">Whether the transaction writes and therefore commits durably.</param>
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task TerminalCleanupReportFailureFallsBackToTransportedMessage(bool write)
+    {
+        CancellationToken token = context.CancellationToken;
+        using IDisposable recoverySlot = await CrashRecovery.ReserveAsync(token);
+        PostgresTestClusterOptions options = await IntegrationEnvironment.CreateOptionsAsync(token);
+        await using PostgresTestCluster cluster = await PostgresTestCluster.StartAsync(options, token);
+        await using NpgsqlConnection observer = await cluster.OpenConnectionAsync(token);
+        await using var setup = new NpgsqlCommand("CREATE SCHEMA tests; CREATE TABLE terminal_fallback(value integer); " +
+            AllocatorFaultFixtureCompiler.CompletionReportingSql, observer);
+        await setup.ExecuteNonQueryAsync(token);
+        await using NpgsqlConnection connection = await cluster.OpenConnectionAsync(token);
+        string marker = "terminal-fallback-" + Guid.NewGuid().ToString("N");
+        await using var command = new NpgsqlCommand($"SET application_name='{marker}'; SET log_error_verbosity=verbose; BEGIN" +
+            (write ? "; INSERT INTO terminal_fallback VALUES(73)" : string.Empty) + "; SELECT tests.completion_terminal_fault()", connection);
+        int logStart = cluster.ReadServerLog().Length;
+        Assert.AreEqual(42, await command.ExecuteScalarAsync(token));
+        command.CommandText = "COMMIT";
+        NpgsqlException failure = await Assert.ThrowsAsync<NpgsqlException>(() => command.ExecuteNonQueryAsync(token));
+        string severity = write ? "PANIC" : "FATAL";
+        if (failure is PostgresException error)
+        {
+            Assert.AreEqual(severity, error.InvariantSeverity);
+            Assert.AreEqual("P7808", error.SqlState);
+            Assert.AreEqual("terminal fallback report", error.MessageText);
+        }
+
+        using CancellationTokenSource deadline = CrashRecovery.CreateDeadline(token);
+        string log = write ? await CrashRecovery.WaitAsync(cluster, deadline.Token) : cluster.ReadServerLog();
+        Assert.Contains($"[{marker}]: {severity}:  P7808: terminal fallback report", log[logStart..]);
+        Assert.DoesNotContain("controlled terminal report construction failure", log[logStart..]);
+        await using NpgsqlConnection recovered = await cluster.OpenConnectionAsync(deadline.Token);
+        await using var query = new NpgsqlCommand("SELECT count(*) FROM terminal_fallback", recovered);
+        Assert.AreEqual(write ? 1L : 0L, await query.ExecuteScalarAsync(deadline.Token));
+    }
+
+    /// <summary>
     /// Caught terminal intent from iterator or aggregate disposal terminates safely after an executor failure starts rollback.
     /// </summary>
     /// <param name="aggregate">Whether an aggregate owns cleanup rather than an iterator.</param>
@@ -411,8 +486,9 @@ public sealed partial class CallbackSubtransactionCleanupTests(TestContext conte
     /// <param name="setupStatement">Optional backend-local fixture setup before writes begin.</param>
     /// <param name="preparedTransaction">Whether the irreversible completion prepares the transaction.</param>
     /// <param name="write">Whether the transaction writes and therefore commits durably.</param>
+    /// <param name="failingReport">Whether a log hook raises ERROR while the terminal report is written.</param>
     private async Task AssertTerminalCleanupAsync(string preparation, int level, string? abortQuery = null,
-        string? setupStatement = null, bool preparedTransaction = false, bool write = true)
+        string? setupStatement = null, bool preparedTransaction = false, bool write = true, bool failingReport = false)
     {
         CancellationToken token = context.CancellationToken;
         using IDisposable recoverySlot = await CrashRecovery.ReserveAsync(token);
@@ -432,11 +508,13 @@ public sealed partial class CallbackSubtransactionCleanupTests(TestContext conte
         await using PostgresTestCluster cluster = await PostgresTestCluster.StartAsync(options, token);
         await using NpgsqlConnection observer = await cluster.OpenConnectionAsync(token);
         await using var setup = new NpgsqlCommand("CREATE SCHEMA datatype; CREATE EXTENSION ankus_test WITH SCHEMA datatype; " +
-            "CREATE TABLE callback_reporter_commit(value integer)", observer);
+            "CREATE TABLE callback_reporter_commit(value integer)" +
+            (failingReport ? "; CREATE SCHEMA tests; " + NativeRawCallFixtureCompiler.InstallationSql : string.Empty), observer);
         await setup.ExecuteNonQueryAsync(token);
         await using NpgsqlConnection connection = await cluster.OpenConnectionAsync(token);
         string marker = "callback-terminal-" + Guid.NewGuid().ToString("N");
-        await using var command = new NpgsqlCommand($"SET application_name='{marker}'; SET log_error_verbosity=verbose", connection);
+        await using var command = new NpgsqlCommand($"SET application_name='{marker}'; SET log_error_verbosity=verbose" +
+            (failingReport ? "; SELECT tests.log_prefix_arm('terminal cleanup café')" : string.Empty), connection);
         await command.ExecuteNonQueryAsync(token);
         int logStart = cluster.ReadServerLog().Length;
         command.CommandText = "BEGIN";
@@ -465,6 +543,12 @@ public sealed partial class CallbackSubtransactionCleanupTests(TestContext conte
                 Assert.AreEqual(aggregate ? "owned aggregate detail" : null, error.Detail);
                 Assert.AreEqual(aggregate ? "retry valid inputs" : null, error.Hint);
             }
+            else if (failingReport)
+            {
+                Assert.AreEqual(severity, error.InvariantSeverity);
+                Assert.AreEqual("P7521", error.SqlState);
+                Assert.AreEqual("native failure before managed log handler", error.MessageText);
+            }
             else
             {
                 Assert.AreEqual(severity, error.InvariantSeverity);
@@ -491,9 +575,19 @@ public sealed partial class CallbackSubtransactionCleanupTests(TestContext conte
 
         string log = string.Join('\n', completeLog[logStart..].Split('\n')
             .Where(line => line.Contains($"[{marker}]:", StringComparison.Ordinal)));
-        Assert.Contains($"{severity}:  P7806: terminal cleanup café", log);
-        Assert.Contains("terminal cleanup naïve", log);
-        Assert.Contains("restart after terminal cleanup déjà", log);
+        if (failingReport)
+        {
+            // The hook fails before PostgreSQL writes the original report, and its own error is written instead.
+            Assert.Contains($"{severity}:  P7521: native failure before managed log handler", log);
+            Assert.DoesNotContain("terminal cleanup café", log);
+        }
+        else
+        {
+            Assert.Contains($"{severity}:  P7806: terminal cleanup café", log);
+            Assert.Contains("terminal cleanup naïve", log);
+            Assert.Contains("restart after terminal cleanup déjà", log);
+        }
+
         Assert.DoesNotContain("TRAP: failed Assert", completeLog);
         Assert.DoesNotContain("it was already committed", log);
         if (severity == "FATAL")

@@ -40,6 +40,8 @@ internal static class NativeRawCallFixtureCompiler
         AS '{{ModuleFileName}}', 'ankus_test_log_prefix_active' LANGUAGE c STRICT;
         CREATE FUNCTION tests.log_prefix_restore() RETURNS boolean
         AS '{{ModuleFileName}}', 'ankus_test_log_prefix_restore' LANGUAGE c STRICT;
+        CREATE FUNCTION tests.pending_error_cleanup(text) RETURNS void
+        AS '{{ModuleFileName}}', 'ankus_test_pending_error_cleanup' LANGUAGE c STRICT;
         """;
 
     /// <summary>

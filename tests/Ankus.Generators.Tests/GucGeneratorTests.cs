@@ -603,7 +603,11 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.Contains("data->filename, data->funcname, data->domain, data->context_domain, data->message_id", native[free..]);
         Assert.Contains("pfree((void *) fields[index]);", native[free..]);
         Assert.Contains("FreeErrorData(data);", native[free..]);
-        Assert.Contains("ErrorData *data = ankus_copy_error_data();\n            FlushErrorState();\n            ankus_guc_capture_error(data, error);\n            ankus_recovery_record(error, false);\n            ankus_free_error_data(data);", native);
+        Assert.Contains("ErrorData *data = ankus_copy_error_data();\n            FlushErrorState();\n            flushed = true;\n            ankus_guc_capture_error(data, error);\n            ankus_recovery_record(error, false);\n            ankus_free_error_data(data);", native);
+        // A hook can log or read a setting while the caller's error is still pending, so the guard saves that error and
+        // pushes it back after flushing its own.
+        Assert.Contains("AnkusPendingError *volatile pending = ankus_pending_error_save();", native);
+        Assert.Contains("if (flushed)\n        ankus_pending_error_restore(pending);\n    else\n        ankus_pending_error_release(pending);", native);
     }
 
     /// <summary>

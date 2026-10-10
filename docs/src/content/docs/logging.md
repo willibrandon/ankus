@@ -32,6 +32,9 @@ Nonterminal message emission temporarily holds PostgreSQL interrupts. Pending
 cancellation is processed at a later interrupt check, after the report finishes.
 Call `PgInterrupts.Check()` periodically in loops that only log messages. Native
 reporting errors, such as an encoding failure, still follow normal error recovery.
+A report below `Error` needs no subtransaction unless another extension has
+installed an `emit_log_hook`. With a hook, each report runs in one, so a failure
+inside the hook rolls back whatever the hook had done.
 
 Messages convert exactly to the database encoding, including outside a
 transaction and before a background worker's first transaction. In a database that cannot represent a character, such as `€` in

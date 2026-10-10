@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.Text;
 using Ankus.Testing;
 using Npgsql;
 
@@ -112,18 +113,31 @@ public sealed partial class ToolCommandTests
         => await WorkerIdleCancellationAsync(poll: true);
 
     /// <summary>
+    /// In a LATIN1 database a worker's client encoding is LATIN1, so its reports between transactions, an error captured
+    /// after its transaction has ended and an idle cancellation all convert text with no transaction available, and the
+    /// worker keeps running.
+    /// </summary>
+    [TestMethod]
+    public async Task WorkerDiagnosticsInLatin1DatabaseConvertOutsideTransactions()
+        => await WorkerIdleCancellationAsync(poll: false, latin1: true);
+
+    /// <summary>
     /// Cancels an idle worker at the requested native boundary and observes successful later logging and transactions.
     /// </summary>
     /// <param name="poll">Whether the worker checks interrupts while doing managed work instead of waiting on its latch.</param>
-    private async Task WorkerIdleCancellationAsync(bool poll)
+    /// <param name="latin1">Whether the worker runs in a LATIN1 database and first reports non-ASCII diagnostics.</param>
+    private async Task WorkerIdleCancellationAsync(bool poll, bool latin1 = false)
     {
         CancellationToken token = context.CancellationToken;
         string output = await GetSharedPublicationAsync(s_workerCancellationPublication, token);
         await using PostgresTestCluster cluster = await StartPublishedClusterAsync(output, token, sharedPreload: true,
             additionalConfiguration: ["max_worker_processes = 4", "max_parallel_workers = 0", "max_logical_replication_workers = 0", "log_error_verbosity = verbose"]);
-        await using NpgsqlConnection connection = await cluster.OpenConnectionAsync(token);
+        await using NpgsqlConnection administrator = await cluster.OpenConnectionAsync(token);
+        await using NpgsqlConnection connection = latin1 ? await OpenLatin1DatabaseAsync(administrator, token) : administrator;
         await ExecutePackageGucAsync(connection, "CREATE EXTENSION ankus_worker_cancellation; CREATE TABLE worker_cancel_values(value integer)");
-        int process = Assert.IsInstanceOfType<int>(await PackageGucScalarAsync(connection, poll ? "SELECT cancellation_start(5)" : "SELECT cancellation_start(3)"));
+        (int Native, int Server) mark = EncodedServerLog.Mark(cluster);
+        int process = Assert.IsInstanceOfType<int>(await PackageGucScalarAsync(connection,
+            latin1 ? "SELECT cancellation_start(7)" : poll ? "SELECT cancellation_start(5)" : "SELECT cancellation_start(3)"));
         Assert.IsGreaterThan(0, process);
         Assert.AreNotEqual(connection.ProcessID, process);
         string pid = process.ToString(CultureInfo.InvariantCulture);
@@ -139,7 +153,7 @@ public sealed partial class ToolCommandTests
                     (poll ? " AND wait_event IS NULL" : " AND wait_event = 'Extension'") + " AND xact_start IS NULL)");
                 Assert.IsTrue(Assert.IsInstanceOfType<bool>(await PackageGucScalarAsync(connection, "SELECT pg_cancel_backend(" + pid + ")")));
                 await WaitForCancellationWorkerAsync(connection, cluster, process, "(cancellation_status())[4] = " + count);
-                Assert.AreSequenceEqual([0, attempt, attempt, attempt],
+                Assert.AreSequenceEqual([latin1 ? s_installation.Version.Major >= 14 ? 1 : 2 : 0, attempt, attempt, attempt],
                     Assert.IsInstanceOfType<int[]>(await PackageGucScalarAsync(connection, "SELECT cancellation_status()")));
                 Assert.AreEqual((long)attempt, await PackageGucScalarAsync(connection, "SELECT count(*) FROM worker_cancel_values"));
                 Assert.AreEqual(process, await PackageGucScalarAsync(connection, "SELECT cancellation_pid()"));
@@ -148,6 +162,11 @@ public sealed partial class ToolCommandTests
             Assert.AreSequenceEqual([1, 2], Assert.IsInstanceOfType<int[]>(await PackageGucScalarAsync(connection,
                 "SELECT array_agg(value ORDER BY value) FROM worker_cancel_values")));
             Assert.Contains("worker idle cancellation recovered", cluster.ReadServerLog());
+            if (latin1)
+            {
+                await EncodedServerLog.AssertReportedAsync(cluster, mark, "worker diagnostics café", Encoding.Latin1, token);
+            }
+
             Assert.IsTrue(Assert.IsInstanceOfType<bool>(await PackageGucScalarAsync(connection, "SELECT pg_reload_conf()")));
             await WaitForCancellationWorkerAsync(connection, cluster, process, "cancellation_reloaded() = 1");
         }
@@ -165,6 +184,31 @@ public sealed partial class ToolCommandTests
         }
 
         Assert.AreEqual(42, await PackageGucScalarAsync(connection, "SELECT 42"));
+    }
+
+    /// <summary>
+    /// Creates a LATIN1 database and connects to it, so a worker started from it uses that encoding.
+    /// </summary>
+    /// <param name="administrator">A connection to the cluster's default database.</param>
+    /// <param name="token">Cancels the setup.</param>
+    /// <returns>An open connection to the new database.</returns>
+    private async Task<NpgsqlConnection> OpenLatin1DatabaseAsync(NpgsqlConnection administrator, CancellationToken token)
+    {
+        string database = "worker_latin1_" + Guid.NewGuid().ToString("N");
+        await ExecutePackageGucAsync(administrator,
+            $"CREATE DATABASE {database} TEMPLATE template0 ENCODING 'LATIN1' LC_COLLATE 'C' LC_CTYPE 'C'");
+        var builder = new NpgsqlConnectionStringBuilder(administrator.ConnectionString) { Database = database, Pooling = false };
+        var connection = new NpgsqlConnection(builder.ConnectionString);
+        try
+        {
+            await connection.OpenAsync(token);
+            return connection;
+        }
+        catch
+        {
+            await connection.DisposeAsync();
+            throw;
+        }
     }
 
     /// <summary>
@@ -268,8 +312,13 @@ public sealed partial class ToolCommandTests
                 {
                 }
 
-                if (mode == 3 || mode == 5)
+                if (mode == 3 || mode == 5 || mode == 7)
                 {
+                    if (mode == 7)
+                    {
+                        RunEncodedDiagnostics();
+                    }
+
                     RunIdleCancellation(mode == 5);
                     return;
                 }
@@ -340,6 +389,24 @@ public sealed partial class ToolCommandTests
                         PgBackgroundWorker.ReloadConfiguration();
                         Reloaded.Exchange(1);
                     }
+                }
+            }
+
+            private static void RunEncodedDiagnostics()
+            {
+                // Run from a LATIN1 database, the worker's reports and captured errors convert text after its
+                // transaction has ended.
+                PgLog.Notice("worker diagnostics café");
+                try
+                {
+                    PgBackgroundWorker.RunTransaction(static () => _ = PgTransaction.RegisterCallback(PgTransactionEvent.PreCommit,
+                        static () => throw new PgException("P7862", "worker pre-commit café")));
+                }
+                catch (PgException exception) when (exception.SqlState == "P7862" &&
+                    exception.Message is "worker pre-commit café" or "worker pre-commit caf\\xe9")
+                {
+                    // PostgreSQL 13 cannot convert without raising outside a transaction, so it escapes the byte instead.
+                    Swallowed.Exchange(exception.Message == "worker pre-commit café" ? 1 : 2);
                 }
             }
 

@@ -9,6 +9,59 @@ internal static class NativeScalarFunctions
     /// Gets the typed scalar function table contract and invocation helper.
     /// </summary>
     internal const string Source = """
+        #if PG_VERSION_NUM >= 160000
+        #include "nodes/miscnodes.h"
+
+        /* Set while TryParse converts a built-in type. PostgreSQL 16 input functions then
+         * report invalid text here instead of raising, so no subtransaction is needed. */
+        static ErrorSaveContext *ankus_soft_input;
+        /* Whether the ERROR being handled reports such a soft failure. The input function
+         * returned normally, so it left nothing that needs rollback. */
+        static bool ankus_soft_input_raised;
+        #endif
+
+        /* Calls a built-in input function. During TryParse on PostgreSQL 16 and later, a soft
+         * failure is raised here, at a point where the input function has released everything,
+         * so the guard can recover it without a subtransaction. */
+        static Datum
+        ankus_input_call(PGFunction input, char *text, Oid io_parameter, int32 typmod)
+        {
+        #if PG_VERSION_NUM >= 160000
+            if (ankus_soft_input != NULL)
+            {
+                Datum result;
+                if (DirectInputFunctionCallSafe(input, text, io_parameter, typmod, (Node *) ankus_soft_input, &result))
+                    return result;
+                ankus_soft_input_raised = true;
+                /* Raise the saved report as the ERROR the input function would have raised. */
+                ankus_soft_input->error_data->elevel = ERROR;
+                ThrowErrorData(ankus_soft_input->error_data);
+            }
+        #endif
+            return DirectFunctionCall3(input, CStringGetDatum(text), ObjectIdGetDatum(io_parameter), Int32GetDatum(typmod));
+        }
+
+        /* Calls an input function by OID, with the same soft-failure handling. */
+        static Datum
+        ankus_oid_input_call(Oid function, char *text, Oid io_parameter, int32 typmod)
+        {
+        #if PG_VERSION_NUM >= 160000
+            if (ankus_soft_input != NULL)
+            {
+                FmgrInfo input;
+                Datum result;
+                fmgr_info(function, &input);
+                if (InputFunctionCallSafe(&input, text, io_parameter, typmod, (Node *) ankus_soft_input, &result))
+                    return result;
+                ankus_soft_input_raised = true;
+                /* Raise the saved report as the ERROR the input function would have raised. */
+                ankus_soft_input->error_data->elevel = ERROR;
+                ThrowErrorData(ankus_soft_input->error_data);
+            }
+        #endif
+            return OidInputFunctionCall(function, text, io_parameter, typmod);
+        }
+
         typedef struct AnkusScalarFunction
         {
             int operation;

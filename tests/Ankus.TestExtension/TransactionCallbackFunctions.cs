@@ -19,6 +19,7 @@ public static class TransactionCallbackFunctions
     private static PgSubtransactionCallback? s_subCommit;
     private static PgSubtransactionCallback? s_subAbort;
     private static WeakReference? s_root;
+    private static string? s_caughtAbortError;
 
     /// <summary>
     /// Registers a savepoint commit or abort callback that throws after the savepoint completes.
@@ -28,6 +29,35 @@ public static class TransactionCallbackFunctions
     public static void TransactionCallbackRegisterSavepointFailure(bool abort)
         => s_subCommit = PgTransaction.RegisterSubtransactionCallback(abort ? PgSubtransactionEvent.Abort : PgSubtransactionEvent.Commit,
             static (_, _) => throw new PgException("P7840", "savepoint completion callback failure"));
+
+    /// <summary>
+    /// Registers a savepoint abort callback that catches a backend error of its own, as cleanup code may: a warning
+    /// that the client's encoding cannot represent.
+    /// </summary>
+    [PgFunction]
+    public static void TransactionCallbackRegisterCaughtAbortError()
+    {
+        s_caughtAbortError = null;
+        s_subAbort = PgTransaction.RegisterSubtransactionCallback(PgSubtransactionEvent.Abort, static (_, _) =>
+        {
+            try
+            {
+                PgLog.Write(PgLogLevel.Warning, "savepoint cleanup costs 5 \u20AC");
+                s_caughtAbortError = "logged";
+            }
+            catch (PgException error)
+            {
+                s_caughtAbortError = error.SqlState;
+            }
+        });
+    }
+
+    /// <summary>
+    /// Returns the SQLSTATE that the savepoint abort callback caught.
+    /// </summary>
+    /// <returns>The caught SQLSTATE, or null when the callback has not run.</returns>
+    [PgFunction]
+    public static string? TransactionCallbackCaughtAbortError() => s_caughtAbortError;
 
     /// <summary>
     /// Registers a pre-commit callback that runs SQL after PostgreSQL has fired the transaction's deferred triggers.

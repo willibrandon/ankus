@@ -130,6 +130,55 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
 
 ## Active validation and work
 
+- `TryParse` of built-in numeric, date and time, network, geometry and range
+  types no longer opens a subtransaction on PostgreSQL 16 and later: it calls
+  the input function through PostgreSQL's soft-error interface and raises a
+  failure only after the input function has returned, so the guard recovers it
+  without rollback. It therefore also returns false inside transaction callbacks
+  and parallel workers, where no subtransaction may start: the callback and
+  parallel input tests now expect `false` and a committed transaction for all
+  five families from 16, and the original SQLSTATE before. As with PostgreSQL's
+  own `pg_input_is_valid`, only invalid input is soft; a hard error such as out
+  of memory is no longer rolled back on 16 and later, and the native-fault
+  ownership test now expects that. Log reports below ERROR skip the subtransaction too
+  when no `emit_log_hook` is installed, since PostgreSQL's own formatting and
+  client conversion hold nothing when they fail; both kinds of clean failure stay
+  recovered in a parallel worker before 17 instead of being raised again when the
+  function returns. A terminal cleanup report whose construction fails now has a
+  test: the fault fixture fails the call into the report builder, and the backend
+  still ends with the requested severity and transported message, FATAL after a
+  read-only commit and PANIC after a durable one. A second test shows that a log
+  hook failing during the report cannot make it recoverable: PostgreSQL promotes
+  the hook's error to the pending FATAL.
+- Evidence for this batch and the pending-error work: the full Linux x64 suite on
+  PostgreSQL 18.6 ran 14,477 tests with 15 failures, and the Windows x64 suites on
+  17.11 and 13.23 ran 14,477 each with 16 and 1. The failures were two existing
+  tests that still expected the old input-recovery behavior on 16 and later, and
+  on Windows a race in a test helper that read `postmaster.pid` while PostgreSQL
+  was replacing it. With those updated, the affected input, ownership, parallel,
+  callback and logging tests pass on Linux with PostgreSQL 18.6, 16 and 13.23
+  (99 each, plus 208 broader on 18.6 and 13.23) and on Windows with 17.11 and
+  13.23. The test extension's native bridge compiles for PostgreSQL 13, 16 and 18.
+- A guarded call that caught its own error while PostgreSQL still had another
+  error pending removed both, because PostgreSQL's error stack can only be
+  flushed whole. A caller that cleans up before re-throwing, as logical
+  replication's apply worker does, then reported `errstart was not called`
+  instead of its own error. Guarded SPI, memory, logging, configuration-read and
+  assign-hook calls now copy a pending error first and push it back after
+  flushing their own. An empty ErrorContext proves none is pending, so ordinary
+  calls skip the copy; otherwise the probe points `ErrorContext` at a private
+  context while it runs, so its own error never resets memory a caller keeps
+  beneath ErrorContext. Once no error is pending, leftovers of finished reports
+  are released as PostgreSQL 19 does, so later calls take the fast path again. A
+  C fixture repeats the apply worker's pattern with a savepoint abort callback
+  whose warning a LATIN1 client cannot receive: before the fix the client saw
+  `XX000: errstart was not called`, and now it sees the original `P0001` error.
+- A worker started from a LATIN1 database now has a test: it logs non-ASCII text
+  between transactions, catches a pre-commit callback's error after its
+  transaction has ended, and survives two idle cancellations, with its report
+  written to the log in LATIN1. The generator tests (4,773) and the 215 affected
+  memory, callback, configuration, logging and worker integration tests pass on
+  Linux x64 with PostgreSQL 18.6.
 - Numeric, network and geometry values implement `IParsable<T>` and
   `ISpanFormattable`, and the six temporal types implement `IParsable<T>`, so
   generic .NET code and string interpolation use PostgreSQL's input and output
@@ -166,11 +215,9 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   can inspect an error and continue. Projects that enable implicit usings get
   `using Ankus` from the SDK. The `dotnet new` templates accept
   `--extension-name`, matching `ankus new`. The numeric guide notes pgrx's
-  `XX000`. Still open from the audit: guarded catch blocks that flush the error
-  stack during abort cleanup, LATIN1 worker and terminal-report fallback tests,
-  logging and input-parsing subtransactions, the flat public namespace, version
-  and platform cells CI never runs, and binding catalogs still taken from pgrx's
-  generated bindings.
+  `XX000`. Still open from the audit: the flat public namespace,
+  version and platform cells CI never runs, and binding catalogs still taken from
+  pgrx's generated bindings.
 - **2b841a3** passes the complete Linux x64 suite on PostgreSQL 18.6 with run-as
   (**14,442** total; **14,391** passed; 51 skips; zero failures; **41m03s**). Its
   Windows x64 suites on PostgreSQL 17.11 and 13.23, run concurrently at package

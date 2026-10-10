@@ -301,7 +301,7 @@ internal static class NativeTemporalOperations
                         ereport(ERROR, (errmsg("invalid temporal parse signature")));
                     input = TextDatumGetCString(ankus_parameter_datum(argument));
                     getTypeInputInfo(output, &function, &io_parameter);
-                    datum = OidInputFunctionCall(function, input, io_parameter, -1);
+                    datum = ankus_oid_input_call(function, input, io_parameter, -1);
                 }
                 else
                 {

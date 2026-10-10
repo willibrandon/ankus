@@ -206,11 +206,13 @@ internal static class NativeTransactionBridge
             uint32 shared_held_before = ankus_shared_held_count;
             uint32 cancel_holdoff = QueryCancelHoldoffCount;
             volatile int status = 0;
+            volatile bool flushed = false;
             if (operation == 1 && level >= 0 && level < 10)
             {
                 HOLD_INTERRUPTS();
             }
 
+            AnkusPendingError *volatile pending = ankus_pending_error_save();
             PG_TRY();
             {
                 PG_TRY();
@@ -243,6 +245,7 @@ internal static class NativeTransactionBridge
                     MemoryContextSwitchTo(diagnostic);
                     data = ankus_copy_error_data();
                     FlushErrorState();
+                    flushed = true;
                     ankus_capture_error(data, error);
                     ankus_recovery_record(error, false);
                     ankus_free_error_data(data);
@@ -259,6 +262,10 @@ internal static class NativeTransactionBridge
                 ereport(FATAL, (errmsg("Unable to recover an Ankus transaction callback logging failure")));
             }
             PG_END_TRY();
+            if (flushed)
+                ankus_pending_error_restore(pending);
+            else
+                ankus_pending_error_release(pending);
             InterruptHoldoffCount = ankus_shared_restore_interrupts(interrupt_holdoff, shared_held_before);
             QueryCancelHoldoffCount = cancel_holdoff;
             return status;
