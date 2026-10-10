@@ -77,9 +77,10 @@ public sealed partial class ToolCommandTests
 
         JsonElement popcount = symbols.GetProperty("pg_popcount32");
         bool isFunction = popcount.GetProperty("IsFunction").GetBoolean();
+        // PostgreSQL 15 made it a plain function where no POPCNT dispatch exists; earlier majors always use a pointer.
         if (RuntimeInformation.ProcessArchitecture == Architecture.Arm64)
         {
-            Assert.IsTrue(isFunction);
+            Assert.AreEqual(s_installation.Version.Major >= 15, isFunction);
         }
 
         Assert.AreEqual("pg_popcount32", popcount.GetProperty("NativeName").GetString());

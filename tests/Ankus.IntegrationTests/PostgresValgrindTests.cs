@@ -187,6 +187,14 @@ public sealed class PostgresValgrindTests(TestContext context)
         string pgxs = (await ProcessRunner.RunAsync(installation.PgConfigPath, ["--pgxs"], new Dictionary<string, string?>(), token))
             .StandardOutput.Trim();
         string pgxsSource = Path.GetDirectoryName(Path.GetDirectoryName(pgxs))!;
+        string installed = Path.Combine(pgxsSource, "tools", "valgrind.supp");
+
+        // An ankus init installation already has suppressions in PGXS; start this staged copy without them.
+        if (File.Exists(installed))
+        {
+            File.Delete(installed);
+        }
+
         string sourceTree = Path.Combine(_root, "postgres source's tree");
         Directory.CreateDirectory(Path.Combine(sourceTree, "src", "tools"));
         string recorded = Path.Combine(sourceTree, "src", "tools", "valgrind.supp");
@@ -199,7 +207,6 @@ public sealed class PostgresValgrindTests(TestContext context)
         File.Delete(recorded);
         Assert.IsNull(await installation.GetValgrindSuppressionsPathAsync(token));
 
-        string installed = Path.Combine(pgxsSource, "tools", "valgrind.supp");
         Directory.CreateDirectory(Path.GetDirectoryName(installed)!);
         await File.WriteAllTextAsync(installed, """
             {

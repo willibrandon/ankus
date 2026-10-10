@@ -1,3 +1,5 @@
+using Npgsql;
+
 namespace Ankus.IntegrationTests;
 
 /// <summary>
@@ -15,8 +17,19 @@ public sealed partial class AggregateTests
     [DataRow(true, true)]
     [DataRow(false, false)]
     [DataRow(false, true)]
-    public Task NativeComparisonHonorsNonDefaultIcuCollation(bool caseInsensitive, bool descending)
-        => Run(nameof(NativeComparisonHonorsNonDefaultIcuCollation), async (connection, transaction, token) =>
+    public async Task NativeComparisonHonorsNonDefaultIcuCollation(bool caseInsensitive, bool descending)
+    {
+        // Servers built without ICU, such as source builds before PostgreSQL 16, have no ICU collations to compare with.
+        await using (NpgsqlConnection probe = await PostgresFixture.Cluster.OpenConnectionAsync(context.CancellationToken))
+        {
+            await using var command = new NpgsqlCommand("SELECT EXISTS(SELECT FROM pg_collation WHERE collprovider = 'i')", probe);
+            if (!(bool)(await command.ExecuteScalarAsync(context.CancellationToken))!)
+            {
+                Assert.Inconclusive("This PostgreSQL server was built without ICU.");
+            }
+        }
+
+        await Run(nameof(NativeComparisonHonorsNonDefaultIcuCollation), async (connection, transaction, token) =>
         {
             await Execute(connection, transaction, """
                 CREATE COLLATION aggregate_values.case_insensitive (provider=icu,locale='und-u-ks-level2',deterministic=false)
@@ -47,4 +60,5 @@ public sealed partial class AggregateTests
                 FROM (VALUES('A',1),('b',1)) AS input(value,number)
                 """, token));
         });
+    }
 }
