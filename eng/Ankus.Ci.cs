@@ -4,6 +4,7 @@
 #:project ../src/Ankus.PgConfig/Ankus.PgConfig.csproj
 
 using System.Diagnostics;
+using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Security;
 using System.Text.RegularExpressions;
@@ -910,8 +911,135 @@ static void CleanRunnerWorkspace(string repositoryRoot)
         return;
     }
 
+    StopJobPostgreSqlServers();
     Run(GetDotNetHost(), ["build-server", "shutdown"], repositoryRoot);
     Run("git", ["clean", "-ffdx"], repositoryRoot);
+}
+
+// Shuts down the PostgreSQL servers this job left running, as a cancelled or timed-out job does. The runner would
+// otherwise kill them outright, which leaves each server's System V shared memory segment allocated until reboot;
+// macOS allows only 32, so leaked segments eventually stop every new server from starting.
+static void StopJobPostgreSqlServers()
+{
+    string? trackingId = Environment.GetEnvironmentVariable("RUNNER_TRACKING_ID");
+    if (OperatingSystem.IsWindows() || string.IsNullOrEmpty(trackingId))
+    {
+        return;
+    }
+
+    string marker = "RUNNER_TRACKING_ID=" + trackingId;
+    Dictionary<int, int> servers = FindPostgreSqlProcesses();
+    List<int> postmasters = [.. servers
+        .Where(server => !servers.ContainsKey(server.Value) && HasEnvironmentEntry(server.Key, marker))
+        .Select(static server => server.Key)];
+    foreach (string signal in (ReadOnlySpan<string>)["INT", "QUIT"])
+    {
+        // SIGINT requests a fast shutdown and SIGQUIT an immediate one; both exit through PostgreSQL's own cleanup.
+        foreach (int postmaster in postmasters)
+        {
+            Console.WriteLine($"Stopping PostgreSQL server {postmaster} with SIG{signal}.");
+            SignalProcess(postmaster, signal);
+        }
+
+        DateTime deadline = DateTime.UtcNow.AddSeconds(15);
+        postmasters.RemoveAll(static postmaster => !IsProcessRunning(postmaster));
+        while (postmasters.Count > 0 && DateTime.UtcNow < deadline)
+        {
+            Thread.Sleep(100);
+            postmasters.RemoveAll(static postmaster => !IsProcessRunning(postmaster));
+        }
+
+        if (postmasters.Count == 0)
+        {
+            return;
+        }
+    }
+
+    Console.Error.WriteLine($"PostgreSQL servers {string.Join(", ", postmasters)} did not stop.");
+}
+
+// Lists this account's PostgreSQL processes with their parent process IDs.
+static Dictionary<int, int> FindPostgreSqlProcesses()
+{
+    var processes = new Dictionary<int, int>();
+    if (OperatingSystem.IsLinux())
+    {
+        foreach (string directory in Directory.EnumerateDirectories("/proc"))
+        {
+            try
+            {
+                if (int.TryParse(Path.GetFileName(directory), out int process)
+                    && File.ReadAllText(Path.Combine(directory, "comm")).TrimEnd('\n') == "postgres")
+                {
+                    // The command name in /proc/<pid>/stat is parenthesized and may contain spaces; the parent follows the state.
+                    string status = File.ReadAllText(Path.Combine(directory, "stat"));
+                    processes[process] = int.Parse(status[(status.LastIndexOf(')') + 2)..].Split(' ')[1], CultureInfo.InvariantCulture);
+                }
+            }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+            {
+                // The process exited or belongs to another account.
+            }
+        }
+
+        return processes;
+    }
+
+    foreach (string line in Capture("ps", ["-A", "-o", "pid=,ppid=,ucomm="]).Split('\n'))
+    {
+        string[] fields = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (fields is [string process, string parent, "postgres"])
+        {
+            processes[int.Parse(process, CultureInfo.InvariantCulture)] = int.Parse(parent, CultureInfo.InvariantCulture);
+        }
+    }
+
+    return processes;
+}
+
+// Determines whether a process was started with an environment entry, which the runner uses to identify a job's processes.
+static bool HasEnvironmentEntry(int process, string entry)
+{
+    try
+    {
+        if (OperatingSystem.IsLinux())
+        {
+            return File.ReadAllText($"/proc/{process}/environ").Split('\0').Contains(entry);
+        }
+
+        // macOS ps -E appends the environment of the account's own processes to the command line.
+        return (" " + Capture("ps", ["-E", "-ww", "-o", "command=", "-p", process.ToString(CultureInfo.InvariantCulture)]) + " ")
+            .Contains(" " + entry + " ", StringComparison.Ordinal);
+    }
+    catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidOperationException)
+    {
+        return false;
+    }
+}
+
+static void SignalProcess(int process, string signal)
+{
+    try
+    {
+        _ = Capture("kill", ["-s", signal, process.ToString(CultureInfo.InvariantCulture)]);
+    }
+    catch (InvalidOperationException)
+    {
+        // The server exited before the signal arrived.
+    }
+}
+
+static bool IsProcessRunning(int process)
+{
+    try
+    {
+        using Process running = Process.GetProcessById(process);
+        return !running.HasExited;
+    }
+    catch (ArgumentException)
+    {
+        return false;
+    }
 }
 
 static void InstallPostgreSqlLinux(string repositoryRoot, string version)
