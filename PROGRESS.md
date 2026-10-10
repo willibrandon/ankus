@@ -130,6 +130,15 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
 
 ## Active validation and work
 
+- Code-fix tests now compare the complete fixed document, not fragments of it.
+  The exact comparisons exposed three defects: the injected-parameter fix left a
+  space inside the brackets when it removed one attribute of several (`[ Keep]`,
+  `[Keep ]`) and doubled the space where a list between comments disappeared, and
+  on Windows the aggregate fix rewrote the existing line ending after the base
+  list as CRLF. The injected-parameter fix now rebuilds the parameter's attribute
+  lists itself, and the aggregate fix appends its capability by taking over the
+  base list's trailing trivia instead of reformatting it. The 92 code-fix and
+  guard tests pass on Linux and Windows.
 - The guard tiers now have figures. `tests/Ankus.GuardTierBenchmarks` measures
   them with `ankus bench`, and on a PostgreSQL 18.6 release build a filtered log
   report costs 0.19 µs, a lightweight numeric parse or addition 0.60–0.72 µs, the

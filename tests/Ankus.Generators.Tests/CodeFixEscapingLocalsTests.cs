@@ -210,6 +210,25 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.IsEmpty(remaining);
         Assert.IsEmpty(IntroducedWarnings(before, after));
         Assert.AreEqual(43, ExecuteNativeConsumer(after));
+        // Only the declaration splits around the unsafe region; the rest of the document is unchanged. The formatter
+        // writes new lines with the editor's line ending, which is the platform's here.
+        Assert.AreEqual(EscapingNativeDeclarations + """
+            public sealed class Consumer
+            {
+                public static System.Span<int> Escape()
+                {
+                    System.Span<int> value;
+                    unsafe
+                    {
+                        value = RawEscapes.View(new int[] { 42 });
+                    }
+
+                    return value;
+                }
+
+                public static int Run() => Escape()[0] + 1;
+            }
+            """, (await corrected.GetTextAsync(context.CancellationToken)).ToString().ReplaceLineEndings("\n"));
         SyntaxNode root = (await corrected.GetSyntaxRootAsync(context.CancellationToken))!;
         MethodDeclarationSyntax method = Assert.ContainsSingle(root.DescendantNodes().OfType<MethodDeclarationSyntax>()
             .Where(static declaration => declaration.Identifier.ValueText == "Escape"));

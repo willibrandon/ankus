@@ -59,6 +59,9 @@ public sealed partial class PgFunctionGeneratorTests
         Diagnostic error = Assert.ContainsSingle(before.Where(static diagnostic => diagnostic.Id == "ANKUS111"));
         Assert.AreEqual("ANKUS111", error.Id);
         Document corrected = await ApplyAggregateCombineFixAsync(document, error);
+        // The fix only appends the capability to the base list, after the existing contract and its comment.
+        Assert.AreEqual(source.Replace("/* existing contract */ Contract", $"/* existing contract */ Contract, Ankus.IPgCombinableAggregate<{state}>",
+            StringComparison.Ordinal), (await corrected.GetTextAsync(context.CancellationToken)).ToString());
         SyntaxNode originalRoot = (await document.GetSyntaxRootAsync(context.CancellationToken))!;
         SyntaxNode correctedRoot = (await corrected.GetSyntaxRootAsync(context.CancellationToken))!;
 

@@ -36,16 +36,19 @@ public sealed partial class PgFunctionGeneratorTests
     /// </summary>
     /// <param name="parameter">The authored injected parameter.</param>
     /// <param name="retainedAttribute">The unrelated attribute that must remain, or null.</param>
+    /// <param name="expected">The exact corrected parameter text.</param>
     [TestMethod]
-    [DataRow("[Ankus.PgParameter(Name = \"ignored\")] Ankus.PgFunctionContext call", null)]
-    [DataRow("[Ankus.PgParameter] Ankus.PgMemoryContext owner", null)]
-    [DataRow("[A(Name = \"ignored\")] Ankus.PgFunctionContext? call = null", null)]
-    [DataRow("[Keep, Ankus.PgParameter(Default = \"0\")] Ankus.PgFunctionContext call", "Keep")]
-    [DataRow("[Ankus.PgParameter, Keep] Ankus.PgMemoryContext owner", "Keep")]
-    [DataRow("[Ankus.PgParameter][Keep] Ankus.PgFunctionContext call", "Keep")]
-    [DataRow("[Ankus.PgParameter(Name = \"first\"), Ankus.PgParameter(Default = \"second\")] Ankus.PgFunctionContext call", null)]
-    [DataRow("/* before */ [Ankus.PgParameter] /* after */ Ankus.PgMemoryContext owner", null)]
-    public async Task InjectedParameterFixPreservesSqlAndManagedContracts(string parameter, string? retainedAttribute)
+    [DataRow("[Ankus.PgParameter(Name = \"ignored\")] Ankus.PgFunctionContext call", null, " Ankus.PgFunctionContext call")]
+    [DataRow("[Ankus.PgParameter] Ankus.PgMemoryContext owner", null, " Ankus.PgMemoryContext owner")]
+    [DataRow("[A(Name = \"ignored\")] Ankus.PgFunctionContext? call = null", null, " Ankus.PgFunctionContext? call = null")]
+    [DataRow("[Keep, Ankus.PgParameter(Default = \"0\")] Ankus.PgFunctionContext call", "Keep", "[Keep] Ankus.PgFunctionContext call")]
+    [DataRow("[Ankus.PgParameter, Keep] Ankus.PgMemoryContext owner", "Keep", "[Keep] Ankus.PgMemoryContext owner")]
+    [DataRow("[Ankus.PgParameter][Keep] Ankus.PgFunctionContext call", "Keep", "[Keep] Ankus.PgFunctionContext call")]
+    [DataRow("[Ankus.PgParameter(Name = \"first\"), Ankus.PgParameter(Default = \"second\")] Ankus.PgFunctionContext call", null,
+        " Ankus.PgFunctionContext call")]
+    [DataRow("/* before */ [Ankus.PgParameter] /* after */ Ankus.PgMemoryContext owner", null,
+        "/* before */ /* after */ Ankus.PgMemoryContext owner")]
+    public async Task InjectedParameterFixPreservesSqlAndManagedContracts(string parameter, string? retainedAttribute, string expected)
     {
         string source = """
             using A = Ankus.PgParameterAttribute;
@@ -68,6 +71,9 @@ public sealed partial class PgFunctionGeneratorTests
         ImmutableArray<CodeActionOperation> operations = await action.GetOperationsAsync(context.CancellationToken);
         ApplyChangesOperation change = Assert.IsInstanceOfType<ApplyChangesOperation>(Assert.ContainsSingle(operations));
         Document corrected = change.ChangedSolution.GetDocument(document.Id)!;
+        // Only the metadata goes: no whitespace is left inside brackets or doubled where a list disappeared.
+        Assert.AreEqual(source.Replace(parameter, expected, StringComparison.Ordinal),
+            (await corrected.GetTextAsync(context.CancellationToken)).ToString());
         SyntaxNode originalRoot = (await document.GetSyntaxRootAsync(context.CancellationToken))!;
         SyntaxNode correctedRoot = (await corrected.GetSyntaxRootAsync(context.CancellationToken))!;
         MethodDeclarationSyntax original = Assert.ContainsSingle(originalRoot.DescendantNodes().OfType<MethodDeclarationSyntax>());

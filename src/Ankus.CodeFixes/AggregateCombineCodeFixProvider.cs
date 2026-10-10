@@ -5,7 +5,6 @@ using Microsoft.CodeAnalysis.CodeActions;
 using Microsoft.CodeAnalysis.CodeFixes;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Microsoft.CodeAnalysis.Formatting;
 using Microsoft.CodeAnalysis.Simplification;
 
 namespace Ankus.CodeFixes;
@@ -211,9 +210,9 @@ public sealed class AggregateCombineCodeFixProvider : CodeFixProvider
             SyntaxNode documentRoot = (await document.GetSyntaxRootAsync(cancellationToken).ConfigureAwait(false))!;
             Dictionary<TypeDeclarationSyntax, INamedTypeSymbol> interfaces = group.ToDictionary(static correction => correction.Declaration,
                 static correction => correction.Capability);
-            SyntaxNode correctedRoot = documentRoot.ReplaceNodes(interfaces.Keys, (original, rewritten) =>
-                rewritten.AddBaseListTypes(SyntaxFactory.SimpleBaseType(SyntaxFactory.ParseTypeName(interfaces[original].ToDisplayString(display)))
-                    .WithAdditionalAnnotations(Simplifier.Annotation, Formatter.Annotation)));
+            SyntaxNode correctedRoot = documentRoot.ReplaceNodes(interfaces.Keys, (original, rewritten) => AddCapability(rewritten,
+                SyntaxFactory.SimpleBaseType(SyntaxFactory.ParseTypeName(interfaces[original].ToDisplayString(display)))
+                    .WithAdditionalAnnotations(Simplifier.Annotation)));
             solution = solution.WithDocumentSyntaxRoot(group.Key, correctedRoot);
         }
 
@@ -313,4 +312,26 @@ public sealed class AggregateCombineCodeFixProvider : CodeFixProvider
     private static bool IsRuntimeType(INamedTypeSymbol type, string name, int arity)
         => type.Name == name && type.Arity == arity && type.ContainingType is null &&
             type.ContainingNamespace.ToDisplayString() == "Ankus" && type.ContainingAssembly.Name == "Ankus.Runtime";
+
+    /// <summary>
+    /// Appends the capability to the base list without reformatting it: the new type takes over the trivia that ended
+    /// the list, so an existing line ending or comment is never rewritten.
+    /// </summary>
+    /// <param name="declaration">The aggregate declaration.</param>
+    /// <param name="capability">The combinable capability to implement.</param>
+    /// <returns>The declaration with the capability as its last base type.</returns>
+    private static TypeDeclarationSyntax AddCapability(TypeDeclarationSyntax declaration, BaseTypeSyntax capability)
+    {
+        if (declaration.BaseList is not { Types.Count: > 0 } list)
+        {
+            return (TypeDeclarationSyntax)declaration.AddBaseListTypes(capability);
+        }
+
+        int last = list.Types.Count - 1;
+        IEnumerable<BaseTypeSyntax> types = list.Types.Select((type, index) => index == last ? type.WithoutTrailingTrivia() : type)
+            .Append(capability.WithTrailingTrivia(list.Types[last].GetTrailingTrivia()));
+        IEnumerable<SyntaxToken> separators = list.Types.GetSeparators()
+            .Append(SyntaxFactory.Token(SyntaxKind.CommaToken).WithTrailingTrivia(SyntaxFactory.Space));
+        return declaration.WithBaseList(list.WithTypes(SyntaxFactory.SeparatedList(types, separators)));
+    }
 }

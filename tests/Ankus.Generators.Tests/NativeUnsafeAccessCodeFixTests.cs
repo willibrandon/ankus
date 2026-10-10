@@ -109,9 +109,22 @@ public sealed partial class PgFunctionGeneratorTests
         (Compilation after, ImmutableArray<Diagnostic> remaining) = await AnalyzeNativeCodeFixDocumentAsync(corrected);
         Assert.IsEmpty(remaining);
         string source = (await corrected.GetTextAsync(context.CancellationToken)).ToString();
-        Assert.Contains("// Keep declaration comment.", source);
-        Assert.Contains("/* keep arrow comment */", source);
-        Assert.Contains("// Keep trailing comment.", source);
+        // The arrow body becomes a block whose unsafe region holds only the throw, with every comment kept in place. The
+        // formatter writes new lines with the editor's line ending, which is the platform's here.
+        Assert.AreEqual(NativeFixDeclarations + """
+            public sealed class Consumer
+            {
+                // Keep declaration comment.
+                public static int Run()
+                {
+                    /* keep arrow comment */
+                    unsafe
+                    {
+                        throw new System.InvalidOperationException(Raw.Read().ToString());
+                    }
+                } // Keep trailing comment.
+            }
+            """, source.ReplaceLineEndings("\n"));
         Assert.AreEqual("42", Assert.ThrowsExactly<InvalidOperationException>(() => ExecuteNativeConsumer(before)).Message);
         Assert.AreEqual("42", Assert.ThrowsExactly<InvalidOperationException>(() => ExecuteNativeConsumer(after)).Message);
     }
