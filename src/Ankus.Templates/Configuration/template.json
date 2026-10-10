@@ -91,10 +91,37 @@
         ]
       }
     },
-    "extensionName": {
+    "extensionNameParameter": {
+      "type": "parameter",
+      "datatype": "text",
+      "description": "PostgreSQL extension name: 1 to 63 lowercase ASCII letters, digits or underscores (default: the project name in snake_case)"
+    },
+    "defaultExtensionName": {
       "type": "generated",
       "generator": "casing",
-      "parameters": { "source": "snakeName", "toLower": true },
+      "parameters": { "source": "snakeName", "toLower": true }
+    },
+    "selectedExtensionName": {
+      "type": "generated",
+      "generator": "coalesce",
+      "parameters": { "sourceVariableName": "extensionNameParameter", "fallbackVariableName": "defaultExtensionName" }
+    },
+    "lowerExtensionName": {
+      "type": "generated",
+      "generator": "casing",
+      "parameters": { "source": "selectedExtensionName", "toLower": true }
+    },
+    "extensionName": {
+      "type": "generated",
+      "generator": "regex",
+      "parameters": {
+        "source": "lowerExtensionName",
+        "steps": [
+          { "regex": "[^a-z0-9_]", "replacement": "_" },
+          { "regex": "^([0-9])", "replacement": "_$1" },
+          { "regex": "^(.{63}).+$", "replacement": "$1" }
+        ]
+      },
       "replaces": "__EXTENSION__"
     },
     "extensionIdentifier": {

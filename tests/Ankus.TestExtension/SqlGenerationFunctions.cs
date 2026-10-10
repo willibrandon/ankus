@@ -1,5 +1,3 @@
-using Ankus;
-
 [assembly: PgSql("sql-generation.supplied-step", """
     CREATE FUNCTION sql_generation.supplied_step(integer,integer) RETURNS integer
         LANGUAGE SQL IMMUTABLE STRICT AS 'SELECT $1+$2+100';

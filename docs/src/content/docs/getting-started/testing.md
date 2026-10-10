@@ -71,12 +71,7 @@ public static partial class BackendChecks
 {
     [PgTest]
     public static void AdditionInsidePostgres()
-    {
-        if (Spi.ExecuteScalar<int>("SELECT 19 + 23") != 42)
-        {
-            throw new InvalidOperationException("Unexpected addition result.");
-        }
-    }
+        => PgAssert.AreEqual(42, Spi.ExecuteScalar<int>("SELECT 19 + 23"));
 
     [PgTest(ExpectedError = "expected failure")]
     public static void ExpectedFailure()
@@ -85,7 +80,22 @@ public static partial class BackendChecks
 ```
 
 The method body executes inside the PostgreSQL backend. You can use SPI,
-memory contexts and other backend APIs there. Methods accept no SQL arguments;
+memory contexts and other backend APIs there. Test frameworks do not load inside
+an extension, so check results with `PgAssert`, as pgrx tests use `assert_eq!`.
+A failed check names the expected and actual values. `PgAssert.ThrowsSqlState`
+runs its work in a subtransaction and returns the PostgreSQL error, so the test
+can inspect it and keep going in the same transaction:
+
+```csharp
+[PgTest]
+public static void DivisionByZeroIsReported()
+{
+    PgException error = PgAssert.ThrowsSqlState(PgSqlStates.DivisionByZero,
+        () => Spi.ExecuteScalar<int>("SELECT 1 / 0"));
+    PgAssert.AreEqual("division by zero", error.Message);
+}
+```
+ Methods accept no SQL arguments;
 injected `PgFunctionContext` and `PgMemoryContext` parameters remain available.
 Methods and containing classes must be accessible to generated code and cannot
 be generic. Every containing class must be partial. Invalid declarations produce
@@ -184,13 +194,7 @@ backend, as pgrx's `PgTestRunner` does with proptest:
 public static void DatesRoundTrip()
     => new PgPropertyRunner().Run(
         PgGenerators.Number<int>().Select(PgDate.FromRawSaturating),
-        date =>
-        {
-            if (Spi.ExecuteScalar<PgDate>("SELECT $1", SpiParameter.Create(date)) != date)
-            {
-                throw new InvalidOperationException($"{date} did not round trip.");
-            }
-        });
+        date => PgAssert.AreEqual(date, Spi.ExecuteScalar<PgDate>("SELECT $1", SpiParameter.Create(date))));
 ```
 
 The test throws to fail. Each input runs in its own subtransaction, so a

@@ -404,6 +404,26 @@ public sealed class RelationTests(TestContext context)
             Assert.AreEqual(42, await command.ExecuteScalarAsync(token));
         }, context.CancellationToken);
 
+    /// <summary>
+    /// A relation opened inside an SPI session, or a nested one, stays open with its lock after the sessions close,
+    /// as one opened inside pgrx's <c>Spi::connect</c> does; closing releases the locks without a leak warning.
+    /// </summary>
+    [TestMethod]
+    public Task SessionRelationsOutliveTheirSessions()
+        => PostgresFixture.Cluster.RunInTransactionAsync(nameof(SessionRelationsOutliveTheirSessions), async (connection, transaction, token) =>
+        {
+            var notices = new List<string>();
+            connection.Notice += (_, notice) => notices.Add(notice.Notice.MessageText);
+            await using var command = new NpgsqlCommand("""
+                CREATE TABLE session_relation(value integer);
+                SELECT relations.session_relations_outlive_their_sessions('session_relation'::regclass::oid)
+                """, connection, transaction);
+            // CREATE TABLE holds its AccessExclusiveLock until the test's transaction ends; closing the relations releases theirs.
+            Assert.AreEqual("session_relation|session_relation|r|AccessExclusiveLock,AccessShareLock,RowExclusiveLock|AccessExclusiveLock",
+                await command.ExecuteScalarAsync(token));
+            Assert.IsEmpty(notices);
+        }, context.CancellationToken);
+
     private Task CheckAsync(string sql, object expected)
         => PostgresFixture.Cluster.RunInTransactionAsync(nameof(RelationTests), async (connection, transaction, token) =>
         {

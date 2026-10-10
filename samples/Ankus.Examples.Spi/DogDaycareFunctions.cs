@@ -1,5 +1,3 @@
-using Ankus;
-
 [assembly: PgSql("spi_srf.table", """
     CREATE TABLE spi_srf.dog_daycare (dog_name varchar(256), dog_age integer, dog_breed varchar(256));
     INSERT INTO spi_srf.dog_daycare (dog_name, dog_age, dog_breed) VALUES

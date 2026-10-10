@@ -360,6 +360,10 @@ An extension uses `Ankus.Sdk` as its project SDK. The SDK sets `PublishAot` and
 `IsAotCompatible` to `true`, `NativeLib` to `Shared`, and enables unsafe code for
 generated native entry points. The output type is `Library`.
 
+When the project enables `ImplicitUsings`, the SDK adds `Ankus` to its implicit
+usings, as the ASP.NET Core SDK adds its own namespaces, so source files need no
+`using Ankus;`. Remove it with `<Using Remove="Ankus" />` in an item group.
+
 Use `AnkusUpgradeScript` items to select SQL upgrades. See
 [upgrading an extension](/getting-started/publishing/#upgrade-an-existing-extension)
 for file naming, tokens, and native library versioning.

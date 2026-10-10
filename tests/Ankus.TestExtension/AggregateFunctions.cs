@@ -1,5 +1,4 @@
 using System.Globalization;
-using Ankus;
 
 [assembly: PgSql("aggregate-support", "CREATE SCHEMA aggregate_values;", Requires = ["sql-first"])]
 

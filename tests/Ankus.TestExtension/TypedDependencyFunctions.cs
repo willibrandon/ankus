@@ -1,4 +1,3 @@
-using Ankus;
 using Ankus.TestExtension;
 
 [assembly: PgSql("typed-input", """

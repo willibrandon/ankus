@@ -1,4 +1,3 @@
-using Ankus;
 using Ankus.Examples.CustomSql;
 
 // Bootstrap SQL runs before every generated schema, type and function. An extension has at most one bootstrap block.

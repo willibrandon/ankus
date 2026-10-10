@@ -1,5 +1,4 @@
 using System.Globalization;
-using Ankus;
 
 [assembly: PgSql("raw-types", """
     CREATE TYPE raw_values.u24;

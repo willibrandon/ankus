@@ -170,7 +170,9 @@ with precision 10 and scale 3.
 
 The random example converts all 128 signed integer bits directly into an owned
 numeric value. Parsing and precision errors retain PostgreSQL's SQLSTATE and
-diagnostic fields through `PgException`.
+diagnostic fields through `PgException`, such as `22P02` for invalid input and
+`22003` for a value out of range. pgrx's example unwraps those results, so its
+failures panic and report `XX000`.
 
 ## JSON serialization
 

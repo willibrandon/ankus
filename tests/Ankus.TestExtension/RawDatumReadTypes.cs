@@ -1,4 +1,3 @@
-using Ankus;
 using Ankus.TestExtension;
 
 [assembly: PgSql("raw-read-types", """

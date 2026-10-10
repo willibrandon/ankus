@@ -1,5 +1,4 @@
 using System.Globalization;
-using Ankus;
 using Ankus.Examples.TypeVariants;
 
 // pgrx's extension_sql! blocks: a bootstrap shell type, then the completed type after its input and output functions.

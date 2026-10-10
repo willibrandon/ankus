@@ -1,5 +1,3 @@
-using Ankus;
-
 [assembly: PgSql("create-or-replace-first", """
     CREATE SCHEMA replace_values;
     CREATE FUNCTION replace_values.create_or_replace_method() RETURNS boolean LANGUAGE sql AS 'SELECT false';

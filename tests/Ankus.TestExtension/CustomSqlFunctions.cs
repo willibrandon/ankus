@@ -1,5 +1,3 @@
-using Ankus;
-
 [assembly: PgSql("sql-last", "INSERT INTO sql_install_order(label) VALUES ('final');", Order = PgSqlOrder.Finalize)]
 [assembly: PgSql("sql-view", """
     CREATE VIEW ankus_sql.summary AS SELECT ankus_sql.custom_sql_value() AS value, message FROM ankus_sql.messages;

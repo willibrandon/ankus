@@ -1,5 +1,4 @@
 using System.Globalization;
-using Ankus;
 using Ankus.TestExtension;
 
 [assembly: PgSql("mapped-shells", "CREATE TYPE datum_mappings.u24; CREATE TYPE datum_mappings.complex;", Requires = ["mapped-schema"])]

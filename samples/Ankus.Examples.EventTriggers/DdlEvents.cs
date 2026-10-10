@@ -1,5 +1,3 @@
-using Ankus;
-
 [assembly: PgSql("report-table-creation", """
     CREATE EVENT TRIGGER ankus_report_table_creation ON ddl_command_end
     WHEN TAG IN ('CREATE TABLE') EXECUTE FUNCTION report_table_creation();

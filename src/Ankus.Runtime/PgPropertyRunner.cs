@@ -23,7 +23,7 @@ namespace Ankus;
 /// public static void DatesRoundTrip()
 ///     => new PgPropertyRunner().Run(
 ///         PgGenerators.Number&lt;int&gt;().Select(PgDate.FromRawSaturating),
-///         date => Assert(Spi.ExecuteScalar&lt;PgDate&gt;("SELECT $1", SpiParameter.Create(date)) == date));
+///         date => PgAssert.AreEqual(date, Spi.ExecuteScalar&lt;PgDate&gt;("SELECT $1", SpiParameter.Create(date))));
 /// </code>
 /// </example>
 public sealed class PgPropertyRunner(PgPropertyOptions? options = null)

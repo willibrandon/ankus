@@ -1,5 +1,4 @@
 using System.Globalization;
-using Ankus;
 
 [assembly: PgSql("provider-types", """
     CREATE TYPE type_providers.pair AS (number integer, label text);

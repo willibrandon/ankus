@@ -1,17 +1,10 @@
-using Ankus;
-
 namespace __NAMESPACE__;
 
 public static partial class BackendChecks
 {
     [PgTest]
     public static void AdditionInsidePostgres()
-    {
-        if (Spi.ExecuteScalar<int>("SELECT 19 + 23") != 42)
-        {
-            throw new InvalidOperationException("Addition returned an incorrect result.");
-        }
-    }
+        => PgAssert.AreEqual(42, Spi.ExecuteScalar<int>("SELECT 19 + 23"));
 
     [PgTest(ExpectedError = "Expected backend test error.")]
     public static void ExpectedFailure()

@@ -1,5 +1,3 @@
-using Ankus;
-
 // Composite types must exist before functions use them. Bootstrap SQL runs before every generated declaration.
 [assembly: PgSql("create_composites", """
     CREATE TYPE Dog AS (

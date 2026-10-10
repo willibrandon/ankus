@@ -1,5 +1,4 @@
 using System.Globalization;
-using Ankus;
 
 [assembly: PgSql("create-inventory-trigger", """
     CREATE TABLE inventory (

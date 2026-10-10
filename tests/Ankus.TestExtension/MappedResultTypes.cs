@@ -1,4 +1,3 @@
-using Ankus;
 using Ankus.TestExtension;
 
 [assembly: PgSqlTypeProvider("mapped-domains", typeof(ResultPositive))]

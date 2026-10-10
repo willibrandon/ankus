@@ -3,6 +3,10 @@
     "testFramework": {
       "longName": "test-framework",
       "shortName": ""
+    },
+    "extensionNameParameter": {
+      "longName": "extension-name",
+      "shortName": ""
     }
   }
 }

@@ -1,4 +1,3 @@
-using Ankus;
 using Ankus.TestExtension;
 
 [assembly: PgSql("a-mapped-range", "CREATE TYPE range_mappings.bounds AS RANGE (subtype=range_mappings.bound);", Requires = ["mapped-range-schema"])]

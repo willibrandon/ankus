@@ -1,0 +1,7 @@
+<Project>
+  <!-- As ASP.NET Core's SDK adds its namespaces, add Ankus to the implicit usings of projects that enable them.
+       Remove it with <Using Remove="Ankus" /> in the project. -->
+  <ItemGroup Condition="'$(ImplicitUsings)' == 'true' or '$(ImplicitUsings)' == 'enable'">
+    <Using Include="Ankus" />
+  </ItemGroup>
+</Project>

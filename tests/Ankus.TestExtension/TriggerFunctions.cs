@@ -1,5 +1,3 @@
-using Ankus;
-
 [assembly: PgSql("trigger-support", """
     CREATE SCHEMA trigger_values;
     CREATE TYPE trigger_values.foreign_row AS (id integer, value integer, note text);

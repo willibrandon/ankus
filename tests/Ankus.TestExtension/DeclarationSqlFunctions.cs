@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Runtime.InteropServices;
-using Ankus;
 
 [assembly: PgSql("declaration.manual-enum", "CREATE TYPE declaration_sql.manual_mood AS ENUM('Blue','Red');", Requires = ["declaration.manual-enum-anchor"])]
 [assembly: PgSql("declaration.hidden-aggregate", """

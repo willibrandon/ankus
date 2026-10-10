@@ -173,7 +173,24 @@ public sealed partial class ToolCommandTests
         }
     }
 
-    private async Task CreateTemplateAsync(string template, string name, string output, CancellationToken token)
+    /// <summary>
+    /// The extension template accepts an extension name, as <c>ankus new --extension-name</c> does, and turns it into
+    /// a lowercase PostgreSQL identifier.
+    /// </summary>
+    [TestMethod]
+    public async Task TemplateExtensionNameOverridesTheProjectName()
+    {
+        CancellationToken token = context.CancellationToken;
+        string output = Path.Combine(CreateDirectory(), "Named");
+        await CreateTemplateAsync("ankus", "Named", output, token, "--extension-name", "Sales-Reports");
+        string source = Path.Combine(output, "src", "Named");
+        Assert.Contains("<AnkusExtensionName>sales_reports</AnkusExtensionName>",
+            await File.ReadAllTextAsync(Path.Combine(source, "Named.csproj"), token));
+        Assert.Contains("CREATE EXTENSION sales_reports;",
+            await File.ReadAllTextAsync(Path.Combine(source, "pg_regress", "sql", "setup.sql"), token));
+    }
+
+    private async Task CreateTemplateAsync(string template, string name, string output, CancellationToken token, params string[] arguments)
     {
         string hive = Path.Combine(CreateDirectory(), "isolated template hive");
         string package = Path.Combine(s_root, "feed", "Ankus.Templates." + s_version + ".nupkg");
@@ -183,7 +200,7 @@ public sealed partial class ToolCommandTests
         Assert.Contains("ankus-worker", installed.StandardOutput);
         Assert.Contains("Ankus PostgreSQL extension", installed.StandardOutput);
         ProcessResult created = await PackageProcessRunner.RunAsync("dotnet", ["new", template, "--name", name, "--output", output,
-            "--debug:custom-hive", hive], s_environment, token, workingDirectory: s_root);
+            "--debug:custom-hive", hive, .. arguments], s_environment, token, workingDirectory: s_root);
         created.EnsureSuccess("dotnet", ["new", template]);
     }
 

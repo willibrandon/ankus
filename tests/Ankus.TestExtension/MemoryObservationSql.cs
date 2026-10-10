@@ -1,5 +1,3 @@
-using Ankus;
-
 // Independent native observations for the test suite, including servers predating the catalog view.
 [assembly: PgSql("memory-observation", """
     CREATE SCHEMA ankus_test_memory;

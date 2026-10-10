@@ -1,4 +1,3 @@
-using Ankus;
 using Ankus.Examples.Arrays;
 
 [assembly: PgSql("vectors_data", """

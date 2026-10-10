@@ -8,6 +8,7 @@
   </ItemGroup>
   <Import Project="../targets/Ankus.Bindings.targets" />
   <Import Project="../targets/Ankus.Control.targets" />
+  <Import Project="../targets/Ankus.Usings.targets" />
   <Import Project="../targets/Ankus.Native.targets" />
   <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
   <Import Project="../targets/Ankus.PostgresSelection.targets" />

@@ -35,6 +35,37 @@ public static class RelationFunctions
     }
 
     /// <summary>
+    /// Opens a relation inside an SPI session, and another inside a nested session, then uses both after the sessions
+    /// close, as a relation opened inside pgrx's <c>Spi::connect</c> stays open.
+    /// </summary>
+    /// <param name="oid">The relation to open.</param>
+    /// <returns>Both names, the kind, and this backend's locks on the relation before and after closing both.</returns>
+    [PgFunction]
+    public static string SessionRelationsOutliveTheirSessions(uint oid)
+    {
+        PgRelation? nested = null;
+        PgRelation outer = Spi.Connect(session =>
+        {
+            _ = session.ExecuteScalar<int>("SELECT 1");
+            nested = Spi.Connect(inner =>
+            {
+                _ = inner.ExecuteScalar<int>("SELECT 2");
+                return PgRelation.Open(oid, PgLockMode.RowExclusive);
+            });
+            return PgRelation.Open(oid);
+        });
+        string held = Locks(oid);
+        string description = outer.Name + "|" + nested!.Name + "|" + outer.Kind;
+        outer.Dispose();
+        nested.Dispose();
+        return description + "|" + held + "|" + Locks(oid);
+
+        static string Locks(uint relation) => Spi.ExecuteScalar<string>(
+            "SELECT coalesce(string_agg(mode, ',' ORDER BY mode), '') FROM pg_locks WHERE relation = $1 AND pid = pg_backend_pid()",
+            SpiParameter.Create(relation));
+    }
+
+    /// <summary>
     /// Returns an input reference as regclass, transferring the generated callback's ownership.
     /// </summary>
     [PgFunction]

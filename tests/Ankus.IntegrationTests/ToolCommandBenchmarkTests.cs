@@ -430,8 +430,10 @@ public sealed partial class ToolCommandTests
                     return backendPid;
                 }
             }
-            catch (Npgsql.NpgsqlException)
+            catch (Exception error) when (error is Npgsql.NpgsqlException or System.Net.Sockets.SocketException or IOException)
             {
+                // The tool restarts the cluster before its run; a connection racing that restart can fail in the
+                // socket layer, which Npgsql does not always wrap. macOS reports it as an invalid socket option.
             }
 
             await Task.Delay(100, timeout.Token);

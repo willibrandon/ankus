@@ -398,7 +398,7 @@ internal static class GuardedBackend
                             }
                             else if (relation)
                             {
-                                ankus_relation_operation(request, result, caller_owner);
+                                ankus_relation_operation(request, result, ankus_relation_parent_owner(caller_owner));
                                 code = 0;
                             }
                             else if (custom_type)

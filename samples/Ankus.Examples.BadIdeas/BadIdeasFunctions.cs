@@ -1,5 +1,3 @@
-using Ankus;
-
 // Containment chosen by the extension author: only superusers, or roles explicitly granted EXECUTE, may write files.
 [assembly: PgSql("write_file_privileges", "REVOKE EXECUTE ON FUNCTION write_file(text, bytea) FROM PUBLIC;",
     Requires = ["write_file"])]

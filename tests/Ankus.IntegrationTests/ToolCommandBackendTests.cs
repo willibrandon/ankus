@@ -71,6 +71,24 @@ public sealed partial class ToolCommandTests
                 public static void Ignored() => throw new InvalidOperationException("Ignored test was executed.");
 
                 [PgTest]
+                public static void AssertsInBackend()
+                {
+                    PgAssert.AreEqual(42, Spi.ExecuteScalar<int>("SELECT 42"));
+                    Spi.Execute("CREATE TABLE backend_assert_probe(value integer)");
+                    PgException error = PgAssert.ThrowsSqlState(PgSqlStates.DivisionByZero, static () =>
+                    {
+                        Spi.Execute("INSERT INTO backend_assert_probe VALUES (1)");
+                        _ = Spi.ExecuteScalar<int>("SELECT 1 / 0");
+                    });
+                    PgAssert.AreEqual("division by zero", error.Message);
+                    PgAssert.AreEqual(0L, Spi.ExecuteScalar<long>("SELECT count(*) FROM backend_assert_probe"));
+                    PgAssert.ThrowsExactly<InvalidOperationException>(static () => throw new InvalidOperationException("managed"));
+                }
+
+                [PgTest(ExpectedError = "PgAssert.AreEqual failed. Expected: 42. Actual: 41.")]
+                public static void AssertionFailureNamesValues() => PgAssert.AreEqual(42, Spi.ExecuteScalar<int>("SELECT 41"));
+
+                [PgTest]
                 public static void CallsTestOnlyFunction()
                 {
                     if (Spi.ExecuteScalar<int>("SELECT \"Case Schema\".test_only_answer()") != 42)
@@ -230,12 +248,14 @@ public sealed partial class ToolCommandTests
         Assert.AreEqual("Passed", outcomes["BackendProbe.BackendChecks.QuotedExpectedFailure()"]);
         Assert.AreEqual("Passed", outcomes["BackendProbe.SchemaChecks.ReadsBackend()"]);
         Assert.AreEqual("Passed", outcomes["BackendProbe.BackendChecks.CallsTestOnlyFunction()"]);
+        Assert.AreEqual("Passed", outcomes["BackendProbe.BackendChecks.AssertsInBackend()"]);
+        Assert.AreEqual("Passed", outcomes["BackendProbe.BackendChecks.AssertionFailureNamesValues()"]);
         Assert.AreEqual("NotExecuted", outcomes["BackendProbe.BackendChecks.Ignored()"]);
         Assert.AreEqual("Failed", outcomes["BackendProbe.BackendChecks.WrongError()"]);
         Assert.AreEqual("Failed", outcomes["BackendProbe.BackendChecks.MissingError()"]);
         XElement counters = report.Descendants(ns + "Counters").Single();
-        Assert.AreEqual("12", counters.Attribute("total")!.Value);
-        Assert.AreEqual("9", counters.Attribute("passed")!.Value);
+        Assert.AreEqual("14", counters.Attribute("total")!.Value);
+        Assert.AreEqual("11", counters.Attribute("passed")!.Value);
         Assert.AreEqual("2", counters.Attribute("failed")!.Value);
         Assert.IsEmpty(Directory.GetDirectories(Path.Combine(extensionRoot, "bin", "ankus-test-publish")));
     }

@@ -1,5 +1,3 @@
-using Ankus;
-
 [assembly: PgSql("spi.tables", """
     CREATE TABLE spi.spi_example (id bigserial PRIMARY KEY, title text);
     INSERT INTO spi.spi_example (title)

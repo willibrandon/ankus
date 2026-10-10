@@ -1,5 +1,3 @@
-using Ankus;
-
 [assembly: PgSql("pet-table", "CREATE TABLE pets (name text NOT NULL, visits integer NOT NULL DEFAULT 0);", Relocatable = true)]
 [assembly: PgSql("pet-trigger", """
     CREATE TRIGGER normalize_pet BEFORE INSERT OR UPDATE ON pets

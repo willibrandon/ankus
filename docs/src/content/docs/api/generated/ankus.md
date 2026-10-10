@@ -33,6 +33,8 @@ Assembly: `Ankus.Runtime.dll`
 - [PgArrayView](/api/ankus.pgarrayview/)
 - [PgArrayView&lt;T&gt;](/api/ankus.pgarrayview-1/)
 - [PgArray&lt;T&gt;](/api/ankus.pgarray-1/)
+- [PgAssert](/api/ankus.pgassert/)
+- [PgAssertException](/api/ankus.pgassertexception/)
 - [PgAtomic](/api/ankus.pgatomic/)
 - [PgAtomicValue](/api/ankus.pgatomicvalue/)
 - [PgAtomic&lt;T&gt;](/api/ankus.pgatomic-1/)

@@ -166,6 +166,11 @@ reference explicitly when you need to release its own lock acquisition promptly.
 Saving a managed wrapper does not extend its native resource owner's lifetime.
 Garbage collection and finalizers never call PostgreSQL.
 
+A relation opened inside `Spi.Connect` belongs to the statement that called
+`Spi.Connect`, as one opened inside pgrx's `Spi::connect` does. Closing the
+session does not close the relation or release its lock, so you can return it
+from the callback and keep using it.
+
 `DangerousGetPointer()` borrows the selected PostgreSQL version's `Relation`
 pointer. The caller must preserve the reference and required locks for every raw
 use. It does not establish a portable managed `RelationData` layout.

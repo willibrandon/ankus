@@ -22,6 +22,7 @@ internal static class NativeSessionBridge
             int64 identity;
             MemoryContext caller_context;
             ResourceOwner caller_owner;
+            ResourceOwner owner;
             int caller_nest_level;
             bool subtransaction_owned;
             MemoryContext context;
@@ -76,6 +77,7 @@ internal static class NativeSessionBridge
             session->identity = ++ankus_next_session_id;
             session->caller_context = caller_context;
             session->caller_owner = caller_owner;
+            session->owner = CurrentResourceOwner;
             session->caller_nest_level = caller_nest_level;
             session->subtransaction_owned = GetCurrentTransactionNestLevel() > caller_nest_level;
             session->context = CurrentMemoryContext;
@@ -85,6 +87,30 @@ internal static class NativeSessionBridge
             MemoryContextRegisterResetCallback(CurrentMemoryContext, &session->cleanup);
             ankus_session = session;
             request->session_id = session->identity;
+        }
+
+        /* A relation opened while a session's recovery subtransaction is current belongs to the session's
+         * caller, as one opened inside pgrx's Spi::connect belongs to the enclosing statement: closing the
+         * session must not release it. Nested sessions are escaped from the innermost outward. */
+        static ResourceOwner
+        ankus_relation_parent_owner(ResourceOwner caller_owner)
+        {
+            bool moved = true;
+            while (moved)
+            {
+                moved = false;
+                for (AnkusSession *session = ankus_session; session != NULL; session = session->previous)
+                {
+                    if (session->subtransaction_owned && session->owner == caller_owner)
+                    {
+                        caller_owner = session->caller_owner;
+                        moved = true;
+                        break;
+                    }
+                }
+            }
+
+            return caller_owner;
         }
 
         static void

@@ -26,7 +26,7 @@ run instead. Call it from a [PgTestAttribute](/api/ankus.pgtestattribute/) metho
 public static void DatesRoundTrip()
     =&gt; new PgPropertyRunner().Run(
         PgGenerators.Number&lt;int&gt;().Select(PgDate.FromRawSaturating),
-        date =&gt; Assert(Spi.ExecuteScalar&lt;PgDate&gt;("SELECT $1", SpiParameter.Create(date)) == date));</code></pre>
+        date =&gt; PgAssert.AreEqual(date, Spi.ExecuteScalar&lt;PgDate&gt;("SELECT $1", SpiParameter.Create(date))));</code></pre>
 
 Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object)
 
@@ -59,7 +59,7 @@ run instead. Call it from a [PgTestAttribute](/api/ankus.pgtestattribute/) metho
 public static void DatesRoundTrip()
     =&gt; new PgPropertyRunner().Run(
         PgGenerators.Number&lt;int&gt;().Select(PgDate.FromRawSaturating),
-        date =&gt; Assert(Spi.ExecuteScalar&lt;PgDate&gt;("SELECT $1", SpiParameter.Create(date)) == date));</code></pre>
+        date =&gt; PgAssert.AreEqual(date, Spi.ExecuteScalar&lt;PgDate&gt;("SELECT $1", SpiParameter.Create(date))));</code></pre>
 
 
 ## Methods

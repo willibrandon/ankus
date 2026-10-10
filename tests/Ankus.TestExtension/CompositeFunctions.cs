@@ -1,5 +1,3 @@
-using Ankus;
-
 [assembly: PgSql("composite-types", """
     CREATE SCHEMA tuple_values;
     CREATE TYPE tuple_values.dog AS (name text, age integer);

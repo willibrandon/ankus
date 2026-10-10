@@ -1,5 +1,3 @@
-using Ankus;
-
 namespace __NAMESPACE__;
 
 public static class Workers

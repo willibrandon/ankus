@@ -1,5 +1,3 @@
-using Ankus;
-
 [assembly: PgSql("event-support", """
     CREATE SCHEMA event_values;
     CREATE TABLE event_values.audit(
