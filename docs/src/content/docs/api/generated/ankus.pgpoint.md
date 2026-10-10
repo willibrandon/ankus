@@ -12,10 +12,10 @@ Assembly: `Ankus.Runtime.dll`
 A PostgreSQL point with double-precision coordinates. Equality uses .NET value semantics, not geometric tolerance.
 
 ```csharp
-public readonly struct PgPoint : IEquatable<PgPoint>
+public readonly struct PgPoint : ISpanFormattable, IFormattable, IParsable<PgPoint>, IEquatable<PgPoint>
 ```
 
-Implements: [IEquatable&lt;PgPoint&gt;](https://learn.microsoft.com/dotnet/api/system.iequatable-1)
+Implements: [ISpanFormattable](https://learn.microsoft.com/dotnet/api/system.ispanformattable), [IFormattable](https://learn.microsoft.com/dotnet/api/system.iformattable), [IParsable&lt;PgPoint&gt;](https://learn.microsoft.com/dotnet/api/system.iparsable-1), [IEquatable&lt;PgPoint&gt;](https://learn.microsoft.com/dotnet/api/system.iequatable-1)
 
 ## Constructors
 
@@ -127,6 +127,71 @@ public override string ToString()
 Returns: [string](https://learn.microsoft.com/dotnet/api/system.string)
 
 The point text.
+
+<a id="member-e7d187e461a9fb52"></a>
+
+### ToString(string?, IFormatProvider?)
+
+Formats the value as PostgreSQL's canonical text, the same text as [ToString()](/api/ankus.pgpoint/#member-451b1d43e2692a20).
+
+```csharp
+public string ToString(string? format, IFormatProvider? formatProvider)
+```
+
+Parameters:
+
+`format` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+Null or empty; PostgreSQL text has one canonical form.
+
+`formatProvider` — [IFormatProvider](https://learn.microsoft.com/dotnet/api/system.iformatprovider)
+
+Ignored: the text does not depend on culture.
+
+Returns: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The canonical text.
+
+Exceptions:
+
+- [FormatException](https://learn.microsoft.com/dotnet/api/system.formatexception): A format is specified.
+
+<a id="member-a5935eab18ff25f1"></a>
+
+### TryFormat(Span&lt;char&gt;, out int, ReadOnlySpan&lt;char&gt;, IFormatProvider?)
+
+Copies the value's canonical PostgreSQL text into a span, as interpolated strings and other span-based
+formatters request it.
+
+```csharp
+public bool TryFormat(Span<char> destination, out int charsWritten, ReadOnlySpan<char> format, IFormatProvider? provider)
+```
+
+Parameters:
+
+`destination` — [Span&lt;char&gt;](https://learn.microsoft.com/dotnet/api/system.span-1)
+
+The span that receives the text.
+
+`charsWritten` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The number of characters written.
+
+`format` — [ReadOnlySpan&lt;char&gt;](https://learn.microsoft.com/dotnet/api/system.readonlyspan-1)
+
+Empty; PostgreSQL text has one canonical form.
+
+`provider` — [IFormatProvider](https://learn.microsoft.com/dotnet/api/system.iformatprovider)
+
+Ignored: the text does not depend on culture.
+
+Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+Whether the text fit in the destination.
+
+Exceptions:
+
+- [FormatException](https://learn.microsoft.com/dotnet/api/system.formatexception): A format is specified.
 
 <a id="member-dc93b9fe44e84055"></a>
 

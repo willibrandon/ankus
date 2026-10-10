@@ -85,6 +85,20 @@ public sealed class NativeSchemaSectionTests
     }
 
     /// <summary>
+    /// A real native library that Ankus did not build has no schema section and is rejected rather than misread, as
+    /// pgrx's <c>parses_managed_postmasters</c> checks against an image it did not produce. The .NET runtime's own
+    /// native library is present on every platform.
+    /// </summary>
+    [TestMethod]
+    public void ForeignLibrariesHaveNoSchemaSection()
+    {
+        string runtime = Path.GetDirectoryName(typeof(object).Assembly.Location)!;
+        string name = OperatingSystem.IsWindows() ? "coreclr.dll" : OperatingSystem.IsMacOS() ? "libcoreclr.dylib" : "libcoreclr.so";
+        using FileStream library = File.OpenRead(Path.Combine(runtime, name));
+        Assert.ThrowsExactly<FormatException>(() => NativeSchemaSection.Read(library));
+    }
+
+    /// <summary>
     /// Supports ELF's extended section count and string-table index encodings.
     /// </summary>
     [TestMethod]

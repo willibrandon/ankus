@@ -5,7 +5,7 @@ namespace Ankus;
 /// </summary>
 /// <param name="Start">The first endpoint.</param>
 /// <param name="End">The second endpoint.</param>
-public readonly record struct PgLineSegment(PgPoint Start, PgPoint End)
+public readonly partial record struct PgLineSegment(PgPoint Start, PgPoint End)
 {
     /// <summary>
     /// Parses a segment using PostgreSQL on the active backend.

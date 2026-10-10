@@ -11,7 +11,7 @@ namespace Ankus;
 /// The default value is 0.0.0.0/0. Constructors and address operations work outside PostgreSQL.
 /// </summary>
 [JsonConverter(typeof(PgInetConverter))]
-public readonly record struct PgInet : IComparable<PgInet>
+public readonly partial record struct PgInet : IComparable<PgInet>
 {
     private readonly UInt128 _bits;
     private readonly bool _ipv6;

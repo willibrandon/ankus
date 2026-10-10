@@ -81,7 +81,7 @@ public sealed class PostgresProvisioner(HttpClient client, string? homeDirectory
             {
                 progress?.Report($"Downloading PostgreSQL {version}.");
                 string distribution = Path.Combine(scratch, "distribution");
-                await _distributions.DownloadAsync(version, distribution, OperatingSystem.IsWindows(), cancellationToken).ConfigureAwait(false);
+                await _distributions.DownloadAsync(version, distribution, OperatingSystem.IsWindows(), cancellationToken, progress).ConfigureAwait(false);
                 string staged = distribution;
                 if (!OperatingSystem.IsWindows())
                 {

@@ -130,6 +130,33 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
 
 ## Active validation and work
 
+- Numeric, network and geometry values implement `IParsable<T>` and
+  `ISpanFormattable`, and the six temporal types implement `IParsable<T>`, so
+  generic .NET code and string interpolation use PostgreSQL's input and output
+  rules. Format strings are rejected rather than reinterpreted, since PostgreSQL
+  text has one canonical form; a backend test parses each kind through
+  `T.Parse`. PostgreSQL downloads retry transient failures four times with
+  backoff and report each retry. Version parsing accepts suffixes such as
+  `11.2-FOO-BAR+`, as pgrx does, and schema selection warnings name the custom
+  SQL's source line. pgrx's `value_struct_cast` and `value_union_cast` now run
+  against the bindings generated from the server's own headers, which closes the
+  last partial row of the [inline test mapping](docs/contributing/evidence/pgrx-inline-test-mapping.md).
+  On Linux x64 with PostgreSQL 18.6 the full suite ran 14,471 tests: 14,416
+  passed, 54 skipped and 1 failed, a new list test that wrongly expected a mocked
+  native layer to return null. With that check moved to the backend-free NIL list
+  test, the runtime module passes (2,424). The node and temporal integration tests
+  also pass on PostgreSQL 13.23 (77), which runs the `Value` branch.
+- **dd530d4** and **a842f7d** pass the Windows x64 suites on PostgreSQL 17.11 and
+  13.23, run concurrently (**14,446** total each; **14,402** passed; 44 skips;
+  zero failures; **24m46s** and **24m03s**).
+- A cancelled CI job left its test servers running, and the runner then killed
+  them outright, so each kept its System V shared memory segment. macOS allows
+  32; the MacBook had leaked 18 from runs cancelled on 2026-10-07, and `initdb`
+  then failed with "No space left on device". Runner cleanup now finds the
+  postmasters carrying the job's `RUNNER_TRACKING_ID` and shuts them down so
+  PostgreSQL removes its own segment. Checked on macOS and Linux with a tagged
+  server: it stopped and released its segment, and other servers kept running.
+  The 18 leaked segments were removed; the Intel Mac had none.
 - A fresh audit of every finding in the private review notes against the current
   code finds most fixed. This batch closes several that remained: a relation
   opened inside `Spi.Connect` now belongs to the statement that opened the
@@ -141,9 +168,9 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   `--extension-name`, matching `ankus new`. The numeric guide notes pgrx's
   `XX000`. Still open from the audit: guarded catch blocks that flush the error
   stack during abort cleanup, LATIN1 worker and terminal-report fallback tests,
-  logging and input-parsing subtransactions, `IParsable`/`ISpanFormattable` on
-  value types, the flat public namespace, version and platform cells CI never
-  runs, and binding catalogs still taken from pgrx's generated bindings.
+  logging and input-parsing subtransactions, the flat public namespace, version
+  and platform cells CI never runs, and binding catalogs still taken from pgrx's
+  generated bindings.
 - **2b841a3** passes the complete Linux x64 suite on PostgreSQL 18.6 with run-as
   (**14,442** total; **14,391** passed; 51 skips; zero failures; **41m03s**). Its
   Windows x64 suites on PostgreSQL 17.11 and 13.23, run concurrently at package

@@ -65,6 +65,8 @@ input errors must propagate because independent rollback is unavailable. See
 
 `ToString()` works outside PostgreSQL and produces round-trippable address text.
 An `inet` full-width prefix is omitted; a `cidr` prefix is always included.
+Both types implement `IParsable<T>` and `ISpanFormattable` with the same input
+and output rules, and reject format strings.
 
 ## Networks and masks
 

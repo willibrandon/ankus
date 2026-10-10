@@ -8,7 +8,7 @@ namespace Ankus;
 /// An immutable PostgreSQL cidr network. Host bits must be zero; the default is 0.0.0.0/0.
 /// </summary>
 [JsonConverter(typeof(PgCidrConverter))]
-public readonly record struct PgCidr : IComparable<PgCidr>
+public readonly partial record struct PgCidr : IComparable<PgCidr>
 {
     /// <summary>
     /// Creates a network without silently discarding host bits.

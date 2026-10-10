@@ -7,7 +7,7 @@ namespace Ankus;
 /// <param name="A">The horizontal coefficient.</param>
 /// <param name="B">The vertical coefficient.</param>
 /// <param name="C">The constant coefficient.</param>
-public readonly record struct PgLine(double A, double B, double C)
+public readonly partial record struct PgLine(double A, double B, double C)
 {
     /// <summary>
     /// Parses coefficients or two points using PostgreSQL on the active backend.

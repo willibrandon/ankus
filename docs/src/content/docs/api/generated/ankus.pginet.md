@@ -14,10 +14,10 @@ The default value is 0.0.0.0/0. Constructors and address operations work outside
 
 ```csharp
 [JsonConverter(typeof(PgInetConverter))]
-public readonly struct PgInet : IComparable<PgInet>, IEquatable<PgInet>
+public readonly struct PgInet : IComparable<PgInet>, ISpanFormattable, IFormattable, IParsable<PgInet>, IEquatable<PgInet>
 ```
 
-Implements: [IComparable&lt;PgInet&gt;](https://learn.microsoft.com/dotnet/api/system.icomparable-1), [IEquatable&lt;PgInet&gt;](https://learn.microsoft.com/dotnet/api/system.iequatable-1)
+Implements: [IComparable&lt;PgInet&gt;](https://learn.microsoft.com/dotnet/api/system.icomparable-1), [ISpanFormattable](https://learn.microsoft.com/dotnet/api/system.ispanformattable), [IFormattable](https://learn.microsoft.com/dotnet/api/system.iformattable), [IParsable&lt;PgInet&gt;](https://learn.microsoft.com/dotnet/api/system.iparsable-1), [IEquatable&lt;PgInet&gt;](https://learn.microsoft.com/dotnet/api/system.iequatable-1)
 
 ## Constructors
 
@@ -261,6 +261,71 @@ public override string ToString()
 Returns: [string](https://learn.microsoft.com/dotnet/api/system.string)
 
 Round-trippable IPv4 or IPv6 text.
+
+<a id="member-f0d38ea61541257b"></a>
+
+### ToString(string?, IFormatProvider?)
+
+Formats the value as PostgreSQL's canonical text, the same text as [ToString()](/api/ankus.pginet/#member-49a01cfc0d80e194).
+
+```csharp
+public string ToString(string? format, IFormatProvider? formatProvider)
+```
+
+Parameters:
+
+`format` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+Null or empty; PostgreSQL text has one canonical form.
+
+`formatProvider` — [IFormatProvider](https://learn.microsoft.com/dotnet/api/system.iformatprovider)
+
+Ignored: the text does not depend on culture.
+
+Returns: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The canonical text.
+
+Exceptions:
+
+- [FormatException](https://learn.microsoft.com/dotnet/api/system.formatexception): A format is specified.
+
+<a id="member-ad146c1956a31692"></a>
+
+### TryFormat(Span&lt;char&gt;, out int, ReadOnlySpan&lt;char&gt;, IFormatProvider?)
+
+Copies the value's canonical PostgreSQL text into a span, as interpolated strings and other span-based
+formatters request it.
+
+```csharp
+public bool TryFormat(Span<char> destination, out int charsWritten, ReadOnlySpan<char> format, IFormatProvider? provider)
+```
+
+Parameters:
+
+`destination` — [Span&lt;char&gt;](https://learn.microsoft.com/dotnet/api/system.span-1)
+
+The span that receives the text.
+
+`charsWritten` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The number of characters written.
+
+`format` — [ReadOnlySpan&lt;char&gt;](https://learn.microsoft.com/dotnet/api/system.readonlyspan-1)
+
+Empty; PostgreSQL text has one canonical form.
+
+`provider` — [IFormatProvider](https://learn.microsoft.com/dotnet/api/system.iformatprovider)
+
+Ignored: the text does not depend on culture.
+
+Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+Whether the text fit in the destination.
+
+Exceptions:
+
+- [FormatException](https://learn.microsoft.com/dotnet/api/system.formatexception): A format is specified.
 
 <a id="member-cb973c08f905f8dd"></a>
 

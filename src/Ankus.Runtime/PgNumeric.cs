@@ -9,7 +9,7 @@ namespace Ankus;
 /// The default value is zero. Equality ignores trailing fractional zeroes and treats NaN as equal to NaN.
 /// </summary>
 [JsonConverter(typeof(PgNumericConverter))]
-public readonly record struct PgNumeric : IComparable<PgNumeric>,
+public readonly partial record struct PgNumeric : IComparable<PgNumeric>,
     IAdditionOperators<PgNumeric, PgNumeric, PgNumeric>, ISubtractionOperators<PgNumeric, PgNumeric, PgNumeric>,
     IMultiplyOperators<PgNumeric, PgNumeric, PgNumeric>, IDivisionOperators<PgNumeric, PgNumeric, PgNumeric>,
     IModulusOperators<PgNumeric, PgNumeric, PgNumeric>, IUnaryNegationOperators<PgNumeric, PgNumeric>,

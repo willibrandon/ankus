@@ -7,7 +7,7 @@ namespace Ankus;
 /// Owns an immutable ordered sequence of polygon vertices and its PostgreSQL-compatible bounding box.
 /// Empty polygons have a zero bounding box and can be constructed without backend access.
 /// </summary>
-public sealed class PgPolygon : IReadOnlyList<PgPoint>
+public sealed partial class PgPolygon : IReadOnlyList<PgPoint>
 {
     private readonly PgPoint[] _points;
 

@@ -71,6 +71,54 @@ public static unsafe partial class NodeFunctions
         return $"{alias.Tag == (uint)tag}|{alias.Value.opno}|{alias.DangerousGetPointer() == value.DangerousGetPointer()}|{root.TryCast<Var>() is null}";
     }
 
+#if ANKUS_PG13 || ANKUS_PG14
+    /// <summary>
+    /// Repeats pgrx's value_struct_cast: before PostgreSQL 15 one Value node carries the Integer, Float, String,
+    /// BitString and Null tags, and each survives an upcast to Node and a downcast back to Value.
+    /// </summary>
+    /// <returns>Each tag's preserved identity and payload, the integer first.</returns>
+    [PgFunction]
+    public static string NodeValueCast()
+    {
+        using PgMemoryContext owner = PgMemoryContext.Create("native value cast");
+        using PgAllocation text = owner.AllocateUtf8String("something");
+        sbyte* address = (sbyte*)text.DangerousGetPointer();
+        using PgNativeBox<Value> integer = owner.CreateBox(new Value { type = NodeTag.T_Integer, val = new ValUnion { ival = 42 } });
+        PgNodeReference<Value> number = PgNodes.Borrow(integer.Borrow()).TryCast<Node>()!.TryCast<Value>()!;
+        var results = new List<string> { $"{number.Tag == (uint)NodeTag.T_Integer}:{number.Value.val.ival}" };
+        foreach (NodeTag tag in (ReadOnlySpan<NodeTag>)[NodeTag.T_Float, NodeTag.T_String, NodeTag.T_BitString, NodeTag.T_Null])
+        {
+            using PgNativeBox<Value> value = owner.CreateBox(new Value { type = tag, val = new ValUnion { str = address } });
+            PgNodeReference<Node> node = PgNodes.Borrow(value.Borrow()).TryCast<Node>()!;
+            PgNodeReference<Value> next = node.TryCast<Value>()!;
+            results.Add($"{node.Tag == (uint)tag && next.Tag == (uint)tag}:{next.Value.val.str == address}");
+        }
+
+        return string.Join('|', results);
+    }
+#else
+    /// <summary>
+    /// Repeats pgrx's value_union_cast: from PostgreSQL 15 a ValUnion holding a String upcasts to Node and downcasts to
+    /// String, but no tag downcasts to the untagged union.
+    /// </summary>
+    /// <returns>The String's tag and payload and whether both downcasts to ValUnion were rejected.</returns>
+    [PgFunction]
+    public static string NodeValueCast()
+    {
+        using PgMemoryContext owner = PgMemoryContext.Create("native value union cast");
+        using PgAllocation text = owner.AllocateUtf8String("something");
+        sbyte* address = (sbyte*)text.DangerousGetPointer();
+        using PgNativeBox<ValUnion> value = owner.CreateBox(new ValUnion
+        {
+            sval = new Ankus.Postgres.String { type = NodeTag.T_String, sval = address },
+        });
+        PgNodeReference<ValUnion> union = PgNodes.Borrow(value.Borrow());
+        PgNodeReference<Node> node = union.TryCast<Node>()!;
+        PgNodeReference<Ankus.Postgres.String> next = node.TryCast<Ankus.Postgres.String>()!;
+        return $"{next.Value.type == NodeTag.T_String}:{next.Value.sval == address}|{node.TryCast<ValUnion>() is null}|{union.TryCast<ValUnion>() is null}";
+    }
+#endif
+
     /// <summary>
     /// Attempts a compatible-sized representation with a deliberately different measured ABI identity.
     /// </summary>

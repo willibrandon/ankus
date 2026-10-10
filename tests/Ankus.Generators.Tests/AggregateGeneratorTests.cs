@@ -443,6 +443,41 @@ public sealed partial class PgFunctionGeneratorTests
     }
 
     /// <summary>
+    /// A moving state keeps the schema of a type declared in custom SQL, alone or as an array, as pgrx's
+    /// <c>extension_sql_declared_type_in_custom_schema_prefixes_aggregate_state_type</c> and
+    /// <c>explicit_composite_array_aggregate_state_does_not_require_schema_resolution</c> check for <c>MSTYPE</c>.
+    /// </summary>
+    /// <param name="state">The managed moving state.</param>
+    /// <param name="sqlType">The expected moving state type.</param>
+    [TestMethod]
+    [DataRow("Ankus.PgHeapTuple?", "\"pets\".\"dog\"")]
+    [DataRow("Ankus.PgArray<Ankus.PgHeapTuple?>?", "\"pets\".\"dog\"[]")]
+    public void MovingStatesKeepCustomSchemaTypes(string state, string sqlType)
+    {
+        (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate($$"""
+            [assembly: Ankus.PgSql("custom-type", "CREATE SCHEMA pets; CREATE TYPE pets.dog AS (name text);")]
+            [Ankus.PgAggregate(Requires=new[] { "custom-type" })]
+            public sealed class Walks : Ankus.IPgAggregate<int, int>, Ankus.IPgMovingAggregate<{{state}}, int>,
+                Ankus.IPgMovingFinalizingAggregate<{{state}}, System.ValueTuple, int>
+            {
+                public static int Transition(Ankus.PgAggregateContext context, int state, int value) => state + value;
+                [return: Ankus.PgCompositeType("dog", Schema="pets")]
+                public static {{state}} MovingTransition(Ankus.PgAggregateContext context,
+                    [Ankus.PgCompositeType("dog", Schema="pets")] {{state}} state, int value) => state;
+                [return: Ankus.PgCompositeType("dog", Schema="pets")]
+                public static {{state}} MovingInverse(Ankus.PgAggregateContext context,
+                    [Ankus.PgCompositeType("dog", Schema="pets")] {{state}} state, int value) => state;
+                public static int MovingFinal(Ankus.PgAggregateContext context,
+                    [Ankus.PgCompositeType("dog", Schema="pets")] {{state}} state, System.ValueTuple arguments) => 0;
+            }
+            """);
+        AssertAggregateCompilation(compilation, diagnostics);
+        string sql = InstallationBody(compilation).ReplaceLineEndings("\n");
+        Assert.Contains("    STYPE = integer,", sql);
+        Assert.Contains("    MSTYPE = " + sqlType + ",", sql);
+    }
+
+    /// <summary>
     /// Independent ordinary and moving capabilities retain separate SQL identities while sharing managed arithmetic.
     /// </summary>
     [TestMethod]

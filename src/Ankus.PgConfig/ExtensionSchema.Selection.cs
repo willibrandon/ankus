@@ -152,7 +152,9 @@ public sealed partial class ExtensionSchema
 
             if (item.Kind == "sql" && item.Attachments.Count == 0)
             {
-                warnings.Add($"Custom SQL '{(item.Names.Count == 0 ? item.Id : item.Names[0])}' has no declared created objects; attach them to the extension manually.");
+                string? location = SourceLocation(item.Sql);
+                warnings.Add($"Custom SQL '{(item.Names.Count == 0 ? item.Id : item.Names[0])}'{(location is null ? "" : " at " + location)} " +
+                    "has no declared created objects; attach them to the extension manually.");
             }
         }
 
@@ -211,5 +213,25 @@ public sealed partial class ExtensionSchema
         }
 
         return result.ToString();
+    }
+
+    /// <summary>
+    /// Reads the declaration's source location from a generated block's provenance comment, such as
+    /// <c>-- Sql/Setup.cs:12</c>, as pgrx's warning names the file and line of an <c>extension_sql!</c> block.
+    /// </summary>
+    private static string? SourceLocation(string sql)
+    {
+        const string Begin = "/* <begin connected objects> */\n-- ";
+        if (!sql.StartsWith(Begin, StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        int end = sql.IndexOf('\n', Begin.Length);
+        string comment = end < 0 ? sql[Begin.Length..] : sql[Begin.Length..end];
+        int colon = comment.LastIndexOf(':');
+        return colon > 0 && colon < comment.Length - 1 && comment.AsSpan(colon + 1).IndexOfAnyExceptInRange('0', '9') < 0
+            ? comment
+            : null;
     }
 }

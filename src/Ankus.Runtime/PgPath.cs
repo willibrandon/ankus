@@ -7,7 +7,7 @@ namespace Ankus;
 /// Owns an immutable ordered sequence of points and an open/closed flag for PostgreSQL path.
 /// Empty paths can be constructed and exchanged even though PostgreSQL's text parser requires points.
 /// </summary>
-public sealed class PgPath : IReadOnlyList<PgPoint>
+public sealed partial class PgPath : IReadOnlyList<PgPoint>
 {
     private readonly PgPoint[] _points;
 

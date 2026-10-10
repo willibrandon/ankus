@@ -202,7 +202,8 @@ Parsing accepts PostgreSQL input syntax, including special values. `DateStyle`
 controls ambiguous date input and date/timestamp output. `IntervalStyle` controls
 interval output. `TryParse` returns `false` and a default out value for invalid
 input after rolling back its input operation; backend-access and operational
-errors still throw.
+errors still throw. These types also implement `IParsable<T>` with the same
+rules, so generic code such as `T.Parse(text, null)` uses PostgreSQL input.
 
 In transaction callbacks and parallel operations before PostgreSQL 17, native
 input errors must propagate because independent rollback is unavailable. See

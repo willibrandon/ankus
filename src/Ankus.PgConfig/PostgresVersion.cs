@@ -74,26 +74,33 @@ public readonly struct PostgresVersion : IEquatable<PostgresVersion>
             version = version[..suffix];
         }
 
-        int beta = version.IndexOf("beta", StringComparison.OrdinalIgnoreCase);
-        if (beta >= 0)
-        {
-            return ParsePrerelease(version, beta, "beta", PostgresReleaseStage.Beta);
-        }
-
-        int releaseCandidate = version.IndexOf("rc", StringComparison.OrdinalIgnoreCase);
-        if (releaseCandidate >= 0)
-        {
-            return ParsePrerelease(
-                version,
-                releaseCandidate,
-                "rc",
-                PostgresReleaseStage.ReleaseCandidate);
-        }
-
         int dot = version.IndexOf('.');
+        if (dot < 0)
+        {
+            int beta = version.IndexOf("beta", StringComparison.OrdinalIgnoreCase);
+            if (beta >= 0)
+            {
+                return ParsePrerelease(version, beta, "beta", PostgresReleaseStage.Beta);
+            }
+
+            int releaseCandidate = version.IndexOf("rc", StringComparison.OrdinalIgnoreCase);
+            if (releaseCandidate >= 0)
+            {
+                return ParsePrerelease(
+                    version,
+                    releaseCandidate,
+                    "rc",
+                    PostgresReleaseStage.ReleaseCandidate);
+            }
+        }
+
+        // As pgrx does, a vendor suffix directly after the minor version, such as "11.2-FOO-BAR+", is ignored.
+        ReadOnlySpan<char> minorText = dot < 0 ? [] : version[(dot + 1)..];
+        int digits = minorText.IndexOfAnyExceptInRange('0', '9');
+        minorText = digits < 0 ? minorText : minorText[..digits];
         if (dot < 1 ||
             !int.TryParse(version[..dot], NumberStyles.None, CultureInfo.InvariantCulture, out int major) ||
-            !int.TryParse(version[(dot + 1)..], NumberStyles.None, CultureInfo.InvariantCulture, out int minor))
+            !int.TryParse(minorText, NumberStyles.None, CultureInfo.InvariantCulture, out int minor))
         {
             throw new FormatException($"Invalid PostgreSQL version string: '{value}'.");
         }

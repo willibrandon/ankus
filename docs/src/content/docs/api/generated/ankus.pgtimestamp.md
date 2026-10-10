@@ -9,15 +9,14 @@ Namespace: [Ankus](/api/ankus/)
 
 Assembly: `Ankus.Runtime.dll`
 
-Represents PostgreSQL timestamp without time zone, including BC values and infinities.
-The default value is 2000-01-01 00:00:00.
+Implements .NET's parsing contract over PostgreSQL's input function.
 
 ```csharp
 [JsonConverter(typeof(PgTimestampConverter))]
-public readonly struct PgTimestamp : IComparable<PgTimestamp>, IEquatable<PgTimestamp>
+public readonly struct PgTimestamp : IParsable<PgTimestamp>, IComparable<PgTimestamp>, IEquatable<PgTimestamp>
 ```
 
-Implements: [IComparable&lt;PgTimestamp&gt;](https://learn.microsoft.com/dotnet/api/system.icomparable-1), [IEquatable&lt;PgTimestamp&gt;](https://learn.microsoft.com/dotnet/api/system.iequatable-1)
+Implements: [IParsable&lt;PgTimestamp&gt;](https://learn.microsoft.com/dotnet/api/system.iparsable-1), [IComparable&lt;PgTimestamp&gt;](https://learn.microsoft.com/dotnet/api/system.icomparable-1), [IEquatable&lt;PgTimestamp&gt;](https://learn.microsoft.com/dotnet/api/system.iequatable-1)
 
 ## Constructors
 

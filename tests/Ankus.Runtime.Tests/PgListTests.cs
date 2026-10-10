@@ -45,6 +45,9 @@ public sealed unsafe class PgListTests
         Assert.ThrowsExactly<ObjectDisposedException>(() => list.TryAdd(1));
         Assert.ThrowsExactly<ObjectDisposedException>(list.Clear);
         Assert.ThrowsExactly<ObjectDisposedException>(() => list.DangerousDetach());
+        using var detached = new PgList<int>();
+        Assert.IsTrue(detached.DangerousDetach() == null);
+        Assert.ThrowsExactly<ObjectDisposedException>(() => _ = detached.Count);
     }
 
     /// <summary>

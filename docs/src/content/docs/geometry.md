@@ -80,6 +80,9 @@ Backend-access and operational errors propagate. `TryParse` recovers its input
 operation before returning false. Catch other native input errors outside
 `PgTransaction.RunInSubtransaction` before continuing with backend work.
 `ToString()` uses invariant coordinate formatting and works on detached values.
+Every geometry type also implements `IParsable<T>` and `ISpanFormattable`, so
+generic parsing code and string interpolation follow the same rules. Format
+strings are rejected because PostgreSQL text has one canonical form.
 
 `PgLine` and `PgCircle` constructors retain the supplied coefficients and radius.
 PostgreSQL validates them when converting to SQL: near-zero `A` and `B`

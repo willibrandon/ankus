@@ -423,4 +423,19 @@ public sealed class TemporalDatumTests(TestContext context)
         Assert.AreEqual(backend, reader.GetInt32(1));
         Assert.IsFalse(await reader.ReadAsync(token));
     }
+
+    /// <summary>
+    /// Generic .NET code parses PostgreSQL values through <see cref="IParsable{TSelf}"/>, which runs each type's input
+    /// function, and invalid text is rejected without failing the transaction.
+    /// </summary>
+    [TestMethod]
+    public Task ValueTypesParseThroughIParsable()
+        => PostgresFixture.Cluster.RunInTransactionAsync(nameof(ValueTypesParseThroughIParsable), async (connection, transaction, token) =>
+        {
+            await using var command = new NpgsqlCommand(
+                "SELECT datatype.parse_through_interfaces(), ('2026-10-10'::date - '2000-01-01'::date)::text", connection, transaction);
+            await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(token);
+            Assert.IsTrue(await reader.ReadAsync(token));
+            Assert.AreEqual("12.50|192.0.2.1/24|(1.5,-2)|P1DT2H|" + reader.GetString(1) + "|rejected|accepted", reader.GetString(0));
+        }, context.CancellationToken);
 }

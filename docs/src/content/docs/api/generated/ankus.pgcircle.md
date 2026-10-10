@@ -13,10 +13,10 @@ A PostgreSQL circle with double-precision center and radius. PostgreSQL validate
 Equality compares the stored center and radius, not area or geometric tolerance.
 
 ```csharp
-public readonly struct PgCircle : IEquatable<PgCircle>
+public readonly struct PgCircle : ISpanFormattable, IFormattable, IParsable<PgCircle>, IEquatable<PgCircle>
 ```
 
-Implements: [IEquatable&lt;PgCircle&gt;](https://learn.microsoft.com/dotnet/api/system.iequatable-1)
+Implements: [ISpanFormattable](https://learn.microsoft.com/dotnet/api/system.ispanformattable), [IFormattable](https://learn.microsoft.com/dotnet/api/system.iformattable), [IParsable&lt;PgCircle&gt;](https://learn.microsoft.com/dotnet/api/system.iparsable-1), [IEquatable&lt;PgCircle&gt;](https://learn.microsoft.com/dotnet/api/system.iequatable-1)
 
 ## Constructors
 
@@ -156,6 +156,71 @@ public override string ToString()
 Returns: [string](https://learn.microsoft.com/dotnet/api/system.string)
 
 The circle text.
+
+<a id="member-b9894aa8330bec33"></a>
+
+### ToString(string?, IFormatProvider?)
+
+Formats the value as PostgreSQL's canonical text, the same text as [ToString()](/api/ankus.pgcircle/#member-9804a3956aeed3d0).
+
+```csharp
+public string ToString(string? format, IFormatProvider? formatProvider)
+```
+
+Parameters:
+
+`format` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+Null or empty; PostgreSQL text has one canonical form.
+
+`formatProvider` — [IFormatProvider](https://learn.microsoft.com/dotnet/api/system.iformatprovider)
+
+Ignored: the text does not depend on culture.
+
+Returns: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The canonical text.
+
+Exceptions:
+
+- [FormatException](https://learn.microsoft.com/dotnet/api/system.formatexception): A format is specified.
+
+<a id="member-0518d31fd35723a3"></a>
+
+### TryFormat(Span&lt;char&gt;, out int, ReadOnlySpan&lt;char&gt;, IFormatProvider?)
+
+Copies the value's canonical PostgreSQL text into a span, as interpolated strings and other span-based
+formatters request it.
+
+```csharp
+public bool TryFormat(Span<char> destination, out int charsWritten, ReadOnlySpan<char> format, IFormatProvider? provider)
+```
+
+Parameters:
+
+`destination` — [Span&lt;char&gt;](https://learn.microsoft.com/dotnet/api/system.span-1)
+
+The span that receives the text.
+
+`charsWritten` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The number of characters written.
+
+`format` — [ReadOnlySpan&lt;char&gt;](https://learn.microsoft.com/dotnet/api/system.readonlyspan-1)
+
+Empty; PostgreSQL text has one canonical form.
+
+`provider` — [IFormatProvider](https://learn.microsoft.com/dotnet/api/system.iformatprovider)
+
+Ignored: the text does not depend on culture.
+
+Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+Whether the text fit in the destination.
+
+Exceptions:
+
+- [FormatException](https://learn.microsoft.com/dotnet/api/system.formatexception): A format is specified.
 
 <a id="member-434ad9a51972f1f1"></a>
 

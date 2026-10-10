@@ -315,6 +315,7 @@ public sealed partial class PgFunctionGeneratorTests
     [DataRow("", "System.Collections.Generic.IEnumerable<int>", "ANKUS397")]
     [DataRow("", "(int Id, System.Collections.Generic.IEnumerable<int> Values)", "ANKUS397")]
     [DataRow("", "int[,]", "ANKUS397")]
+    [DataRow("", "(int[][] First, System.Collections.Generic.IEnumerable<int> Second)", "ANKUS397")]
     [DataRow("[return: Ankus.PgColumnNames()]", "int", "ANKUS400")]
     [DataRow("[return: Ankus.PgColumnNames(null!)]", "int", "ANKUS398")]
     [DataRow("[return: Ankus.PgColumnNames(\"\")]", "int", "ANKUS400")]

@@ -1,4 +1,5 @@
 using System.Formats.Tar;
+using System.Globalization;
 using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
@@ -9,8 +10,14 @@ namespace Ankus.PgConfig;
 /// Retrieves PostgreSQL distributions from the upstream source archive or EDB's Windows archive.
 /// </summary>
 /// <param name="client">The caller-owned HTTP client.</param>
-internal sealed partial class PostgresDistributionClient(HttpClient client)
+/// <param name="delay">Waits between download attempts; tests replace the real delay.</param>
+internal sealed partial class PostgresDistributionClient(HttpClient client, Func<TimeSpan, CancellationToken, Task>? delay = null)
 {
+    /// <summary>
+    /// The download attempts before failing, as cargo-pgrx makes, waiting 1, 2 and 4 seconds between them.
+    /// </summary>
+    internal const int DownloadAttempts = 4;
+
     private const long DownloadLimit = 2L * 1024 * 1024 * 1024;
     private const long ExpandedLimit = 8L * 1024 * 1024 * 1024;
     private static readonly Uri s_sourceIndex = new("https://ftp.postgresql.org/pub/source/");
@@ -57,7 +64,7 @@ internal sealed partial class PostgresDistributionClient(HttpClient client)
     /// Downloads and extracts a distribution atomically into a new directory, removing incomplete work on failure.
     /// </summary>
     internal async Task DownloadAsync(PostgresVersion version, string destination, bool windowsBinaries,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, IProgress<string>? progress = null)
     {
         ValidateMajor(version.Major);
         string target = Path.GetFullPath(destination);
@@ -72,19 +79,21 @@ internal sealed partial class PostgresDistributionClient(HttpClient client)
         {
             Uri uri = GetArchiveUri(version, windowsBinaries);
             string archive = Path.Combine(scratch, "archive");
-            using (HttpResponseMessage response = await client.GetAsync(uri,
-                HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false))
+            for (int attempt = 1; ; attempt++)
             {
-                if (windowsBinaries && response.StatusCode is System.Net.HttpStatusCode.NotFound or System.Net.HttpStatusCode.Forbidden)
+                try
                 {
-                    throw new InvalidOperationException($"EDB has no available PostgreSQL {version} Windows x64 archive. " +
-                        $"Register an existing build with 'ankus init --pg{version.Major} /path/to/pg_config.exe'.");
+                    await DownloadArchiveAsync(uri, archive, version, windowsBinaries, cancellationToken).ConfigureAwait(false);
+                    break;
                 }
-
-                response.EnsureSuccessStatusCode();
-                await using Stream body = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-                await using var output = new FileStream(archive, FileMode.CreateNew, FileAccess.Write, FileShare.None);
-                await CopyBoundedAsync(body, output, DownloadLimit, cancellationToken).ConfigureAwait(false);
+                catch (Exception error) when (attempt < DownloadAttempts && IsTransient(error, cancellationToken))
+                {
+                    TimeSpan wait = TimeSpan.FromSeconds(1 << (attempt - 1));
+                    progress?.Report(string.Create(CultureInfo.InvariantCulture,
+                        $"Warning: PostgreSQL {version} download attempt {attempt}/{DownloadAttempts} failed; retrying in {wait.TotalSeconds}s: {Summarize(error)}"));
+                    File.Delete(archive);
+                    await (delay ?? Task.Delay)(wait, cancellationToken).ConfigureAwait(false);
+                }
             }
 
             if (!windowsBinaries)
@@ -112,6 +121,50 @@ internal sealed partial class PostgresDistributionClient(HttpClient client)
             Directory.Delete(scratch, recursive: true);
         }
     }
+
+    /// <summary>
+    /// Returns the first line of a download failure, so a retry warning stays on one line.
+    /// </summary>
+    /// <param name="error">The failure.</param>
+    /// <returns>The first line of its message.</returns>
+    internal static string Summarize(Exception error)
+    {
+        string message = error.Message;
+        int end = message.IndexOfAny(['\r', '\n']);
+        string first = end < 0 ? message : message[..end];
+        return first.Length == 0 ? "unknown download error" : first;
+    }
+
+    private async Task DownloadArchiveAsync(Uri uri, string archive, PostgresVersion version, bool windowsBinaries,
+        CancellationToken cancellationToken)
+    {
+        using HttpResponseMessage response = await client.GetAsync(uri,
+            HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+        if (windowsBinaries && response.StatusCode is System.Net.HttpStatusCode.NotFound or System.Net.HttpStatusCode.Forbidden)
+        {
+            throw new InvalidOperationException($"EDB has no available PostgreSQL {version} Windows x64 archive. " +
+                $"Register an existing build with 'ankus init --pg{version.Major} /path/to/pg_config.exe'.");
+        }
+
+        response.EnsureSuccessStatusCode();
+        await using Stream body = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        await using var output = new FileStream(archive, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+        await CopyBoundedAsync(body, output, DownloadLimit, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Selects failures another attempt can fix: a refused or failed request, an error status, an interrupted body
+    /// or a request timeout, but not cancellation, an oversized archive or a missing Windows archive.
+    /// </summary>
+    private static bool IsTransient(Exception error, CancellationToken cancellationToken)
+        => !cancellationToken.IsCancellationRequested && error switch
+        {
+            HttpRequestException => true,
+            TaskCanceledException => true,
+            InvalidDataException => false,
+            IOException => true,
+            _ => false,
+        };
 
     /// <summary>
     /// Constructs a URL from a validated version without trusting links supplied by a remote index.

@@ -14,10 +14,10 @@ The default value is zero. Equality ignores trailing fractional zeroes and treat
 
 ```csharp
 [JsonConverter(typeof(PgNumericConverter))]
-public readonly struct PgNumeric : IComparable<PgNumeric>, IAdditionOperators<PgNumeric, PgNumeric, PgNumeric>, ISubtractionOperators<PgNumeric, PgNumeric, PgNumeric>, IMultiplyOperators<PgNumeric, PgNumeric, PgNumeric>, IDivisionOperators<PgNumeric, PgNumeric, PgNumeric>, IModulusOperators<PgNumeric, PgNumeric, PgNumeric>, IUnaryNegationOperators<PgNumeric, PgNumeric>, IUnaryPlusOperators<PgNumeric, PgNumeric>, IComparisonOperators<PgNumeric, PgNumeric, bool>, IEqualityOperators<PgNumeric, PgNumeric, bool>, IAdditiveIdentity<PgNumeric, PgNumeric>, IMultiplicativeIdentity<PgNumeric, PgNumeric>, IEquatable<PgNumeric>
+public readonly struct PgNumeric : IComparable<PgNumeric>, IAdditionOperators<PgNumeric, PgNumeric, PgNumeric>, ISubtractionOperators<PgNumeric, PgNumeric, PgNumeric>, IMultiplyOperators<PgNumeric, PgNumeric, PgNumeric>, IDivisionOperators<PgNumeric, PgNumeric, PgNumeric>, IModulusOperators<PgNumeric, PgNumeric, PgNumeric>, IUnaryNegationOperators<PgNumeric, PgNumeric>, IUnaryPlusOperators<PgNumeric, PgNumeric>, IComparisonOperators<PgNumeric, PgNumeric, bool>, IEqualityOperators<PgNumeric, PgNumeric, bool>, IAdditiveIdentity<PgNumeric, PgNumeric>, IMultiplicativeIdentity<PgNumeric, PgNumeric>, ISpanFormattable, IFormattable, IParsable<PgNumeric>, IEquatable<PgNumeric>
 ```
 
-Implements: [IComparable&lt;PgNumeric&gt;](https://learn.microsoft.com/dotnet/api/system.icomparable-1), [IAdditionOperators&lt;PgNumeric, PgNumeric, PgNumeric&gt;](https://learn.microsoft.com/dotnet/api/system.numerics.iadditionoperators-3), [ISubtractionOperators&lt;PgNumeric, PgNumeric, PgNumeric&gt;](https://learn.microsoft.com/dotnet/api/system.numerics.isubtractionoperators-3), [IMultiplyOperators&lt;PgNumeric, PgNumeric, PgNumeric&gt;](https://learn.microsoft.com/dotnet/api/system.numerics.imultiplyoperators-3), [IDivisionOperators&lt;PgNumeric, PgNumeric, PgNumeric&gt;](https://learn.microsoft.com/dotnet/api/system.numerics.idivisionoperators-3), [IModulusOperators&lt;PgNumeric, PgNumeric, PgNumeric&gt;](https://learn.microsoft.com/dotnet/api/system.numerics.imodulusoperators-3), [IUnaryNegationOperators&lt;PgNumeric, PgNumeric&gt;](https://learn.microsoft.com/dotnet/api/system.numerics.iunarynegationoperators-2), [IUnaryPlusOperators&lt;PgNumeric, PgNumeric&gt;](https://learn.microsoft.com/dotnet/api/system.numerics.iunaryplusoperators-2), [IComparisonOperators&lt;PgNumeric, PgNumeric, bool&gt;](https://learn.microsoft.com/dotnet/api/system.numerics.icomparisonoperators-3), [IEqualityOperators&lt;PgNumeric, PgNumeric, bool&gt;](https://learn.microsoft.com/dotnet/api/system.numerics.iequalityoperators-3), [IAdditiveIdentity&lt;PgNumeric, PgNumeric&gt;](https://learn.microsoft.com/dotnet/api/system.numerics.iadditiveidentity-2), [IMultiplicativeIdentity&lt;PgNumeric, PgNumeric&gt;](https://learn.microsoft.com/dotnet/api/system.numerics.imultiplicativeidentity-2), [IEquatable&lt;PgNumeric&gt;](https://learn.microsoft.com/dotnet/api/system.iequatable-1)
+Implements: [IComparable&lt;PgNumeric&gt;](https://learn.microsoft.com/dotnet/api/system.icomparable-1), [IAdditionOperators&lt;PgNumeric, PgNumeric, PgNumeric&gt;](https://learn.microsoft.com/dotnet/api/system.numerics.iadditionoperators-3), [ISubtractionOperators&lt;PgNumeric, PgNumeric, PgNumeric&gt;](https://learn.microsoft.com/dotnet/api/system.numerics.isubtractionoperators-3), [IMultiplyOperators&lt;PgNumeric, PgNumeric, PgNumeric&gt;](https://learn.microsoft.com/dotnet/api/system.numerics.imultiplyoperators-3), [IDivisionOperators&lt;PgNumeric, PgNumeric, PgNumeric&gt;](https://learn.microsoft.com/dotnet/api/system.numerics.idivisionoperators-3), [IModulusOperators&lt;PgNumeric, PgNumeric, PgNumeric&gt;](https://learn.microsoft.com/dotnet/api/system.numerics.imodulusoperators-3), [IUnaryNegationOperators&lt;PgNumeric, PgNumeric&gt;](https://learn.microsoft.com/dotnet/api/system.numerics.iunarynegationoperators-2), [IUnaryPlusOperators&lt;PgNumeric, PgNumeric&gt;](https://learn.microsoft.com/dotnet/api/system.numerics.iunaryplusoperators-2), [IComparisonOperators&lt;PgNumeric, PgNumeric, bool&gt;](https://learn.microsoft.com/dotnet/api/system.numerics.icomparisonoperators-3), [IEqualityOperators&lt;PgNumeric, PgNumeric, bool&gt;](https://learn.microsoft.com/dotnet/api/system.numerics.iequalityoperators-3), [IAdditiveIdentity&lt;PgNumeric, PgNumeric&gt;](https://learn.microsoft.com/dotnet/api/system.numerics.iadditiveidentity-2), [IMultiplicativeIdentity&lt;PgNumeric, PgNumeric&gt;](https://learn.microsoft.com/dotnet/api/system.numerics.imultiplicativeidentity-2), [ISpanFormattable](https://learn.microsoft.com/dotnet/api/system.ispanformattable), [IFormattable](https://learn.microsoft.com/dotnet/api/system.iformattable), [IParsable&lt;PgNumeric&gt;](https://learn.microsoft.com/dotnet/api/system.iparsable-1), [IEquatable&lt;PgNumeric&gt;](https://learn.microsoft.com/dotnet/api/system.iequatable-1)
 
 ## Methods
 
@@ -601,6 +601,34 @@ Returns: [string](https://learn.microsoft.com/dotnet/api/system.string)
 
 The numeric text.
 
+<a id="member-3f18d0b6f9d12409"></a>
+
+### ToString(string?, IFormatProvider?)
+
+Formats the value as PostgreSQL's canonical text, the same text as [ToString()](/api/ankus.pgnumeric/#member-6faac9b93116c892).
+
+```csharp
+public string ToString(string? format, IFormatProvider? formatProvider)
+```
+
+Parameters:
+
+`format` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+Null or empty; PostgreSQL text has one canonical form.
+
+`formatProvider` — [IFormatProvider](https://learn.microsoft.com/dotnet/api/system.iformatprovider)
+
+Ignored: the text does not depend on culture.
+
+Returns: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The canonical text.
+
+Exceptions:
+
+- [FormatException](https://learn.microsoft.com/dotnet/api/system.formatexception): A format is specified.
+
 <a id="member-6777637743430bfa"></a>
 
 ### Truncate(int)
@@ -620,6 +648,43 @@ The fractional scale; negative values truncate to the left of the decimal point.
 Returns: [PgNumeric](/api/ankus.pgnumeric/)
 
 The truncated numeric.
+
+<a id="member-6d56483d9545f15b"></a>
+
+### TryFormat(Span&lt;char&gt;, out int, ReadOnlySpan&lt;char&gt;, IFormatProvider?)
+
+Copies the value's canonical PostgreSQL text into a span, as interpolated strings and other span-based
+formatters request it.
+
+```csharp
+public bool TryFormat(Span<char> destination, out int charsWritten, ReadOnlySpan<char> format, IFormatProvider? provider)
+```
+
+Parameters:
+
+`destination` — [Span&lt;char&gt;](https://learn.microsoft.com/dotnet/api/system.span-1)
+
+The span that receives the text.
+
+`charsWritten` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The number of characters written.
+
+`format` — [ReadOnlySpan&lt;char&gt;](https://learn.microsoft.com/dotnet/api/system.readonlyspan-1)
+
+Empty; PostgreSQL text has one canonical form.
+
+`provider` — [IFormatProvider](https://learn.microsoft.com/dotnet/api/system.iformatprovider)
+
+Ignored: the text does not depend on culture.
+
+Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+Whether the text fit in the destination.
+
+Exceptions:
+
+- [FormatException](https://learn.microsoft.com/dotnet/api/system.formatexception): A format is specified.
 
 <a id="member-d5822f946c23322a"></a>
 

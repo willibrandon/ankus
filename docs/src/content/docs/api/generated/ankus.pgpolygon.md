@@ -13,12 +13,12 @@ Owns an immutable ordered sequence of polygon vertices and its PostgreSQL-compat
 Empty polygons have a zero bounding box and can be constructed without backend access.
 
 ```csharp
-public sealed class PgPolygon : IReadOnlyList<PgPoint>, IReadOnlyCollection<PgPoint>, IEnumerable<PgPoint>, IEnumerable
+public sealed class PgPolygon : IReadOnlyList<PgPoint>, IReadOnlyCollection<PgPoint>, IEnumerable<PgPoint>, IEnumerable, ISpanFormattable, IFormattable, IParsable<PgPolygon>
 ```
 
 Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object)
 
-Implements: [IReadOnlyList&lt;PgPoint&gt;](https://learn.microsoft.com/dotnet/api/system.collections.generic.ireadonlylist-1), [IReadOnlyCollection&lt;PgPoint&gt;](https://learn.microsoft.com/dotnet/api/system.collections.generic.ireadonlycollection-1), [IEnumerable&lt;PgPoint&gt;](https://learn.microsoft.com/dotnet/api/system.collections.generic.ienumerable-1), [IEnumerable](https://learn.microsoft.com/dotnet/api/system.collections.ienumerable)
+Implements: [IReadOnlyList&lt;PgPoint&gt;](https://learn.microsoft.com/dotnet/api/system.collections.generic.ireadonlylist-1), [IReadOnlyCollection&lt;PgPoint&gt;](https://learn.microsoft.com/dotnet/api/system.collections.generic.ireadonlycollection-1), [IEnumerable&lt;PgPoint&gt;](https://learn.microsoft.com/dotnet/api/system.collections.generic.ienumerable-1), [IEnumerable](https://learn.microsoft.com/dotnet/api/system.collections.ienumerable), [ISpanFormattable](https://learn.microsoft.com/dotnet/api/system.ispanformattable), [IFormattable](https://learn.microsoft.com/dotnet/api/system.iformattable), [IParsable&lt;PgPolygon&gt;](https://learn.microsoft.com/dotnet/api/system.iparsable-1)
 
 ## Constructors
 
@@ -147,6 +147,71 @@ public override string ToString()
 Returns: [string](https://learn.microsoft.com/dotnet/api/system.string)
 
 The polygon text.
+
+<a id="member-7696b2845786f838"></a>
+
+### ToString(string?, IFormatProvider?)
+
+Formats the value as PostgreSQL's canonical text, the same text as [ToString()](/api/ankus.pgpolygon/#member-aab541b39b238296).
+
+```csharp
+public string ToString(string? format, IFormatProvider? formatProvider)
+```
+
+Parameters:
+
+`format` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+Null or empty; PostgreSQL text has one canonical form.
+
+`formatProvider` — [IFormatProvider](https://learn.microsoft.com/dotnet/api/system.iformatprovider)
+
+Ignored: the text does not depend on culture.
+
+Returns: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The canonical text.
+
+Exceptions:
+
+- [FormatException](https://learn.microsoft.com/dotnet/api/system.formatexception): A format is specified.
+
+<a id="member-275f91f7e565482a"></a>
+
+### TryFormat(Span&lt;char&gt;, out int, ReadOnlySpan&lt;char&gt;, IFormatProvider?)
+
+Copies the value's canonical PostgreSQL text into a span, as interpolated strings and other span-based
+formatters request it.
+
+```csharp
+public bool TryFormat(Span<char> destination, out int charsWritten, ReadOnlySpan<char> format, IFormatProvider? provider)
+```
+
+Parameters:
+
+`destination` — [Span&lt;char&gt;](https://learn.microsoft.com/dotnet/api/system.span-1)
+
+The span that receives the text.
+
+`charsWritten` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The number of characters written.
+
+`format` — [ReadOnlySpan&lt;char&gt;](https://learn.microsoft.com/dotnet/api/system.readonlyspan-1)
+
+Empty; PostgreSQL text has one canonical form.
+
+`provider` — [IFormatProvider](https://learn.microsoft.com/dotnet/api/system.iformatprovider)
+
+Ignored: the text does not depend on culture.
+
+Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+Whether the text fit in the destination.
+
+Exceptions:
+
+- [FormatException](https://learn.microsoft.com/dotnet/api/system.formatexception): A format is specified.
 
 <a id="member-867725e672abc1b8"></a>
 

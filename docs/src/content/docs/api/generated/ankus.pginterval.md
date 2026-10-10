@@ -15,10 +15,10 @@ JSON uses the session-independent ISO 8601 form returned by ToIsoString.
 
 ```csharp
 [JsonConverter(typeof(PgIntervalConverter))]
-public readonly struct PgInterval : IComparable<PgInterval>, IEquatable<PgInterval>
+public readonly struct PgInterval : IComparable<PgInterval>, IParsable<PgInterval>, IEquatable<PgInterval>
 ```
 
-Implements: [IComparable&lt;PgInterval&gt;](https://learn.microsoft.com/dotnet/api/system.icomparable-1), [IEquatable&lt;PgInterval&gt;](https://learn.microsoft.com/dotnet/api/system.iequatable-1)
+Implements: [IComparable&lt;PgInterval&gt;](https://learn.microsoft.com/dotnet/api/system.icomparable-1), [IParsable&lt;PgInterval&gt;](https://learn.microsoft.com/dotnet/api/system.iparsable-1), [IEquatable&lt;PgInterval&gt;](https://learn.microsoft.com/dotnet/api/system.iequatable-1)
 
 ## Constructors
 

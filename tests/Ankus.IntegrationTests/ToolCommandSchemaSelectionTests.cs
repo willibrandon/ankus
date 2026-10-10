@@ -30,12 +30,16 @@ public sealed partial class ToolCommandTests
 
         string sqlPath = Path.Combine(directory, "selected.sql");
         string graphPath = Path.Combine(directory, "selected.dot");
-        string[] names = ["read_value", "make_value", "Choice.ordering", "Choice.hashing", "Total", "CountRows", "CountArguments", "OrderedTotal", "manual.raw_function(integer)"];
+        string[] names = ["read_value", "make_value", "Choice.ordering", "Choice.hashing", "Total", "CountRows", "CountArguments", "OrderedTotal",
+            "manual.raw_function(integer)", "touch", "public_value", "own_value"];
         ProcessResult selected = await InvokeAsync(["schema", "--from", library, "--output", sqlPath, "--dot", graphPath, .. names], token);
         Assert.AreEqual(0, selected.ExitCode, selected.StandardError);
         Assert.IsEmpty(selected.StandardOutput);
         Assert.IsEmpty(selected.StandardError);
         string sql = await File.ReadAllTextAsync(sqlPath, token);
+        ProcessResult fromProject = await InvokeAsync(["schema", "--home", s_home, "--pg", MajorText(), "--project", project, .. names], token);
+        Assert.AreEqual(0, fromProject.ExitCode, fromProject.StandardError);
+        Assert.AreEqual(sql, fromProject.StandardOutput);
         Assert.DoesNotContain("unrelated", sql);
         Assert.DoesNotContain("MODULE_PATHNAME", sql);
         Assert.Contains("$libdir/" + publication.Library, sql);
@@ -96,6 +100,30 @@ public sealed partial class ToolCommandTests
               (dependency.classid = 'pg_cast'::regclass AND dependency.objid IN (SELECT oid FROM pg_cast WHERE castsource = '{{prefix}}value'::regtype AND casttarget='integer'::regtype))
             )
             """));
+        // As pgrx attaches them, the type's input and output functions, the derived operator families, a trigger
+        // function and a generated declaration in its own schema join the extension; the public schema does not.
+        Assert.AreEqual(5L, await SqlPackageScalarAsync<long>(connection, $$"""
+            SELECT count(*) FROM pg_depend dependency
+            JOIN pg_extension extension ON extension.oid = dependency.refobjid AND dependency.refclassid = 'pg_extension'::regclass
+            WHERE extension.extname = 'ankus_selection_probe' AND dependency.deptype = 'e' AND dependency.classid = 'pg_proc'::regclass
+              AND dependency.objid IN (
+                SELECT typinput FROM pg_type WHERE oid = '{{prefix}}value'::regtype UNION ALL
+                SELECT typoutput FROM pg_type WHERE oid = '{{prefix}}value'::regtype UNION ALL
+                SELECT '{{prefix}}touch()'::regprocedure UNION ALL
+                SELECT 'public.public_value()'::regprocedure UNION ALL
+                SELECT 'own.own_value()'::regprocedure)
+            """));
+        Assert.AreEqual(2L, await SqlPackageScalarAsync<long>(connection, """
+            SELECT count(*) FROM pg_depend dependency
+            JOIN pg_extension extension ON extension.oid = dependency.refobjid AND dependency.refclassid = 'pg_extension'::regclass
+            WHERE extension.extname = 'ankus_selection_probe' AND dependency.deptype = 'e'
+              AND dependency.classid = 'pg_opfamily'::regclass
+              AND dependency.objid IN (SELECT oid FROM pg_opfamily WHERE opfname IN ('choice_btree_ops', 'choice_hash_ops'))
+            """));
+        Assert.DoesNotContain("ADD SCHEMA public", sql);
+        Assert.DoesNotContain("ADD SCHEMA \"public\"", sql);
+        Assert.AreEqual(7, await SqlPackageScalarAsync<int>(connection, "SELECT public.public_value()"));
+        Assert.AreEqual(8, await SqlPackageScalarAsync<int>(connection, "SELECT own.own_value()"));
         Assert.AreEqual(backend, connection.ProcessID);
         await ExecuteSqlPackageAsync(connection, "DROP EXTENSION ankus_selection_probe");
         Assert.AreEqual(0L, await SqlPackageScalarAsync<long>(connection, "SELECT count(*) FROM pg_proc WHERE proname IN ('read_value','make_value','total','count_rows','count_arguments','ordered_total','raw_function')"));
@@ -185,6 +213,24 @@ public sealed partial class ToolCommandTests
             public static Value MakeValue(int value) => new(value);
             [PgFunction]
             public static int Unrelated() => 99;
+        }
+        public static class Touches
+        {
+            [PgTrigger]
+            [PgFunction]
+            public static PgHeapTuple? Touch(PgTriggerContext context) => context.New;
+        }
+        [PgSchema("public")]
+        public static class PublicFunctions
+        {
+            [PgFunction]
+            public static int PublicValue() => 7;
+        }
+        [PgSchema("own")]
+        public static class OwnFunctions
+        {
+            [PgFunction]
+            public static int OwnValue() => 8;
         }
         [PgAggregate(InitialCondition = "0")]
         public sealed class Total : IPgAggregate<int,int>

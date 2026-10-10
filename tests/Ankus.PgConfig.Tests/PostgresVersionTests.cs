@@ -17,6 +17,10 @@ public sealed class PostgresVersionTests
     [TestMethod]
     [DataRow("PostgreSQL 13.23", 13, 23)]
     [DataRow("PostgreSQL 18.6 (Debian 18.6-1.pgdg13+1)", 18, 6)]
+    [DataRow("PostgreSQL 10.22", 10, 22)]
+    [DataRow("PostgreSQL 11.17", 11, 17)]
+    [DataRow("PostgreSQL 11.2-FOO-BAR+", 11, 2)]
+    [DataRow("PostgreSQL 10.22-", 10, 22)]
     public void ParseStableVersionReturnsExpectedValues(string input, int major, int minor)
     {
         PostgresVersion version = PostgresVersion.Parse(input);
@@ -71,6 +75,11 @@ public sealed class PostgresVersionTests
     [DataRow("18.6")]
     [DataRow("PostgreSQL unknown")]
     [DataRow("PostgreSQL 19beta")]
+    [DataRow("10.22")]
+    [DataRow("PostgreSQL 10")]
+    [DataRow("PostgreSQL 10.")]
+    [DataRow("PostgreSQL 12.f")]
+    [DataRow("PostgreSQL .53")]
     public void ParseInvalidVersionThrowsFormatException(string input)
     {
         Assert.ThrowsExactly<FormatException>(() => PostgresVersion.Parse(input));

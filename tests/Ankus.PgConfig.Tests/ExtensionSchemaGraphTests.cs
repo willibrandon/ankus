@@ -104,6 +104,10 @@ public sealed partial class ExtensionSchemaGraphTests
         ExtensionSchemaSelection detached = Fixture().Select(["raw"], alterExtension: false);
         Assert.AreEqual("SELECT $$raw ; ' quotes$$; -- tail\n", detached.Sql);
         Assert.IsEmpty(detached.Warnings);
+        ExtensionSchemaSelection located = Schema(Encode(new Entry("located", "sql",
+            "/* <begin connected objects> */\n-- Sql/Setup.cs:12\n\nSELECT 1;\n/* </end connected objects> */\n", Names: ["setup"]))).Select(["setup"]);
+        Assert.AreEqual("Custom SQL 'setup' at Sql/Setup.cs:12 has no declared created objects; attach them to the extension manually.",
+            Assert.ContainsSingle(located.Warnings));
     }
 
     /// <summary>
@@ -128,11 +132,12 @@ public sealed partial class ExtensionSchemaGraphTests
     public void SelectionRejectsAmbiguityAndAcceptsExactSignatures()
     {
         ExtensionSchema schema = Schema(Encode(
-            new("a", "function", "SELECT 1;", Names: ["f", "f(integer)"], Attachments: ["FUNCTION f(integer)"]),
-            new("b", "function", "SELECT 2;", Names: ["f", "f(text)"], Attachments: ["FUNCTION f(text)"])));
+            new("a", "function", "SELECT 1;", Names: ["f", "f(integer)", "Numbers.F"], Attachments: ["FUNCTION f(integer)"]),
+            new("b", "function", "SELECT 2;", Names: ["f", "f(text)", "Words.F"], Attachments: ["FUNCTION f(text)"])));
         ArgumentException error = Assert.ThrowsExactly<ArgumentException>(() => schema.Select(["f"]));
-        Assert.Contains("Ambiguous", error.Message);
+        Assert.StartsWith("Ambiguous schema item 'f': a, b. Use a qualified name or signature.", error.Message);
         Assert.AreEqual("SELECT 2;\n", schema.Select(["f(text)"], alterExtension: false).Sql);
+        Assert.AreEqual("SELECT 1;\n", schema.Select(["Numbers.F"], alterExtension: false).Sql);
     }
 
     /// <summary>

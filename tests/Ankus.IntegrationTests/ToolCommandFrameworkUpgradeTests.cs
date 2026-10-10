@@ -777,6 +777,23 @@ public sealed partial class ToolCommandTests
     }
 
     /// <summary>
+    /// <c>--to</c> writes an exact pin or a prerelease as given, as cargo-pgrx's <c>parse_to_accepts_exact_pin</c> and
+    /// <c>parse_to_accepts_prerelease</c> accept them.
+    /// </summary>
+    /// <param name="target">The requested version.</param>
+    [TestMethod]
+    [DataRow("[0.2.0]")]
+    [DataRow("0.3.0-beta.1")]
+    public async Task UpgradeWritesExactPinsAndPrereleases(string target)
+    {
+        CancellationToken token = context.CancellationToken;
+        string project = await WriteUpgradeProjectAsync(CreateDirectory(), "0.1.0", token);
+        ProcessResult result = await InvokeAsync(["upgrade", "--project", project, "--to", target], token);
+        Assert.AreEqual(0, result.ExitCode, result.StandardOutput + result.StandardError);
+        Assert.AreEqual(target, XDocument.Load(project).Descendants("PackageReference").Single().Attribute("Version")!.Value);
+    }
+
+    /// <summary>
     /// Replacing a manifest retains its author-selected Unix permissions.
     /// </summary>
     [TestMethod]
@@ -866,7 +883,8 @@ public sealed partial class ToolCommandTests
         Assert.AreEqual(1, result.ExitCode, result.StandardOutput + result.StandardError);
         string diagnostic = mode switch
         {
-            "range" or "emptyRange" => "not a NuGet version or version range",
+            "range" => "'not-a-version' is not a NuGet version or version range",
+            "emptyRange" => "'' is not a NuGet version or version range",
             "cycle" => "circular reference",
             "unknown" => "not a literal NuGet version or range",
             "duplicateSdk" => "one string version for Ankus.Sdk",

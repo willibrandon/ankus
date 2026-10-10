@@ -5,7 +5,7 @@ namespace Ankus;
 /// </summary>
 /// <param name="X">The horizontal coordinate.</param>
 /// <param name="Y">The vertical coordinate.</param>
-public readonly record struct PgPoint(double X, double Y)
+public readonly partial record struct PgPoint(double X, double Y)
 {
     /// <summary>
     /// Parses a point using PostgreSQL on the active backend.

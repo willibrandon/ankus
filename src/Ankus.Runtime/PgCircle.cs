@@ -6,7 +6,7 @@ namespace Ankus;
 /// </summary>
 /// <param name="Center">The center point.</param>
 /// <param name="Radius">The radius. Negative radii cannot be stored in PostgreSQL.</param>
-public readonly record struct PgCircle(PgPoint Center, double Radius)
+public readonly partial record struct PgCircle(PgPoint Center, double Radius)
 {
     /// <summary>
     /// Parses a circle using PostgreSQL on the active backend.

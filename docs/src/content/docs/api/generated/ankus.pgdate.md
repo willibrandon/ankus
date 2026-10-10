@@ -14,10 +14,10 @@ The default value is 2000-01-01.
 
 ```csharp
 [JsonConverter(typeof(PgDateConverter))]
-public readonly struct PgDate : IComparable<PgDate>, IEquatable<PgDate>
+public readonly struct PgDate : IComparable<PgDate>, IParsable<PgDate>, IEquatable<PgDate>
 ```
 
-Implements: [IComparable&lt;PgDate&gt;](https://learn.microsoft.com/dotnet/api/system.icomparable-1), [IEquatable&lt;PgDate&gt;](https://learn.microsoft.com/dotnet/api/system.iequatable-1)
+Implements: [IComparable&lt;PgDate&gt;](https://learn.microsoft.com/dotnet/api/system.icomparable-1), [IParsable&lt;PgDate&gt;](https://learn.microsoft.com/dotnet/api/system.iparsable-1), [IEquatable&lt;PgDate&gt;](https://learn.microsoft.com/dotnet/api/system.iequatable-1)
 
 ## Constructors
 

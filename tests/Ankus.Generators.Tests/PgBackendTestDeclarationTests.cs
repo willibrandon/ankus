@@ -102,6 +102,30 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.AreSequenceEqual(tests.Select(static test => test.FunctionName), reordered.Select(static test => test.FunctionName));
     }
 
+    /// <summary>
+    /// Two test names longer than PostgreSQL's identifier limit that differ only at the end get different SQL names, as
+    /// pgrx's <c>different_long_names_get_different_shortened_names</c> checks.
+    /// </summary>
+    [TestMethod]
+    public void LongNamesDifferingAtTheEndGetDifferentSqlNames()
+    {
+        const string Source = """
+            public static partial class Checks
+            {
+                [Ankus.PgTest]
+                public static void AVeryLongBackendTestNameThatRunsPastPostgresIdentifierLimitAndEndsWithFirst() { }
+                [Ankus.PgTest]
+                public static void AVeryLongBackendTestNameThatRunsPastPostgresIdentifierLimitAndEndsWithSecond() { }
+            }
+            """;
+        PgTestCase[] tests = ReadBackendCatalog(Source, "Checks+PostgresTests");
+        Assert.HasCount(2, tests);
+        Assert.IsGreaterThan(63, tests[0].Name.Length);
+        Assert.IsLessThanOrEqualTo(63, tests[0].FunctionName.Length);
+        Assert.IsLessThanOrEqualTo(63, tests[1].FunctionName.Length);
+        Assert.AreNotEqual(tests[0].FunctionName, tests[1].FunctionName);
+    }
+
     private PgTestCase[] ReadBackendCatalog(string source, string typeName)
     {
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source);

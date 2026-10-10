@@ -82,7 +82,8 @@ public sealed partial class ToolCommandTests
             Assert.AreEqual(0, connect.ExitCode, connect.StandardOutput + connect.StandardError);
             Assert.Contains("Reusing database ankus_property_flow", connect.StandardOutput);
             Assert.EndsWith("ankus_property_flow|42|" + MajorText() + Environment.NewLine, connect.StandardOutput);
-            ProcessResult regress = await InvokeAsync(["regress", .. options, "--no-build"], token);
+            // regress builds the extension itself here; the source fails to compile unless both forwarded constants arrive.
+            ProcessResult regress = await InvokeAsync(["regress", .. options], token);
             Assert.AreEqual(0, regress.ExitCode, regress.StandardOutput + regress.StandardError);
             Assert.Contains("Created database ankus_property_flow_regress", regress.StandardOutput);
             Assert.AreEqual("\\set ECHO none\n42\nankus_property_flow_regress\n" + MajorText() + "\n",

@@ -13,6 +13,9 @@ namespace Ankus.PgConfig.Tests;
 [TestClass]
 public sealed class PostgresDistributionClientTests(TestContext context)
 {
+    private static readonly TimeSpan[] s_firstTwoWaits = [TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2)];
+    private static readonly TimeSpan[] s_allWaits = [TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(4)];
+
     private readonly string _root = Path.Combine(Path.GetTempPath(), "ankus-download-test-" + Guid.NewGuid().ToString("N"));
 
     /// <summary>
@@ -327,6 +330,79 @@ public sealed class PostgresDistributionClientTests(TestContext context)
     /// <summary>
     /// Supplies deterministic upstream bytes while recording the actual requested URLs.
     /// </summary>
+    /// <summary>
+    /// Failed downloads are retried four times in all, waiting 1, 2 and 4 seconds and warning on one line before
+    /// each retry, as cargo-pgrx's <c>download_postgres_archive_with_retries</c> does; a later success installs.
+    /// </summary>
+    [TestMethod]
+    public async Task TransientDownloadFailuresAreRetriedWithBackoff()
+    {
+        byte[] archive = Archive(false, "postgresql-18.6/README", "ready"u8.ToArray());
+        using var handler = new FlakyHandler(new DistributionHandler(archive), failures: 2);
+        using var client = new HttpClient(handler);
+        var waits = new List<TimeSpan>();
+        var warnings = new List<string>();
+        string destination = Path.Combine(_root, "installed");
+        await new PostgresDistributionClient(client, (wait, _) =>
+        {
+            waits.Add(wait);
+            return Task.CompletedTask;
+        }).DownloadAsync(Version(), destination, false, context.CancellationToken, new SynchronousProgress(warnings));
+        Assert.AreEqual("ready", await File.ReadAllTextAsync(Path.Combine(destination, "README"), context.CancellationToken));
+        Assert.AreSequenceEqual(s_firstTwoWaits, waits);
+        Assert.HasCount(2, warnings);
+        Assert.StartsWith("Warning: PostgreSQL 18.6 download attempt 1/4 failed; retrying in 1s: ", warnings[0]);
+        Assert.StartsWith("Warning: PostgreSQL 18.6 download attempt 2/4 failed; retrying in 2s: ", warnings[1]);
+        Assert.DoesNotContain("\n", string.Concat(warnings), StringComparison.Ordinal);
+
+        using var broken = new FlakyHandler(new DistributionHandler(archive), failures: int.MaxValue);
+        using var failing = new HttpClient(broken);
+        waits.Clear();
+        await Assert.ThrowsExactlyAsync<HttpRequestException>(() => new PostgresDistributionClient(failing, (wait, _) =>
+        {
+            waits.Add(wait);
+            return Task.CompletedTask;
+        }).DownloadAsync(Version(), Path.Combine(_root, "never"), false, context.CancellationToken));
+        Assert.AreSequenceEqual(s_allWaits, waits);
+        Assert.AreEqual(PostgresDistributionClient.DownloadAttempts, broken.ArchiveRequests);
+        Assert.IsFalse(Path.Exists(Path.Combine(_root, "never")));
+    }
+
+    /// <summary>
+    /// A retry warning keeps only the first line of the failure, as cargo-pgrx's
+    /// <c>download_error_summary_keeps_retry_warning_single_line</c> checks.
+    /// </summary>
+    [TestMethod]
+    public void DownloadErrorSummaryKeepsOneLine()
+    {
+        Assert.AreEqual("first line", PostgresDistributionClient.Summarize(new HttpRequestException("first line\nsecond line")));
+        Assert.AreEqual("first line", PostgresDistributionClient.Summarize(new HttpRequestException("first line\r\nsecond line")));
+        Assert.AreEqual("unknown download error", PostgresDistributionClient.Summarize(new IOException("\nsecond line")));
+    }
+
+    private sealed class FlakyHandler(HttpMessageHandler inner, int failures) : DelegatingHandler(inner)
+    {
+        internal int ArchiveRequests { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            if (request.RequestUri!.AbsoluteUri.EndsWith(".tar.gz", StringComparison.Ordinal) && ArchiveRequests++ < failures)
+            {
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)
+                {
+                    Content = new StringContent("upstream busy\nretry later"),
+                });
+            }
+
+            return base.SendAsync(request, cancellationToken);
+        }
+    }
+
+    private sealed class SynchronousProgress(List<string> messages) : IProgress<string>
+    {
+        public void Report(string value) => messages.Add(value);
+    }
+
     private sealed class DistributionHandler(byte[] archive, string index = "", string? checksum = null,
         HttpStatusCode status = HttpStatusCode.OK) : HttpMessageHandler
     {

@@ -37,6 +37,16 @@ public sealed partial class NodeTests(TestContext context)
         => CheckAsync($"SELECT datatype.node_alias({nullIf})", "True|711|True|True");
 
     /// <summary>
+    /// pgrx's value casts through the server's own bindings: before PostgreSQL 15 each Value tag keeps its payload
+    /// through Node, and later a ValUnion holding a String reads as Node and String but never as the union itself.
+    /// </summary>
+    [TestMethod]
+    public Task ValueNodesCastByServerVersion()
+        => CheckAsync("SELECT datatype.node_value_cast()", PostgresFixture.Cluster.Installation.Version.Major < 15
+            ? "True:42|True:True|True:True|True:True|True:True"
+            : "True:True|True|True");
+
+    /// <summary>
     /// A measured ABI mismatch crosses the guarded native diagnostic boundary and leaves the same backend usable.
     /// </summary>
     [TestMethod]
