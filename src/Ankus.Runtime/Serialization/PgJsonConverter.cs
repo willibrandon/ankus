@@ -1,13 +1,11 @@
-using System.ComponentModel;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace Ankus;
+namespace Ankus.Serialization;
 
 /// <summary>
 /// Serializes PgJson as an embedded JSON value rather than a quoted string or wrapper object.
 /// </summary>
-[EditorBrowsable(EditorBrowsableState.Never)]
 public sealed class PgJsonConverter : JsonConverter<PgJson>
 {
     /// <inheritdoc />

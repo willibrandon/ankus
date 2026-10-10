@@ -130,6 +130,13 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
 
 ## Active validation and work
 
+- The `Ankus` namespace now holds only the API extension authors use, the
+  counterpart of `pgrx::prelude::*`, which the SDK imports implicitly. The
+  registries, codecs and type writer that generated code calls moved to
+  `Ankus.CompilerServices` beside the other generated-code helpers, and the
+  System.Text.Json converters moved to `Ankus.Serialization`. The converters are
+  no longer hidden: the value types still apply them through `[JsonConverter]`,
+  and applications can add them to their own serializer options.
 - `TryParse` of built-in numeric, date and time, network, geometry and range
   types no longer opens a subtransaction on PostgreSQL 16 and later: it calls
   the input function through PostgreSQL's soft-error interface and raises a
@@ -215,9 +222,8 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   can inspect an error and continue. Projects that enable implicit usings get
   `using Ankus` from the SDK. The `dotnet new` templates accept
   `--extension-name`, matching `ankus new`. The numeric guide notes pgrx's
-  `XX000`. Still open from the audit: the flat public namespace,
-  version and platform cells CI never runs, and binding catalogs still taken from
-  pgrx's generated bindings.
+  `XX000`. Still open from the audit: version and platform cells CI never runs,
+  and binding catalogs still taken from pgrx's generated bindings.
 - **2b841a3** passes the complete Linux x64 suite on PostgreSQL 18.6 with run-as
   (**14,442** total; **14,391** passed; 51 skips; zero failures; **41m03s**). Its
   Windows x64 suites on PostgreSQL 17.11 and 13.23, run concurrently at package

@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using System.ComponentModel;
 
-namespace Ankus;
+namespace Ankus.CompilerServices;
 
 /// <summary>
 /// Receives generated closed enum conversions without reflecting over enum members at runtime.

@@ -30,11 +30,11 @@ internal sealed record DatumRegistrationModel(string Managed, bool IsValueType, 
             ", global::Ankus.PgTypeOrigin." + (External ? "External" : "ThisExtension");
         if (Bound is not null)
         {
-            source.AppendLine("        global::Ankus.PgDatumRegistry.RegisterRange<" + Bound + ">(" + identity + ");");
+            source.AppendLine("        global::Ankus.CompilerServices.PgDatumRegistry.RegisterRange<" + Bound + ">(" + identity + ");");
         }
         else
         {
-            source.AppendLine("        global::Ankus.PgDatumRegistry.Register" + (IsValueType ? "Value" : "Reference") + "<" + Managed + ">(" +
+            source.AppendLine("        global::Ankus.CompilerServices.PgDatumRegistry.Register" + (IsValueType ? "Value" : "Reference") + "<" + Managed + ">(" +
                 identity + ", typeof(" + Converter + "), static () => new " + Converter + "(), " +
                 (CanRead ? "true" : "false") + ", " + (CanWrite ? "true" : "false") + ");");
         }

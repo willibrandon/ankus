@@ -605,7 +605,7 @@ public sealed partial class PgFunctionGeneratorTests
                 {
                     try
                     {
-                        Ankus.PgDatumRegistry.RegisterValue<Value>("conflicting", "pg_catalog", Ankus.PgTypeOrigin.External,
+                        Ankus.CompilerServices.PgDatumRegistry.RegisterValue<Value>("conflicting", "pg_catalog", Ankus.PgTypeOrigin.External,
                             typeof(Converter), static () => new Converter(), true, false);
                         return -1;
                     }

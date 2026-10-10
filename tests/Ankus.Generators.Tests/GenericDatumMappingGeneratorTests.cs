@@ -26,7 +26,7 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.Contains("RegisterValue<global::Box<int>>(\"int4\", \"pg_catalog\"", managed);
         Assert.Contains("RegisterValue<global::Box<long>>(\"int4\", \"pg_catalog\"", managed);
         Assert.DoesNotContain("RegisterValue<global::Box<T>>", managed);
-        Assert.AreEqual(2, managed.Split("global::Ankus.PgDatumRegistry.RegisterValue<global::Box<", StringSplitOptions.None).Length - 1);
+        Assert.AreEqual(2, managed.Split("global::Ankus.CompilerServices.PgDatumRegistry.RegisterValue<global::Box<", StringSplitOptions.None).Length - 1);
         Assert.Contains("ReadMapped<global::Box<int>>()", managed);
         Assert.Contains("ReadMapped<global::Box<long>>()", managed);
         Assert.Contains("FromMapped<global::Box<int>>(", managed);
@@ -63,7 +63,7 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.Contains("RegisterValue<global::Outer<int>.Value>", managed);
         Assert.Contains("RegisterValue<global::Outer<long>.Value>", managed);
         Assert.DoesNotContain("RegisterValue<global::Outer<T>.Value>", managed);
-        Assert.AreEqual(2, managed.Split("global::Ankus.PgDatumRegistry.RegisterValue<global::Outer<", StringSplitOptions.None).Length - 1);
+        Assert.AreEqual(2, managed.Split("global::Ankus.CompilerServices.PgDatumRegistry.RegisterValue<global::Outer<", StringSplitOptions.None).Length - 1);
         Assert.Contains("ReadMapped<global::Outer<int>.Value>()", managed);
         Assert.Contains("ReadMapped<global::Outer<long>.Value>()", managed);
     }

@@ -171,7 +171,7 @@ internal sealed record EnumDeclaration(string Name, string? Schema, string Manag
     /// </summary>
     internal void EmitRegistration(StringBuilder source)
     {
-        source.AppendLine($"        global::Ankus.PgEnumRegistry.Register<{Managed}>({SymbolDisplay.FormatLiteral(Name, true)}, " +
+        source.AppendLine($"        global::Ankus.CompilerServices.PgEnumRegistry.Register<{Managed}>({SymbolDisplay.FormatLiteral(Name, true)}, " +
             (Schema is null ? "null" : SymbolDisplay.FormatLiteral(Schema, true)) + ", new global::System.Collections.Generic.KeyValuePair<" + Managed + ", string>[]");
         source.AppendLine("        {");
         foreach (EnumLabel label in Labels)

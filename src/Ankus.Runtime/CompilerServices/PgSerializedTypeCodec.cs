@@ -3,7 +3,7 @@ using System.ComponentModel;
 using System.Formats.Cbor;
 using System.Text.Json;
 
-namespace Ankus;
+namespace Ankus.CompilerServices;
 
 /// <summary>
 /// Implements the format boundary for statically generated custom-type serializers.

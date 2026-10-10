@@ -133,7 +133,7 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.AreEqual(IncrementalStepRunReason.Cached, EnumEmissionReason(driver, "mood"));
         Assert.AreEqual("CREATE TYPE \"mood\" AS ENUM (E'Happy');\n", InstallationBody(first));
         Assert.AreEqual("-- No installable objects declared.\n", InstallationBody(second));
-        Assert.Contains("global::Ankus.PgEnumRegistry.Register<global::Mood>",
+        Assert.Contains("global::Ankus.CompilerServices.PgEnumRegistry.Register<global::Mood>",
             string.Join("\n", second.SyntaxTrees.Select(tree => tree.GetText(context.CancellationToken).ToString())));
     }
 

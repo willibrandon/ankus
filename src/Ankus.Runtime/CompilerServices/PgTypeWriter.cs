@@ -5,7 +5,7 @@ using System.Formats.Cbor;
 using System.Globalization;
 using System.Text.Json;
 
-namespace Ankus;
+namespace Ankus.CompilerServices;
 
 /// <summary>
 /// Writes bounded JSON or CBOR tokens from statically generated type contracts.

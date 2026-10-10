@@ -1,8 +1,7 @@
-using System.ComponentModel;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace Ankus;
+namespace Ankus.Serialization;
 
 /// <summary>
 /// Writes intervals as session-independent ISO 8601 strings and reads every PostgreSQL interval input form.
@@ -11,7 +10,6 @@ namespace Ankus;
 /// Writing never requires a backend. The exact ISO 8601 form written here is also read without a backend;
 /// other text, including infinity, uses PostgreSQL interval input on the active backend.
 /// </remarks>
-[EditorBrowsable(EditorBrowsableState.Never)]
 public sealed class PgIntervalConverter : JsonConverter<PgInterval>
 {
     /// <inheritdoc />

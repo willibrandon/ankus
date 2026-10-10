@@ -335,8 +335,10 @@ relational operators preserve infinities and the distinct 24:00 time value.
 
 ## JSON serialization
 
-The six full-range types have `System.Text.Json` converters. Include your containing
-type in a source-generated context and pass its metadata:
+The six full-range types have `System.Text.Json` converters, applied through
+`[JsonConverter]` on each type; the converter classes, such as `PgDateConverter`,
+live in `Ankus.Serialization`. Include your containing type in a source-generated
+context and pass its metadata:
 
 ```csharp
 public sealed record Appointment(PgTimestampTz StartsAt, PgInterval Duration);

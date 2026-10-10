@@ -1,13 +1,11 @@
-using System.ComponentModel;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace Ankus;
+namespace Ankus.Serialization;
 
 /// <summary>
 /// Converts times with second-resolution offsets to and from PostgreSQL ISO strings on the active backend.
 /// </summary>
-[EditorBrowsable(EditorBrowsableState.Never)]
 public sealed class PgTimeTzConverter : JsonConverter<PgTimeTz>
 {
     /// <inheritdoc />

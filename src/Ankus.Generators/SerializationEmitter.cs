@@ -15,10 +15,10 @@ internal static class SerializationEmitter
     {
         string root = model.Nodes[0].Managed;
         source.AppendLine("    private sealed class " + name + (textCodec is null ? string.Empty : "()") +
-            " : global::Ankus.PgSerializedTypeCodec<" + root + ">" + (textCodec is null ? string.Empty : "(static () => new " + textCodec + "())"));
+            " : global::Ankus.CompilerServices.PgSerializedTypeCodec<" + root + ">" + (textCodec is null ? string.Empty : "(static () => new " + textCodec + "())"));
         source.AppendLine("    {");
         source.AppendLine("        protected override " + root + " ReadValue(ref global::Ankus.PgTypeReader reader) => Read_0(ref reader);");
-        source.AppendLine("        protected override void WriteValue(global::Ankus.PgTypeWriter writer, " + root + " value) => Write_0(writer, value);");
+        source.AppendLine("        protected override void WriteValue(global::Ankus.CompilerServices.PgTypeWriter writer, " + root + " value) => Write_0(writer, value);");
         foreach (SerializationModel.Node node in model.Nodes)
         {
             EmitRead(model, node, source);
@@ -164,7 +164,7 @@ internal static class SerializationEmitter
     /// </summary>
     private static void EmitWrite(SerializationModel model, SerializationModel.Node node, StringBuilder source)
     {
-        source.AppendLine("        private static void Write_" + node.Index + "(global::Ankus.PgTypeWriter writer, " + node.Managed + " value)");
+        source.AppendLine("        private static void Write_" + node.Index + "(global::Ankus.CompilerServices.PgTypeWriter writer, " + node.Managed + " value)");
         source.AppendLine("        {");
         if (node.CanBeNull)
         {
@@ -208,7 +208,7 @@ internal static class SerializationEmitter
                 break;
             case "dictionary":
                 source.AppendLine("            global::System.Collections.Generic.KeyValuePair<string, " + model.Nodes[node.Element!.Value].Managed +
-                    ">[] entries = global::Ankus.PgTypeWriter.GetOrderedEntries(value);");
+                    ">[] entries = global::Ankus.CompilerServices.PgTypeWriter.GetOrderedEntries(value);");
                 source.AppendLine("            writer.WriteStartObject(entries.Length);");
                 source.AppendLine("            foreach (global::System.Collections.Generic.KeyValuePair<string, " + model.Nodes[node.Element!.Value].Managed + "> item in entries)");
                 source.AppendLine("            {");

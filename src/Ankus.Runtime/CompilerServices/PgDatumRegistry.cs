@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using System.ComponentModel;
 
-namespace Ankus;
+namespace Ankus.CompilerServices;
 
 /// <summary>
 /// Registers statically closed scalar datum converters without executing user code or backend lookups.

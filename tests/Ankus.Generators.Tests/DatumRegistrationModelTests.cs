@@ -100,7 +100,7 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.IsNull(current.Converter);
         Assert.AreEqual(fixedSchema, current.External);
         Assert.AreEqual(fixedSchema ? "placed" : null, current.Schema);
-        Assert.AreEqual("        global::Ankus.PgDatumRegistry.RegisterRange<global::Value>(\"changed\", " +
+        Assert.AreEqual("        global::Ankus.CompilerServices.PgDatumRegistry.RegisterRange<global::Value>(\"changed\", " +
             (fixedSchema ? "\"placed\"" : "null") + ", global::Ankus.PgTypeOrigin." +
             (fixedSchema ? "External" : "ThisExtension") + ");" + Environment.NewLine, current.Emit());
     }

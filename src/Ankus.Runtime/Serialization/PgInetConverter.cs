@@ -1,13 +1,11 @@
-using System.ComponentModel;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace Ankus;
+namespace Ankus.Serialization;
 
 /// <summary>
 /// Serializes inet as a string and parses it using PostgreSQL on the active backend.
 /// </summary>
-[EditorBrowsable(EditorBrowsableState.Never)]
 public sealed class PgInetConverter : JsonConverter<PgInet>
 {
     /// <inheritdoc />

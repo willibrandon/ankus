@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using System.ComponentModel;
 
-namespace Ankus;
+namespace Ankus.CompilerServices;
 
 /// <summary>
 /// Receives closed, generated custom-type conversions without runtime reflection or code generation.

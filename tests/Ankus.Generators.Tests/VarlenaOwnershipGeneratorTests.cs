@@ -105,7 +105,7 @@ public sealed partial class PgFunctionGeneratorTests
     {
         string[] result = RunSerializedProbe<string[]>(VarlenaOwnershipValueSource, """
             var flags=System.Reflection.BindingFlags.Static|System.Reflection.BindingFlags.NonPublic;
-            var registry=typeof(Ankus.PgTypeRegistry);
+            var registry=typeof(Ankus.CompilerServices.PgTypeRegistry);
             object canonical=registry.GetMethod("Find",flags)!.Invoke(null,new object[]{typeof(Value)})!;
             object wrapper=registry.GetMethod("Find",flags)!.Invoke(null,new object[]{typeof(Ankus.PgVarlena<Value>)})!;
             object vector=registry.GetMethod("FindArray",flags)!.Invoke(null,new object[]{typeof(Ankus.PgVarlena<Value>[])})!;

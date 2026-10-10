@@ -59,7 +59,7 @@ internal sealed record CustomTypeModel(string Name, string? Schema, string Manag
     /// <param name="source">The managed initialization body.</param>
     internal static void EmitRegistration(RegistrationContract contract, StringBuilder source)
     {
-        source.AppendLine("        global::Ankus.PgTypeRegistry.Register" + (contract.NativeSize != 0 ? "Native" : contract.IsValueType ? "Value" : "Reference") + "<" + contract.Managed + ">(" +
+        source.AppendLine("        global::Ankus.CompilerServices.PgTypeRegistry.Register" + (contract.NativeSize != 0 ? "Native" : contract.IsValueType ? "Value" : "Reference") + "<" + contract.Managed + ">(" +
             Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(contract.Name, true) + ", " +
             (contract.Schema is null ? "null" : Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(contract.Schema, true)) + ", " +
             (contract.NativeSize != 0 ? contract.NativeSize.ToString(CultureInfo.InvariantCulture) + ", " : string.Empty) + "static () => new " +
@@ -77,7 +77,7 @@ internal sealed record CustomTypeModel(string Name, string? Schema, string Manag
         {
             source.AppendLine("    private sealed class Codec_" + contract.Symbol + " : global::Ankus.PgTypeCodec<" + contract.Managed + ">");
             source.AppendLine("    {");
-            source.AppendLine("        private readonly global::Ankus.PgNativeTypeCodec<" + contract.Managed + "> _codec = new(" +
+            source.AppendLine("        private readonly global::Ankus.CompilerServices.PgNativeTypeCodec<" + contract.Managed + "> _codec = new(" +
                 contract.NativeSize.ToString(CultureInfo.InvariantCulture) + ", static () => new " + contract.TextCodec + "());");
             source.AppendLine("        public override " + contract.Managed + " Parse(string text) => _codec.Parse(text);");
             source.AppendLine("        public override string Format(" + contract.Managed + " value) => _codec.Format(value);");

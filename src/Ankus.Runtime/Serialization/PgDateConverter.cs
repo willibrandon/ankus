@@ -1,13 +1,11 @@
-using System.ComponentModel;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace Ankus;
+namespace Ankus.Serialization;
 
 /// <summary>
 /// Converts full-range dates to and from PostgreSQL ISO strings on the active backend.
 /// </summary>
-[EditorBrowsable(EditorBrowsableState.Never)]
 public sealed class PgDateConverter : JsonConverter<PgDate>
 {
     /// <inheritdoc />

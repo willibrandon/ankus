@@ -75,7 +75,7 @@ internal static class PgTypeEmitter
                 Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(nullMessage, true) + ");");
         }
 
-        source.AppendLine("            *result = global::Ankus.PgTypeRegistry." + operation + "<" + type.Managed + ">(arguments[0]);");
+        source.AppendLine("            *result = global::Ankus.CompilerServices.PgTypeRegistry." + operation + "<" + type.Managed + ">(arguments[0]);");
         source.AppendLine("            return 0;");
         source.AppendLine("        }");
         source.AppendLine("        catch (global::System.Exception exception)");
