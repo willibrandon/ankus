@@ -130,6 +130,15 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
 
 ## Active validation and work
 
+- The weekly platform-versions workflow now covers every supported stable major
+  on Windows x64 and every major except 18 on macOS ARM64, which primary CI runs.
+  Windows 14.24, 15.19 and 16.15 come from EDB's archives, pass the
+  `postgresql-check` command and are selected through repository secrets, like
+  13 and 18. macOS 13, 14, 17 and 19 are `ankus init` builds in a runner-local
+  directory, selected through repository variables, so Homebrew keeps only the
+  15 and 16 formulae. **7777c83** and **5c053d8** pass the Windows x64 suites on
+  PostgreSQL 17.11 and 13.23 (**14,478** total each; zero failures; **23m40s** and
+  **22m07s**).
 - Code-fix tests now compare the complete fixed document, not fragments of it.
   The exact comparisons exposed three defects: the injected-parameter fix left a
   space inside the brackets when it removed one attribute of several (`[ Keep]`,
@@ -245,8 +254,8 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   can inspect an error and continue. Projects that enable implicit usings get
   `using Ankus` from the SDK. The `dotnet new` templates accept
   `--extension-name`, matching `ankus new`. The numeric guide notes pgrx's
-  `XX000`. Still open from the audit: version and platform cells CI never runs,
-  and binding catalogs still taken from pgrx's generated bindings.
+  `XX000`. Still open from the audit: binding catalogs still taken from pgrx's
+  generated bindings, and Linux ARM64, which no runner covers yet.
 - **2b841a3** passes the complete Linux x64 suite on PostgreSQL 18.6 with run-as
   (**14,442** total; **14,391** passed; 51 skips; zero failures; **41m03s**). Its
   Windows x64 suites on PostgreSQL 17.11 and 13.23, run concurrently at package

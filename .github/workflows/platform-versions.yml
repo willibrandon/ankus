@@ -92,13 +92,34 @@ jobs:
         include:
           - runner: ankus-macos-arm64
             rid: osx-arm64
+            postgresql: 13
+          - runner: ankus-macos-arm64
+            rid: osx-arm64
+            postgresql: 14
+          - runner: ankus-macos-arm64
+            rid: osx-arm64
             postgresql: 15
           - runner: ankus-macos-arm64
             rid: osx-arm64
             postgresql: 16
+          - runner: ankus-macos-arm64
+            rid: osx-arm64
+            postgresql: 17
+          - runner: ankus-macos-arm64
+            rid: osx-arm64
+            postgresql: 19
           - runner: ankus-windows-x64
             rid: win-x64
             postgresql: 13
+          - runner: ankus-windows-x64
+            rid: win-x64
+            postgresql: 14
+          - runner: ankus-windows-x64
+            rid: win-x64
+            postgresql: 15
+          - runner: ankus-windows-x64
+            rid: win-x64
+            postgresql: 16
           - runner: ankus-windows-x64
             rid: win-x64
             postgresql: 18
@@ -135,6 +156,11 @@ jobs:
       - name: Build PostgreSQL tests
         env:
           PGROOT: ${{ runner.os == 'Windows' && secrets[format('ANKUS_WINDOWS_PG{0}_ROOT', matrix.postgresql)] || '' }}
+          # macOS majors without a Homebrew formula on the runner come from `ankus init` builds named by repository variables.
+          PG13_PG_CONFIG: ${{ runner.os == 'macOS' && vars.ANKUS_MACOS_PG13_PG_CONFIG || '' }}
+          PG14_PG_CONFIG: ${{ runner.os == 'macOS' && vars.ANKUS_MACOS_PG14_PG_CONFIG || '' }}
+          PG17_PG_CONFIG: ${{ runner.os == 'macOS' && vars.ANKUS_MACOS_PG17_PG_CONFIG || '' }}
+          PG19_PG_CONFIG: ${{ runner.os == 'macOS' && vars.ANKUS_MACOS_PG19_PG_CONFIG || '' }}
         run: dotnet run --file ./eng/Ankus.Ci.cs -- runtime-test-build ${{ matrix.rid }} ${{ matrix.postgresql }}
 
       - name: Save native binding cache

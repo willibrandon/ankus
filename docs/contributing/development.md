@@ -66,8 +66,9 @@ preflight command, runner isolation and retained evidence. A scheduled matrix
 does not replace successful full-suite results for each supported target.
 
 The weekly `PostgreSQL platform versions` workflow adds complete macOS ARM64
-suites for PostgreSQL 15 and 16, and Windows x64 suites for PostgreSQL 13 and 18.
-The macOS pair covers the extension library suffix change from `.so` to `.dylib`.
+suites for PostgreSQL 13 through 17 and 19, and Windows x64 suites for
+PostgreSQL 13 through 16 and 18. The macOS 15 and 16 cells cover the extension
+library suffix change from `.so` to `.dylib`.
 These jobs use the dedicated platform runners and the same full suite as primary
 CI. Install the selected servers and configure the Windows installation roots
 before dispatch; see [engineering prerequisites](../../eng/README.md#additional-platform-and-version-prerequisites).

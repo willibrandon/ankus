@@ -118,14 +118,19 @@ The `PostgreSQL platform versions` workflow runs weekly or on manual dispatch:
 
 | Platform | PostgreSQL majors | Purpose |
 | --- | --- | --- |
-| macOS ARM64 | 15 and 16 | Exercise both sides of the `.so`/`.dylib` extension suffix change. |
-| Windows x64 | 13 and 18 | Exercise the oldest supported server and the current stable major alongside primary PG17 CI. |
+| macOS ARM64 | 13 through 17 and 19 | Exercise every major that primary PG18 CI does not, including both sides of the `.so`/`.dylib` extension suffix change at 15 and 16. |
+| Windows x64 | 13 through 16 and 18 | Exercise every stable major that primary PG17 CI does not. |
 
-Install the corresponding Homebrew `postgresql@15` and `postgresql@16` formulae
-on the macOS runner. On Windows, install both majors with server headers and
-import libraries; PostgreSQL 18 must be 18.6 or later. Configure repository
-secrets `ANKUS_WINDOWS_PG13_ROOT` and `ANKUS_WINDOWS_PG18_ROOT` with each
-installation's root, containing its `bin`, `include` and `lib` directories.
+Install the Homebrew `postgresql@15` and `postgresql@16` formulae on the macOS
+runner. Build the other macOS majors with `ankus init --home <directory> --pg13
+download --pg14 download --pg17 download --pg19 download` in a runner-local
+directory, and set repository variables `ANKUS_MACOS_PG13_PG_CONFIG`,
+`ANKUS_MACOS_PG14_PG_CONFIG`, `ANKUS_MACOS_PG17_PG_CONFIG` and
+`ANKUS_MACOS_PG19_PG_CONFIG` to their `pg_config` paths. On Windows, install each major with server headers and
+import libraries; PostgreSQL 16 must be 16.15 or later and 18 must be 18.6 or
+later. Configure repository secrets `ANKUS_WINDOWS_PG13_ROOT` through
+`ANKUS_WINDOWS_PG16_ROOT` and `ANKUS_WINDOWS_PG18_ROOT` with each installation's
+root, containing its `bin`, `include` and `lib` directories.
 The workflow selects the matching root for the build step. It does not change
 the runner's default `PGROOT` or store device paths in tracked files.
 
