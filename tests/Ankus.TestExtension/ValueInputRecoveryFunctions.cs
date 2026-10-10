@@ -8,6 +8,7 @@ namespace Ankus.TestExtension;
 public static class ValueInputRecoveryFunctions
 {
     private static readonly Dictionary<(string Family, bool Invalid), string[]> s_parallel = [];
+    private static readonly string[] s_families = ["numeric", "temporal", "network", "geometry", "range"];
     private static string[] s_callback = [];
 
     /// <summary>
@@ -54,6 +55,17 @@ public static class ValueInputRecoveryFunctions
             }
         });
     }
+
+    /// <summary>
+    /// Parses each family's invalid text inside an explicit scope, which runs in its own subtransaction.
+    /// </summary>
+    /// <param name="atomic">Whether the scope runs its statements atomically.</param>
+    /// <returns>Each family's TryParse result, in family order.</returns>
+    [PgFunction]
+    public static string[] ValueInputInScope(bool atomic)
+        => PgTransaction.RunInSubtransaction(static () => s_families
+            .Select(static family => Parse(family, invalid: true).Success ? "parsed" : "rejected").ToArray(),
+            atomic ? PgSubtransactionMode.Atomic : PgSubtransactionMode.Recoverable);
 
     /// <summary>
     /// Reads managed observations after the same backend has committed or aborted the callback transaction.

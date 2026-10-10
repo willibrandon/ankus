@@ -658,6 +658,24 @@ frame retains it until the outer callback returns. This preserves managed
 Recovery itself has a native guard. An unrecoverable error during recovery
 terminates the backend with FATAL rather than jumping across managed frames.
 
+A guard also preserves an error PostgreSQL is still handling, as when a caller's
+`PG_CATCH` cleans up before `PG_RE_THROW` and that cleanup reaches Ankus code.
+`FlushErrorState` empties the whole error stack, so the guard copies such an
+error before it starts and pushes it back with `ReThrowError` after flushing its
+own. An empty `ErrorContext` proves that nothing is pending. Otherwise a probe
+runs with `ErrorContext` pointed at a private context, so the probe's own error
+never releases memory a caller keeps beneath `ErrorContext`.
+
+Not every guarded call needs a subtransaction. Pure built-in operations on
+numeric, date and time, network, geometry and built-in range values, and array
+cell reads, run under `PG_TRY` alone. Their failures remain pending until managed
+code unwinds, because a caught ERROR cannot be proven clean in general. Two
+failures are known to be clean and are recovered without a subtransaction: a
+soft input error from a PostgreSQL 16 input function during `TryParse`, and a
+report below ERROR that fails while no `emit_log_hook` is installed. Everything
+else, including SPI, runs in an internal subtransaction. The
+[guard tier measurements](evidence/guard-tiers.md) compare their costs.
+
 The error transport contains SQLSTATE, query positions, source line, routing flags,
 and fourteen optional `NativeValue` string slots: message, detail, hint, context,
 schema, table, column, data type, constraint, internal query, file, routine,

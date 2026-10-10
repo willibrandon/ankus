@@ -66,6 +66,26 @@ public sealed class ValueInputRecoveryTests(TestContext context)
             Assert.AreEqual(backend, await command.ExecuteScalarAsync(token));
         }
     }
+
+    /// <summary>
+    /// TryParse rejects invalid input of every built-in family inside an explicit scope on every major, recoverable or
+    /// atomic: before PostgreSQL 16 it nests its own subtransaction there, and from 16 the soft error needs none.
+    /// </summary>
+    /// <param name="atomic">Whether the scope runs its statements atomically.</param>
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public Task ScopedInputRejectsInvalidTextWithoutFailingTheScope(bool atomic)
+        => PostgresFixture.Cluster.RunInTransactionAsync(nameof(ScopedInputRejectsInvalidTextWithoutFailingTheScope),
+            async (connection, transaction, token) =>
+            {
+                await using var command = new NpgsqlCommand($"SELECT datatype.value_input_in_scope({(atomic ? "true" : "false")})",
+                    connection, transaction);
+                Assert.AreSequenceEqual(["rejected", "rejected", "rejected", "rejected", "rejected"],
+                    Assert.IsInstanceOfType<string[]>(await command.ExecuteScalarAsync(token)));
+                command.CommandText = "SELECT 42";
+                Assert.AreEqual(42, await command.ExecuteScalarAsync(token));
+            }, context.CancellationToken);
 }
 
 public sealed partial class GucParallelTests

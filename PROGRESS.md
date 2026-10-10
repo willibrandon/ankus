@@ -130,6 +130,20 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
 
 ## Active validation and work
 
+- The guard tiers now have figures. `tests/Ankus.GuardTierBenchmarks` measures
+  them with `ankus bench`, and on a PostgreSQL 18.6 release build a filtered log
+  report costs 0.19 µs, a lightweight numeric parse or addition 0.60–0.72 µs, the
+  same addition in an explicit subtransaction 1.19 µs, an SPI `SELECT 1` 2.89 µs
+  and an invalid `TryParse` 5.51 µs, most of it the managed exception. The
+  [guard tier measurements](docs/contributing/evidence/guard-tiers.md) also record
+  13.23 and 16.15 assertion builds. Measuring them exposed a gap: before
+  PostgreSQL 16, `TryParse` inside an explicit scope, which every benchmark
+  iteration uses, could not recover invalid input, because input recovery opened
+  its own subtransaction only when no scope was active. A scope already runs in a
+  subtransaction, so input recovery now nests one there, in recoverable and
+  atomic scopes alike. A new test parses each family's invalid text in both kinds
+  of scope, and it and 125 related input, parallel, ownership and numeric tests
+  pass on PostgreSQL 13.23, 16 and 18.6.
 - The `Ankus` namespace now holds only the API extension authors use, the
   counterpart of `pgrx::prelude::*`, which the SDK imports implicitly. The
   registries, codecs and type writer that generated code calls moved to

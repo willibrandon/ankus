@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>In-backend measurements of the native guard tiers, for comparing guard changes across PostgreSQL majors.</Description>
+    <AnkusExtensionName>ankus_guard_tiers</AnkusExtensionName>
+  </PropertyGroup>
+
+  <Import Project="../../src/Ankus.Sdk/Ankus.Sdk.targets" />
+
+</Project>

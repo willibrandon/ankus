@@ -128,9 +128,12 @@ internal static class GuardedBackend
         #else
             bool soft_input = false;
         #endif
+            /* Before PostgreSQL 16, TryParse recovers through its own subtransaction. An explicit
+             * scope already runs inside one, so it may nest another there, even in an atomic scope;
+             * transaction callbacks and parallel workers cannot start one. */
             bool input_recovery = !soft_input && request->recover_input && request->scalar_operation == 0 &&
                 (numeric || temporal || network || geometry || (range && ankus_uses_builtin_range(request))) &&
-                !direct_spi && transaction_frame == NULL;
+                !ankus_parallel_without_subtransactions() && (transaction_frame == NULL || transaction_frame->scope);
             /* Without a log hook, a report below ERROR runs only PostgreSQL's own formatting and
              * client-encoding conversion. Neither holds a resource when it fails, so the report
              * needs no subtransaction and its failure is still recovered. */
@@ -142,7 +145,8 @@ internal static class GuardedBackend
                 transaction_callbacks || transaction_id || datum || function_context || function_call || custom_type || datum_type || array || lookup || relation || subtransaction;
             /* An explicit scope always owns a subtransaction, even inside an atomic scope whose
              * statements share their enclosing subtransaction. */
-            bool recovery_subtransaction = (!direct_spi || (subtransaction && !ankus_parallel_without_subtransactions())) && !lightweight;
+            bool recovery_subtransaction = (!direct_spi || input_recovery || (subtransaction && !ankus_parallel_without_subtransactions())) &&
+                !lightweight;
             volatile MemoryContext operation_context = NULL;
             result->release = ankus_release_result;
 

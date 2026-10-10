@@ -7,6 +7,7 @@
 - [API reference generation](api-reference.md)
 - [Complete port requirements](evidence/parity-requirements.md)
 - [Implementation and acceptance history](evidence/port-history.md)
+- [Guard tier measurements](evidence/guard-tiers.md)
 
 Current implementation status, validation results and remaining work are tracked in
 [PROGRESS.md](../../PROGRESS.md).

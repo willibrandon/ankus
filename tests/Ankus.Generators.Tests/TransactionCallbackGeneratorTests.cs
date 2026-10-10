@@ -102,7 +102,12 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.Contains("ankus_is_builtin_range(request->parameters[0].type_oid)", native);
         Assert.Contains("bool lightweight = !input_recovery && (numeric || temporal || network || geometry ||", native);
         Assert.Contains("(datum && request->scalar_operation == 6));", native);
-        Assert.Contains("bool recovery_subtransaction = (!direct_spi || (subtransaction && !ankus_parallel_without_subtransactions())) && !lightweight;", native);
+        // TryParse before PostgreSQL 16 nests its own subtransaction, also inside an explicit scope.
+        Assert.Contains("!ankus_parallel_without_subtransactions() && (transaction_frame == NULL || transaction_frame->scope);", native);
+        Assert.Contains("bool recovery_subtransaction = (!direct_spi || input_recovery || (subtransaction && !ankus_parallel_without_subtransactions())) &&\n" +
+            "        !lightweight;", native);
+        // From PostgreSQL 16, a soft input error needs no subtransaction.
+        Assert.Contains("bool soft_input = request->recover_input && request->scalar_operation == 0 &&", native);
         Assert.Contains("bool recovered = false;", native);
         Assert.Contains("if (lightweight && operation_context != NULL)", native);
         Assert.Contains("MemoryContextDelete((MemoryContext) operation_context);", native);
