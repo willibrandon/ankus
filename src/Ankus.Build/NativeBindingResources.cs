@@ -55,6 +55,18 @@ internal static class NativeBindingResources
         return reader.ReadToEnd() + "\n#include \"common/int.h\"\n" + NativeBindingHeaderHelpers.Source(major);
     }
 
+    /// <summary>
+    /// Reads the pinned header manifest alone, as pgrx passes it to bindgen.
+    /// </summary>
+    /// <param name="major">The selected PostgreSQL major.</param>
+    /// <returns>The manifest's includes.</returns>
+    internal static string ReadManifest(int major)
+    {
+        using Stream source = Open(major, "h");
+        using var reader = new StreamReader(source);
+        return reader.ReadToEnd();
+    }
+
     private static Stream Open(int major, string extension)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(major, 13);

@@ -24,6 +24,11 @@ try
         return 0;
     }
 
+    if (args.Length > 0 && args[0] == "binding-catalog-headers")
+    {
+        return await NativeBindingHeaderCatalogCommand.RunAsync(args[1..]) == 0 ? 0 : 2;
+    }
+
     if (args.Length > 0 && args[0] == "binding-header-manifest")
     {
         await NativeBindingHeaderManifestCommand.RunAsync(args[1..]);
@@ -75,6 +80,12 @@ try
     if (args.Length > 0 && args[0] == "binding-records")
     {
         await NativeBindingRecordCommand.RunAsync(args[1..]);
+        return 0;
+    }
+
+    if (args.Length > 0 && args[0] == "binding-catalog-worker")
+    {
+        await NativeBindingHeaderCatalogWorker.RunAsync(args[1..]);
         return 0;
     }
 

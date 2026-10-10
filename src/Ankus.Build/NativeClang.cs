@@ -201,6 +201,27 @@ internal sealed unsafe class NativeClang(string path) : SafeHandle(NativeLibrary
     }
 
     /// <summary>
+    /// Visits every declaration under a cursor once. A serialized AST loads a declaration context's members lazily, and
+    /// measuring a record first loads only its fields, so later visits would list its nested declarations before every
+    /// field; visiting first keeps source order, as parsing the headers directly does.
+    /// </summary>
+    internal void LoadDeclarations(NativeClangCursor cursor)
+    {
+        var visit = new CursorVisit(recursive: true);
+        GCHandle state = GCHandle.Alloc(visit);
+        try
+        {
+            ((delegate* unmanaged[Cdecl]<NativeClangCursor, delegate* unmanaged[Cdecl]<NativeClangCursor, NativeClangCursor, nint, uint>, nint, uint>)Export("clang_visitChildren"))(
+                cursor, &VisitDeclaration, GCHandle.ToIntPtr(state));
+            visit.Error?.Throw();
+        }
+        finally
+        {
+            state.Free();
+        }
+    }
+
+    /// <summary>
     /// Copies physical field declarations, including implicit anonymous containers and unnamed bitfields.
     /// </summary>
     internal List<NativeClangCursor> Fields(NativeClangType type)
@@ -272,6 +293,24 @@ internal sealed unsafe class NativeClang(string path) : SafeHandle(NativeLibrary
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(System.Runtime.CompilerServices.CallConvCdecl)])]
+    private static uint VisitDeclaration(NativeClangCursor cursor, NativeClangCursor parent, nint state)
+    {
+        var visit = (CursorVisit)GCHandle.FromIntPtr(state).Target!;
+        try
+        {
+            visit.Count();
+
+            // Declarations are CXCursor_FirstDecl through CXCursor_LastDecl; their members are the only lazy content.
+            return cursor.Kind is >= 1 and <= 39 ? 2U : 1U;
+        }
+        catch (Exception error)
+        {
+            visit.Error = ExceptionDispatchInfo.Capture(error);
+            return 0;
+        }
+    }
+
+    [UnmanagedCallersOnly(CallConvs = [typeof(System.Runtime.CompilerServices.CallConvCdecl)])]
     private static uint VisitField(NativeClangCursor cursor, nint state)
     {
         var visit = (CursorVisit)GCHandle.FromIntPtr(state).Target!;
@@ -293,6 +332,8 @@ internal sealed unsafe class NativeClang(string path) : SafeHandle(NativeLibrary
     /// <param name="recursive">Whether child traversal includes descendants.</param>
     private sealed class CursorVisit(bool recursive)
     {
+        private long _visited;
+
         /// <summary>
         /// Whether the caller requested descendant traversal.
         /// </summary>
@@ -310,6 +351,17 @@ internal sealed unsafe class NativeClang(string path) : SafeHandle(NativeLibrary
         {
             get;
             set;
+        }
+
+        /// <summary>
+        /// Counts one visited cursor without retaining it, within a bound for whole translation units.
+        /// </summary>
+        internal void Count()
+        {
+            if (++_visited == 100_000_000)
+            {
+                throw new InvalidDataException("Native declaration traversal exceeds the supported limit.");
+            }
         }
 
         /// <summary>

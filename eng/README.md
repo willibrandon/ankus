@@ -8,7 +8,7 @@ repository root with `dotnet run --file`.
 | `Ankus.Ci.cs` | Validate, build, test, pack, and publish Ankus and its pinned Native AOT runtime. |
 | `Ankus.SqlStates.cs` | Regenerate or check the named SQLSTATE catalog from pinned PostgreSQL source tags. |
 | `Ankus.Oids.cs` | Regenerate or check the version-aware built-in OID catalog from pinned pgrx sources. |
-| `Ankus.Bindings.cs` | Regenerate or check native declarations, node cast graphs and attribution from pinned pgrx bindings; check mode also verifies the source-derived header bytes. |
+| `Ankus.Bindings.cs` | Regenerate or check native declarations, node cast graphs and attribution from pinned pgrx bindings; check mode also verifies the source-derived header bytes. Header mode derives a major's type catalog and function, global and constant inventory from installed headers and compares them with the pinned ones. |
 | `Ankus.Headers.cs` | Regenerate or check one header manifest directly from an installed PostgreSQL 13–19 server-header tree. |
 | `Ankus.Templates.cs` | Stage the shared extension, worker and optional test-framework assets for the version-matched template package. |
 | `Ankus.BuildTimings.cs` | Read individual binding-task durations and cache outcomes from retained MSBuild binary logs without exposing command arguments. |
@@ -300,6 +300,24 @@ The app invokes the `Ankus.Build binding-catalogs` command; parsing and catalog
 generation stay inside the build tool without exposing its internals.
 See the [catalog inventory](../src/Ankus.Build/Bindings/README.md) for the pinned
 declaration counts and remaining runtime binding scope.
+
+Header mode derives the type catalog and the foreign function, global and
+constant inventory without pgrx's generated output. It compiles the major's manifest
+against an installed server with Clang 20 or later, reads the declarations
+through the compiler's libclang in a worker process, applies pgrx 0.19.3's
+bindgen configuration, and lists every difference from the pinned catalogs,
+ignoring formatting. The command exits with 2 when they differ:
+
+```text
+dotnet run --file ./eng/Ankus.Bindings.cs -- --headers /path/to/pg_config /tmp/pg18-derived.json
+```
+
+Differences are expected where the installation is configured differently from
+pgrx's reference build. Assert-enabled servers add `USE_ASSERT_CHECKING` fields
+and functions, configure options and version strings change constants, ICU,
+NLS and liburing builds add their declarations, distribution patches can add
+their own, and the C library contributes its own versions of types such as
+`_IO_FILE`.
 
 The same command refreshes the upstream license notice. In check mode it also
 verifies that the source-derived manifests still match the pinned pgrx release,

@@ -58555,7 +58555,8 @@
     "walrcv_startstreaming_fn": "::core::option::Option\u003C\n    unsafe extern \u0022C-unwind\u0022 fn(\n        conn: *mut WalReceiverConn,\n        options: *const WalRcvStreamOptions,\n    ) -\u003E bool,\n\u003E",
     "wchar2mb_with_len_converter": "::core::option::Option\u003C\n    unsafe extern \u0022C-unwind\u0022 fn(\n        from: *const pg_wchar,\n        to: *mut ::core::ffi::c_uchar,\n        len: ::core::ffi::c_int,\n    ) -\u003E ::core::ffi::c_int,\n\u003E",
     "wchar_t": "::core::ffi::c_int",
-    "xl_xact_parsed_prepare": "xl_xact_parsed_commit"
+    "xl_xact_parsed_prepare": "xl_xact_parsed_commit",
+    "yytoken_kind_t": "yytokentype::Type"
   },
   "Enums": {
     "A_Expr_Kind": {

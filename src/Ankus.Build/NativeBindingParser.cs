@@ -87,6 +87,16 @@ internal static partial class NativeBindingParser
             }
         }
 
+        // Bindgen re-exports a typedef of a constified enum under the typedef's own name instead of declaring an alias.
+        foreach (Match alias in EnumReexport().Matches(code))
+        {
+            string name = alias.Groups["name"].Value;
+            if (!aliases.TryAdd(name, alias.Groups["module"].Value + "::Type"))
+            {
+                throw new FormatException($"Duplicate native alias {name}.");
+            }
+        }
+
         var enums = new SortedDictionary<string, NativeBindingEnum>(StringComparer.Ordinal);
         foreach (Match module in ModuleDeclaration().Matches(code))
         {
@@ -127,7 +137,7 @@ internal static partial class NativeBindingParser
     /// <summary>
     /// Reproduces struct prefix inheritance, typedef tag aliases, union directionality and legacy value nodes.
     /// </summary>
-    private static void ResolveNodes(SortedDictionary<string, NativeBindingType> types,
+    internal static void ResolveNodes(SortedDictionary<string, NativeBindingType> types,
         SortedDictionary<string, uint> tags, SortedDictionary<string, string> aliases, int major)
     {
         Dictionary<string, List<string>> children = types.Keys.ToDictionary(static name => name, static _ => new List<string>(), StringComparer.Ordinal);
@@ -383,6 +393,9 @@ internal static partial class NativeBindingParser
 
     [GeneratedRegex(@"(?m)^pub type (?<name>\w+)\s*=[ \t]*")]
     private static partial Regex AliasDeclaration();
+
+    [GeneratedRegex(@"(?m)^pub use self::(?<module>\w+)::Type as (?<name>\w+);")]
+    private static partial Regex EnumReexport();
 
     [GeneratedRegex(@"(?m)^pub mod (?<name>\w+)\s*\{")]
     private static partial Regex ModuleDeclaration();

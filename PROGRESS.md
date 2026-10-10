@@ -130,6 +130,28 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
 
 ## Active validation and work
 
+- Binding catalogs can now be derived from the installed headers, as pgrx
+  runs bindgen at build time, instead of from pgrx's generated output.
+  `binding-catalog-headers` reads the header manifest through the compiler's
+  libclang in a worker process and applies pgrx 0.19.3's bindgen configuration
+  to types, functions, globals and macro constants, which a port of cexpr
+  evaluates. A serialized AST needed two adjustments to read like parsed
+  source: declarations are visited in source order before records are
+  measured, and comments are kept although the headers are system includes.
+  On Linux x64 the derived catalogs for 13.23 through 19 beta 4 differ from the
+  pinned ones only by configuration (assertions, ICU, NLS, liburing, configure
+  options, glibc); against a 19 beta 4 build configured like pgrx's, only
+  `_IO_FILE`, the default port and the version string differ. The build still
+  uses the pinned catalogs; switching it is next.
+- The new weekly macOS cells found test assumptions that only held for
+  packaged servers: PostgreSQL 13's memory fallback relied on the implicit
+  library suffix, which is `.so` on macOS before 16; `pg_popcount32` is a
+  pointer on every platform before 15; and source builds before 16 lack ICU.
+  The tests now name the file, expect each major's declaration and report
+  inconclusive without ICU. macOS 19 (an assert-enabled build) also aborted on
+  `AllocSetCheck` after a test whose notice resets `ErrorContext`. It did not
+  recur in an assert-enabled Linux suite, a full macOS suite or five macOS
+  repeats with malloc scribbling, so it remains open as an intermittent fault.
 - The weekly platform-versions workflow now covers every supported stable major
   on Windows x64 and every major except 18 on macOS ARM64, which primary CI runs.
   Windows 14.24, 15.19 and 16.15 come from EDB's archives, pass the
@@ -255,7 +277,8 @@ in the [evidence archive](docs/contributing/evidence/port-history.md#acceptance-
   `using Ankus` from the SDK. The `dotnet new` templates accept
   `--extension-name`, matching `ankus new`. The numeric guide notes pgrx's
   `XX000`. Still open from the audit: binding catalogs still taken from pgrx's
-  generated bindings, and Linux ARM64, which no runner covers yet.
+  generated bindings (header-derived catalogs now match them; the build switch
+  remains), and Linux ARM64, which no runner covers yet.
 - **2b841a3** passes the complete Linux x64 suite on PostgreSQL 18.6 with run-as
   (**14,442** total; **14,391** passed; 51 skips; zero failures; **41m03s**). Its
   Windows x64 suites on PostgreSQL 17.11 and 13.23, run concurrently at package
